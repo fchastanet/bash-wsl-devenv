@@ -1,0 +1,80 @@
+---
+# Lint the code base and launch unit test at each push or pull request
+name: Lint and test
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  linters:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: true
+      matrix:
+        vendor:
+          - ubuntu
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - uses: ouzi-dev/commit-status-updater@v2
+        with:
+          name: lint
+          status: pending
+
+      - name: Install vendors
+        run: |
+          set -exo pipefail
+          ./bin/installRequirements
+
+      - name: Linting - Shellcheck
+        run: |
+          set -exo pipefail
+          ./vendor/bash-tools-framework/bin/shellcheckLint --source-path=SCRIPTDIR --external-sources | \
+            tee logs/shellcheck-checkstyle.xml
+
+      - name: Linting - Awk
+        run: |
+          set -exo pipefail
+          ./vendor/bash-tools-framework/bin/awkLint | tee logs/awk-checkstyle.xml
+
+      - name: build bin files + check md5
+        run: |
+          set -exo pipefail
+          ./.github/workflows/buildBinFiles.sh 2>&1 | tee logs/buidBinFiles.log
+
+      - name: Checkstyle aggregation
+        uses: jwgmeligmeyling/checkstyle-github-action@master
+        with:
+          path: 'logs/*-checkstyle.xml'
+
+      - name: Archive results
+        uses: actions/upload-artifact@v3
+        with:
+          name: linter-reports
+          path: |
+            logs/*.xml
+            logs/*.log
+
+      - uses: ouzi-dev/commit-status-updater@v2
+        if: always()
+        with:
+          name: lint
+          status: ${{ job.status }}
+
+  buildResults:
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    name: Final Build Results
+    needs: [linters]
+    steps:
+      # run this action to get the workflow conclusion
+      # You can get the conclusion via env (env.WORKFLOW_CONCLUSION)
+      - uses: technote-space/workflow-conclusion-action@v3
+
+      # run other action with the workflow conclusion
+      - uses: ouzi-dev/commit-status-updater@v2
+        with:
+          name: build
+          # neutral, success, skipped, cancelled, timed_out, action_required, failure
+          status: ${{ env.WORKFLOW_CONCLUSION }}

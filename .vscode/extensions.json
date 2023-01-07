@@ -1,0 +1,16 @@
+{
+  "recommendations": [
+    "streetsidesoftware.code-spell-checker",
+    "mkaufman.HTMLHint",
+    "esbenp.prettier-vscode",
+    "monosans.djlint",
+    "timonwong.shellcheck",
+    "AquaSecurityOfficial.trivy-vulnerability-scanner",
+    "Bridgecrew.checkov",
+    "standard.vscode-standard",
+    "stylelint.vscode-stylelint",
+    "foxundermoon.shell-format",
+    "HTMLHint.vscode-htmlhint",
+    "dbaeumer.vscode-eslint"
+  ]
+}
