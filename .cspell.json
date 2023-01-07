@@ -9,7 +9,7 @@
     "**/vendor/**",
     "**/backup/**",
     "**/logs/**",
-    "**/.*megalinter_file_names_cspell.txt",
+    "**/*megalinter_file_names_cspell.txt",
     ".history/**",
     ".cspell/**",
     ".vscode",

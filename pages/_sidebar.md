@@ -6,6 +6,6 @@
 - [FAQ](/docs/FAQ.md)
 - [Contribute](/docs/Contribute.md)
 - [TODO](/docs/TODO.md)
-- Other projects
+- Bash suite projects
   - [Bash Tools](https://fchastanet.github.io/bash-tools/)
   - [Bash Tools Framework](https://fchastanet.github.io/bash-tools-framework/)
