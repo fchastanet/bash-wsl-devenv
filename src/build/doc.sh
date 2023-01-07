@@ -26,4 +26,9 @@ fi
 
 # copy other files
 cp "${ROOT_DIR}/README.md" "${DOC_DIR}/README.md"
+sed -i -E \
+  -e '/<!-- remove -->/,/<!-- endRemove -->/d' \
+  -e 's#https://fchastanet.github.io/bash-dev-env##' \
+  "${DOC_DIR}/README.md"
+
 cp -R "${ROOT_DIR}/docs" "${DOC_DIR}/docs"
