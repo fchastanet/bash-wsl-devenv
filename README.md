@@ -2,12 +2,12 @@
 
 <!-- remove -->
 
-> **_NOTE:_** **Documentation is best viewed on
-> [github-pages](https://fchastanet.github.io/bash-dev-env/)**
+> **_NOTE:_** Documentation is best viewed on
+> [github-pages](https://fchastanet.github.io/bash-dev-env/)
 
 <!-- endRemove -->
 
-> [!TIP|label:Checkout related projects of this suite]
+> **_TIP:_** Checkout related projects of this suite
 >
 > - [Bash Tools Framework](https://fchastanet.github.io/bash-tools-framework/)
 > - [Bash Tools](https://fchastanet.github.io/bash-tools/)
@@ -16,7 +16,11 @@
 <!-- prettier-ignore-start -->
 <!-- markdownlint-capture -->
 <!-- markdownlint-disable -->
-
+[![GitHubLicense](
+  https://img.shields.io/github/license/Naereen/StrapDown.js.svg
+)](
+  https://github.com/fchastanet/bash-dev-env/blob/master/LICENSE
+)
 [![CI/CD](
   https://github.com/fchastanet/bash-dev-env/actions/workflows/lint-test.yml/badge.svg
 )](
