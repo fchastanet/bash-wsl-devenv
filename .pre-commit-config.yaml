@@ -13,7 +13,7 @@ repos:
         verbose: true
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: v4.5.0
     hooks:
       - id: mixed-line-ending
       - id: end-of-file-fixer
@@ -50,7 +50,7 @@ repos:
       - id: git-check
 
   - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v3.0.0-alpha.6
+    rev: v4.0.0-alpha.8
     hooks:
       - id: prettier
 
@@ -89,7 +89,7 @@ repos:
 
   ## Python, Polyglot, Git, pre-commit
   - repo: https://github.com/ScribeMD/pre-commit-hooks
-    rev: 0.15.6
+    rev: 0.16.3
     hooks:
       - id: megalinter-incremental
         args: [--flavor, terraform, --release, v6.16.0]
