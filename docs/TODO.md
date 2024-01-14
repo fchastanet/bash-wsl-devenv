@@ -7,24 +7,23 @@
   - [1.4. .env checksum](#14-env-checksum)
 - [2. Missing features](#2-missing-features)
   - [2.1. add windows terminal configuration](#21-add-windows-terminal-configuration)
-  - [2.5. Wslg](#25-wslg)
-  - [2.6. configure some cleaning of wsl via scheduled tasks](#26-configure-some-cleaning-of-wsl-via-scheduled-tasks)
-  - [2.7. windows files side effects](#27-windows-files-side-effects)
-  - [2.8. vscode extensions](#28-vscode-extensions)
-  - [2.9. PHPstorm](#29-phpstorm)
-  - [2.13. Skills install](#213-skills-install)
-  - [2.14. add .env default profile for upgrade](#214-add-env-default-profile-for-upgrade)
-  - [2.15. install pre-commit](#215-install-pre-commit)
-  - [2.16. remove Awsume](#216-remove-awsume)
-  - [2.17. pre-commit config](#217-pre-commit-config)
-  - [2.18. install python venv in pycharm](#218-install-python-venv-in-pycharm)
-  - [2.19. Git config use phpstorm as diff and merge tool](#219-git-config-use-phpstorm-as-diff-and-merge-tool)
-  - [2.20. install devcert](#220-install-devcert)
-  - [2.26. install an undelete software](#226-install-an-undelete-software)
-  - [2.28. add automatic ecr](#228-add-automatic-ecr)
-  - [2.29. Functions::retryParameterized](#229-functionsretryparameterized)
-  - [2.30. replace curl by aria2](#230-replace-curl-by-aria2)
-  - [replace docker for windows](#replace-docker-for-windows)
+  - [2.2. Wslg](#22-wslg)
+  - [2.3. configure some cleaning of wsl via scheduled tasks](#23-configure-some-cleaning-of-wsl-via-scheduled-tasks)
+  - [2.4. windows files side effects](#24-windows-files-side-effects)
+  - [2.5. vscode extensions](#25-vscode-extensions)
+  - [2.6. PHPstorm](#26-phpstorm)
+  - [2.7. Skills install](#27-skills-install)
+  - [2.8. add .env default profile for upgrade](#28-add-env-default-profile-for-upgrade)
+  - [2.9. install pre-commit](#29-install-pre-commit)
+  - [2.10. remove Awsume](#210-remove-awsume)
+  - [2.11. pre-commit config](#211-pre-commit-config)
+  - [2.12. install python venv in pycharm](#212-install-python-venv-in-pycharm)
+  - [2.13. Git config use phpstorm as diff and merge tool](#213-git-config-use-phpstorm-as-diff-and-merge-tool)
+  - [2.14. install devcert](#214-install-devcert)
+  - [2.15. install an undelete software](#215-install-an-undelete-software)
+  - [2.16. add automatic ecr](#216-add-automatic-ecr)
+  - [2.17. replace curl by aria2](#217-replace-curl-by-aria2)
+  - [2.18. replace docker for windows](#218-replace-docker-for-windows)
 
 ## 1. Needed refactoring (WIP)
 
@@ -97,20 +96,20 @@ Add the following to your Windows Terminal config under the "keybindings"
 section: { "command": "scrollUpPage", "keys": "shift+pageup" }, { "command":
 "scrollDownPage", "keys": "shift+pagedown" },
 
-### 2.5. Wslg
+### 2.2. Wslg
 
 Needs Windows 11 <https://github.com/microsoft/wslg>
 
-### 2.6. configure some cleaning of wsl via scheduled tasks
+### 2.3. configure some cleaning of wsl via scheduled tasks
 
 <https://ryanharrison.co.uk/2021/05/13/wsl2-better-managing-system-resources.html#:~:text=Setting%20a%20WSL2%20Memory%20Limit,wslconfig%20).>
 or maybe special conf for cleaning ?
 
-### 2.7. windows files side effects
+### 2.4. windows files side effects
 
 when windows files are updated special conf OVERRIDE_WINDOWS_FILES=1 ?
 
-### 2.8. vscode extensions
+### 2.5. vscode extensions
 
 install vscode plugins from vscode settings clean plugins list from
 VsCodeExtensionProfiles find a way to make VsCode extensions easily disabled
@@ -121,55 +120,51 @@ VsCodeExtensionProfiles find a way to make VsCode extensions easily disabled
 => but
 [issue on wsl](https://github.com/evald24/vscode-extensions-profiles/issues/19)
 
-### 2.9. PHPstorm
+### 2.6. PHPstorm
 
 is there a way to install automatically plugins ?
 <https://stackoverflow.com/a/24287585>
 
-### 2.13. Skills install
+### 2.7. Skills install
 
 postman automatically import collection + env
 
-### 2.14. add .env default profile for upgrade
+### 2.8. add .env default profile for upgrade
 
 instead that upgrade uses last profile used, use .env to configure the profile
 to use + remove -p option or simply save each packages installed in a file
 
-### 2.15. install pre-commit
+### 2.9. install pre-commit
 
 install pre-commit hook if .pre-commit-config.yaml
 
-### 2.16. remove Awsume
+### 2.10. remove Awsume
 
 - remove awsume auto complete in .bashrc
 
-### 2.17. pre-commit config
+### 2.11. pre-commit config
 
 add megalinter to pre-commit
 
-### 2.18. install python venv in pycharm
+### 2.12. install python venv in pycharm
 
 <https://www.jetbrains.com/help/pycharm/using-wsl-as-a-remote-interpreter.html#enable-debugging>
 
-### 2.19. Git config use phpstorm as diff and merge tool
+### 2.13. Git config use phpstorm as diff and merge tool
 
-### 2.20. install devcert
+### 2.14. install devcert
 
 <https://github.com/davewasmer/devcert>
 
-### 2.26. install an undelete software
+### 2.15. install an undelete software
 
-### 2.28. add automatic ecr
+### 2.16. add automatic ecr
 
 <https://github.com/awslabs/amazon-ecr-credential-helper>
 
-### 2.29. Functions::retryParameterized
+### 2.17. replace curl by aria2
 
-message not displayed retry 3 actually retry 4
-
-### 2.30. replace curl by aria2
-
-### replace docker for windows
+### 2.18. replace docker for windows
 
 <https://dev.solita.fi/2021/12/21/docker-on-wsl2-without-docker-desktop.html>
 <https://dev.to/bowmanjd/install-docker-on-windows-wsl-without-docker-desktop-34m9>

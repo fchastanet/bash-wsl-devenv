@@ -1,26 +1,19 @@
 ---
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit, manual]
+minimum_pre_commit_version: 3.5.0
 repos:
-  - repo: local
-    hooks:
-      - id: remove-megalinter-containers
-        name: remove-megalinter-containers
-        entry:
-          bash -c 'set -x && docker ps -a -q --filter="name=megalinter" | xargs
-          -r docker rm || true'
-        language: system
-        always_run: true
-        require_serial: true
-        verbose: true
-
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: v4.5.0
     hooks:
       - id: mixed-line-ending
       - id: end-of-file-fixer
+      - id: trailing-whitespace
       - id: check-executables-have-shebangs
       - id: check-shebang-scripts-are-executable
       - id: check-xml
       - id: check-yaml
+      - id: check-added-large-files
       - id: forbid-new-submodules
       - id: mixed-line-ending
         args: [--fix=lf]
@@ -32,82 +25,60 @@ repos:
             conf\/.vscode\/settings.json
           )$
 
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+
   - repo: https://github.com/jumanjihouse/pre-commit-hooks
     rev: 3.0.0
     hooks:
-      - id: shellcheck
-        # shellcheck does not validate correctly zsh files
-        # x modifier: extended. Spaces and text after a # in the pattern are ignored
-        exclude: (?x)^( vendor/.*| \.tpl| ^bin/.*| .\.zsh| \.zshrc| install )$
-
       - id: shfmt
         args: [-i, '2', -ci]
-        exclude: (.\.zsh$|/\.zshrc$)
+        # x modifier: extended. Spaces and text after a # in the pattern are ignored
+        exclude: (?x)( ^vendor/| ^bin/| \.tpl$ | /testsData/)
+        stages: [pre-commit]
 
       # Check both committed and uncommitted files for git conflict
       # markers and whitespace errors according to core.whitespace
       # and conflict-marker-size configuration in a git repo.
       - id: git-check
+        exclude: /testsData/
 
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v3.0.0-alpha.6
+  - repo: https://github.com/fchastanet/bash-tools-framework
+    rev: 2.3.0
     hooks:
-      - id: prettier
-
-  - repo: local
-    hooks:
-      - id: build-sh-files
-        name: build-sh-files
-        entry: bash -c './.github/workflows/buildBinFiles.sh'
-        language: system
-        always_run: true
-        require_serial: true
-        fail_fast: true
-        verbose: true
-
-  - repo: local
-    hooks:
-      - id: install-requirements
-        name: install-requirements
-        entry: bash -c './bin/installRequirements'
-        language: system
-        always_run: true
-        require_serial: true
-        fail_fast: true
-        verbose: true
-
-  - repo: local
-    hooks:
-      - id: build-doc-files
-        name: build-doc-files
-        entry: bash -c './bin/doc'
-        language: system
-        always_run: true
-        require_serial: true
-        fail_fast: true
-        verbose: true
-
-  ## Python, Polyglot, Git, pre-commit
-  - repo: https://github.com/ScribeMD/pre-commit-hooks
-    rev: 0.15.6
-    hooks:
-      - id: megalinter-incremental
-        args: [--flavor, terraform, --release, v6.16.0]
-        stages:
-          - commit
-      - id: megalinter-full
-        args: [--flavor, terraform, --release, v6.16.0]
-        stages:
-          - push
-
-  - repo: local
-    hooks:
-      - id: remove-megalinter-containers-after-run
-        name: remove-megalinter-containers
-        entry:
-          bash -c 'set -x && docker ps -a -q --filter="name=megalinter" | xargs
-          -r docker rm || true'
-        language: system
-        always_run: true
-        require_serial: true
-        verbose: true
+      - id: fixShebangExecutionBit
+      - id: fixShebangExecutionBitGithubActions
+      - id: awkLint
+      - id: buildShFiles
+      - id: buildShFilesGithubAction
+      - id: shellcheckLint
+      - id: shellcheckLintGithubAction
+      - id: frameworkLinter
+        args:
+          [
+            --expected-warnings-count,
+            '3',
+            --format,
+            plain,
+            --theme,
+            default-force,
+            --display-level,
+            WARNING,
+          ]
+      - id: frameworkLinterGithubAction
+        args:
+          [
+            --expected-warnings-count,
+            '3',
+            --format,
+            checkstyle,
+            --theme,
+            default-force,
+            --display-level,
+            WARNING,
+          ]
+      - id: plantuml
+      - id: megalinterCheckVersion
+      - id: megalinterGithubAction
