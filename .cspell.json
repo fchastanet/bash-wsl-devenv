@@ -19,81 +19,9 @@
     ".jscpd.json",
     ".mega-linter.yml",
     ".shellcheckrc",
-    ".env",
-    "gitHooks/prepare-commit-msg"
+    ".env"
   ],
   "noConfigSearch": true,
-  "words": ["megalinter", "oxsecurity"],
-  "dictionaryDefinitions": [
-    {
-      "name": "bashCustom",
-      "path": ".cspell/bash.txt"
-    },
-    {
-      "name": "config",
-      "path": ".cspell/config.txt"
-    },
-    {
-      "name": "softwares",
-      "path": ".cspell/softwares.txt"
-    },
-    {
-      "name": "readme",
-      "path": ".cspell/readme.txt"
-    },
-    {
-      "name": "dirColors",
-      "path": ".cspell/dirColors.txt"
-    }
-  ],
-  "dictionaries": [
-    "bash",
-    "bashCustom",
-    "config",
-    "softwares",
-    "softwareTerms"
-  ],
-  "languageSettings": [
-    {
-      "languageId": "dirColors",
-      "locale": "*",
-      "dictionaries": ["dirColors"]
-    },
-    {
-      "languageId": "bashCustom",
-      "locale": "*",
-      "dictionaries": ["bashCustom"]
-    },
-    {
-      "languageId": "config",
-      "locale": "*",
-      "dictionaries": ["config"]
-    },
-    {
-      "languageId": "softwares",
-      "locale": "*",
-      "dictionaries": ["softwares"]
-    },
-    {
-      "languageId": "readme",
-      "locale": "*",
-      "dictionaries": ["readme"]
-    }
-  ],
-  "overrides": [
-    {
-      "filename": "**/conf/bash_profile/.dir_colors",
-      "languageId": "dirColors"
-    },
-    {
-      "filename": "*.md",
-      "languageId": "readme"
-    },
-    {
-      "filename": "LICENSE",
-      "languageId": "readme"
-    }
-  ],
   "patterns": [
     {
       "name": "urls",
@@ -109,5 +37,91 @@
     }
   ],
   "ignoreRegExpList": ["urls", "packages", "markdownToc"],
-  "enableFiletypes": ["shellscript"]
+  "enableFiletypes": ["shellscript"],
+  "words": [
+    "Aftertabs",
+    "Anacron",
+    "Awscli",
+    "Awsume",
+    "Bazyli",
+    "Brzóska",
+    "Buildx",
+    "Chastanet",
+    "Checkstyle",
+    "DISTRO",
+    "DOCKERHUB",
+    "Docsify",
+    "GRYPE",
+    "HOSTIP",
+    "Hadolint",
+    "JSONLINT",
+    "Jetbrains",
+    "Kubectx",
+    "Kubeps",
+    "LXDE",
+    "Lxde",
+    "Mlocate",
+    "Parens",
+    "Plantuml",
+    "RUBOCOP",
+    "Shellcheck",
+    "TRIVY",
+    "TRUFFLEHOG",
+    "USERGROUP",
+    "USERGROUPID",
+    "USERHOME",
+    "USERID",
+    "USERPROFILE",
+    "Vcxsrv",
+    "Wslg",
+    "XDMCP",
+    "Xvfb",
+    "autoupdate",
+    "awsume",
+    "bbwe",
+    "checkstyle",
+    "chgrp",
+    "chsh",
+    "codesniffer",
+    "containerd",
+    "devcert",
+    "distro",
+    "docsify",
+    "errexit",
+    "fasd",
+    "fchastanet",
+    "getent",
+    "hjson",
+    "inet",
+    "kics",
+    "mbstring",
+    "megalinter",
+    "meslo",
+    "nameserver",
+    "nodoc",
+    "nohup",
+    "oxsecurity",
+    "pagedown",
+    "pageup",
+    "phpstorm",
+    "pipefail",
+    "plantuml",
+    "powerlevel",
+    "precommit",
+    "shellcheck",
+    "shellcheckrc",
+    "shfmt",
+    "sudoer",
+    "tabwidth",
+    "tagname",
+    "undelete",
+    "usermod",
+    "venv",
+    "wekyb",
+    "wslconfig",
+    "wslpath",
+    "wslvar",
+    "xcalc",
+    "xlaunch"
+  ]
 }

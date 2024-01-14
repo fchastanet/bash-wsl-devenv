@@ -1,37 +1,24 @@
 #!/usr/bin/env bash
-# BIN_FILE=${ROOT_DIR}/bin/installRequirements
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
+# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/bin/installRequirements
+# VAR_RELATIVE_FRAMEWORK_DIR_TO_CURRENT_DIR=..
+# FACADE
+# shellcheck disable=SC2034,SC2154
 
-.INCLUDE "${TEMPLATE_DIR}/_includes/_header.tpl"
+declare copyrightBeginYear="2020"
+declare optionBashFrameworkConfig="${BASH_DEV_ENV_ROOT_DIR}/.framework-config"
 
-.INCLUDE "${ORIGINAL_TEMPLATE_DIR}/_includes/executedAsUser.sh"
+.INCLUDE "$(dynamicTemplateDir _binaries/build/installRequirements.options.tpl)"
 
-HELP="$(
-  cat <<EOF
-${__HELP_TITLE}Description:${__HELP_NORMAL} installs requirements(fchastanet/bash-tools-framework)
-${__HELP_TITLE}Usage:${__HELP_NORMAL} ${SCRIPT_NAME}
+# @require Linux::requireExecutedAsUser
+run() {
+  mkdir -p "${BASH_DEV_ENV_ROOT_DIR}/vendor" || true
+  Git::cloneOrPullIfNoChanges \
+    "${BASH_DEV_ENV_ROOT_DIR}/vendor/bash-tools-framework" \
+    "https://github.com/fchastanet/bash-tools-framework.git"
+}
 
-.INCLUDE "${ORIGINAL_TEMPLATE_DIR}/_includes/author.tpl"
-EOF
-)"
-Args::defaultHelp "${HELP}" "$@"
-
-Git::cloneOrPullIfNoChanges \
-  "${ROOT_DIR}/vendor/bash-tools-framework" \
-  "https://github.com/fchastanet/bash-tools-framework.git"
-
-declare -a externalBinaries=(
-  awkLint
-  buildPushDockerImages
-  dockerLint
-  generateShellDoc
-  runBuildContainer
-  shellcheckLint
-  "test"
-)
-
-declare bin
-for bin in "${externalBinaries[@]}"; do
-  Log::displayInfo "Creating symlink to bash-tools-framework/bin/${bin} in bin directory"
-  ln -srf "${VENDOR_DIR}/bash-tools-framework/bin/${bin}" "${ROOT_DIR}/bin/${bin}"
-done
+if [[ "${BASH_FRAMEWORK_QUIET_MODE:-0}" = "1" ]]; then
+  run &>/dev/null
+else
+  run
+fi

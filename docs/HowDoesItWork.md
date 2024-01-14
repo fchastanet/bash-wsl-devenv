@@ -116,8 +116,6 @@ Providing `CONFIG_LIST` array of scripts to load.
 Some of the functions you can find:
 
 - `lib/utils/Assert.sh` provides utility functions to do some checks.
-- `Functions::retry` in order to retry a command - useful for robustness for
-  curl, wget, apt which are subject on network stability.
 - `Functions::aptInstall` use this function in order to be sure to use the
   correct default parameters it includes retry.
 - `Functions::aptAddRepository`

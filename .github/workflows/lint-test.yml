@@ -41,14 +41,12 @@ jobs:
 
       # only if pre-commit
       - name: Set up Python
-        if: matrix.runPrecommitTests
         # kics-scan ignore-line
         uses: actions/setup-python@v5
         with:
           python-version: 3.9
 
       - name: Install pre-commit
-        if: matrix.runPrecommitTests
         run: pip install pre-commit
 
       # kics-scan ignore-line
@@ -57,6 +55,9 @@ jobs:
           name: lint
           status: pending
 
+      - name: Run pre-commit
+        run: pre-commit run -a --hook-stage manual
+
       - name: Checkstyle aggregation
         # kics-scan ignore-line
         uses: lcollins/checkstyle-github-action@v2.0.0
@@ -64,15 +65,19 @@ jobs:
           path: 'artifacts/**/*.xml'
 
       - name: Archive results
+        if: always()
         uses: actions/upload-artifact@v3
+        continue-on-error: true
         with:
           name: linter-reports
           path: |
             logs/*.xml
             logs/*.log
+            megalinter-reports/**
 
       - name: Create Pull Request
-        if: matrix.runPrecommitTests && failure()
+        if: failure()
+        continue-on-error: true
         # kics-scan ignore-line
         uses: peter-evans/create-pull-request@v5
         with:

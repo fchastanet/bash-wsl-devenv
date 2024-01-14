@@ -9,6 +9,9 @@ conf.override/*
 logs/*
 !logs/.gitkeep
 
+node_modules/
+yarn.lock
+
 .env
 
 /profile.*.sh
