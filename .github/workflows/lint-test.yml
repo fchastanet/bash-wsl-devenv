@@ -3,78 +3,93 @@
 name: Lint and test
 on:
   push:
+    # execute when pushing only branches, not tags
+    branches:
+      - '**'
   workflow_dispatch:
 
 jobs:
   linters:
     runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: true
-      matrix:
-        vendor:
-          - ubuntu
+    permissions:
+      # needed by ouzi-dev/commit-status-updater@v2
+      statuses: write
+      # needed by peter-evans/create-pull-request@v5
+      pull-requests: write
+      # needed by peter-evans/create-pull-request@v5
+      contents: write
+
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - uses: ouzi-dev/commit-status-updater@v2
+      - name: Set up Docker Buildx
+        # kics-scan ignore-line
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        # kics-scan ignore-line
+        uses: docker/login-action@v3
         with:
-          name: lint
-          status: pending
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Install vendors
         run: |
           set -exo pipefail
           ./bin/installRequirements
 
-      - name: Linting - Shellcheck
-        run: |
-          set -exo pipefail
-          ./vendor/bash-tools-framework/bin/shellcheckLint --source-path=SCRIPTDIR --external-sources | \
-            tee logs/shellcheck-checkstyle.xml
+      # only if pre-commit
+      - name: Set up Python
+        # kics-scan ignore-line
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.9
 
-      - name: Linting - Awk
-        run: |
-          set -exo pipefail
-          ./vendor/bash-tools-framework/bin/awkLint | tee logs/awk-checkstyle.xml
+      - name: Install pre-commit
+        run: pip install pre-commit
 
-      - name: build bin files + check md5
-        run: |
-          set -exo pipefail
-          ./.github/workflows/buildBinFiles.sh 2>&1 | tee logs/buidBinFiles.log
+      # kics-scan ignore-line
+      - uses: ouzi-dev/commit-status-updater@v2
+        with:
+          name: lint
+          status: pending
+
+      - name: Run pre-commit
+        run: pre-commit run -a --hook-stage manual
 
       - name: Checkstyle aggregation
-        uses: jwgmeligmeyling/checkstyle-github-action@master
+        # kics-scan ignore-line
+        uses: lcollins/checkstyle-github-action@v2.0.0
         with:
-          path: 'logs/*-checkstyle.xml'
+          path: 'artifacts/**/*.xml'
 
       - name: Archive results
-        uses: actions/upload-artifact@v3
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: linter-reports
           path: |
             logs/*.xml
             logs/*.log
+            megalinter-reports/**
+
+      - name: Create Pull Request
+        if: failure()
+        continue-on-error: true
+        # kics-scan ignore-line
+        uses: peter-evans/create-pull-request@v5
+        with:
+          branch: update/pre-commit-fixes
+          title: lint fixes
+          commit-message: Auto-update lint fixes
+          body: |
+            some auto fixes have been generated during pre-commit run
+          labels: updates
 
       - uses: ouzi-dev/commit-status-updater@v2
         if: always()
         with:
           name: lint
           status: ${{ job.status }}
-
-  buildResults:
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    name: Final Build Results
-    needs: [linters]
-    steps:
-      # run this action to get the workflow conclusion
-      # You can get the conclusion via env (env.WORKFLOW_CONCLUSION)
-      - uses: technote-space/workflow-conclusion-action@v3
-
-      # run other action with the workflow conclusion
-      - uses: ouzi-dev/commit-status-updater@v2
-        with:
-          name: build
-          # neutral, success, skipped, cancelled, timed_out, action_required, failure
-          status: ${{ env.WORKFLOW_CONCLUSION }}

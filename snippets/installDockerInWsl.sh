@@ -24,7 +24,7 @@ Log::fatal() {
   exit 1
 }
 
-Functions::retryParameterized() {
+retryParameterized() {
   local maxRetries=$1
   local delayBetweenTries=$2
   local message="$3"
@@ -52,12 +52,12 @@ Functions::retryParameterized() {
   return 0
 }
 
-Functions::retry() {
-  Functions::retryParameterized 5 15 "" "$@"
+retry() {
+  retryParameterized 5 15 "" "$@"
 }
 
 getGithubLatestRelease() {
-  Functions::retry curl \
+  retry curl \
     --fail \
     --silent \
     "https://api.github.com/repos/$1/releases/latest" | # Get latest release from GitHub api
@@ -99,7 +99,7 @@ upgradeGithubRelease() {
     Log::displayInfo "Upgrading ${TARGET_FILE} from version ${currentVersion} to ${latestVersion}"
     url="$(echo "${RELEASE_URL}" | sed -E "s/@latestVersion@/${latestVersion}/g")"
     Log::displayInfo "Using url ${url}"
-    Functions::retry curl \
+    retry curl \
       -L \
       -o /tmp/newSoftware \
       --fail \
@@ -120,12 +120,11 @@ upgradeGithubRelease() {
 
 if [[ "$(id -u)" = "0" ]]; then
   Log::fatal "this script should be executed as normal user"
-  exit 1
 fi
 
 Log::displayInfo "install docker required packages"
-Functions::retry sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
-Functions::retry sudo apt-get install -y \
+retry sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
+retry sudo apt-get install -y \
   apt-transport-https \
   ca-certificates \
   curl \
@@ -134,14 +133,14 @@ Functions::retry sudo apt-get install -y \
 Log::displayInfo "install docker apt source list"
 source /etc/os-release
 
-Functions::retry curl -fsSL "https://download.docker.com/linux/${ID}/gpg" | sudo apt-key add -
+retry curl -fsSL "https://download.docker.com/linux/${ID}/gpg" | sudo apt-key add -
 
 echo "deb [arch=amd64] https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable" | sudo tee /etc/apt/sources.list.d/docker.list
 
-Functions::retry sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
+retry sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
 
 Log::displayInfo "install docker"
-Functions::retry sudo apt-get install -y \
+retry sudo apt-get install -y \
   containerd.io \
   docker-ce \
   docker-ce-cli
