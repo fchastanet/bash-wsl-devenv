@@ -19,8 +19,7 @@
     ".jscpd.json",
     ".mega-linter.yml",
     ".shellcheckrc",
-    ".env",
-    "gitHooks/prepare-commit-msg"
+    ".env"
   ],
   "noConfigSearch": true,
   "words": ["megalinter", "oxsecurity"],

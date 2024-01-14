@@ -9,6 +9,8 @@ conf.override/*
 logs/*
 !logs/.gitkeep
 
+node_modules/
+
 .env
 
 /profile.*.sh
