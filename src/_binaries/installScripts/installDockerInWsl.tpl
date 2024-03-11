@@ -10,4 +10,4 @@ install docker and docker-compose inside wsl
 """
 %
 
-.INCLUDE "$(dynamicTemplateDir _binaries/installScripts/script.options.tpl)"
+.INCLUDE "$(dynamicTemplateDir _includes/install.default.options.tpl)"

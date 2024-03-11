@@ -225,48 +225,6 @@ Array::wrap2() {
   ) | sed -E -e 's/[[:blank:]]+$//'
 }
 
-# Checks if file can be created in folder
-#
-
-# @description Checks if file can be created in folder
-# The file does not need to exist
-# @arg $1 file:String
-# @exitcode 1 if file is not a valid path
-# @exitcode 2 if file parent's dir is not writable
-# @exitcode 3 if existing file is not writable
-# @see Assert::validPath
-Assert::fileWritable() {
-  local file="$1"
-  local dir
-
-  Assert::validPath "${file}" || return 1
-  if [[ -f "${file}" ]]; then
-    [[ -w "${file}" ]] || return 3
-  else
-    dir="$(dirname "${file}")"
-    [[ -w "${dir}" ]] || return 2
-  fi
-
-}
-
-# @description check if argument is a valid linux path
-# invalid path are those with:
-# - invalid characters
-# - component beginning by a - (because could be considered as a command's option)
-# - not beginning with a slash
-# - relative
-#
-# @arg $1 path:string path that needs to be checked
-# @exitcode 1 if path is invalid
-# @see https://regex101.com/r/afLrmM/2
-# @see Assert::validPosixPath if you need more restrictive check
-Assert::validPath() {
-  local path="$1"
-
-  [[ "${path}" =~ ^\/$|^(\/[.a-zA-Z_0-9][.a-zA-Z_0-9-]*)+$ ]] &&
-    [[ ! "${path}" =~ (\/\.\.)|(\.\.\/)|^\.$|^\.\.$ ]] # avoid relative
-}
-
 # @description ensure env files are loaded
 # @arg $@ list of default files to load at the end
 # @exitcode 1 if one of env files fails to load
@@ -1396,30 +1354,6 @@ distroCommand() {
   else
     Log::displayError "Command ${SCRIPT_NAME} - Option command invalid: '${options_parse_cmd}'"
     return 1
-  fi
-}
-
-upgradeGithubReleaseCommandCallback() {
-  if [[ -n "${optionExactVersion}" && -n "${optionMinimalVersion}" ]]; then
-    Log::fatal "--exact-version|-e and --minimal-version|-m are mutually exclusive, you cannot use both argument at the same time."
-  fi
-}
-
-githubUrlPatternArgCallback() {
-  if [[ ! "${githubUrlPatternArg}" =~ ^https://github.com/ ]]; then
-    Log::fatal "Invalid githubUrlPattern ${githubUrlPatternArg} provided, it should begin with https://github.com/"
-  fi
-}
-
-targetFileArgCallback() {
-  if [[ "${targetFileArg:0:1}" != "/" ]]; then
-    targetFileArg="$(pwd)/${targetFileArg}"
-  fi
-  if ! Assert::validPath "${targetFileArg}"; then
-    Log::fatal "File ${targetFileArg} is not a valid path"
-  fi
-  if ! Assert::fileWritable "${targetFileArg}"; then
-    Log::fatal "File ${targetFileArg} is not writable"
   fi
 }
 
