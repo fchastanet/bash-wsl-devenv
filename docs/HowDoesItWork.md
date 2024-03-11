@@ -52,16 +52,15 @@ This function is responsible for:
 
   - USER_GROUP
   - USER_NAME
-  - USER_MAIL
-  - DEV_USER_NAME
-  - LDAP_LOGIN
+  - GIT_USER_MAIL
+  - GIT_USER_NAME
+  - SSH_LOGIN
   - POWERSHELL_BIN
 
 - deducing and export the following variables
 
   - USERID => computed from USER_NAME provided by .env file
   - USER_GROUP_ID => computed from USER_GROUP provided by .env file
-  - LIB_DIR => `<full path to lib directory>`
   - ROOT_DIR => `<full path to this project directory>`
   - HOSTIP
   - IPCONFIG => heavy computation of the right command to use for ipconfig
@@ -74,7 +73,7 @@ This function is responsible for:
   - LOGS_DIR => defaults to ${ROOT_DIR}/logs
   - PROJECTS_DIR => defaults to ${USER_HOME}/projects
   - BACKUP_DIR => defaults to ${ROOT_DIR}/backup
-  - SCRIPTS_DIR => defaults to ${ROOT_DIR}/scripts
+  - INSTALL_SCRIPTS_DIR => defaults to ${ROOT_DIR}/scripts
 
 - setting sudoer without password temporarily
 
@@ -89,7 +88,7 @@ This function is responsible for:
     without risking to overwrite .bashrc file
   - the variable OVERWRITE_CONFIG_FILES is ignored
   - it provides the following environment variables, among others: PATH,
-    COMPOSER_HOME, AWS_REGION, AWS_PROFILE, LDAP_LOGIN, ...
+    COMPOSER_HOME, AWS_REGION, AWS_PROFILE, SSH_LOGIN, ...
   - all these variables can then be reused by all the different script
     configurations like ssh aliases, Saml2Aws, ...
   - this file loads this project .env file so variables like SHOW_FORTUNES and

@@ -189,6 +189,14 @@ engine::config::check() {
     ((errorCount++))
   fi
 
+  # SSH_LOGIN
+  if ! Assert::varExistsAndNotEmpty "SSH_LOGIN"; then
+    Log::displaySkipped "Warning ! SSH_LOGIN not provided in ${ROOT_DIR}/.env file"
+  elif ! Assert::ldapLogin "${SSH_LOGIN}"; then
+    Log::displayError "SSH_LOGIN: invalid ldap login (format expected firstNameLastName) in ${ROOT_DIR}/.env file"
+    ((errorCount++))
+  fi
+
   # GIT_USER_NAME
   if ! Assert::varExistsAndNotEmpty "GIT_USER_NAME"; then
     ((errorCount++))
@@ -208,11 +216,23 @@ engine::config::check() {
   # PROJECTS_DIR
   if ! Assert::varExistsAndNotEmpty "PROJECTS_DIR"; then
     ((errorCount++))
-  elif [[ ! -d "${PROJECTS_DIR}" ]]; then
-    if ! mkdir -p "${PROJECTS_DIR}"; then
-      Log::displayError "PROJECTS_DIR - impossible to create the directory '${PROJECTS_DIR}'"
-      ((errorCount++))
-    fi
+  elif ! mkdir -p "${PROJECTS_DIR}"; then
+    Log::displayError "PROJECTS_DIR - impossible to create the directory '${PROJECTS_DIR}'"
+    ((errorCount++))
+  elif [[ ! -w "${PROJECTS_DIR}" ]]; then
+    Log::displayError "PROJECTS_DIR - directory '${PROJECTS_DIR}' is not writable"
+    ((errorCount++))
+  fi
+
+  # LOGS_DIR
+  if ! Assert::varExistsAndNotEmpty "LOGS_DIR"; then
+    ((errorCount++))
+  elif ! mkdir -p "${LOGS_DIR}"; then
+    Log::displayError "LOGS_DIR - impossible to create the directory '${LOGS_DIR}'"
+    ((errorCount++))
+  elif [[ ! -w "${LOGS_DIR}" ]]; then
+    Log::displayError "LOGS_DIR - directory '${LOGS_DIR}' is not writable"
+    ((errorCount++))
   fi
 
   # CONF_DIR
@@ -240,11 +260,11 @@ engine::config::check() {
   # BACKUP_DIR
   if ! Assert::varExistsAndNotEmpty "BACKUP_DIR"; then
     ((errorCount++))
-  elif [[ ! -d "${BACKUP_DIR}" ]]; then
-    mkdir -p "${BACKUP_DIR}" || Log::displayError "BACKUP_DIR - backup dir ${BACKUP_DIR} cannot be created"
+  elif ! mkdir -p "${BACKUP_DIR}"; then
+    Log::displayError "BACKUP_DIR - impossible to create the directory '${BACKUP_DIR}'"
     ((errorCount++))
   elif [[ ! -w "${BACKUP_DIR}" ]]; then
-    Log::displayError "BACKUP_DIR - backup dir ${BACKUP_DIR} is not writable"
+    Log::displayError "BACKUP_DIR - directory '${BACKUP_DIR}' is not writable"
     ((errorCount++))
   fi
 
@@ -261,6 +281,9 @@ envTemplate="$(
   # wsl username
   USER_NAME="wsl"
   USER_HOME="/home/wsl"
+
+  # Your ssh login if any
+  SSH_LOGIN=""
 
   # your git full name 'FirstName LastName'
   GIT_USER_NAME=""
@@ -369,7 +392,7 @@ engine::config::createSudoerFile() {
   local sudoerFile="/etc/sudoers.d/${USER_NAME}-bash-dev-env-no-password"
 
   # create /etc/sudoers.d/userName-bash-dev-env
-  SUDOER_CHANGE="${USER_NAME} ALL=(ALL) NOPASSWD: ${ROOT_DIR}/install,/etc/cron.weekly/upgrade,/usr/sbin/service,${ROOT_DIR}/scripts/*/configure"
+  SUDOER_CHANGE="${USER_NAME} ALL=(ALL) NOPASSWD: ${ROOT_DIR}/install,/etc/cron.weekly/upgrade,/usr/sbin/service,${ROOT_DIR}/installScripts"
   if [[ "${SUDOER_CHANGE}" != "$(sudo cat "${sudoerFile}" 2>/dev/null || echo -n '')" ]]; then
     echo "${SUDOER_CHANGE}" | sudo tee "${sudoerFile}"
     sudo chmod 0440 "${sudoerFile}"
@@ -382,6 +405,52 @@ engine::config::createSudoerFile() {
       return 1
     }
   fi
+
+}
+
+installUpdateEnv() {
+  CONF_DIR="$1"
+  LDAP_LOGIN="$2"
+  WINDOWS_PROFILE_DIR="$3"
+  # TODO fix
+  if [[ ! -f '/etc/profile.d/updateEnv.sh' || "${CONF_DIR}/etc/profile.d/updateEnv.sh" -nt "/etc/profile.d/updateEnv.sh" ]]; then
+    sudo@@Install::file -e OVERWRITE_CONFIG_FILES=1 -- "${CONF_DIR}/etc/profile.d" '/etc/profile.d' 'updateEnv.sh' Install::setUserRootCallback
+  fi
+  if [[ "$(perl -ne 'if (/export LDAP_LOGIN=(.*)/) { print $1 }' "/etc/profile.d/updateEnv.sh")" != "${LDAP_LOGIN}" ]]; then
+    sudo sed -i -e "s#export LDAP_LOGIN=.*\$#export LDAP_LOGIN=${LDAP_LOGIN}#g" "/etc/profile.d/updateEnv.sh"
+  fi
+  sudo sed -i -e "s#WINDOWS_PROFILE_DIR=.*\$#WINDOWS_PROFILE_DIR='${WINDOWS_PROFILE_DIR}'#" "/etc/profile.d/updateEnv.sh"
+
+  # reload env
+  set +o errexit
+  # shellcheck source=/dev/null
+  source "/etc/profile"
+  set -o errexit
+
+  # IPCONFIG - which ipconfig.exe does not work when executed as root
+  if [[ -z "${IPCONFIG+xxx}" ]]; then
+    if Assert::wsl; then
+      IPCONFIG="${BASE_MNT_C}/WINDOWS/system32/ipconfig.exe"
+      if ! command -v "${IPCONFIG}" >/dev/null 2>&1; then
+        IPCONFIG="$(command -v ipconfig.exe 2>/dev/null)"
+      fi
+    else
+      IPCONFIG="${IPCONFIG:-$(command -v ipconfig)}"
+    fi
+  fi
+  if [[ -z "${IPCONFIG:-}" ]]; then
+    Log::fatal "command ipconfig.exe not found"
+  fi
+  command -v "${IPCONFIG}" >/dev/null 2>&1 || Log::fatal "command ipconfig not found"
+  export IPCONFIG
+}
+
+engine::config::initGlobalEnv() {
+  # initialize environment variables globally
+  if [[ "${INSTALL_UPDATE_ENV:-1}" = "1" ]]; then
+    # INSTALL_UPDATE_ENV avoids infinite loop
+    installUpdateEnv "${CONF_DIR}" "${SSH_LOGIN}" "${WINDOWS_PROFILE_DIR}"
+  fi
 }
 
 engine::config::loadConfig() {
@@ -391,6 +460,7 @@ engine::config::loadConfig() {
   source "${envFile}"
 
   export USER_NAME
+  export SSH_LOGIN
   export GIT_USER_NAME
   export GIT_USER_MAIL
   export CONF_DIR
@@ -427,7 +497,6 @@ engine::config::loadWslVariables() {
     # skip
     return 0
   fi
-
   # shellcheck disable=SC1003
   BASE_MNT_C="$(mount | grep 'path=C:\\' | awk -F ' ' '{print $3}')"
 
@@ -473,6 +542,18 @@ engine::config::loadWslVariables() {
     Log::fatal "command ipconfig.exe not found"
   fi
   export IPCONFIG_BIN
+
+  # LOCAL_APP_DATA
+  if [[ -z "${LOCAL_APP_DATA}" ]]; then
+    LOCAL_APP_DATA="$(Wsl::cachedWslpathFromWslVar LOCALAPPDATA | tr -d '\n\r')"
+  fi
+  export LOCAL_APP_DATA
+
+  # WINDOW_PATH
+  WINDOW_PATH="$(Wsl::cachedWslvar PATH)"
+  WINDOW_PATH="${WINDOW_PATH//;/:}"
+  WINDOW_PATH="${WINDOW_PATH//\\//}"
+  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C}}"
 }
 
 engine::installScript::showHelp() {
@@ -675,6 +756,10 @@ Assert::firstNameLastName() {
   [[ $1 =~ ${regexp} ]]
 }
 
+Assert::ldapLogin() {
+  [[ $1 =~ ^[a-z]+$ ]]
+}
+
 Assert::validVariableName() {
   echo "$1" | LC_ALL=POSIX grep -E -q '^[A-Za-z_0-9:]+$'
 }
@@ -826,6 +911,80 @@ Env::load() {
   set +o allexport
 }
 
+# installs file to given directory
+# @param $1 fromFile - original file to copy
+# @param $2 targetFile - target file
+# @param $3 SUCCESS_CALLBACK the callback to call when file is installed successfully
+#    by default setUserRights callback is called
+#    callback parameters ${fromFile} ${targetFile} $@
+# @param $4 FAILURE_CALLBACK the callback to call when file installation has failed
+#    by default setUserRights callback is called
+#    callback parameters ${fromFile} ${targetFile} $@
+# @param $@ all parameters after 4th will be passed to callback
+# @return 1 if fromFile is not readable
+# @return 2 if backup file failure
+# @return 0 on success or if OVERWRITE_CONFIG_FILES=0
+# @return 0 on success or if CHANGE_WINDOWS_FILES=0 and target file is a windows file
+# @environment OVERWRITE_CONFIG_FILES
+# @environment CHANGE_WINDOWS_FILES
+# @environment USER_NAME
+# @environment USER_GROUP
+# @environment BASE_MNT_C
+# @environment ROOT_DIR
+Install::file() {
+  local fromFile="$1"
+  local targetFile="$2"
+  shift 2 || true
+  local successCallback=${1:-Install::setUserRightsCallback}
+  shift || true
+  local failureCallback=${1:-Install::unableToCopyCallback}
+  shift || true
+
+  if [[ ! -f "${fromFile}" || ! -r "${fromFile}" ]]; then
+    Log::displayError "cannot read source file '${fromFile}'"
+    return 1
+  fi
+
+  # skip if OVERWRITE_CONFIG_FILES is 0 and target file exists
+  if [[ "${OVERWRITE_CONFIG_FILES}" = "0" && -f "${targetFile}" ]]; then
+    Log::displayWarning "File '${targetFile}' exists - Skip install (because OVERWRITE_CONFIG_FILES=0 in .env file)"
+    return 0
+  fi
+
+  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
+  if [[ "${CHANGE_WINDOWS_FILES}" = "0" && "${targetFile}" =~ ^${BASE_MNT_C} ]]; then
+    Log::displayWarning "File '${targetFile}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
+    return 0
+  fi
+
+  local targetDir
+  targetDir="$(dirname "${targetFile}")"
+  if [[ ! -d "${targetDir}" ]]; then
+    mkdir -p "${targetDir}"
+    chown "${USER_NAME}":"${USER_GROUP}" "${targetDir}"
+  fi
+  local fromDir
+  fromDir="$(dirname "${fromFile}")"
+  local fromFilename
+  fromFilename="$(basename "${fromFile}")"
+
+  Backup::file "${targetFile}" || return 2
+
+  if cp "${fromFile}" "${targetFile}"; then
+    ${successCallback} "${fromFile}" "${targetFile}" "$@"
+    Log::displaySuccess "Installed file '${fromDir#"${ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
+  else
+    ${failureCallback} "${fromDir}" "${fromFilename}" "${targetFile}" "$@"
+  fi
+}
+
+Install::setUserRootCallback() {
+  # shellcheck disable=SC2034 # $1 not used
+  local FROM_FILE="$1"
+  local DEST_FILE="$2"
+  chown root:root "${DEST_FILE}"
+}
+
 # Display message using debug color (grey)
 # @param {String} $1 message
 Log::displayDebug() {
@@ -974,41 +1133,6 @@ Wsl::cachedWslpathFromWslVar() {
   Wsl::cachedWslpath "${value}"
 }
 
-# Internal: common log message
-#
-# **Arguments**:
-# * $1 - message's level description
-# * $2 - message
-# **Output**:
-# [date]|[levelMsg]|message
-#
-# **Examples**:
-# <pre>
-# 2020-01-19 19:20:21|ERROR  |log error
-# 2020-01-19 19:20:21|SKIPPED|log skipped
-# </pre>
-Log::logMessage() {
-  local levelMsg="$1"
-  local msg="$2"
-  local date
-
-  if ((BASH_FRAMEWORK_LOG_LEVEL > __LEVEL_OFF)); then
-    date="$(date '+%Y-%m-%d %H:%M:%S')"
-    printf "%s|%7s|%s\n" "${date}" "${levelMsg}" "${msg}" >>"${BASH_FRAMEWORK_LOG_FILE}"
-  fi
-}
-
-Wsl::cachedWslpath() {
-  local -a args=("$@")
-  local tempEnvFile key
-
-  tempEnvFile="${TMPDIR:-/tmp}/bash_tools_wslpath_$(id -un)"
-  Cache::removeCacheFileIfTooOld "${tempEnvFile}" "+1"
-
-  key="$(Wsl::getKeyFromWslpathOptions "$@")"
-  Cache::getPropertyValue "${tempEnvFile}" "${key}" originalWslpath "${args[@]}"
-}
-
 Wsl::cachedWslvar() {
   local var="$1"
   local tempEnvFile
@@ -1016,6 +1140,19 @@ Wsl::cachedWslvar() {
 
   Cache::removeCacheFileIfTooOld "${tempEnvFile}" "+1"
   Cache::getPropertyValue "${tempEnvFile}" "${var}" Wsl::originalWslvar "${var}"
+}
+
+# Backup given file in the same directory
+# @param {string} $1 the file to backup
+# @output messages about backup file location
+Backup::file() {
+  local file="$1"
+  local backupFile
+  if [[ -f "${file}" ]]; then
+    backupFile="${file}_$(date +"%Y-%m-%d_%H:%M:%S")"
+    Log::displayInfo "Backup file '${file}' to ${backupFile}"
+    cp "${file}" "${backupFile}"
+  fi
 }
 
 # get property value from file,
@@ -1052,6 +1189,62 @@ Cache::removeCacheFileIfTooOld() {
   fi
 }
 
+Install::setUserRightsCallback() {
+  # shellcheck disable=SC2034 # $1 not used
+  local FROM_FILE="$1"
+  local DEST_FILE="$2"
+  local USER_NAME="${3:-${USERNAME:-root}}"
+  local USER_GROUP="${4:-${USERGROUP:-root}}"
+
+  chown "${USER_NAME}":"${USER_GROUP}" "${DEST_FILE}"
+}
+
+Install::unableToCopyCallback() {
+  local FROM_DIR="$1"
+  local FILENAME="$2"
+  local DEST_FILE="$3"
+  Log::fatal "unable to copy file '${FROM_DIR#"${ROOT_DIR}/"}/${FILENAME}' to '${DEST_FILE}'"
+}
+
+# Internal: common log message
+#
+# **Arguments**:
+# * $1 - message's level description
+# * $2 - message
+# **Output**:
+# [date]|[levelMsg]|message
+#
+# **Examples**:
+# <pre>
+# 2020-01-19 19:20:21|ERROR  |log error
+# 2020-01-19 19:20:21|SKIPPED|log skipped
+# </pre>
+Log::logMessage() {
+  local levelMsg="$1"
+  local msg="$2"
+  local date
+
+  if ((BASH_FRAMEWORK_LOG_LEVEL > __LEVEL_OFF)); then
+    date="$(date '+%Y-%m-%d %H:%M:%S')"
+    printf "%s|%7s|%s\n" "${date}" "${levelMsg}" "${msg}" >>"${BASH_FRAMEWORK_LOG_FILE}"
+  fi
+}
+
+Wsl::cachedWslpath() {
+  local -a args=("$@")
+  local tempEnvFile key
+
+  tempEnvFile="${TMPDIR:-/tmp}/bash_tools_wslpath_$(id -un)"
+  Cache::removeCacheFileIfTooOld "${tempEnvFile}" "+1"
+
+  key="$(Wsl::getKeyFromWslpathOptions "$@")"
+  Cache::getPropertyValue "${tempEnvFile}" "${key}" originalWslpath "${args[@]}"
+}
+
+Wsl::originalWslvar() {
+  wslvar "$@"
+}
+
 Wsl::getKeyFromWslpathOptions() {
   local options
   options=$(getopt -o "auwm" -- "$@" 2>/dev/null) || {
@@ -1077,10 +1270,6 @@ Wsl::getKeyFromWslpathOptions() {
     shift || true
   done
   echo -E "${key}_$1"
-}
-
-Wsl::originalWslvar() {
-  wslvar "$@"
 }
 
 # FUNCTIONS
@@ -1324,6 +1513,7 @@ engine::config::check "${ROOT_DIR}/.env"
 engine::config::loadHostIp
 engine::config::loadWslVariables
 engine::config::createSudoerFile
+engine::config::initGlobalEnv
 
 CONFIG_LOGS_DIR="${CONFIG_LOGS_DIR:-${TMPDIR}}"
 
