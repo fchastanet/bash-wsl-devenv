@@ -6,50 +6,58 @@
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
-installScript_helpDescription() {
+scriptName() {
   echo "Clean"
 }
 
-installScript_helpVariables() {
+helpDescription() {
+  echo "Clean"
+}
+
+helpVariables() {
   true
 }
 
-installScript_listVariables() {
+listVariables() {
   true
 }
 
-installScript_defaultVariables() {
+defaultVariables() {
   true
 }
 
-installScript_checkVariables() {
+checkVariables() {
   true
 }
 
-installScript_fortunes() {
+fortunes() {
   return 0
 }
 
-installScript_dependencies() {
+dependencies() {
   return 0
 }
 
-installScript_breakOnConfigFailure() {
+breakOnConfigFailure() {
   return 0
 }
 
-installScript_breakOnTestFailure() {
+breakOnTestFailure() {
   return 0
 }
 
-installScript_install() {
+install() {
   return 0
 }
 
-installScript_configure() {
+configure() {
   return 0
 }
 
-installScript_test() {
+testInstall() {
+  return 0
+}
+
+testConfigure() {
   return 0
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/MandatorySoftwares
+# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/SimpleTest
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
@@ -7,11 +7,11 @@
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
 scriptName() {
-  echo "MandatorySoftwares"
+  echo "SimpleTest"
 }
 
 helpDescription() {
-  echo "MandatorySoftwares"
+  echo "SimpleTest"
 }
 
 helpVariables() {
@@ -39,25 +39,25 @@ dependencies() {
 }
 
 breakOnConfigFailure() {
-  return 1
+  echo breakOnConfigFailure
 }
 
 breakOnTestFailure() {
-  return 1
+  echo breakOnTestFailure
 }
 
 install() {
-  return 0
+  echo install
 }
 
 configure() {
-  return 0
+  echo configure
 }
 
 testInstall() {
-  return 0
+  echo testInstall
 }
 
 testConfigure() {
-  return 0
+  echo testConfigure
 }

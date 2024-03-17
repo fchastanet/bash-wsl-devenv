@@ -1,13 +1,16 @@
 #!/bin/bash
 
 # @description set sudoer without password temporarily
+# @env USER_NAME
+# @env USER_HOME
+# @set SUDOER_CHANGE
 Engine::Config::createSudoerFile() {
   local sudoerFile="/etc/sudoers.d/${USER_NAME}-bash-dev-env-no-password"
 
   # create /etc/sudoers.d/userName-bash-dev-env
-  SUDOER_CHANGE="${USER_NAME} ALL=(ALL) NOPASSWD: ${ROOT_DIR}/install,/etc/cron.weekly/upgrade,/usr/sbin/service,${ROOT_DIR}/installScripts"
-  if [[ "${SUDOER_CHANGE}" != "$(sudo cat "${sudoerFile}" 2>/dev/null || echo -n '')" ]]; then
-    echo "${SUDOER_CHANGE}" | sudo tee "${sudoerFile}"
+  local sudoerChange="${USER_NAME} ALL=(ALL) NOPASSWD: ${BASH_DEV_ENV_ROOT_DIR}/install,/etc/cron.weekly/upgrade,/usr/sbin/service,${BASH_DEV_ENV_ROOT_DIR}/installScripts"
+  if [[ "${sudoerChange}" != "$(sudo cat "${sudoerFile}" 2>/dev/null || echo -n '')" ]]; then
+    echo "${sudoerChange}" | sudo tee "${sudoerFile}"
     sudo chmod 0440 "${sudoerFile}"
 
     echo "this file indicates that sudo has been configured to execute without password" |

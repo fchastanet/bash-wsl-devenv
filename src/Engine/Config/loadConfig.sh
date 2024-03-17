@@ -1,36 +1,44 @@
 #!/bin/bash
 
+envFileTemplate="$(
+  cat <<'EOF'
+.INCLUDE "${BASH_DEV_ENV_ROOT_DIR}/.env.template"
+EOF
+)"
+
 # @description load .env file
 # @arg $1 envFile:String the file to load
 Engine::Config::loadConfig() {
-  local envFile="$1"
-
+  if [[ "${BASH_DEV_ENV_CONFIG_LOADED:-}" = "1" ]]; then
+    return 0
+  fi
+  local envFile="${BASH_DEV_ENV_ROOT_DIR}/.env"
+  Engine::Config::createEnvFileFromTemplate \
+    "${envFile}" "${envFileTemplate}" || exit 1
+  set -o allexport
   # shellcheck source=/.env.template
-  source "${envFile}"
+  source <(echo "${envFileTemplate}")
+  # shellcheck source=/.env
+  source "${BASH_DEV_ENV_ROOT_DIR}/.env"
+  set +o allexport
 
-  export USER_NAME
-  export SSH_LOGIN
-  export GIT_USER_NAME
-  export GIT_USER_MAIL
-  export CONF_DIR
-  export CONF_OVERRIDE_DIR
-  export PROJECTS_DIR
-  export BACKUP_DIR
-  export LOGS_DIR
-  export INSTALL_SCRIPTS_DIR
-  export UPGRADE_UBUNTU_VERSION
-  export AWS_AUTHENTICATOR
-  export PREFERRED_SHELL
-  export SHOW_FORTUNES
-  export SHOW_MOTD
-  export DOCKER_INSIDE_WSL
-  export OVERWRITE_CONFIG_FILES
-  export CHANGE_WINDOWS_FILES
-  export CAN_TALK_DURING_INSTALLATION
-  export NON_INTERACTIVE
-  export WSLCONFIG_MAX_MEMORY
-  export WSLCONFIG_SWAP
-  export POWERSHELL_BIN
+  # load environment variables ID, VERSION_CODENAME
+  Engine::Config::loadOsRelease
+
+  if ! Engine::Config::checkEnv; then
+    Log::displayError "one or more variables are invalid, check above logs and fix '${envFile}' file accordingly"
+    return 1
+  fi
 
   Engine::Config::loadUserVariables
+  Engine::Config::loadHostIp
+
+  # TODO is it needed ? Linux::Wsl::initEnv
+  Engine::Config::loadWslVariables
+
+  Engine::Config::createSudoerFile
+  Engine::Config::installUpdateEnv "${CONF_DIR}" "${LDAP_LOGIN}" "${WINDOWS_PROFILE_DIR}"
+  Log::requireLoad
+
+  export BASH_DEV_ENV_CONFIG_LOADED=1
 }

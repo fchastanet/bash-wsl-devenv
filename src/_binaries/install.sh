@@ -3,6 +3,8 @@
 # FACADE
 # BASH_DEV_ENV_ROOT_DIR_RELATIVE_TO_BIN_DIR=
 
+.INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
+
 # variables
 CONFIG_LIST=()
 PROFILE=
@@ -13,6 +15,8 @@ SKIP_TEST=0
 PREPARE_EXPORT=0
 # shellcheck disable=SC2034
 SKIP_DEPENDENCIES=0
+
+INSTALL_START="$(date +%s)"
 
 # trap errors
 err_report() {
@@ -26,6 +30,7 @@ trap 'err_report $LINENO' ERR
 # shellcheck disable=SC2317
 declare summaryDisplayed="0"
 summary() {
+  local startDate="$1"
   if [[ "${summaryDisplayed}" = "1" ]]; then
     return 0
   fi
@@ -44,11 +49,12 @@ summary() {
   if [[ "${SKIP_TEST}" = "0" ]]; then
     Stats::aggregateStatsSummary "test(s)" "${TMPDIR}/test.stat" "${#CONFIG_LIST[@]}"
   fi
-  INSTALL_END="$(date +%s)"
-  Log::displayInfo "Total duration: $((INSTALL_END - INSTALL_START))s"
+  local endDate
+  endDate="$(date +%s)"
+  Log::displayInfo "Total duration: $((endDate - startDate))s"
   summaryDisplayed="1"
 }
-trap 'summary' EXIT INT TERM ABRT
+trap 'summary "${INSTALL_START}"' EXIT INT TERM ABRT
 
 executeScript() {
   local configName="$1"
@@ -71,24 +77,14 @@ executeScript() {
 # we need non root user to be sure that all variables will be correctly deduced
 # @require Linux::requireExecutedAsUser
 run() {
-  local INSTALL_START
-  INSTALL_START="$(date +%s)"
 
-  # load config
-  Engine::Config::checkConfigExist "${BASH_DEV_ENV_ROOT_DIR}/.env" || exit 1
-  Engine::Config::loadConfig "${BASH_DEV_ENV_ROOT_DIR}/.env"
-  Engine::Config::check "${BASH_DEV_ENV_ROOT_DIR}/.env"
-  Engine::Config::loadHostIp
-  Engine::Config::loadWslVariables
-  Engine::Config::createSudoerFile
-  Engine::Config::initGlobalEnv
-
-  CONFIG_LOGS_DIR="${CONFIG_LOGS_DIR:-${TMPDIR}}"
+  CONFIG_LOGS_DIR="${CONFIG_LOGS_DIR:-${PERSISTENT_TMPDIR}}"
+  rm -f "${CONFIG_LOGS_DIR:-#}/${SCRIPT}-.*" || true
 
   # load selected profile
   if [[ -n "${PROFILE}" ]]; then
     mapfile -t CONFIG_LIST < <(
-      IFS=$'\n' Profiles::loadProfile "${BASH_DEV_ENV_ROOT_DIR}" "${PROFILE}"
+      IFS=$'\n' Profiles::loadProfile "${BASH_DEV_ENV_ROOT_DIR}/profiles" "${PROFILE}"
     )
   fi
 
@@ -101,7 +97,7 @@ run() {
   Log::rotate "${LOGS_DIR}/automatic-upgrade"
   UI::drawLine '-'
 
-  (
+  if (
     # shellcheck disable=SC2317
     for configName in "${CONFIG_LIST[@]}"; do
       installStatus="0"
@@ -129,14 +125,11 @@ run() {
         exit "${installStatus}"
       fi
     done
-  ) | tee "${LOGS_DIR}/automatic-upgrade"
-  # TODO
-  # if time "${LIB_DIR}/installMain.sh" "${PROFILE}" "${PREPARE_EXPORT}" "${SKIP_INSTALL}" "${SKIP_CONFIGURE}" "${SKIP_TEST}" "${CONFIG_LIST[@]}" 2>&1 | tee /var/log/automatic-upgrade; then
-  #   # everything OK
-  #   Log::displaySuccess "Successful Installation"
-  # else
-  #   Log::displayError "Installation error, check logs /var/log/automatic-upgrade"
-  # fi
+  ) | tee "${LOGS_DIR}/automatic-upgrade"; then
+    Log::displaySuccess "Successful Installation"
+  else
+    Log::displayError "Installation error, check logs /var/log/automatic-upgrade"
+  fi
 }
 
 if [[ "${BASH_FRAMEWORK_QUIET_MODE:-0}" = "1" ]]; then

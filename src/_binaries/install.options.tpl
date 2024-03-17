@@ -59,8 +59,8 @@ softwareArgHelp() {
 }
 
 validateProfile() {
-  if [[ ! -f "${BASH_DEV_ENV_ROOT_DIR}/profiles/$2.sh" ]]; then
-    Log::fatal "Profile file ${BASH_DEV_ENV_ROOT_DIR}/$2.sh doesn't exist"
+  if [[ ! -f "${BASH_DEV_ENV_ROOT_DIR}/profiles/profile.$2.sh" ]]; then
+    Log::fatal "Profile file ${BASH_DEV_ENV_ROOT_DIR}/profile.$2.sh doesn't exist"
   fi
 }
 
@@ -81,7 +81,7 @@ commandCallback() {
       Log::fatal "You must specify either a list of softwares, either a profile name"
     fi
     if [[ "${SKIP_DEPENDENCIES}" = "0" ]]; then
-      CONFIG_LIST=("MinimumRequirements" "Upgrade" "MandatorySoftwares" "${CONFIG_LIST[@]}" "Clean")
+      CONFIG_LIST=("${CONFIG_LIST[@]}")
       if [[ "${PREPARE_EXPORT}" = "1" ]]; then
         CONFIG_LIST+=("_Export")
       fi
@@ -96,7 +96,7 @@ commandCallback() {
       declare -Ag allDepsResultSeen=()
 
       Profiles::allDepsRecursive \
-        "${SRC_DIR}/installScripts/definitions" "${rootDependency}" "${CONFIG_LIST[@]}"
+        "${SRC_DIR}/installScripts" "${rootDependency}" "${CONFIG_LIST[@]}"
 
       CONFIG_LIST=("${allDepsResult[@]}")
     fi
