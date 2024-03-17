@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# BIN_FILE=${ROOT_DIR}/bin/installFileWithBackup
+# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/bin/installFileWithBackup
 # FACADE
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 

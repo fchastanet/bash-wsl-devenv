@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/install.sh
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Docker.sh
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
 # shellcheck disable=SC2288,SC2034
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/install
-# FACADE
+# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Docker
 
 # ensure that no user aliases could interfere with
 # commands used in this script
@@ -225,6 +224,13 @@ Array::wrap2() {
   ) | sed -E -e 's/[[:blank:]]+$//'
 }
 
+# @description checks if function name provided exists
+# @arg $1 functionName:String
+# @exitcode 1 if function name doesn't exist
+Assert::functionExists() {
+  declare -F "$1" >/dev/null
+}
+
 # @description list files of dir with given extension and display it as a list one by line
 #
 # @arg $1 dir:String the directory to list
@@ -439,6 +445,55 @@ Framework::createTempFile() {
   mktemp -p "${TMPDIR:-/tmp}" -t "${1:-}.XXXXXXXXXXXX"
 }
 
+# @description upgrade given binary to latest github release using retry
+#
+# releaseUrl argument : the placeholder @latestVersion@ will be replaced by the latest release version
+# @arg $1 targetFile:String target binary file (eg: /usr/local/bin/kind)
+# @arg $2 releaseUrl:String    github release url (eg: https://github.com/kubernetes-sigs/kind/releases/download/@latestVersion@/kind-linux-amd64)
+# @arg $3 versionCallback:Function function called to get software version (default: Version::getCommandVersionFromPlainText will call software with argument --version)
+# @arg $4 installCallback:Function function called to install the file retrieved on github (default copy as is and set execution bit)
+# @stdout log messages about retry, install, upgrade
+Github::upgradeRelease() {
+  local targetFile="$1"
+  local releaseUrl="$2"
+  local argVersion="${3:---version}"
+  local versionCallback="${4:-Version::getCommandVersionFromPlainText}"
+  # shellcheck disable=SC2034
+  local installCallback="${5:-}"
+  local latestVersion
+  local repo
+
+  repo="$(Github::extractRepoFromGithubUrl "${releaseUrl}")"
+  Github::getLatestRelease "${repo}" latestVersion ||
+    Log::fatal "Repo ${repo} latest version not found"
+  Log::displayInfo "Repo ${repo} latest version found is ${latestVersion}"
+
+  local currentVersion="not existing"
+  if [[ -f "${targetFile}" ]]; then
+    currentVersion="$(${versionCallback} "${targetFile}" "${argVersion}" 2>&1 || true)"
+  fi
+  if [[ "${currentVersion}" = "${latestVersion}" ]]; then
+    Log::displayInfo "${targetFile} version ${latestVersion} already installed"
+  else
+    if [[ -z "${currentVersion}" ]]; then
+      Log::displayInfo "Installing ${targetFile} with version ${latestVersion}"
+    else
+      Log::displayInfo "Upgrading ${targetFile} from version ${currentVersion} to ${latestVersion}"
+    fi
+    local url
+    url="$(echo "${releaseUrl}" | sed -E "s/@latestVersion@/${latestVersion}/g")"
+    Log::displayInfo "Using url ${url}"
+    newSoftware=$(mktemp -p "${TMPDIR:-/tmp}" -t github.newSoftware.XXXX)
+    Retry::default curl \
+      -L \
+      -o "${newSoftware}" \
+      --fail \
+      "${url}"
+
+    Github::defaultInstall "${newSoftware}" "${targetFile}" "${latestVersion}" "${installCallback}"
+  fi
+}
+
 # @description the command launch different actions(install, configure, test)
 # depending on the options selected
 # @see src/_includes/install.default.options.tpl
@@ -612,15 +667,6 @@ Log::fatal() {
   exit 1
 }
 
-# @description Display given text on full line with TEST_COLOR style
-# @arg $1 text:String text to display
-Log::headLine() {
-  local text="$1"
-  local message
-  message="$(UI::textLine "${text}" " ")"
-  echo -e "${__TEST_COLOR}${message}${__RESET_COLOR}"
-}
-
 # @description activate or not Log::display* and Log::log* functions
 # based on BASH_FRAMEWORK_DISPLAY_LEVEL and BASH_FRAMEWORK_LOG_LEVEL
 # environment variables loaded by Env::requireLoad
@@ -666,304 +712,12 @@ Log::requireLoad() {
   fi
 }
 
-# @description To be called before logging in the log file
-# @arg $1 file:string log file name
-# @arg $2 maxLogFilesCount:int maximum number of log files
-Log::rotate() {
-  local file="$1"
-  local maxLogFilesCount="${2:-5}"
-
-  if [[ ! -f "${file}" ]]; then
-    Log::displaySkipped "Log file ${file} doesn't exist yet"
-    return 0
-  fi
-  local i
-  for (( i = 1; i <= maxLogFilesCount; i++ )); do
-    Log::displayInfo "Log rotation ${file}.${i} to ${file}.$((i + 1))"
-    mv "${file}."{"${i}","$((i + 1))"} &>/dev/null || true
-  done
-  if cp "${file}" "${file}.1" &>/dev/null; then
-    echo >"${file}" # reset log file
-    Log::displayInfo "Log rotation ${file} to ${file}.1"
-  fi
-}
-
-declare -Ag allDepsResultSeen=()
-declare -ag allDepsResult=()
-
-# @description get recursively all the dependencies of each config from configs arg
-#
-# The parent argument must be set to "your software selection" when you call it,
-# then the value will change when this function will be called recursively with the
-# parent dependency
-#
-# Algorithm
-#   For each config in configs
-#     - load config definition
-#     - mark this config as seen to avoid to recompute it later, in the case where another
-#       definition depends on it
-#     - call installScripts_${config}_dependencies function if exists (skipped if not)
-#     - add these new dependencies if any to current dependencies list
-#     - call recursively Profiles::allDepsRecursive with these dependencies
-#     - add in allDepsResult the current config if it was not seen yet
-#   This has constructed a tree with the most deep dependency present in the first items
-#
-# @warning allDepsResultSeen and allDepsResult global variables have to reset to empty array everytime you call this function
-#
-# @arg $1 scriptsDir:String base directory where dependencies can be retrieved
-# @arg $2 parent:String set to "your software selection" when you call it
-# @arg $@ configs:String[] list of configurations to load, each config can depend on an other one
-# @exitcode 1 if one of the dependency cannot be found
-# @exitcode 2 if error while loading one of the dependency definition
-# @exitcode 3 if error while calling dependencies function of the dependency's definition
-# @set allDepsResultSeen String[] list of dependencies already seen
-# @set allDepsResult String[] the final list of dependencies sorted by the most to less dependent
-# @stderr diagnostics information is displayed
-Profiles::allDepsRecursive() {
-  local scriptsDir="$1"
-  local parent="$2"
-  shift 2 || true
-  local i
-  local addDep=0
-  local -a deps=()
-  local -a newDeps
-
-  for i in "$@"; do
-    if [[ "${allDepsResultSeen["${i}"]}" = 'stored' ]]; then
-      continue
-    fi
-    if [[ ! -f "${scriptsDir}/${i}" ]]; then
-      Log::displayError "Dependency ${i} doesn't exist"
-      return 1
-    fi
-    local -a dependencies
-    # shellcheck disable=SC2207
-    dependencies=($("${scriptsDir}/${i}" dependencies)) || {
-      Log::displaySkipped "${scriptsDir}/${i} does not define the command dependencies"
-      continue
-    }
-    if [[ -z "${allDepsResultSeen[${i}]+exists}" ]]; then
-      addDep=1
-      allDepsResultSeen["${i}"]='stored'
-    fi
-    deps+=("${dependencies[@]}")
-    # remove duplicates from deps preserving order
-    mapfile -t deps < <(
-      IFS=$'\n'
-      echo "${deps[@]}" | awk '!x[$0]++'
-    )
-    if ((${#newDeps} > 0)); then
-      Profiles::allDepsRecursive "${scriptsDir}" "${i}" "${newDeps[@]}"
-    fi
-    if [[ "${addDep}" = "1" ]]; then
-      Log::displayInfo "${i} is a dependency of ${parent}"
-      allDepsResult+=("${i}")
-    fi
-    addDep=0
-  done
-}
-
-# @description check if dependencies exist
-# path is constructed with following rule
-#   ${scriptsDir}/${dependency}${extension}
-# @arg $1 scriptsDir:String
-# @arg $2 extension:String
-# @arg $@ args:String[] list of dependencies to check
-# @exitcode 1 if one the script does not exist
-# @stderr diagnostics information is displayed
-Profiles::checkScriptsExistence() {
-  local scriptsDir="$1"
-  local extension="$2"
-  shift 2 || true
-
-  for i in "$@"; do
-    if [[ ! -f "${scriptsDir}/${i}${extension}" ]]; then
-      Log::fatal "script ${i} doesn't exist"
-    fi
-  done
-}
-
-# @description load profile file based on profileDir and profile argument
-# The profile file is ${profileDir}/profile.${profile}.sh
-# This file should define the variable CONFIG_LIST with array type
-# @warning warning
-# @arg $1 arg1Name:arg1Type
-# @arg $@ args:String[]
-# @set envVar type description
-# @env envVar type description
-# @exitcode 1 if one of the 2 arguments is not provided
-# @exitcode 2 if profile not found at location ${profileDir}/profile.${profile}.sh
-# @exitcode 3 if profile found but CONFIG_LIST variable unset
-# @exitcode 4 if profile found but CONFIG_LIST variable empty
-# @exitcode 5 if error occurs during profile loading
-# @stdout list of unique config items provided by profile's CONFIG_LIST array
-# @stderr diagnostics information is displayed
-# @see Profiles::allDepsRecursive in order to load all the dependencies recursively based on this list
-Profiles::loadProfile() {
-  local profileDir="$1"
-  local profile="$2"
-  local -a CONFIG_LIST=()
-
-  if [[ -z "${profile}" || -z "${profileDir}" ]]; then
-    Log::displayError "This method needs exactly 2 parameters"
-    return 1
-  fi
-
-  # load the profile
-  Log::displayInfo "Loading profile '${profileDir}/profile.${profile}.sh'"
-  if [[ ! -f "${profileDir}/profile.${profile}.sh" ]]; then
-    Log::displayError "profile profile.${profile}.sh not found in '${profileDir}'"
-    return 2
-  fi
-
-  # shellcheck source=src/Profiles/testsData/profile.test1.sh
-  source "${profileDir}/profile.${profile}.sh" || return 5
-
-  if [[ ! -v CONFIG_LIST ]]; then
-    Log::displayError "Profile ${profileDir}/profile.${profile}.sh missing variable CONFIG_LIST"
-    return 3
-  fi
-  if [[ ${#CONFIG_LIST[@]} -eq 0 ]]; then
-    Log::displayError "Profile ${profileDir}/profile.${profile}.sh variable CONFIG_LIST cannot be empty"
-    return 4
-  fi
-
-  # remove duplicates from profile preserving order
-  mapfile -t CONFIG_LIST < <(
-    IFS=$'\n' printf '%s\n' "${CONFIG_LIST[@]}" | awk '!x[$0]++'
-  )
-  printf '%s\n' "${CONFIG_LIST[@]}"
-}
-
-# @description aggregate number of skip/error/... log messages
-# and export the result in aggregateStatFile
-# @arg $1 statFile:String the current stat file to add to aggregateStatFile
-# @arg $2 aggregateStatFile:String the file in which aggregated
-# if it doesn't exist, the file is created with needed variables set to 0
-# stats will be saved
-Stats::aggregateStats() {
-  local statFile="$1"
-  local aggregateStatFile="$2"
-
-  (
-    if [[ ! -f "${aggregateStatFile}" ]]; then
-      (
-        echo "count=0"
-        echo "error=0"
-        echo "warning=0"
-        echo "skipped=0"
-        echo "help=0"
-        echo "success=0"
-        echo "duration=0"
-        echo "statusSuccess=0"
-      ) >"${aggregateStatFile}"
-    fi
-    if [[ ! -f "${statFile}" ]]; then
-      return 0
-    fi
-
-    # shellcheck source=src/Stats/logStats.example
-    source "${statFile}"
-    local newError="${error}"
-    local newWarning="${warning}"
-    local newSkipped="${skipped}"
-    local newHelp="${help}"
-    local newSuccess="${success}"
-    local newDuration="${duration}"
-    local newStatus="${status}"
-
-    # shellcheck source=src/Stats/aggregateStats.example
-    source "${aggregateStatFile}"
-
-    ((count++)) || true
-    if ((newStatus == 0)); then
-      ((statusSuccess++)) || true
-    fi
-    if ((newError > 0)); then
-      ((error++)) || true
-    fi
-    if ((newWarning > 0)); then
-      ((warning++)) || true
-    fi
-    if ((newSkipped > 0)); then
-      ((skipped++)) || true
-    fi
-    if ((newHelp > 0)); then
-      ((help++)) || true
-    fi
-    if ((newSuccess > 0)); then
-      ((success++)) || true
-    fi
-    ((duration = duration + newDuration)) || true
-    (
-      echo "count=${count}"
-      echo "error=${error}"
-      echo "warning=${warning}"
-      echo "skipped=${skipped}"
-      echo "help=${help}"
-      echo "success=${success}"
-      echo "duration=${duration}"
-      echo "statusSuccess=${statusSuccess}"
-    ) >"${aggregateStatFile}"
-  )
-}
-
-# @description display aggregated stats computed using Stats::aggregateStats
-# @stdout aggregated stats report
-Stats::aggregateStatsSummary() {
-  local msg="$1"
-  local aggregateStatFile="$2"
-  local appCount="$3"
-  if [[ ! -f "${aggregateStatFile}" ]]; then
-    return 0
-  fi
-
-  (
-    # shellcheck source=src/Stats/aggregateStats.example
-    source "${aggregateStatFile}"
-
-    echo -e "${__SUCCESS_COLOR}${count}${__RESET_COLOR} / ${__INFO_COLOR}${appCount}${__RESET_COLOR} ${msg} executed"
-    echo -e " - ${__ERROR_COLOR}${error} ${msg} with error${__RESET_COLOR}"
-    echo -e " - ${__SKIPPED_COLOR}${skipped} partial ${msg} (check logs marked as skipped)${__RESET_COLOR}"
-    echo -e " - ${__WARNING_COLOR}${warning} ${msg} with warning${__RESET_COLOR}"
-    echo -e " - ${__INFO_COLOR}Duration: ${duration}s${__RESET_COLOR}"
-  )
-}
-
-# @description recapitulate important log messages
-# @stdout the important log messages
-Stats::logRecapitulative() {
-  local logFile="$1"
-
-  local logRecapitulativeAwkScript
-  logRecapitulativeAwkScript="$(
-    cat <<'EOF'
-BEGIN {
-  currentProcessLogs = ""
-  currentContainsLogs = 0
-}
-{
-  buffer = substr($0, 1, 150)
-  if(match(buffer, /PROCESS - Processing ([^ ]+) \([0-9]+\/[0-9]+\)/, arr) != 0) {
-    processNameName = arr[1]
-
-    currentProcessLogs = currentProcessLogs "\033[44m--- Process " processNameName " ---\033[0m\n"
-  } else if(match(buffer, /(ERROR|SKIPPED|WARN|HELP|FATAL)[ ]+- /, arr) != 0) {
-    currentContainsLogs = 1
-    currentProcessLogs = currentProcessLogs $0 "\n"
-  }
-}
-END {
-  if (currentContainsLogs == 1) {
-    printf currentProcessLogs
-  }
-}
-EOF
-  )"
-
-  if [[ -f "${logFile}" ]]; then
-    awk --source "${logRecapitulativeAwkScript}" "${logFile}" | uniq
-  fi
+# @description Retry a command 5 times with a delay of 15 seconds between each attempt
+# @arg $@ command:String[] the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+Retry::default() {
+  Retry::parameterized 5 15 "" "$@"
 }
 
 # @description draw a line with the character passed in parameter repeated depending on terminal width
@@ -1061,15 +815,6 @@ UI::theme() {
 Compiler::Facade::requireCommandBinDir() {
   COMMAND_BIN_DIR="${CURRENT_DIR}"
   Env::pathPrepend "${COMMAND_BIN_DIR}"
-}
-
-# @description ensure running user is not root
-# @exitcode 1 if current user is root
-# @stderr diagnostics information is displayed
-Linux::requireExecutedAsUser() {
-  if [[ "$(id -u)" = "0" ]]; then
-    Log::fatal "this script should be executed as normal user"
-  fi
 }
 
 # @description check if tty (interactive mode) is active
@@ -1391,13 +1136,90 @@ Env::pathPrepend() {
   done
 }
 
-# @description Display message using skip color (yellow)
-# @arg $1 message:String the message to display
-Log::displaySkipped() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${1}${__RESET_COLOR}" >&2
+# @description intermediate callback that is used by Github::upgradeRelease
+# or Github::installRelease
+# if installCallback is not set, it allows to:
+#   - copy the downloaded file to the right target file
+#   - and set the execution bit
+# else
+#   installCallback is called with newSoftware, targetFile, version arguments
+# fi
+# @warning do not use this function as callback for Github::upgradeRelease or Github::installRelease, as it would result to an infinite loop
+# @arg $1 newSoftware:String the downloaded software file
+# @arg $2 targetFile:String where we want to copy the file
+# @arg $3 version:String the version that has been downloaded
+# @arg $4 installCallback:Function (optional) the callback to call with 3 first arguments
+# @exitcode * on failure
+# @see Github::upgradeRelease
+# @see Github::installRelease
+# @internal
+Github::defaultInstall() {
+  local newSoftware="$1"
+  local targetFile="$2"
+  local version="$3"
+  local installCallback=$4
+  # shellcheck disable=SC2086
+  mkdir -p "$(dirname "${targetFile}")"
+  if [[ "$(type -t "${installCallback}")" = "function" ]]; then
+    ${installCallback} "${newSoftware}" "${targetFile}" "${version}"
+  else
+    mv "${newSoftware}" "${targetFile}"
+    chmod +x "${targetFile}"
+    hash -r
+    rm -f "${newSoftware}" || true
   fi
-  Log::logSkipped "$1"
+}
+
+# @description github repository eg: kubernetes-sigs/kind
+# @arg $1 githubUrl:String eg: https://github.com/kubernetes-sigs/kind/releases/download/@latestVersion@/kind-linux-amd64
+# @exitcode 1 if no matching repo found in provided url, 0 otherwise
+# @stdout the repo in the form owner/repo
+Github::extractRepoFromGithubUrl() {
+  local githubUrl="$1"
+  local result
+  result="$(sed -n -E 's#^https://github.com/([^/]+/[^/]+)/.*$#\1#p' <<<"${githubUrl}")"
+  if [[ -z "${result}" ]]; then
+    return 1
+  fi
+  echo "${result}"
+}
+
+# @description Retrieve the latest version number of a github release using Github API using retry
+# repo arg with fchastanet/bash-tools value would match https://github.com/fchastanet/bash-tools
+# @arg $1 repo:String repository in the format fchastanet/bash-tools
+# @arg $2 resultRef:&String reference to a variable that will contain the result of the command
+# @stdout log messages about retry
+Github::getLatestRelease() {
+  local repo="$1"
+  # we need to pass the result through a reference instead of output directly
+  # because retry can output too
+  local -n resultRef=$2
+  resultRef=""
+  local resultFile
+  resultFile="$(mktemp -p "${TMPDIR:-/tmp}" -t githubLatestRelease.XXXX)"
+  # Get latest release from GitHub api
+  if Retry::default curl \
+    -L \
+    -o "${resultFile}" \
+    --fail \
+    --silent \
+    "https://api.github.com/repos/${repo}/releases/latest"; then
+    # shellcheck disable=SC2034
+    resultRef="$(Version::githubApiExtractVersion <"${resultFile}")"
+    return 0
+  fi
+  # display curl result in case of failure
+  cat >&2 "${resultFile}"
+  rm -f "${resultFile}"
+}
+
+# @description Display given text on full line with TEST_COLOR style
+# @arg $1 text:String text to display
+Log::headLine() {
+  local text="$1"
+  local message
+  message="$(UI::textLine "${text}" " ")"
+  echo -e "${__TEST_COLOR}${message}${__RESET_COLOR}"
 }
 
 # @description log message to file
@@ -1473,6 +1295,65 @@ Log::logWarning() {
   fi
 }
 
+# @description To be called before logging in the log file
+# @arg $1 file:string log file name
+# @arg $2 maxLogFilesCount:int maximum number of log files
+Log::rotate() {
+  local file="$1"
+  local maxLogFilesCount="${2:-5}"
+
+  if [[ ! -f "${file}" ]]; then
+    Log::displaySkipped "Log file ${file} doesn't exist yet"
+    return 0
+  fi
+  local i
+  for (( i = 1; i <= maxLogFilesCount; i++ )); do
+    Log::displayInfo "Log rotation ${file}.${i} to ${file}.$((i + 1))"
+    mv "${file}."{"${i}","$((i + 1))"} &>/dev/null || true
+  done
+  if cp "${file}" "${file}.1" &>/dev/null; then
+    echo >"${file}" # reset log file
+    Log::displayInfo "Log rotation ${file} to ${file}.1"
+  fi
+}
+
+# @description Retry a command several times depending on parameters
+# @arg $1 maxRetries:int    $1 max retries
+# @arg $2 delay:int between attempt
+# @arg $3 message:String to display to describe the attempt
+# @arg $@ rest of parameters, the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+# @exitcode 2 if maxRetries invalid value
+Retry::parameterized() {
+  local maxRetries=$1
+  shift || true
+  local delayBetweenTries=$1
+  shift || true
+  local message="$1"
+  shift || true
+  local retriesCount=1
+  if [[ "${maxRetries}" -lt 1 ]]; then
+    Log::displayError "invalid maxRetry value"
+    return 2
+  fi
+
+  while true; do
+    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
+    if "$@"; then
+      break
+    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
+      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
+      ((retriesCount++))
+      sleep "${delayBetweenTries}"
+    else
+      Log::displayError "The command has failed after ${retriesCount} attempts."
+      return 1
+    fi
+  done
+  return 0
+}
+
 # @description trap function responsible to compute and display stats after each script execution
 # @arg $1 step:String current step (msg)
 # @arg $2 logFile:String
@@ -1491,17 +1372,14 @@ Stats::computeStatsTrap() {
   return "${status}"
 }
 
-# @description Display given text and complete the rest of the line with given character
-# @arg $1 text:String text to display
-# @arg $2 character:String (default:#) character to use to complete the line
-UI::textLine() {
-  local text="$1"
-  local character="${2:-#}"
-  ((textSize = ${#text}))
-  ((fullWith = $(tput cols)))
-  ((remainingWidth = $((fullWith - textSize))))
-  echo -n "${text}"
-  printf '%*s\n' "${remainingWidth}" '' | tr ' ' "${character}"
+# @description extract software version number
+# @arg $1 command:String the command that will be called with --version parameter
+# @arg $2 argVersion:String  allows to override default --version parameter
+Version::getCommandVersionFromPlainText() {
+  local command="$1"
+  local argVersion="${2:---version}"
+  "${command}" "${argVersion}" 2>&1 |
+    Version::parse # keep only version numbers
 }
 
 # @description load color theme
@@ -1635,12 +1513,13 @@ Linux::Wsl::cachedWslvar() {
   Cache::getPropertyValue "${tempEnvFile}" "$1" Linux::Wsl::originalWslvar "$@"
 }
 
-# @description log message to file
+# @description Display message using skip color (yellow)
 # @arg $1 message:String the message to display
-Log::logSkipped() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SKIPPED}" "$1"
+Log::displaySkipped() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    echo -e "${__SKIPPED_COLOR}SKIPPED - ${1}${__RESET_COLOR}" >&2
   fi
+  Log::logSkipped "$1"
 }
 
 # @description extract stats form log
@@ -1733,6 +1612,39 @@ Stats::statusLine() {
   )
 }
 
+# @description Display given text and complete the rest of the line with given character
+# @arg $1 text:String text to display
+# @arg $2 character:String (default:#) character to use to complete the line
+UI::textLine() {
+  local text="$1"
+  local character="${2:-#}"
+  ((textSize = ${#text}))
+  ((fullWith = $(tput cols)))
+  ((remainingWidth = $((fullWith - textSize))))
+  echo -n "${text}"
+  printf '%*s\n' "${remainingWidth}" '' | tr ' ' "${character}"
+}
+
+# @description extract version number from github api
+# @noargs
+# @stdin json result of github API
+# @exitcode 1 if jq or Version::parse fails
+# @stdout the version parsed
+# @require Linux::requireJqCommand
+Version::githubApiExtractVersion() {
+  jq -r ".tag_name"
+}
+
+# @description filter to keep only version number from a string
+# @arg $@ files:String[] the files to filter
+# @exitcode * if one of the filter command fails
+# @stdin you can use stdin as alternative to files argument
+# @stdout the filtered content
+# shellcheck disable=SC2120
+Version::parse() {
+  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
+}
+
 # @description check if argument respects this framework variable naming convention
 # - if variable begins with an uppercase or underscore, following letters have to be uppercase or underscore
 # - variable name can includes ':' or '_' or digits but not as first letter
@@ -1803,10 +1715,47 @@ Linux::Wsl::originalWslvar() {
   wslvar "$@" | sed -z '$ s/[\r\n]$//'
 }
 
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logSkipped() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SKIPPED}" "$1"
+  fi
+}
+
 # @description ensure linux runs under wsl
 # @exitcode 1 if linux does not run under wsl
 Linux::Wsl::requireWsl() {
   Assert::wsl
+}
+
+# @description ensure command jq is available
+# @exitcode 1 if jq command not available
+# @stderr diagnostics information is displayed
+Linux::requireJqCommand() {
+  Assert::commandExists jq
+}
+
+# @description check if command specified exists or return 1
+# with error and message if not
+#
+# @arg $1 commandName:String on which existence must be checked
+# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
+#
+# @exitcode 1 if the command specified does not exist
+# @stderr diagnostic information + help if second argument is provided
+Assert::commandExists() {
+  local commandName="$1"
+  local helpIfNotExists="$2"
+
+  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
+    Log::displayError "${commandName} is not installed, please install it"
+    if [[ -n "${helpIfNotExists}" ]]; then
+      Log::displayInfo "${helpIfNotExists}"
+    fi
+    return 1
+  }
+  return 0
 }
 
 # @description Compute a cache from wslpath options
@@ -1854,17 +1803,19 @@ Linux::Wsl::originalWslpath() {
 
 # FUNCTIONS
 
-facade_main_installsh() {
+facade_main_Dockersh() {
 # REQUIRES
 Env::requireLoad
 UI::requireTheme
 Log::requireLoad
 Linux::Wsl::requireWsl
+Linux::requireJqCommand
 Compiler::Facade::requireCommandBinDir
-Linux::requireExecutedAsUser
 
 # @require Compiler::Facade::requireCommandBinDir
-# BASH_DEV_ENV_ROOT_DIR_RELATIVE_TO_BIN_DIR=
+# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
+# FACADE
+# IMPLEMENT InstallScripts::interface
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -2843,7 +2794,7 @@ installScriptCommand() {
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
     echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/install.sh'
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Docker.sh'
     echo
     echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
     echo 'MIT License'
@@ -2883,1241 +2834,237 @@ helpLongDescriptionCallback() {
 
 Engine::Config::loadConfig
 
-# variables
-CONFIG_LIST=()
-PROFILE=
-SKIP_INSTALL=0
-SKIP_CONFIGURE=0
-SKIP_TEST=0
-# shellcheck disable=SC2034
-PREPARE_EXPORT=0
-# shellcheck disable=SC2034
-SKIP_DEPENDENCIES=0
-
-INSTALL_START="$(date +%s)"
-
-# trap errors
-err_report() {
-  echo "$0 - Upgrade failure - Error on line $1"
-  exit 1
+scriptName() {
+  echo "Docker"
 }
-trap 'err_report $LINENO' ERR
 
-declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
+helpDescription() {
+  echo "install docker and docker-compose inside wsl"
+}
 
-copyrightCallback() {
-  if [[ -z "${copyrightBeginYear}" ]]; then
-    copyrightBeginYear="$(date +%Y)"
+helpVariables() {
+  true
+}
+
+listVariables() {
+  true
+}
+
+defaultVariables() {
+  true
+}
+
+checkVariables() {
+  true
+}
+
+fortunes() {
+  return 0
+}
+
+dependencies() {
+  return 0
+}
+
+breakOnConfigFailure() {
+  return 0
+}
+
+breakOnTestFailure() {
+  return 0
+}
+
+install() {
+  Log::displayInfo "install docker required packages"
+  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
+  Retry::default sudo apt-get install -y \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    gnupg2
+
+  Log::displayInfo "install docker apt source list"
+  source /etc/os-release
+
+  Retry::default curl -fsSL "https://download.docker.com/linux/${ID}/gpg" | sudo apt-key add -
+
+  echo "deb [arch=amd64] https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable" | sudo tee /etc/apt/sources.list.d/docker.list
+
+  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
+
+  Log::displayInfo "install docker"
+  Retry::default sudo apt-get install -y \
+    containerd.io \
+    docker-ce \
+    docker-ce-cli
+
+  USER_NAME="$(id -un)"
+  Log::displayInfo "allowing user '${USER_NAME}' to use docker"
+  sudo getent group docker >/dev/null || sudo groupadd docker || true
+  sudo usermod -aG docker "${USER_NAME}" || true
+
+  Log::displayInfo "Configure dockerd"
+  # see https://dev.to/bowmanjd/install-docker-on-windows-wsl-without-docker-desktop-34m9
+  # see https://dev.solita.fi/2021/12/21/docker-on-wsl2-without-docker-desktop.html
+  DOCKER_DIR="/var/run/docker-data"
+  DOCKER_SOCK="${DOCKER_DIR}/docker.sock"
+  DOCKER_HOST="unix://${DOCKER_SOCK}"
+  export DOCKER_HOST
+  # shellcheck disable=SC2207
+  WSL_DISTRO_NAME="$(
+    IFS='/'
+    x=($(wslpath -m /))
+    echo "${x[${#x[@]} - 1]}"
+  )"
+
+  if [[ -z "${WSL_DISTRO_NAME}" ]]; then
+    Log::fatal "impossible to deduce distribution name"
   fi
-  echo "Copyright (c) ${copyrightBeginYear}-now François Chastanet"
-}
 
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListInfoVerboseCallback() {
-  BASH_FRAMEWORK_ARGV_FILTERED+=(--verbose)
-}
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListDebugVerboseCallback() {
-  BASH_FRAMEWORK_ARGV_FILTERED+=(-vv)
-}
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListTraceVerboseCallback() {
-  BASH_FRAMEWORK_ARGV_FILTERED+=(-vvv)
-}
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListEnvFileCallback() { :; }
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListLogLevelCallback() { :; }
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListDisplayLevelCallback() { :; }
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListNoColorCallback() {
-  BASH_FRAMEWORK_ARGV_FILTERED+=(--no-color)
-}
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListThemeCallback() { :; }
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListQuietCallback() { :; }
-
-# shellcheck disable=SC2317 # if function is overridden
-optionHelpCallback() {
-  installCommand help
-  exit 0
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionVersionCallback() {
-  echo "${SCRIPT_NAME} version 1.0"
-  exit 0
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionEnvFileCallback() {
-  local envFile="$2"
-  Log::displayWarning "Command ${SCRIPT_NAME} - Option --env-file is deprecated and will be removed in the future"
-  if [[ ! -f "${envFile}" || ! -r "${envFile}" ]]; then
-    Log::displayError "Command ${SCRIPT_NAME} - Option --env-file - File '${envFile}' doesn't exist"
-    exit 1
+  if [[ ! -d "${DOCKER_DIR}" ]]; then
+    sudo mkdir -pm o=,ug=rwx "${DOCKER_DIR}" || exit 1
   fi
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionInfoVerboseCallback() {
-  BASH_FRAMEWORK_ARGS_VERBOSE_OPTION='--verbose'
-  BASH_FRAMEWORK_ARGS_VERBOSE=${__VERBOSE_LEVEL_INFO}
-  echo "BASH_FRAMEWORK_DISPLAY_LEVEL=${__LEVEL_INFO}" >> "${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionDebugVerboseCallback() {
-  BASH_FRAMEWORK_ARGS_VERBOSE_OPTION='-vv'
-  BASH_FRAMEWORK_ARGS_VERBOSE=${__VERBOSE_LEVEL_DEBUG}
-  echo "BASH_FRAMEWORK_DISPLAY_LEVEL=${__LEVEL_DEBUG}" >> "${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionTraceVerboseCallback() {
-  BASH_FRAMEWORK_ARGS_VERBOSE_OPTION='-vvv'
-  BASH_FRAMEWORK_ARGS_VERBOSE=${__VERBOSE_LEVEL_TRACE}
-  echo "BASH_FRAMEWORK_DISPLAY_LEVEL=${__LEVEL_DEBUG}" >> "${overrideEnvFile}"
-}
-
-getLevel() {
-  local levelName="$1"
-  case "${levelName^^}" in
-    OFF)
-      echo "${__LEVEL_OFF}"
-      ;;
-    ERR | ERROR)
-      echo "${__LEVEL_ERROR}"
-      ;;
-    WARN | WARNING)
-      echo "${__LEVEL_WARNING}"
-      ;;
-    INFO)
-      echo "${__LEVEL_INFO}"
-      ;;
-    DEBUG | TRACE)
-      echo "${__LEVEL_DEBUG}"
-      ;;
-    *)
-      Log::displayError "Command ${SCRIPT_NAME} - Invalid level ${level}"
-      return 1
-  esac
-}
-
-getVerboseLevel() {
-  local levelName="$1"
-  case "${levelName^^}" in
-    OFF)
-      echo "${__VERBOSE_LEVEL_OFF}"
-      ;;
-    ERR | ERROR | WARN | WARNING | INFO)
-      echo "${__VERBOSE_LEVEL_INFO}"
-      ;;
-    DEBUG)
-      echo "${__VERBOSE_LEVEL_DEBUG}"
-      ;;
-    TRACE)
-      echo "${__VERBOSE_LEVEL_TRACE}"
-      ;;
-    *)
-      Log::displayError "Command ${SCRIPT_NAME} - Invalid level ${level}"
-      return 1
-  esac
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionDisplayLevelCallback() {
-  local level="$2"
-  local logLevel verboseLevel
-  logLevel="$(getLevel "${level}")"
-  verboseLevel="$(getVerboseLevel "${level}")"
-  BASH_FRAMEWORK_ARGS_VERBOSE=${verboseLevel}
-  echo "BASH_FRAMEWORK_DISPLAY_LEVEL=${logLevel}" >> "${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionLogLevelCallback() {
-  local level="$2"
-  local logLevel verboseLevel
-  logLevel="$(getLevel "${level}")"
-  verboseLevel="$(getVerboseLevel "${level}")"
-  BASH_FRAMEWORK_ARGS_VERBOSE=${verboseLevel}
-  echo "BASH_FRAMEWORK_LOG_LEVEL=${logLevel}" >> "${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionLogFileCallback() {
-  local logFile="$2"
-  echo "BASH_FRAMEWORK_LOG_FILE='${logFile}'" >> "${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionQuietCallback() {
-  echo "BASH_FRAMEWORK_QUIET_MODE=1" >> "${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionNoColorCallback() {
-  UI::theme "noColor"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionThemeCallback() {
-  UI::theme "$2"
-}
-
-displayConfig() {
-  echo "Config"
-  UI::drawLine "-"
-  local var
-  while read -r var; do
-    printf '%-40s = %s\n' "${var}" "$(declare -p "${var}" | sed -E -e 's/^[^=]+=(.*)/\1/')"
-  done < <(typeset -p | awk 'match($3, "^(BASH_FRAMEWORK_[^=]+)=", m) { print m[1] }' | sort)
-  exit 0
-}
-
-optionBashFrameworkConfigCallback() {
-  if [[ ! -f "$2" ]]; then
-    Log::fatal "Command ${SCRIPT_NAME} - Bash framework config file '$2' does not exists"
+  sudo chgrp docker "${DOCKER_DIR}"
+  if [[ ! -d "/etc/docker" ]]; then
+    sudo mkdir -p /etc/docker || exit 1
   fi
-}
 
-defaultFrameworkConfig="$(
-  cat <<'EOF'
-# copied from src/_includes/.framework-config.default
-# shellcheck disable=SC2034
-
-REAL_SCRIPT_FILE="${REAL_SCRIPT_FILE:-$(readlink -e "$(realpath "${BASH_SOURCE[0]}")")}"
-FRAMEWORK_ROOT_DIR="${FRAMEWORK_ROOT_DIR:-$(cd "$(readlink -e "${REAL_SCRIPT_FILE%/*}")/../.." && pwd -P)}"
-FRAMEWORK_SRC_DIR="${FRAMEWORK_SRC_DIR:-${FRAMEWORK_ROOT_DIR}/src}"
-FRAMEWORK_BIN_DIR="${FRAMEWORK_BIN_DIR:-${FRAMEWORK_ROOT_DIR}/bin}"
-FRAMEWORK_VENDOR_DIR="${FRAMEWORK_VENDOR_DIR:-${FRAMEWORK_ROOT_DIR}/vendor}"
-FRAMEWORK_VENDOR_BIN_DIR="${FRAMEWORK_VENDOR_BIN_DIR:-${FRAMEWORK_ROOT_DIR}/vendor/bin}"
-
-# describe the functions that will be skipped from being imported
-FRAMEWORK_FUNCTIONS_IGNORE_REGEXP="${FRAMEWORK_FUNCTIONS_IGNORE_REGEXP:-^(Namespace::functions|Functions::myFunction|Namespace::requireSomething|Acquire::ForceIPv4)$}"
-# describe the files that do not contain function to be imported
-NON_FRAMEWORK_FILES_REGEXP="${NON_FRAMEWORK_FILES_REGEXP:-(^bin/|.framework-config|.bats$|/testsData/|^manualTests/|/_.sh$|/ZZZ.sh$|/__all.sh$|^src/_binaries|^src/_includes|^src/batsHeaders.sh$|^src/_standalone)}"
-# describe the files that are allowed to not have an associated bats file
-BATS_FILE_NOT_NEEDED_REGEXP="${BATS_FILE_NOT_NEEDED_REGEXP:-(^bin/|.framework-config|.bats$|/testsData/|^manualTests/|/_.sh$|/ZZZ.sh$|/__all.sh$|^src/batsHeaders.sh$|^src/_includes)}"
-# describe the files that are allowed to not have a function matching the filename
-FRAMEWORK_FILES_FUNCTION_MATCHING_IGNORE_REGEXP="${FRAMEWORK_FILES_FUNCTION_MATCHING_IGNORE_REGEXP:-^bin/|^\.framework-config$|\.tpl$|/testsData/|^manualTests/|\.bats$}"
-# Source directories
-if [[ ! -v FRAMEWORK_SRC_DIRS ]]; then
-  FRAMEWORK_SRC_DIRS=(
-    "${FRAMEWORK_ROOT_DIR}/src"
-  )
-fi
-
-# export here all the variables that will be used in your templates
-export REPOSITORY_URL="${REPOSITORY_URL:-https://github.com/fchastanet/bash-tools-framework}"
-
-BASH_FRAMEWORK_THEME="${BASH_FRAMEWORK_THEME:-default}"
-BASH_FRAMEWORK_LOG_LEVEL="${BASH_FRAMEWORK_LOG_LEVEL:-0}"
-BASH_FRAMEWORK_DISPLAY_LEVEL="${BASH_FRAMEWORK_DISPLAY_LEVEL:-3}"
-BASH_FRAMEWORK_LOG_FILE="${BASH_FRAMEWORK_LOG_FILE:-${FRAMEWORK_ROOT_DIR}/logs/$(basename "$0").log}"
-BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION="${BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION:-5}"
-EOF
-)"
-
-overrideEnvFile="$(Framework::createTempFile "overrideEnvFile")"
-
-commandOptionParseFinished() {
-  # load default template framework config
-  defaultEnvFile="${PERSISTENT_TMPDIR}/.framework-config"
-  echo "${defaultFrameworkConfig}" > "${defaultEnvFile}"
-  local -a files=("${defaultEnvFile}")
-  if [[ -f "${envFile}" ]]; then
-    files+=("${envFile}")
+  # shellcheck disable=SC2174
+  if [[ ! -f "/etc/docker/daemon.json" ]]; then
+    Log::displayInfo "Creating /etc/docker/daemon.json"
+    LOCAL_DNS1="$(grep nameserver </etc/resolv.conf | cut -d ' ' -f 2)"
+    LOCAL_DNS2="$(ip --json --family inet addr show eth0 | jq -re '.[].addr_info[].local')"
+    (
+      echo "{"
+      echo "  \"hosts\": [\"${DOCKER_HOST}\"],"
+      echo "  \"dns\": [\"${LOCAL_DNS1}\", \"${LOCAL_DNS2}\", \"8.8.8.8\", \"8.8.4.4\"]"
+      echo "}"
+    ) | sudo tee /etc/docker/daemon.json
   fi
-  # shellcheck disable=SC2154
-  if [[ -f "${optionBashFrameworkConfig}" ]]; then
-    files+=("${optionBashFrameworkConfig}")
+
+  dockerIsStarted() {
+    DOCKER_PS="$(docker ps 2>&1 || true)"
+    [[ -S "${DOCKER_SOCK}" && ! "${DOCKER_PS}" =~ "Cannot connect to the Docker daemon" ]]
+  }
+  Log::displayInfo "Checking if docker is started ..."
+  if dockerIsStarted; then
+    Log::displaySuccess "Docker connection success"
+  else
+    Log::displayInfo "Starting docker ..."
+    sudo rm -f "${DOCKER_SOCK}" || true
+    wsl.exe -d "${WSL_DISTRO_NAME}" sh -c "nohup sudo -b dockerd < /dev/null > '${DOCKER_DIR}/dockerd.log' 2>&1"
+    if ! dockerIsStarted; then
+      Log::fatal "Unable to start docker"
+    fi
   fi
-  files+=("${overrideEnvFile}")
-  Env::requireLoad "${files[@]}"
-  Log::requireLoad
-  # shellcheck disable=SC2154
-  if [[ "${optionConfig}" = "1" ]]; then
-    displayConfig
-  fi
-}
 
-declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
+  Log::displayInfo "Installing docker-compose"
+  [[ -f /usr/local/bin/docker-compose ]] && cp /usr/local/bin/docker-compose /tmp/docker-compose
+  Github::upgradeRelease \
+    "docker/compose" \
+    "https://github.com/docker/compose/releases/download/v@latestVersion@/docker-compose-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)" \
+    "--version" \
+    defaultVersion
 
-copyrightCallback() {
-  if [[ -z "${copyrightBeginYear}" ]]; then
-    copyrightBeginYear="$(date +%Y)"
-  fi
-  echo "Copyright (c) ${copyrightBeginYear}-now François Chastanet"
-}
+  sudo mv /tmp/docker-compose /usr/local/bin/docker-compose
+  sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
 
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListInfoVerboseCallback() {
-  BASH_FRAMEWORK_ARGV_FILTERED+=(--verbose)
-}
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListDebugVerboseCallback() {
-  BASH_FRAMEWORK_ARGV_FILTERED+=(-vv)
-}
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListTraceVerboseCallback() {
-  BASH_FRAMEWORK_ARGV_FILTERED+=(-vvv)
-}
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListEnvFileCallback() { :; }
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListLogLevelCallback() { :; }
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListDisplayLevelCallback() { :; }
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListNoColorCallback() {
-  BASH_FRAMEWORK_ARGV_FILTERED+=(--no-color)
-}
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListThemeCallback() { :; }
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListQuietCallback() { :; }
+  Log::displayInfo "Installing docker-compose as docker plugin"
+  # create the docker plugins directory if it doesn't exist yet
+  # shellcheck disable=SC2153
+  mkdir -p "${USER_HOME}/.docker/cli-plugins"
+  sudo ln -sf /usr/local/bin/docker-compose "${HOME}/.docker/cli-plugins/docker-compose"
 
-# shellcheck disable=SC2317 # if function is overridden
-optionHelpCallback() {
-  installCommand help
-  exit 0
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionVersionCallback() {
-  echo "${SCRIPT_NAME} version 1.0"
-  exit 0
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionEnvFileCallback() {
-  local envFile="$2"
-  Log::displayWarning "Command ${SCRIPT_NAME} - Option --env-file is deprecated and will be removed in the future"
-  if [[ ! -f "${envFile}" || ! -r "${envFile}" ]]; then
-    Log::displayError "Command ${SCRIPT_NAME} - Option --env-file - File '${envFile}' doesn't exist"
-    exit 1
-  fi
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionInfoVerboseCallback() {
-  BASH_FRAMEWORK_ARGS_VERBOSE_OPTION='--verbose'
-  BASH_FRAMEWORK_ARGS_VERBOSE=${__VERBOSE_LEVEL_INFO}
-  echo "BASH_FRAMEWORK_DISPLAY_LEVEL=${__LEVEL_INFO}" >> "${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionDebugVerboseCallback() {
-  BASH_FRAMEWORK_ARGS_VERBOSE_OPTION='-vv'
-  BASH_FRAMEWORK_ARGS_VERBOSE=${__VERBOSE_LEVEL_DEBUG}
-  echo "BASH_FRAMEWORK_DISPLAY_LEVEL=${__LEVEL_DEBUG}" >> "${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionTraceVerboseCallback() {
-  BASH_FRAMEWORK_ARGS_VERBOSE_OPTION='-vvv'
-  BASH_FRAMEWORK_ARGS_VERBOSE=${__VERBOSE_LEVEL_TRACE}
-  echo "BASH_FRAMEWORK_DISPLAY_LEVEL=${__LEVEL_DEBUG}" >> "${overrideEnvFile}"
-}
-
-getLevel() {
-  local levelName="$1"
-  case "${levelName^^}" in
-    OFF)
-      echo "${__LEVEL_OFF}"
-      ;;
-    ERR | ERROR)
-      echo "${__LEVEL_ERROR}"
-      ;;
-    WARN | WARNING)
-      echo "${__LEVEL_WARNING}"
-      ;;
-    INFO)
-      echo "${__LEVEL_INFO}"
-      ;;
-    DEBUG | TRACE)
-      echo "${__LEVEL_DEBUG}"
-      ;;
-    *)
-      Log::displayError "Command ${SCRIPT_NAME} - Invalid level ${level}"
-      return 1
-  esac
-}
-
-getVerboseLevel() {
-  local levelName="$1"
-  case "${levelName^^}" in
-    OFF)
-      echo "${__VERBOSE_LEVEL_OFF}"
-      ;;
-    ERR | ERROR | WARN | WARNING | INFO)
-      echo "${__VERBOSE_LEVEL_INFO}"
-      ;;
-    DEBUG)
-      echo "${__VERBOSE_LEVEL_DEBUG}"
-      ;;
-    TRACE)
-      echo "${__VERBOSE_LEVEL_TRACE}"
-      ;;
-    *)
-      Log::displayError "Command ${SCRIPT_NAME} - Invalid level ${level}"
-      return 1
-  esac
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionDisplayLevelCallback() {
-  local level="$2"
-  local logLevel verboseLevel
-  logLevel="$(getLevel "${level}")"
-  verboseLevel="$(getVerboseLevel "${level}")"
-  BASH_FRAMEWORK_ARGS_VERBOSE=${verboseLevel}
-  echo "BASH_FRAMEWORK_DISPLAY_LEVEL=${logLevel}" >> "${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionLogLevelCallback() {
-  local level="$2"
-  local logLevel verboseLevel
-  logLevel="$(getLevel "${level}")"
-  verboseLevel="$(getVerboseLevel "${level}")"
-  BASH_FRAMEWORK_ARGS_VERBOSE=${verboseLevel}
-  echo "BASH_FRAMEWORK_LOG_LEVEL=${logLevel}" >> "${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionLogFileCallback() {
-  local logFile="$2"
-  echo "BASH_FRAMEWORK_LOG_FILE='${logFile}'" >> "${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionQuietCallback() {
-  echo "BASH_FRAMEWORK_QUIET_MODE=1" >> "${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionNoColorCallback() {
-  UI::theme "noColor"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionThemeCallback() {
-  UI::theme "$2"
-}
-
-displayConfig() {
-  echo "Config"
-  UI::drawLine "-"
-  local var
-  while read -r var; do
-    printf '%-40s = %s\n' "${var}" "$(declare -p "${var}" | sed -E -e 's/^[^=]+=(.*)/\1/')"
-  done < <(typeset -p | awk 'match($3, "^(BASH_FRAMEWORK_[^=]+)=", m) { print m[1] }' | sort)
-  exit 0
-}
-
-optionBashFrameworkConfigCallback() {
-  if [[ ! -f "$2" ]]; then
-    Log::fatal "Command ${SCRIPT_NAME} - Bash framework config file '$2' does not exists"
-  fi
-}
-
-defaultFrameworkConfig="$(
-  cat <<'EOF'
-# copied from src/_includes/.framework-config.default
-# shellcheck disable=SC2034
-
-REAL_SCRIPT_FILE="${REAL_SCRIPT_FILE:-$(readlink -e "$(realpath "${BASH_SOURCE[0]}")")}"
-FRAMEWORK_ROOT_DIR="${FRAMEWORK_ROOT_DIR:-$(cd "$(readlink -e "${REAL_SCRIPT_FILE%/*}")/../.." && pwd -P)}"
-FRAMEWORK_SRC_DIR="${FRAMEWORK_SRC_DIR:-${FRAMEWORK_ROOT_DIR}/src}"
-FRAMEWORK_BIN_DIR="${FRAMEWORK_BIN_DIR:-${FRAMEWORK_ROOT_DIR}/bin}"
-FRAMEWORK_VENDOR_DIR="${FRAMEWORK_VENDOR_DIR:-${FRAMEWORK_ROOT_DIR}/vendor}"
-FRAMEWORK_VENDOR_BIN_DIR="${FRAMEWORK_VENDOR_BIN_DIR:-${FRAMEWORK_ROOT_DIR}/vendor/bin}"
-
-# describe the functions that will be skipped from being imported
-FRAMEWORK_FUNCTIONS_IGNORE_REGEXP="${FRAMEWORK_FUNCTIONS_IGNORE_REGEXP:-^(Namespace::functions|Functions::myFunction|Namespace::requireSomething|Acquire::ForceIPv4)$}"
-# describe the files that do not contain function to be imported
-NON_FRAMEWORK_FILES_REGEXP="${NON_FRAMEWORK_FILES_REGEXP:-(^bin/|.framework-config|.bats$|/testsData/|^manualTests/|/_.sh$|/ZZZ.sh$|/__all.sh$|^src/_binaries|^src/_includes|^src/batsHeaders.sh$|^src/_standalone)}"
-# describe the files that are allowed to not have an associated bats file
-BATS_FILE_NOT_NEEDED_REGEXP="${BATS_FILE_NOT_NEEDED_REGEXP:-(^bin/|.framework-config|.bats$|/testsData/|^manualTests/|/_.sh$|/ZZZ.sh$|/__all.sh$|^src/batsHeaders.sh$|^src/_includes)}"
-# describe the files that are allowed to not have a function matching the filename
-FRAMEWORK_FILES_FUNCTION_MATCHING_IGNORE_REGEXP="${FRAMEWORK_FILES_FUNCTION_MATCHING_IGNORE_REGEXP:-^bin/|^\.framework-config$|\.tpl$|/testsData/|^manualTests/|\.bats$}"
-# Source directories
-if [[ ! -v FRAMEWORK_SRC_DIRS ]]; then
-  FRAMEWORK_SRC_DIRS=(
-    "${FRAMEWORK_ROOT_DIR}/src"
-  )
-fi
-
-# export here all the variables that will be used in your templates
-export REPOSITORY_URL="${REPOSITORY_URL:-https://github.com/fchastanet/bash-tools-framework}"
-
-BASH_FRAMEWORK_THEME="${BASH_FRAMEWORK_THEME:-default}"
-BASH_FRAMEWORK_LOG_LEVEL="${BASH_FRAMEWORK_LOG_LEVEL:-0}"
-BASH_FRAMEWORK_DISPLAY_LEVEL="${BASH_FRAMEWORK_DISPLAY_LEVEL:-3}"
-BASH_FRAMEWORK_LOG_FILE="${BASH_FRAMEWORK_LOG_FILE:-${FRAMEWORK_ROOT_DIR}/logs/$(basename "$0").log}"
-BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION="${BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION:-5}"
-EOF
-)"
-
-overrideEnvFile="$(Framework::createTempFile "overrideEnvFile")"
-
-commandOptionParseFinished() {
-  # load default template framework config
-  defaultEnvFile="${PERSISTENT_TMPDIR}/.framework-config"
-  echo "${defaultFrameworkConfig}" > "${defaultEnvFile}"
-  local -a files=("${defaultEnvFile}")
-  if [[ -f "${envFile}" ]]; then
-    files+=("${envFile}")
-  fi
-  # shellcheck disable=SC2154
-  if [[ -f "${optionBashFrameworkConfig}" ]]; then
-    files+=("${optionBashFrameworkConfig}")
-  fi
-  files+=("${overrideEnvFile}")
-  Env::requireLoad "${files[@]}"
-  Log::requireLoad
-  # shellcheck disable=SC2154
-  if [[ "${optionConfig}" = "1" ]]; then
-    displayConfig
-  fi
-}
-
-profileHelp() {
-  echo "Profile name to use that contains all the softwares to install"
-  echo "List of profiles available:"
   echo
-  Conf::list "${BASH_DEV_ENV_ROOT_DIR}/profiles" "" ".sh" "-type f" "   - "  | sort | uniq
-}
+  UI::drawLine "-"
+  Log::displayInfo "docker executable path $(command -v docker)"
+  Log::displayInfo "docker version $(docker --version)"
+  Log::displayInfo "docker-compose version $(docker-compose --version)"
 
-softwareArgHelp() {
-  echo "List of softwares to install (--profile option cannot be used in this case)"
-  echo "List of softwares available:"
-  Conf::list "${BASH_DEV_ENV_ROOT_DIR}/installScripts" "" "" "-type f" "" |
-    grep -v -E '^(_.*|MandatorySoftwares)$' | paste -s -d ',' | sed -e 's/,/, /g' || true
-
-}
-
-validateProfile() {
-  if [[ ! -f "${BASH_DEV_ENV_ROOT_DIR}/profiles/$2.sh" ]]; then
-    Log::fatal "Profile file ${BASH_DEV_ENV_ROOT_DIR}/$2.sh doesn't exist"
-  fi
-}
-
-export SKIP_INSTALL
-export SKIP_CONFIGURE
-export SKIP_TEST
-export PREPARE_EXPORT
-export SKIP_DEPENDENCIES
-
-installCommand() {
-  local options_parse_cmd="$1"
-  shift || true
-
-  if [[ "${options_parse_cmd}" = "parse" ]]; then
-    SKIP_CONFIGURE="0"
-    local -i options_parse_optionParsedCountSKIP_CONFIGURE
-    ((options_parse_optionParsedCountSKIP_CONFIGURE = 0)) || true
-    SKIP_INSTALL="0"
-    local -i options_parse_optionParsedCountSKIP_INSTALL
-    ((options_parse_optionParsedCountSKIP_INSTALL = 0)) || true
-    SKIP_TEST="0"
-    local -i options_parse_optionParsedCountSKIP_TEST
-    ((options_parse_optionParsedCountSKIP_TEST = 0)) || true
-    SKIP_DEPENDENCIES="0"
-    local -i options_parse_optionParsedCountSKIP_DEPENDENCIES
-    ((options_parse_optionParsedCountSKIP_DEPENDENCIES = 0)) || true
-    PREPARE_EXPORT="0"
-    local -i options_parse_optionParsedCountPREPARE_EXPORT
-    ((options_parse_optionParsedCountPREPARE_EXPORT = 0)) || true
-    local -i options_parse_optionParsedCountPROFILE
-    ((options_parse_optionParsedCountPROFILE = 0)) || true
-    local -i options_parse_optionParsedCountOptionBashFrameworkConfig
-    ((options_parse_optionParsedCountOptionBashFrameworkConfig = 0)) || true
-    optionConfig="0"
-    local -i options_parse_optionParsedCountOptionConfig
-    ((options_parse_optionParsedCountOptionConfig = 0)) || true
-    optionInfoVerbose="0"
-    local -i options_parse_optionParsedCountOptionInfoVerbose
-    ((options_parse_optionParsedCountOptionInfoVerbose = 0)) || true
-    optionDebugVerbose="0"
-    local -i options_parse_optionParsedCountOptionDebugVerbose
-    ((options_parse_optionParsedCountOptionDebugVerbose = 0)) || true
-    optionTraceVerbose="0"
-    local -i options_parse_optionParsedCountOptionTraceVerbose
-    ((options_parse_optionParsedCountOptionTraceVerbose = 0)) || true
-    optionNoColor="0"
-    local -i options_parse_optionParsedCountOptionNoColor
-    ((options_parse_optionParsedCountOptionNoColor = 0)) || true
-    optionTheme="default"
-    local -i options_parse_optionParsedCountOptionTheme
-    ((options_parse_optionParsedCountOptionTheme = 0)) || true
-    optionHelp="0"
-    local -i options_parse_optionParsedCountOptionHelp
-    ((options_parse_optionParsedCountOptionHelp = 0)) || true
-    optionVersion="0"
-    local -i options_parse_optionParsedCountOptionVersion
-    ((options_parse_optionParsedCountOptionVersion = 0)) || true
-    optionQuiet="0"
-    local -i options_parse_optionParsedCountOptionQuiet
-    ((options_parse_optionParsedCountOptionQuiet = 0)) || true
-    local -i options_parse_optionParsedCountOptionLogLevel
-    ((options_parse_optionParsedCountOptionLogLevel = 0)) || true
-    local -i options_parse_optionParsedCountOptionLogFile
-    ((options_parse_optionParsedCountOptionLogFile = 0)) || true
-    local -i options_parse_optionParsedCountOptionDisplayLevel
-    ((options_parse_optionParsedCountOptionDisplayLevel = 0)) || true
-    local -i options_parse_argParsedCountCONFIG_LIST
-    ((options_parse_argParsedCountCONFIG_LIST = 0)) || true
-    # shellcheck disable=SC2034
-    local -i options_parse_parsedArgIndex=0
-    while (($# > 0)); do
-      local options_parse_arg="$1"
-      local argOptDefaultBehavior=0
-      case "${options_parse_arg}" in
-        # Option 1/20
-        # Option SKIP_CONFIGURE --skip-config|--skip-configure|--skip-configuration variableType Boolean min 0 max 1 authorizedValues '' regexp ''
-        --skip-config | --skip-configure | --skip-configuration)
-          # shellcheck disable=SC2034
-          SKIP_CONFIGURE="1"
-          if ((options_parse_optionParsedCountSKIP_CONFIGURE >= 1)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountSKIP_CONFIGURE))
-          ;;
-        # Option 2/20
-        # Option SKIP_INSTALL --skip-install|--skip-installation variableType Boolean min 0 max 1 authorizedValues '' regexp ''
-        --skip-install | --skip-installation)
-          # shellcheck disable=SC2034
-          SKIP_INSTALL="1"
-          if ((options_parse_optionParsedCountSKIP_INSTALL >= 1)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountSKIP_INSTALL))
-          ;;
-        # Option 3/20
-        # Option SKIP_TEST --skip-test|--skip-tests variableType Boolean min 0 max 1 authorizedValues '' regexp ''
-        --skip-test | --skip-tests)
-          # shellcheck disable=SC2034
-          SKIP_TEST="1"
-          if ((options_parse_optionParsedCountSKIP_TEST >= 1)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountSKIP_TEST))
-          ;;
-        # Option 4/20
-        # Option SKIP_DEPENDENCIES --skip-dependencies|--skip-deps variableType Boolean min 0 max 1 authorizedValues '' regexp ''
-        --skip-dependencies | --skip-deps)
-          # shellcheck disable=SC2034
-          SKIP_DEPENDENCIES="1"
-          if ((options_parse_optionParsedCountSKIP_DEPENDENCIES >= 1)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountSKIP_DEPENDENCIES))
-          ;;
-        # Option 5/20
-        # Option PREPARE_EXPORT --prepare-export|-e variableType Boolean min 0 max 1 authorizedValues '' regexp ''
-        --prepare-export | -e)
-          # shellcheck disable=SC2034
-          PREPARE_EXPORT="1"
-          if ((options_parse_optionParsedCountPREPARE_EXPORT >= 1)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountPREPARE_EXPORT))
-          ;;
-        # Option 6/20
-        # Option PROFILE --profile|-p variableType String min 0 max 1 authorizedValues '' regexp ''
-        --profile | -p)
-          shift
-          if (($# == 0)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - a value needs to be specified"
-            return 1
-          fi
-          if ((options_parse_optionParsedCountPROFILE >= 1)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountPROFILE))
-          # shellcheck disable=SC2034
-          PROFILE="$1"
-          validateProfile "${options_parse_arg}" "${PROFILE}"
-          ;;
-        # Option 7/20
-        # Option optionBashFrameworkConfig --bash-framework-config variableType String min 0 max 1 authorizedValues '' regexp ''
-        --bash-framework-config)
-          shift
-          if (($# == 0)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - a value needs to be specified"
-            return 1
-          fi
-          if ((options_parse_optionParsedCountOptionBashFrameworkConfig >= 1)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountOptionBashFrameworkConfig))
-          # shellcheck disable=SC2034
-          optionBashFrameworkConfig="$1"
-          optionBashFrameworkConfigCallback "${options_parse_arg}" "${optionBashFrameworkConfig}"
-          ;;
-        # Option 8/20
-        # Option optionConfig --config variableType Boolean min 0 max 1 authorizedValues '' regexp ''
-        --config)
-          # shellcheck disable=SC2034
-          optionConfig="1"
-          if ((options_parse_optionParsedCountOptionConfig >= 1)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountOptionConfig))
-          ;;
-        # Option 9/20
-        # Option optionInfoVerbose --verbose|-v variableType Boolean min 0 max 1 authorizedValues '' regexp ''
-        --verbose | -v)
-          # shellcheck disable=SC2034
-          optionInfoVerbose="1"
-          if ((options_parse_optionParsedCountOptionInfoVerbose >= 1)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountOptionInfoVerbose))
-          optionInfoVerboseCallback "${options_parse_arg}"
-          updateArgListInfoVerboseCallback "${options_parse_arg}"
-          ;;
-        # Option 10/20
-        # Option optionDebugVerbose -vv variableType Boolean min 0 max 1 authorizedValues '' regexp ''
-        -vv)
-          # shellcheck disable=SC2034
-          optionDebugVerbose="1"
-          if ((options_parse_optionParsedCountOptionDebugVerbose >= 1)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountOptionDebugVerbose))
-          optionDebugVerboseCallback "${options_parse_arg}"
-          updateArgListDebugVerboseCallback "${options_parse_arg}"
-          ;;
-        # Option 11/20
-        # Option optionTraceVerbose -vvv variableType Boolean min 0 max 1 authorizedValues '' regexp ''
-        -vvv)
-          # shellcheck disable=SC2034
-          optionTraceVerbose="1"
-          if ((options_parse_optionParsedCountOptionTraceVerbose >= 1)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountOptionTraceVerbose))
-          optionTraceVerboseCallback "${options_parse_arg}"
-          updateArgListTraceVerboseCallback "${options_parse_arg}"
-          ;;
-        # Option 12/20
-        # Option optionEnvFiles --env-file variableType StringArray min 0 max -1 authorizedValues '' regexp ''
-        --env-file)
-          shift
-          if (($# == 0)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - a value needs to be specified"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountOptionEnvFiles))
-          optionEnvFiles+=("$1")
-          optionEnvFileCallback "${options_parse_arg}" "${optionEnvFiles[@]}"
-          updateArgListEnvFileCallback "${options_parse_arg}" "${optionEnvFiles[@]}"
-          ;;
-        # Option 13/20
-        # Option optionNoColor --no-color variableType Boolean min 0 max 1 authorizedValues '' regexp ''
-        --no-color)
-          # shellcheck disable=SC2034
-          optionNoColor="1"
-          if ((options_parse_optionParsedCountOptionNoColor >= 1)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountOptionNoColor))
-          optionNoColorCallback "${options_parse_arg}"
-          updateArgListNoColorCallback "${options_parse_arg}"
-          ;;
-        # Option 14/20
-        # Option optionTheme --theme variableType String min 0 max 1 authorizedValues 'default|default-force|noColor' regexp ''
-        --theme)
-          shift
-          if (($# == 0)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - a value needs to be specified"
-            return 1
-          fi
-          if [[ ! "$1" =~ default|default-force|noColor ]]; then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - value '$1' is not part of authorized values(default|default-force|noColor)"
-            return 1
-          fi
-          if ((options_parse_optionParsedCountOptionTheme >= 1)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountOptionTheme))
-          # shellcheck disable=SC2034
-          optionTheme="$1"
-          optionThemeCallback "${options_parse_arg}" "${optionTheme}"
-          updateArgListThemeCallback "${options_parse_arg}" "${optionTheme}"
-          ;;
-        # Option 15/20
-        # Option optionHelp --help|-h variableType Boolean min 0 max 1 authorizedValues '' regexp ''
-        --help | -h)
-          # shellcheck disable=SC2034
-          optionHelp="1"
-          if ((options_parse_optionParsedCountOptionHelp >= 1)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountOptionHelp))
-          optionHelpCallback "${options_parse_arg}"
-          ;;
-        # Option 16/20
-        # Option optionVersion --version variableType Boolean min 0 max 1 authorizedValues '' regexp ''
-        --version)
-          # shellcheck disable=SC2034
-          optionVersion="1"
-          if ((options_parse_optionParsedCountOptionVersion >= 1)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountOptionVersion))
-          optionVersionCallback "${options_parse_arg}"
-          ;;
-        # Option 17/20
-        # Option optionQuiet --quiet|-q variableType Boolean min 0 max 1 authorizedValues '' regexp ''
-        --quiet | -q)
-          # shellcheck disable=SC2034
-          optionQuiet="1"
-          if ((options_parse_optionParsedCountOptionQuiet >= 1)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountOptionQuiet))
-          optionQuietCallback "${options_parse_arg}"
-          updateArgListQuietCallback "${options_parse_arg}"
-          ;;
-        # Option 18/20
-        # Option optionLogLevel --log-level variableType String min 0 max 1 authorizedValues 'OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE' regexp ''
-        --log-level)
-          shift
-          if (($# == 0)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - a value needs to be specified"
-            return 1
-          fi
-          if [[ ! "$1" =~ OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE ]]; then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - value '$1' is not part of authorized values(OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE)"
-            return 1
-          fi
-          if ((options_parse_optionParsedCountOptionLogLevel >= 1)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountOptionLogLevel))
-          # shellcheck disable=SC2034
-          optionLogLevel="$1"
-          optionLogLevelCallback "${options_parse_arg}" "${optionLogLevel}"
-          updateArgListLogLevelCallback "${options_parse_arg}" "${optionLogLevel}"
-          ;;
-        # Option 19/20
-        # Option optionLogFile --log-file variableType String min 0 max 1 authorizedValues '' regexp ''
-        --log-file)
-          shift
-          if (($# == 0)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - a value needs to be specified"
-            return 1
-          fi
-          if ((options_parse_optionParsedCountOptionLogFile >= 1)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountOptionLogFile))
-          # shellcheck disable=SC2034
-          optionLogFile="$1"
-          optionLogFileCallback "${options_parse_arg}" "${optionLogFile}"
-          updateArgListLogFileCallback "${options_parse_arg}" "${optionLogFile}"
-          ;;
-        # Option 20/20
-        # Option optionDisplayLevel --display-level variableType String min 0 max 1 authorizedValues 'OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE' regexp ''
-        --display-level)
-          shift
-          if (($# == 0)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - a value needs to be specified"
-            return 1
-          fi
-          if [[ ! "$1" =~ OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE ]]; then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - value '$1' is not part of authorized values(OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE)"
-            return 1
-          fi
-          if ((options_parse_optionParsedCountOptionDisplayLevel >= 1)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountOptionDisplayLevel))
-          # shellcheck disable=SC2034
-          optionDisplayLevel="$1"
-          optionDisplayLevelCallback "${options_parse_arg}" "${optionDisplayLevel}"
-          updateArgListDisplayLevelCallback "${options_parse_arg}" "${optionDisplayLevel}"
-          ;;
-        -*)
-          if [[ "${argOptDefaultBehavior}" = "0" ]]; then
-            Log::displayError "Command ${SCRIPT_NAME} - Invalid option ${options_parse_arg}"
-            return 1
-          fi
-          ;;
-        *)
-          if ((0)); then
-            # Technical if - never reached
-            :
-          # Argument 1/1
-          # Argument CONFIG_LIST min 0 max -1 authorizedValues '' regexp ''
-          elif ((options_parse_parsedArgIndex >= 0)); then
-            ((++options_parse_argParsedCountCONFIG_LIST))
-            # shellcheck disable=SC2034
-            CONFIG_LIST+=("${options_parse_arg}")
-          else
-            if [[ "${argOptDefaultBehavior}" = "0" ]]; then
-              Log::displayError "Command ${SCRIPT_NAME} - Argument - too much arguments provided: $*"
-              return 1
-            fi
-          fi
-          ((++options_parse_parsedArgIndex))
-          ;;
-      esac
-      shift || true
-    done
-    commandOptionParseFinished
-    commandCallback
-    Log::displayDebug "Command ${SCRIPT_NAME} - parse arguments: ${BASH_FRAMEWORK_ARGV[*]}"
-    Log::displayDebug "Command ${SCRIPT_NAME} - parse filtered arguments: ${BASH_FRAMEWORK_ARGV_FILTERED[*]}"
-  elif [[ "${options_parse_cmd}" = "help" ]]; then
-    echo -e "$(Array::wrap2 " " 80 0 "${__HELP_TITLE_COLOR}DESCRIPTION:${__RESET_COLOR}" "Install or update softwares")"
-    echo
-
-    echo -e "$(Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" "${SCRIPT_NAME}" "[OPTIONS]" "[ARGUMENTS]")"
-    echo -e "$(Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" \
-      "${SCRIPT_NAME}" \
-      "[--skip-config|--skip-configure|--skip-configuration]" "[--skip-install|--skip-installation]" "[--skip-test|--skip-tests]" "[--skip-dependencies|--skip-deps]" "[--prepare-export|-e]" "[--profile|-p <profile>]" "[--bash-framework-config <String>]" "[--config]" "[--verbose|-v]" "[-vv]" "[-vvv]" "[--env-file <String>]" "[--no-color]" "[--theme <String>]" "[--help|-h]" "[--version]" "[--quiet|-q]" "[--log-level <String>]" "[--log-file <String>]" "[--display-level <String>]")"
-    echo
-    echo -e "${__HELP_TITLE_COLOR}ARGUMENTS:${__RESET_COLOR}"
-    echo -e "  [${__HELP_OPTION_COLOR}softwares${__HELP_NORMAL} {list} (optional)]"
-    local -a helpArray
-    # shellcheck disable=SC2054,SC2206
-    mapfile -t helpArray < <(softwareArgHelp)
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo
-    echo -e "${__HELP_TITLE_COLOR}OPTIONS:${__RESET_COLOR}"
-    echo -e "  ${__HELP_OPTION_COLOR}--skip-config${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}--skip-configure${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}--skip-configuration${__HELP_NORMAL} {single}"
-    local -a helpArray
-    # shellcheck disable=SC2054
-    helpArray=(skip\ software\ configuration)
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo -e "  ${__HELP_OPTION_COLOR}--skip-install${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}--skip-installation${__HELP_NORMAL} {single}"
-    local -a helpArray
-    # shellcheck disable=SC2054
-    helpArray=(skip\ software\ installation)
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo -e "  ${__HELP_OPTION_COLOR}--skip-test${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}--skip-tests${__HELP_NORMAL} {single}"
-    local -a helpArray
-    # shellcheck disable=SC2054
-    helpArray=(skip\ software\ installation\ test)
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo -e "  ${__HELP_OPTION_COLOR}--skip-dependencies${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}--skip-deps${__HELP_NORMAL} {single}"
-    local -a helpArray
-    # shellcheck disable=SC2054
-    helpArray=(install\ the\ software\ requested\ without\ resolving\ dependencies)
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo -e "  ${__HELP_OPTION_COLOR}--prepare-export${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-e${__HELP_NORMAL} {single}"
-    local -a helpArray
-    # shellcheck disable=SC2054
-    helpArray=(prepare\ the\ wsl\ installation\ for\ export\ \(remove\ all\ sensitive\ files\))
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo -e "  ${__HELP_OPTION_COLOR}--profile${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-p <profile>${__HELP_NORMAL} {single}"
-    local -a helpArray
-    # shellcheck disable=SC2054,SC2206
-    mapfile -t helpArray < <(profileHelp)
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo
-    echo -e "${__HELP_TITLE_COLOR}GLOBAL OPTIONS:${__RESET_COLOR}"
-    echo -e "  ${__HELP_OPTION_COLOR}--bash-framework-config <String>${__HELP_NORMAL} {single}"
-    local -a helpArray
-    # shellcheck disable=SC2054
-    helpArray=(use\ alternate\ bash\ framework\ configuration.)
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo -e "  ${__HELP_OPTION_COLOR}--config${__HELP_NORMAL} {single}"
-    local -a helpArray
-    # shellcheck disable=SC2054
-    helpArray=(Display\ configuration)
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo -e "  ${__HELP_OPTION_COLOR}--verbose${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-v${__HELP_NORMAL} {single}"
-    local -a helpArray
-    # shellcheck disable=SC2054
-    helpArray=(info\ level\ verbose\ mode\ \(alias\ of\ --display-level\ INFO\))
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo -e "  ${__HELP_OPTION_COLOR}-vv${__HELP_NORMAL} {single}"
-    local -a helpArray
-    # shellcheck disable=SC2054
-    helpArray=(debug\ level\ verbose\ mode\ \(alias\ of\ --display-level\ DEBUG\))
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo -e "  ${__HELP_OPTION_COLOR}-vvv${__HELP_NORMAL} {single}"
-    local -a helpArray
-    # shellcheck disable=SC2054
-    helpArray=(trace\ level\ verbose\ mode\ \(alias\ of\ --display-level\ TRACE\))
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo -e "  ${__HELP_OPTION_COLOR}--env-file <String>${__HELP_NORMAL} {list} (optional)"
-    local -a helpArray
-    # shellcheck disable=SC2054
-    helpArray=(Load\ the\ specified\ env\ file\ \(deprecated\,\ please\ use\ --bash-framework-config\ option\ instead\))
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo -e "  ${__HELP_OPTION_COLOR}--no-color${__HELP_NORMAL} {single}"
-    local -a helpArray
-    # shellcheck disable=SC2054
-    helpArray=(Produce\ monochrome\ output.\ alias\ of\ --theme\ noColor.)
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo -e "  ${__HELP_OPTION_COLOR}--theme <String>${__HELP_NORMAL} {single}"
-    local -a helpArray
-    # shellcheck disable=SC2054
-    helpArray=(choose\ color\ theme\ -\ default-force\ means\ colors\ will\ be\ produced\ even\ if\ command\ is\ piped)
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo '    Default value: default'
-    echo '    Possible values: default|default-force|noColor'
-    echo -e "  ${__HELP_OPTION_COLOR}--help${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-h${__HELP_NORMAL} {single}"
-    local -a helpArray
-    # shellcheck disable=SC2054
-    helpArray=(Display\ this\ command\ help)
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo -e "  ${__HELP_OPTION_COLOR}--version${__HELP_NORMAL} {single}"
-    local -a helpArray
-    # shellcheck disable=SC2054
-    helpArray=(Print\ version\ information\ and\ quit)
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo -e "  ${__HELP_OPTION_COLOR}--quiet${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-q${__HELP_NORMAL} {single}"
-    local -a helpArray
-    # shellcheck disable=SC2054
-    helpArray=(quiet\ mode\,\ doesn\'t\ display\ any\ output)
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo -e "  ${__HELP_OPTION_COLOR}--log-level <String>${__HELP_NORMAL} {single}"
-    local -a helpArray
-    # shellcheck disable=SC2054
-    helpArray=(Set\ log\ level)
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo '    Possible values: OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE'
-    echo -e "  ${__HELP_OPTION_COLOR}--log-file <String>${__HELP_NORMAL} {single}"
-    local -a helpArray
-    # shellcheck disable=SC2054
-    helpArray=(Set\ log\ file)
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo -e "  ${__HELP_OPTION_COLOR}--display-level <String>${__HELP_NORMAL} {single}"
-    local -a helpArray
-    # shellcheck disable=SC2054
-    helpArray=(set\ display\ level)
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo '    Possible values: OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE'
-    echo -e """
-Install or update softwares (kube, aws, composer, node, ...),
-configure Home environnement (git config, kube, motd, ssh, dns, ...) and check configuration"""
-    echo
-    echo -n -e "${__HELP_TITLE_COLOR}VERSION: ${__RESET_COLOR}"
-    echo '1.0'
-    echo
-    echo -e "${__HELP_TITLE_COLOR}AUTHOR:${__RESET_COLOR}"
-    echo '[François Chastanet](https://github.com/fchastanet)'
-    echo
-    echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/install.sh'
-    echo
-    echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
-    echo 'MIT License'
-    echo
-    Array::wrap2 ' ' 76 4 "$(copyrightCallback)"
-  else
-    Log::displayError "Command ${SCRIPT_NAME} - Option command invalid: '${options_parse_cmd}'"
-    return 1
-  fi
-}
-
-profileHelp() {
-  echo "Profile name to use that contains all the softwares to install"
-  echo "List of profiles available:"
   echo
-  Conf::list "${BASH_DEV_ENV_ROOT_DIR}/profiles" "" ".sh" "-type f" "   - "  | sort | uniq
-}
-
-softwareArgHelp() {
-  echo "List of softwares to install (--profile option cannot be used in this case)"
-  echo "List of softwares available:"
-  Conf::list "${BASH_DEV_ENV_ROOT_DIR}/installScripts" "" "" "-type f" "" |
-    grep -v -E '^(_.*|MandatorySoftwares)$' | paste -s -d ',' | sed -e 's/,/, /g' || true
-
-}
-
-validateProfile() {
-  if [[ ! -f "${BASH_DEV_ENV_ROOT_DIR}/profiles/profile.$2.sh" ]]; then
-    Log::fatal "Profile file ${BASH_DEV_ENV_ROOT_DIR}/profile.$2.sh doesn't exist"
-  fi
-}
-
-commandCallback() {
-  if ((${#CONFIG_LIST} > 0)); then
-    if [[ -n "${PROFILE}" ]]; then
-      Log::fatal "You cannot combine profile and softwares"
-    fi
-    # check if each Softwares exists
-    local software
-    for software in "${CONFIG_LIST[@]}"; do
-      if [[ ! -f "${BASH_DEV_ENV_ROOT_DIR}/installScripts/${software}" ]]; then
-        Log::fatal "Software installScripts/${software} configuration does not exists"
-      fi
-    done
+  if [[ "${SHELL}" = "/usr/bin/bash" ]]; then
+    Log::displayInfo "Please add these lines at the end of your ~/.bashrc"
+  elif [[ "${SHELL}" = "/usr/bin/zsh" ]]; then
+    Log::displayInfo "Please add these lines at the end of your ~/.zshrc"
   else
-    if [[ -z "${PROFILE}" ]]; then
-      Log::fatal "You must specify either a list of softwares, either a profile name"
+    Log::displayInfo "Please add these lines at the end of your shell entrypoint (${SHELL})"
+  fi
+  echo
+  echo "export DOCKER_HOST='${DOCKER_HOST}'"
+  echo "if [[ ! -S '${DOCKER_SOCK}' ]]; then"
+  echo "   sudo mkdir -pm o=,ug=rwx '${DOCKER_DIR}'"
+  echo "   sudo chgrp docker '${DOCKER_DIR}'"
+  echo "   wsl.exe -d '${WSL_DISTRO_NAME}' sh -c 'nohup sudo -b dockerd < /dev/null > \"${DOCKER_DIR}/dockerd.log\" 2>&1'"
+  echo "fi"
+}
+
+configure() {
+  return 0
+}
+
+testInstall() {
+  return 0
+}
+
+testConfigure() {
+  return 0
+}
+
+local action=$1
+shift || true
+case ${action} in
+  scriptName)
+    scriptName "$@"
+    ;;
+  helpDescription)
+    helpDescription "$@"
+    ;;
+  helpVariables)
+    helpVariables "$@"
+    ;;
+  listVariables)
+    listVariables "$@"
+    ;;
+  defaultVariables)
+    defaultVariables "$@"
+    ;;
+  checkVariables)
+    checkVariables "$@"
+    ;;
+  fortunes)
+    fortunes "$@"
+    ;;
+  dependencies)
+    dependencies "$@"
+    ;;
+  breakOnConfigFailure)
+    breakOnConfigFailure "$@"
+    ;;
+  breakOnTestFailure)
+    breakOnTestFailure "$@"
+    ;;
+  install)
+    install "$@"
+    ;;
+  configure)
+    configure "$@"
+    ;;
+  testInstall)
+    testInstall "$@"
+    ;;
+  testConfigure)
+    testConfigure "$@"
+    ;;
+  *)
+    if Assert::functionExists defaultFacadeAction; then
+      defaultFacadeAction "$1" "$@"
+    else
+      Log::displayError "invalid action requested: ${action}"
+      exit 1
     fi
-    if [[ "${SKIP_DEPENDENCIES}" = "0" ]]; then
-      CONFIG_LIST=("${CONFIG_LIST[@]}")
-      if [[ "${PREPARE_EXPORT}" = "1" ]]; then
-        CONFIG_LIST+=("_Export")
-      fi
-
-      declare rootDependency="your software selection"
-      if [[ -n "${PROFILE}" ]]; then
-        rootDependency="profile ${PROFILE}"
-      fi
-      # deduce dependencies
-      declare -ag allDepsResult=()
-      # shellcheck disable=SC2034
-      declare -Ag allDepsResultSeen=()
-
-      Profiles::allDepsRecursive \
-        "${SRC_DIR}/installScripts" "${rootDependency}" "${CONFIG_LIST[@]}"
-
-      CONFIG_LIST=("${allDepsResult[@]}")
-    fi
-  fi
+    ;;
+esac
+exit 0
 }
 
-installCommand parse "${BASH_FRAMEWORK_ARGV[@]}"
-
-export CONFIG_LIST
-export PROFILE
-
-# shellcheck disable=SC2317
-declare summaryDisplayed="0"
-summary() {
-  local startDate="$1"
-  if [[ "${summaryDisplayed}" = "1" ]]; then
-    return 0
-  fi
-  UI::drawLine '-'
-  Log::headLine "Important messages recapitulative"
-  Stats::logRecapitulative "${LOGS_DIR}/automatic-upgrade"
-
-  UI::drawLine '-'
-  Log::headLine "Summary"
-  if [[ "${SKIP_INSTALL}" = "0" ]]; then
-    Stats::aggregateStatsSummary "installation(s)" "${TMPDIR}/install.stat" "${#CONFIG_LIST[@]}"
-  fi
-  if [[ "${SKIP_CONFIGURE}" = "0" ]]; then
-    Stats::aggregateStatsSummary "configuration(s)" "${TMPDIR}/config.stat" "${#CONFIG_LIST[@]}"
-  fi
-  if [[ "${SKIP_TEST}" = "0" ]]; then
-    Stats::aggregateStatsSummary "test(s)" "${TMPDIR}/test.stat" "${#CONFIG_LIST[@]}"
-  fi
-  local endDate
-  endDate="$(date +%s)"
-  Log::displayInfo "Total duration: $((endDate - startDate))s"
-  summaryDisplayed="1"
-}
-trap 'summary "${INSTALL_START}"' EXIT INT TERM ABRT
-
-executeScript() {
-  local configName="$1"
-  local -a installCmd=(
-    "${INSTALL_SCRIPTS_DIR}/${configName}"
-  )
-  if [[ "${SKIP_INSTALL}" = "1" ]]; then
-    installCmd+=(--skip-install)
-  fi
-  if [[ "${SKIP_CONFIGURE}" = "1" ]]; then
-    installCmd+=(--skip-configure)
-  fi
-  if [[ "${SKIP_TEST}" = "1" ]]; then
-    installCmd+=(--skip-test)
-  fi
-
-  CONFIG_LOGS_DIR="${CONFIG_LOGS_DIR}" "${installCmd[@]}"
-}
-
-# we need non root user to be sure that all variables will be correctly deduced
-# @require Linux::requireExecutedAsUser
-run() {
-
-  CONFIG_LOGS_DIR="${CONFIG_LOGS_DIR:-${PERSISTENT_TMPDIR}}"
-  rm -f "${CONFIG_LOGS_DIR:-#}/${SCRIPT}-.*" || true
-
-  # load selected profile
-  if [[ -n "${PROFILE}" ]]; then
-    mapfile -t CONFIG_LIST < <(
-      IFS=$'\n' Profiles::loadProfile "${BASH_DEV_ENV_ROOT_DIR}/profiles" "${PROFILE}"
-    )
-  fi
-
-  Log::displayInfo "Install ${CONFIG_LIST[*]}"
-
-  Profiles::checkScriptsExistence "${INSTALL_SCRIPTS_DIR}" "" "${CONFIG_LIST[@]}"
-  Log::displayInfo "Will Install ${CONFIG_LIST[*]}"
-
-  # Start install process
-  Log::rotate "${LOGS_DIR}/automatic-upgrade"
-  UI::drawLine '-'
-
-  if (
-    # shellcheck disable=SC2317
-    for configName in "${CONFIG_LIST[@]}"; do
-      installStatus="0"
-      (
-        aggregateStat() {
-          if [[ "${SKIP_INSTALL}" = "0" ]]; then
-            Stats::aggregateStats "${TMPDIR}/${configName}-install.stat" "${TMPDIR}/install.stat"
-            rm -f "${TMPDIR}/${configName}-install.stat" || true # avoid to aggregate twice if trapped twice
-          fi
-          if [[ "${SKIP_CONFIGURE}" = "0" ]]; then
-            Stats::aggregateStats "${TMPDIR}/${configName}-config.stat" "${TMPDIR}/config.stat"
-            rm -f "${TMPDIR}/${configName}-config.stat" || true # avoid to aggregate twice if trapped twice
-          fi
-          if [[ "${SKIP_TEST}" = "0" ]]; then
-            Stats::aggregateStats "${TMPDIR}/${configName}-test.stat" "${TMPDIR}/test.stat"
-            rm -f "${TMPDIR}/${configName}-test.stat" || true # avoid to aggregate twice if trapped twice
-          fi
-        }
-        trap 'aggregateStat' EXIT INT TERM ABRT
-
-        executeScript "${configName}"
-      ) || installStatus="$?"
-      if [[ "${installStatus}" != "0" ]]; then
-        Log::displayError "Aborted after ${configName} failure"
-        exit "${installStatus}"
-      fi
-    done
-  ) | tee "${LOGS_DIR}/automatic-upgrade"; then
-    Log::displaySuccess "Successful Installation"
-  else
-    Log::displayError "Installation error, check logs /var/log/automatic-upgrade"
-  fi
-}
-
-if [[ "${BASH_FRAMEWORK_QUIET_MODE:-0}" = "1" ]]; then
-  run "$@" &>/dev/null
-else
-  run "$@"
-fi
-
-}
-
-facade_main_installsh "$@"
+facade_main_Dockersh "$@"

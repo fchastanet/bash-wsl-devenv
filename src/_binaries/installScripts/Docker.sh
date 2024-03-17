@@ -1,12 +1,52 @@
-#!/bin/bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/installDockerInWsl
-# FACADE
+#!/usr/bin/env bash
+# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Docker
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
+# FACADE
+# IMPLEMENT InstallScripts::interface
 
-.INCLUDE "$(dynamicTemplateDir _binaries/installScripts/installDockerInWsl.tpl)"
+.INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
-# @require Linux::requireExecutedAsUser
-run() {
+scriptName() {
+  echo "Docker"
+}
+
+helpDescription() {
+  echo "install docker and docker-compose inside wsl"
+}
+
+helpVariables() {
+  true
+}
+
+listVariables() {
+  true
+}
+
+defaultVariables() {
+  true
+}
+
+checkVariables() {
+  true
+}
+
+fortunes() {
+  return 0
+}
+
+dependencies() {
+  return 0
+}
+
+breakOnConfigFailure() {
+  return 0
+}
+
+breakOnTestFailure() {
+  return 0
+}
+
+install() {
   Log::displayInfo "install docker required packages"
   Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
   Retry::default sudo apt-get install -y \
@@ -128,11 +168,16 @@ run() {
   echo "   sudo chgrp docker '${DOCKER_DIR}'"
   echo "   wsl.exe -d '${WSL_DISTRO_NAME}' sh -c 'nohup sudo -b dockerd < /dev/null > \"${DOCKER_DIR}/dockerd.log\" 2>&1'"
   echo "fi"
-
 }
 
-if [[ "${BASH_FRAMEWORK_QUIET_MODE:-0}" = "1" ]]; then
-  run &>/dev/null
-else
-  run
-fi
+configure() {
+  return 0
+}
+
+testInstall() {
+  return 0
+}
+
+testConfigure() {
+  return 0
+}

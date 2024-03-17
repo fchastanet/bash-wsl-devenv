@@ -6,11 +6,15 @@
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
-installScript_helpDescription() {
+scriptName() {
+  echo "Upgrade"
+}
+
+helpDescription() {
   echo "Upgrade ubuntu apt softwares"
 }
 
-installScript_helpVariables() {
+helpVariables() {
   # shellcheck disable=SC2317
   cat <<EOF
   ${__HELP_EXAMPLE}UPGRADE_UBUNTU_VERSION${__HELP_NORMAL}
@@ -22,15 +26,15 @@ installScript_helpVariables() {
 EOF
 }
 
-installScript_listVariables() {
+listVariables() {
   echo "UPGRADE_UBUNTU_VERSION"
 }
 
-installScript_defaultVariables() {
+defaultVariables() {
   export UPGRADE_UBUNTU_VERSION="lts"
 }
 
-installScript_checkVariables() {
+checkVariables() {
   if ! Assert::varExistsAndNotEmpty "UPGRADE_UBUNTU_VERSION"; then
     return 1
   elif ! Array::contains "${UPGRADE_UBUNTU_VERSION}" "lts" "dev"; then
@@ -39,23 +43,23 @@ installScript_checkVariables() {
   fi
 }
 
-installScript_fortunes() {
+fortunes() {
   return 0
 }
 
-installScript_dependencies() {
+dependencies() {
   return 0
 }
 
-installScript_breakOnConfigFailure() {
+breakOnConfigFailure() {
   return 0
 }
 
-installScript_breakOnTestFailure() {
+breakOnTestFailure() {
   return 0
 }
 
-installScript_install() {
+install() {
   # Needed before do-release-upgrade because WSL doesn't support Systemd directly
   Linux::Apt::remove snapd || true
   mv /etc/apt/apt.conf.d/20snapd.conf{,.disabled} || true
@@ -95,10 +99,14 @@ installScript_install() {
   sudo sed -i -r 's/^Prompt=.*$/Prompt=lts/g' /etc/update-manager/release-upgrades
 }
 
-installScript_configure() {
+configure() {
   return 0
 }
 
-installScript_test() {
+testInstall() {
+  return 0
+}
+
+testConfigure() {
   return 0
 }

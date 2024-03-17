@@ -1,35 +1,25 @@
 #!/usr/bin/env bash
 
 # @description load /etc/os-release file
-# @env NAME
-# @env VERSION
-# @env ID
-# @env ID_LIKE
-# @env PRETTY_NAME
-# @env VERSION_ID
-# @env HOME_URL
-# @env SUPPORT_URL
-# @env BUG_REPORT_URL
-# @env PRIVACY_POLICY_URL
-# @env VERSION_CODENAME
-# @env UBUNTU_CODENAME
+# @set NAME
+# @set VERSION
+# @set ID
+# @set ID_LIKE
+# @set PRETTY_NAME
+# @set VERSION_ID
+# @set HOME_URL
+# @set SUPPORT_URL
+# @set BUG_REPORT_URL
+# @set PRIVACY_POLICY_URL
+# @set VERSION_CODENAME
+# @set UBUNTU_CODENAME
 Engine::Config::loadOsRelease() {
   if [[ ! -f /etc/os-release ]]; then
     Log::displayError "file /etc/os-release does not exists"
     return 1
   fi
-  # This will load environment variables ID, VERSION_CODENAME
+  # This will load environment variables ID, VERSION_CODENAME, ...
+  set -o allexport
   source /etc/os-release
-  export NAME
-  export VERSION
-  export ID
-  export ID_LIKE
-  export PRETTY_NAME
-  export VERSION_ID
-  export HOME_URL
-  export SUPPORT_URL
-  export BUG_REPORT_URL
-  export PRIVACY_POLICY_URL
-  export VERSION_CODENAME
-  export UBUNTU_CODENAME
+  set +o allexport
 }

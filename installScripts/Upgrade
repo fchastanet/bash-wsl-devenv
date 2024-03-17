@@ -240,16 +240,6 @@ Array::wrap2() {
   ) | sed -E -e 's/[[:blank:]]+$//'
 }
 
-# @description exits with message if current user is root
-# @noargs
-# @exitcode 1 if current user is root
-# @stderr diagnostics information is displayed
-Assert::expectNonRootUser() {
-  if [[ "$(id -u)" = "0" ]]; then
-    Log::fatal "The script must not be run as root"
-  fi
-}
-
 # @description checks if function name provided exists
 # @arg $1 functionName:String
 # @exitcode 1 if function name doesn't exist
@@ -314,6 +304,146 @@ Conf::list() {
   )
 }
 
+envFileTemplate="$(
+  cat <<'EOF'
+# shellcheck disable=SC2034
+# wsl username
+USER_NAME="wsl"
+USER_HOME="/home/wsl"
+
+# your login to connect to ssh servers if any
+SSH_LOGIN=""
+
+# your git full name 'FirstName LastName'
+GIT_USER_NAME=""
+# email used for git 'ldap@domain.com'
+GIT_USER_MAIL=""
+
+# conf files that will be used to configure the different tools
+CONF_DIR="${BASH_DEV_ENV_ROOT_DIR}/conf"
+
+# conf files that will be used to configure the different tools
+# some tools configuration will use CONF_DIR as template and
+# copy files into this directory
+CONF_OVERRIDE_DIR="${BASH_DEV_ENV_ROOT_DIR}/conf.override"
+
+# where to install bash-tools, ...
+# shellcheck disable=SC2153
+PROJECTS_DIR="${USER_HOME}/projects"
+
+# where overridden config files will be backed up
+BACKUP_DIR="${BASH_DEV_ENV_ROOT_DIR}/backup"
+# logs CONF_DIR
+LOGS_DIR="${BASH_DEV_ENV_ROOT_DIR}/logs"
+# installScripts dir
+INSTALL_SCRIPTS_DIR="${BASH_DEV_ENV_ROOT_DIR}/installScripts"
+
+# 0   => no upgrade at all
+# lts => UPGRADE to latest ubuntu lts version
+# dev => UPGRADE to latest ubuntu dev version
+# Use if you know what you are doing,
+# could cause some packages to not being available yet
+UPGRADE_UBUNTU_VERSION=0
+
+# -----------------------------------------
+# PROFILES options
+
+# Choose your AWS authenticator tool
+# possible choices: Saml2Aws, Awsume
+AWS_AUTHENTICATOR="Saml2Aws"
+
+# Choose your preferred shell
+# possible choices: BashProfile (Legacy experience), ZshProfile (Recommended experience)
+PREFERRED_SHELL="BashProfile"
+
+# Display Fortune tooltip at bash/zsh session open
+SHOW_FORTUNES=1
+
+# Display MOTD at bash/zsh session open
+SHOW_MOTD=1
+
+# Install Docker inside wsl
+DOCKER_INSIDE_WSL=1
+
+# Configuration files are overwritten even if exists
+# !!!! First time initialization: let this value to 1 !!!!
+# Value 0:
+# - If target configuration file exists, displays a message and do not overwrite the file
+# - If target configuration file doesn't exist, installs the file
+# Value 1
+# - install or overwrite the file without checking existence
+OVERWRITE_CONFIG_FILES=1
+
+# Windows files can be overridden if 1
+# if 0
+# - skip changes to %USERPROFILE%/.wslconfig
+# - skip copying fonts
+CHANGE_WINDOWS_FILES=1
+
+# Indicate that install script can warn you using speaker when your input is needed
+CAN_TALK_DURING_INSTALLATION=1
+
+# if 1 install script will skip all interactive activity (saml2aws, ...),
+# so dependent installation will be skipped as well
+NON_INTERACTIVE=0
+
+# -----------------------------------------
+# WSLCONFIG - these parameters will help to automatically
+# configure %USERPROFILE%/.wslconfig file
+# Adjust these values to your needs
+# @see https://docs.microsoft.com/en-us/windows/wsl/wsl-config
+# Recommended 50% of total memory
+WSLCONFIG_MAX_MEMORY=8GB
+# personally I prefer run out of memory instead of beginning swapping
+# So I know immediately if some processes have to be stopped
+WSLCONFIG_SWAP=0
+
+# -----------------------------------------
+# Hacks
+# on some configurations we have to force path of some windows commands
+#POWERSHELL_BIN=/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
+#IPCONFIG_BIN=/mnt/c/Windows/system32/ipconfig.exe
+#WSL_EXE_BIN=/mnt/c/Windows/system32/wsl.exe
+EOF
+)"
+
+# @description load .env file
+# @arg $1 envFile:String the file to load
+Engine::Config::loadConfig() {
+  if [[ "${BASH_DEV_ENV_CONFIG_LOADED:-}" = "1" ]]; then
+    return 0
+  fi
+  local envFile="${BASH_DEV_ENV_ROOT_DIR}/.env"
+  Engine::Config::createEnvFileFromTemplate \
+    "${envFile}" "${envFileTemplate}" || exit 1
+  set -o allexport
+  # shellcheck source=/.env.template
+  source <(echo "${envFileTemplate}")
+  # shellcheck source=/.env
+  source "${BASH_DEV_ENV_ROOT_DIR}/.env"
+  set +o allexport
+
+  # load environment variables ID, VERSION_CODENAME
+  Engine::Config::loadOsRelease
+
+  if ! Engine::Config::checkEnv; then
+    Log::displayError "one or more variables are invalid, check above logs and fix '${envFile}' file accordingly"
+    return 1
+  fi
+
+  Engine::Config::loadUserVariables
+  Engine::Config::loadHostIp
+
+  # TODO is it needed ? Linux::Wsl::initEnv
+  Engine::Config::loadWslVariables
+
+  Engine::Config::createSudoerFile
+  Engine::Config::installUpdateEnv "${CONF_DIR}" "${LDAP_LOGIN}" "${WINDOWS_PROFILE_DIR}"
+  Log::requireLoad
+
+  export BASH_DEV_ENV_CONFIG_LOADED=1
+}
+
 # @description ensure env files are loaded
 # @arg $@ list of default files to load at the end
 # @exitcode 1 if one of env files fails to load
@@ -351,6 +481,95 @@ Env::requireLoad() {
 # @arg $1 templateName:String template name to use(optional)
 Framework::createTempFile() {
   mktemp -p "${TMPDIR:-/tmp}" -t "${1:-}.XXXXXXXXXXXX"
+}
+
+# @description the command launch different actions(install, configure, test)
+# depending on the options selected
+# @see src/_includes/install.default.options.tpl
+# @env SKIP_INSTALL
+# @env SKIP_CONFIGURE
+# @env SKIP_TEST
+# @env LOGS_DIR
+InstallScripts::command() {
+  local logsDir="${LOGS_DIR:-#}"
+  local scriptName
+  scriptName="$(scriptName)"
+  rm -f "${logsDir}/${scriptName}-.*" || true
+
+  # shellcheck disable=SC2317
+  onInterrupt() {
+    Log::displayError "${scriptName} aborted"
+    exit 1
+  }
+  trap onInterrupt INT TERM ABRT
+
+  local startDate logFile statsFile
+  local installStatus="0"
+  if [[ "${SKIP_INSTALL}" = "0" ]]; then
+    Log::headLine "INSTALL - Installing ${scriptName}"
+    logFile="${logsDir}/${scriptName}-install.log"
+    statsFile="${logsDir}/${scriptName}-install.stat"
+
+    # break at first install error
+    (
+      startDate="$(date +%s)"
+      trap 'Stats::computeStatsTrap "Installation ${scriptName}" "${logFile}" "${statsFile}" "${startDate}"' EXIT INT TERM ABRT
+
+      install 2>&1 | tee "${logFile}"
+    )
+  fi
+
+  local configStatus="0"
+  if [[ "${SKIP_CONFIGURE}" = "0" && "${installStatus}" = "0" ]]; then
+    Log::headLine "CONFIG  - Configuring ${scriptName}"
+    logFile="${logsDir}/${scriptName}-config.log"
+    statsFile="${logsDir}/${scriptName}-config.stat"
+    (
+      startDate="$(date +%s)"
+      trap 'Stats::computeStatsTrap "Configuration ${scriptName}" "${logFile}" "${statsFile}" "${startDate}"' EXIT INT TERM ABRT
+
+      configure 2>&1 | tee "${logFile}"
+    ) || configStatus="$?" || true
+
+    if [[ "${configStatus}" != "0" ]] && breakOnConfigFailure; then
+      # break if config script error
+      exit "${configStatus}"
+    fi
+  fi
+
+  local testInstallStatus="0"
+  if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" ]]; then
+    Log::headLine "TEST    - Testing ${scriptName} installation"
+    logFile="${logsDir}/${scriptName}-test-install.log"
+    statsFile="${logsDir}/${scriptName}-test-install.stat"
+    (
+      startDate="$(date +%s)"
+      trap 'Stats::computeStatsTrap "Test ${scriptName}" "${logFile}" "${statsFile}" "${startDate}"' EXIT INT TERM ABRT
+
+      testInstall 2>&1 | tee "${logFile}"
+    ) || testInstallStatus="$?" || true
+    if [[ "${testInstallStatus}" != "0" ]] && breakOnTestFailure; then
+      # break if test script error
+      exit "${testInstallStatus}"
+    fi
+  fi
+
+  local testConfigStatus="0"
+  if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" && "${configStatus}" = "0" ]]; then
+    Log::headLine "TEST    - Testing ${scriptName} configuration"
+    logFile="${logsDir}/${scriptName}-test-configuration.log"
+    statsFile="${logsDir}/${scriptName}-test-configuration.stat"
+    (
+      startDate="$(date +%s)"
+      trap 'Stats::computeStatsTrap "Test ${scriptName}" "${logFile}" "${statsFile}" "${startDate}"' EXIT INT TERM ABRT
+
+      testConfigure 2>&1 | tee "${logFile}"
+    ) || testConfigStatus="$?" || true
+    if [[ "${testConfigStatus}" != "0" ]] && breakOnTestFailure; then
+      # break if test script error
+      exit "${testConfigStatus}"
+    fi
+  fi
 }
 
 # @description apt-get install
@@ -464,15 +683,6 @@ Log::fatal() {
   exit 1
 }
 
-# @description Display given text on full line with TEST_COLOR style
-# @arg $1 text:String text to display
-Log::headLine() {
-  local text="$1"
-  local message
-  message="$(UI::textLine "${text}" " ")"
-  echo -e "${__TEST_COLOR}${message}${__RESET_COLOR}"
-}
-
 # @description activate or not Log::display* and Log::log* functions
 # based on BASH_FRAMEWORK_DISPLAY_LEVEL and BASH_FRAMEWORK_LOG_LEVEL
 # environment variables loaded by Env::requireLoad
@@ -524,96 +734,6 @@ Log::requireLoad() {
 # @exitcode 1 if max retries count reached
 Retry::default() {
   Retry::parameterized 5 15 "" "$@"
-}
-
-# @description extract stats form log
-# @arg $1 logFile:String the log file to parse
-# @arg $2 status:int the status of the command associated to that log file
-# @arg $3 duration:int the duration  of the command associated to that log file
-# @stdout output with the format provided by this example src/Stats/aggregateStats.example
-# @see src/Stats/aggregateStats.example
-Stats::computeFromLog() {
-  local logFile="$1"
-  local status="$2"
-  local duration="$3"
-
-  local logStatsAwkScript
-  logStatsAwkScript="$(
-    cat <<'EOF'
-BEGIN {
-  error=0
-  warning=0
-  skipped=0
-  help=0
-  success=0
-}
-{
-  buffer = substr($0, 1, 20)
-  if(match(buffer, /(ERROR)[ ]+- /, arr) != 0) {
-    error+=1
-  } else if(match(buffer, /(WARNING)[ ]+- /, arr) != 0) {
-    warning+=1
-  } else if(match(buffer, /(SKIPPED)[ ]+- /, arr) != 0) {
-    skipped+=1
-  } else if(match(buffer, /(ERROR)[ ]+- /, arr) != 0) {
-    error+=1
-  } else if(match(buffer, /(HELP)[ ]+- /, arr) != 0) {
-    help+=1
-  } else if(match(buffer, /(SUCCESS)[ ]+- /, arr) != 0) {
-    success+=1
-  }
-
-}
-END {
-  print "error=" error
-  print "warning=" warning
-  print "skipped=" skipped
-  print "help=" help
-  print "success=" success
-}
-EOF
-  )"
-
-  if [[ -f "${logFile}" ]]; then
-    awk --source "${logStatsAwkScript}" "${logFile}"
-    echo "status=${status}"
-    echo "duration=${duration}"
-  else
-    # not executed
-    echo "status=-1"
-  fi
-}
-
-# @description display message to reflect last installation status
-Stats::statusLine() {
-  local statFile="$1"
-  local msg="$2"
-  if [[ ! -f "${statFile}" ]]; then
-    return 0
-  fi
-
-  (
-    # shellcheck source=src/Stats/logStats.example
-    source "${statFile}" || exit 1
-
-    local color="${__TEST_ERROR_COLOR}"
-    local statusMsg
-    if [[ "${status}" = "0" ]]; then
-      if [[ "${skipped}" = "0" ]]; then
-        color="${__SUCCESS_COLOR}"
-        statusMsg="SUCCESS - ${msg} successful"
-      else
-        color="${__SKIPPED_COLOR}"
-        statusMsg="SKIPPED - ${msg} skipped"
-      fi
-    elif [[ "${status}" = "-1" ]]; then
-      statusMsg="ABORTED - ${msg} not executed"
-    else
-      statusMsg="ERROR  - ${msg} in error"
-    fi
-    # overwrite final TEST line
-    echo -e "${color}${statusMsg}${__RESET_COLOR}"
-  )
 }
 
 # @description draw a line with the character passed in parameter repeated depending on terminal width
@@ -741,6 +861,297 @@ Assert::validVariableName() {
   echo "$1" | LC_ALL=POSIX grep -E -q '(^[a-z][A-Za-z_0-9:]+$)|(^[A-Z_][A-Z_0-9:]+$)'
 }
 
+# @description check validity of .env variables
+# @noargs
+Engine::Config::checkEnv() {
+  local errorCount=0 || true
+  checkNotEmpty() {
+    local var="$1"
+    if ! Assert::varExistsAndNotEmpty "${var}"; then
+      ((++errorCount))
+      return 1
+    fi
+  }
+  checkVarAndDir() {
+    local var="$1"
+    local mode="${2:-}"
+    local status=0
+    if checkNotEmpty "${var}"; then
+      if ! mkdir -p "${!var}"; then
+        Log::displayError "variable ${var} - impossible to create the directory '${!var}'"
+        ((errorCount++))
+        return 1
+      fi
+      if [[ "${mode}" =~ w && ! -w "${!var}" ]]; then
+        Log::displayError "variable ${var} - directory '${!var}' is not writable"
+        ((status++))
+        ((errorCount++))
+      fi
+      if [[ "${mode}" =~ r && ! -r "${!var}" ]]; then
+        Log::displayError "variable ${var} - directory '${!var}' is not accessible"
+        ((status++))
+        ((errorCount++))
+      fi
+    fi
+
+    return "${status}"
+  }
+  checkValidValues() {
+    local var="$1"
+    shift || true
+    local -a validValues=("$@")
+    if ! Array::contains "${!var}" "${validValues[@]}"; then
+      Log::displayError "variable ${var} - value ${!var} is not part of the following values ${validValues[*]}"
+      ((++errorCount))
+    fi
+  }
+
+  if ! echo "${ID}" | grep -qEw 'debian|ubuntu'; then
+    Log::fatal "This script is built to support only Debian or Ubuntu distributions. You are using ${ID}."
+  fi
+
+  if checkNotEmpty USER_NAME && ! getent passwd "${USER_NAME}" 2>/dev/null >/dev/null; then
+    Log::displayError "USER_NAME - user '${USER_NAME}' does not exist"
+    ((errorCount++))
+  fi
+
+  if [[ -n "${SSH_LOGIN:-}" ]] && ! Assert::ldapLogin "${SSH_LOGIN}"; then
+    Log::displayError "SSH_LOGIN - invalid ldap login (format expected firstNameLastName) in ${BASH_DEV_ENV_ROOT_DIR}/.env file"
+    ((errorCount++))
+  fi
+
+  if checkNotEmpty "GIT_USER_NAME" && ! Assert::firstNameLastName "${GIT_USER_NAME}"; then
+    Log::displayError "GIT_USER_NAME - invalid format, expected : firstName lastName"
+    ((errorCount++))
+  fi
+
+  if checkNotEmpty "GIT_USER_MAIL" && ! Assert::emailAddress "${GIT_USER_MAIL}"; then
+    Log::displayError "GIT_USER_MAIL - invalid email address"
+    ((errorCount++))
+  fi
+
+  checkVarAndDir CONF_DIR r || true
+  checkVarAndDir CONF_OVERRIDE_DIR r || true
+  checkVarAndDir PROJECTS_DIR r || true
+  checkVarAndDir BACKUP_DIR rw || true
+  checkVarAndDir LOGS_DIR rw || true
+  checkVarAndDir INSTALL_SCRIPTS_DIR r || true
+  checkVarAndDir USER_HOME rw || true
+
+  checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
+  checkValidValues AWS_AUTHENTICATOR Saml2Aws Awsume
+  checkValidValues PREFERRED_SHELL BashProfile ZshProfile
+
+  checkValidValues SHOW_FORTUNES 0 1
+  checkValidValues SHOW_MOTD 0 1
+  checkValidValues DOCKER_INSIDE_WSL 0 1
+  checkValidValues OVERWRITE_CONFIG_FILES 0 1
+  checkValidValues CHANGE_WINDOWS_FILES 0 1
+  checkValidValues CAN_TALK_DURING_INSTALLATION 0 1
+  checkValidValues NON_INTERACTIVE 0 1
+
+  checkNotEmpty WSLCONFIG_MAX_MEMORY
+  checkValidValues WSLCONFIG_SWAP 0 1
+
+  return "${errorCount}"
+}
+
+# @description if .env does not exist, initialize it with .env.template
+Engine::Config::createEnvFileFromTemplate() {
+  local envFile="$1"
+  local envFileTemplate="$2"
+
+  if [[ ! -f "${envFile}" ]]; then
+    echo "${envFileTemplate}" >"${envFile}"
+    Log::displayError "a default env file has been created, please edit ${envFile}"
+    return 1
+  fi
+}
+
+# @description set sudoer without password temporarily
+# @env USER_NAME
+# @env USER_HOME
+# @set SUDOER_CHANGE
+Engine::Config::createSudoerFile() {
+  local sudoerFile="/etc/sudoers.d/${USER_NAME}-bash-dev-env-no-password"
+
+  # create /etc/sudoers.d/userName-bash-dev-env
+  local sudoerChange="${USER_NAME} ALL=(ALL) NOPASSWD: ${BASH_DEV_ENV_ROOT_DIR}/install,/etc/cron.weekly/upgrade,/usr/sbin/service,${BASH_DEV_ENV_ROOT_DIR}/installScripts"
+  if [[ "${sudoerChange}" != "$(sudo cat "${sudoerFile}" 2>/dev/null || echo -n '')" ]]; then
+    echo "${sudoerChange}" | sudo tee "${sudoerFile}"
+    sudo chmod 0440 "${sudoerFile}"
+
+    echo "this file indicates that sudo has been configured to execute without password" |
+      sudo tee "${USER_HOME}/.cron_activated" >/dev/null
+
+    sudo visudo -c -s || {
+      Log::displayError "Please check syntax of '${sudoerFile}' before closing this session - 'sudo visudo'"
+      return 1
+    }
+  fi
+
+}
+
+# @description install or update /etc/profile.d/updateEnv.sh file
+# @env CONF_DIR
+# @env LDAP_LOGIN
+# @env WINDOWS_PROFILE_DIR
+Engine::Config::installUpdateEnv() {
+  if [[ "${INSTALL_UPDATE_ENV:-1}" = "1" ]]; then
+    # INSTALL_UPDATE_ENV avoids infinite loop
+    return 0
+  fi
+
+  if [[ ! -f '/etc/profile.d/updateEnv.sh' || "${CONF_DIR}/etc/profile.d/updateEnv.sh" -nt "/etc/profile.d/updateEnv.sh" ]]; then
+    # EMBED Install::file AS installFile
+    # shellcheck disable=SC2154
+    sudo "${embed_file_installFile}" -e OVERWRITE_CONFIG_FILES=1 -- "${CONF_DIR}/etc/profile.d" '/etc/profile.d' 'updateEnv.sh' Install::setUserRootCallback
+  fi
+  if [[ "$(perl -ne 'if (/export LDAP_LOGIN=(.*)/) { print $1 }' "/etc/profile.d/updateEnv.sh")" != "${LDAP_LOGIN}" ]]; then
+    sudo sed -i -e "s#export LDAP_LOGIN=.*\$#export LDAP_LOGIN=${LDAP_LOGIN}#g" "/etc/profile.d/updateEnv.sh"
+  fi
+  sudo sed -i -e "s#WINDOWS_PROFILE_DIR=.*\$#WINDOWS_PROFILE_DIR='${WINDOWS_PROFILE_DIR}'#" "/etc/profile.d/updateEnv.sh"
+
+  # reload env
+  set +o errexit
+  # shellcheck source=/dev/null
+  source "/etc/profile"
+  set -o errexit
+}
+
+# @description deduce wsl host ip
+# @set HOST_IP exported env containing the IP
+Engine::Config::loadHostIp() {
+  HOST_IP="$(/sbin/ip route | awk '/default/ { print $3 }')"
+
+  export HOST_IP
+}
+
+# @description load /etc/os-release file
+# @set NAME
+# @set VERSION
+# @set ID
+# @set ID_LIKE
+# @set PRETTY_NAME
+# @set VERSION_ID
+# @set HOME_URL
+# @set SUPPORT_URL
+# @set BUG_REPORT_URL
+# @set PRIVACY_POLICY_URL
+# @set VERSION_CODENAME
+# @set UBUNTU_CODENAME
+Engine::Config::loadOsRelease() {
+  if [[ ! -f /etc/os-release ]]; then
+    Log::displayError "file /etc/os-release does not exists"
+    return 1
+  fi
+  # This will load environment variables ID, VERSION_CODENAME, ...
+  set -o allexport
+  source /etc/os-release
+  set +o allexport
+}
+
+# @description deduce USER_HOME, USER_ID, USER_GROUP_ID and USER_GROUP from USER_NAME
+# @env USER_NAME String the name of the user
+# @set USER_ID String
+# @set USER_GROUP String
+# @set USER_GROUP_ID String
+# @set USER_HOME String
+Engine::Config::loadUserVariables() {
+  # deduce user home and group
+  # shellcheck disable=SC2153
+  USER_ID="$(getent passwd "${USER_NAME}" | cut -d: -f3)"
+  USER_GROUP_ID="$(getent passwd "${USER_NAME}" | cut -d: -f4)"
+  USER_GROUP="$(getent group "${USER_GROUP_ID}" | cut -d: -f1)"
+  USER_HOME="$(getent passwd "${USER_NAME}" | cut -d: -f6)"
+
+  if [[ -z "${USER_GROUP}" || -z "${USER_HOME}" ]]; then
+    Log::displayError "USER_NAME - unable to deduce USER_GROUP, USER_HOME from USER_NAME"
+    return 1
+  fi
+
+  export USER_HOME
+  export USER_ID
+  export USER_GROUP_ID
+  export USER_GROUP
+}
+
+# @description load wsl env variables
+# @set BASE_MNT_C
+# @set WINDOWS_DIR
+# @set WINDOWS_PROFILE_DIR
+# @set LOCAL_APP_DATA
+# @set WINDOW_PATH
+# @set WSL_EXE_BIN
+# @set IPCONFIG_BIN
+# @set POWERSHELL_BIN
+# @env WSL_EXE_BIN
+# @env IPCONFIG_BIN
+# @env POWERSHELL_BIN
+Engine::Config::loadWslVariables() {
+  if ! Assert::wsl; then
+    # skip
+    return 0
+  fi
+  # shellcheck disable=SC1003
+  BASE_MNT_C="$(mount | grep 'path=C:\\' | awk -F ' ' '{print $3}')"
+
+  WINDOWS_DIR="$(Linux::Wsl::cachedWslpathFromWslVar SystemRoot)"
+  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C}/Windows}"
+  export WINDOWS_DIR
+
+  WINDOWS_PROFILE_DIR="$(Linux::Wsl::cachedWslpathFromWslVar USERPROFILE)"
+  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C}/Users/$(id -un)}"
+  export WINDOWS_PROFILE_DIR
+
+  LOCAL_APP_DATA="$(Linux::Wsl::cachedWslpathFromWslVar LOCALAPPDATA | tr -d '\n\r')"
+  export LOCAL_APP_DATA
+
+  # WINDOW_PATH
+  WINDOW_PATH="$(Linux::Wsl::cachedWslvar PATH)"
+  WINDOW_PATH="${WINDOW_PATH//;/:}"
+  WINDOW_PATH="${WINDOW_PATH//\\//}"
+  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C}}"
+
+  deduceBin() {
+    local var="$1"
+    local expectedFullPath="$2"
+    local expectedBin="$3"
+    if [[ -z "${!var+xxx}" ]]; then
+      eval "${var}=${expectedFullPath}"
+      if ! command -v "${!var}" >/dev/null 2>&1; then
+        eval "${var}=$(command -v "${expectedBin}" 2>/dev/null)"
+      fi
+    fi
+    if [[ -z "${!var:-}" ]] || ! command -v "${!var}" >/dev/null 2>&1; then
+      Log::fatal "variable ${var} - command ${expectedBin} not found"
+    fi
+    # shellcheck disable=SC2163
+    export "${var}"
+  }
+
+  checkBinary() {
+    local var="$1"
+    if [[ -z "${var}" || ! -x "${!var}" ]]; then
+      Log::displayError "variable ${var} - binary '${!var}' does not exist or not executable"
+      ((errorCount++))
+    fi
+  }
+
+  local errorCount=0
+  # IPCONFIG_BIN - which ipconfig.exe does not work when executed as root
+  deduceBin IPCONFIG_BIN "${WINDOWS_DIR}/System32/ipconfig.exe" "ipconfig.exe"
+  checkBinary IPCONFIG_BIN
+
+  deduceBin WSL_EXE_BIN "${WINDOWS_DIR}/System32/wsl.exe" "wsl.exe"
+  checkBinary WSL_EXE_BIN
+
+  deduceBin POWERSHELL_BIN "${WINDOWS_DIR}/System32/WindowsPowerShell/v1.0/powershell.exe" "powershell.exe"
+  checkBinary POWERSHELL_BIN
+
+  return "${errorCount}"
+}
+
 # @description prepend directories to the PATH environment variable
 # @arg $@ args:String[] list of directories to prepend
 # @set PATH update PATH with the directories prepended
@@ -751,6 +1162,15 @@ Env::pathPrepend() {
       PATH="$(realpath "${arg}"):${PATH}"
     fi
   done
+}
+
+# @description Display given text on full line with TEST_COLOR style
+# @arg $1 text:String text to display
+Log::headLine() {
+  local text="$1"
+  local message
+  message="$(UI::textLine "${text}" " ")"
+  echo -e "${__TEST_COLOR}${message}${__RESET_COLOR}"
 }
 
 # @description log message to file
@@ -837,7 +1257,8 @@ Log::rotate() {
     Log::displaySkipped "Log file ${file} doesn't exist yet"
     return 0
   fi
-  for i in $(seq $((maxLogFilesCount - 1)) -1 1); do
+  local i
+  for (( i = 1; i <= maxLogFilesCount; i++ )); do
     Log::displayInfo "Log rotation ${file}.${i} to ${file}.$((i + 1))"
     mv "${file}."{"${i}","$((i + 1))"} &>/dev/null || true
   done
@@ -884,17 +1305,22 @@ Retry::parameterized() {
   return 0
 }
 
-# @description Display given text and complete the rest of the line with given character
-# @arg $1 text:String text to display
-# @arg $2 character:String (default:#) character to use to complete the line
-UI::textLine() {
-  local text="$1"
-  local character="${2:-#}"
-  ((textSize = ${#text}))
-  ((fullWith = $(tput cols)))
-  ((remainingWidth = $((fullWith - textSize))))
-  echo -n "${text}"
-  printf '%*s\n' "${remainingWidth}" '' | tr ' ' "${character}"
+# @description trap function responsible to compute and display stats after each script execution
+# @arg $1 step:String current step (msg)
+# @arg $2 logFile:String
+# @arg $3 statFile:String
+# @arg $4 startDate:String date at which log started
+Stats::computeStatsTrap() {
+  local status="$?"
+  local step="$1"
+  local logFile="$2"
+  local statFile="$3"
+  local startDate="$4"
+  local endDate
+  endDate="$(date +%s)"
+  Stats::computeFromLog "${logFile}" "${status}" "$((endDate - startDate))" >"${statFile}"
+  Stats::statusLine "${statFile}" "${step}"
+  return "${status}"
 }
 
 # @description ensure linux distribution is ubuntu
@@ -909,6 +1335,91 @@ Linux::requireUbuntu() {
 # @exitcode 0 always successful
 UI::requireTheme() {
   UI::theme "${BASH_FRAMEWORK_THEME-default}"
+}
+
+# @description check if param is valid email address
+# @warning it is a very simple check, no RFC validation
+# @arg $1 emailAddress:String the full email address
+# @exitcode 1 if invalid email address
+Assert::emailAddress() {
+  local expectedRegexp="^\S+@\S+$"
+
+  [[ "$1" =~ ${expectedRegexp} ]]
+}
+
+# @description check if argument respects 2 or more words separated by a space
+# it supports accentuated characters and names with hyphen(-)
+# @arg $1 firstNameLastName:String
+# @exitcode 1 if regexp not matches
+# @see https://regex101.com/r/JyyfOM/1
+Assert::firstNameLastName() {
+  local regexp="^[^ ]+([ ][^ ]+)+$"
+  [[ $1 =~ ${regexp} ]]
+}
+
+# @description check if argument respects ldap login naming convention
+# only using lowercase characters a-z
+# @arg $1 ldapLogin:String
+# @exitcode 1 if regexp not matches
+Assert::ldapLogin() {
+  [[ $1 =~ ^[a-z]+$ ]]
+}
+
+# @description determine if the script is executed under WSL
+# cspell:disable
+# @example text
+#   uname GitBash windows (with wsl) => MINGW64_NT-10.0 ZOXFL-6619QN2 2.10.0(0.325/5/3) 2018-06-13 23:34 x86_64 Msys
+#   uname GitBash windows (wo wsl)   => MINGW64_NT-10.0 frsa02-j5cbkc2 2.9.0(0.318/5/3) 2018-01-12 23:37 x86_64 Msys
+#   uname wsl => Linux ZOXFL-6619QN2 4.4.0-17134-Microsoft #112-Microsoft Thu Jun 07 22:57:00 PST 2018 x86_64 x86_64 x86_64 GNU/Linux
+# cspell:enable
+#
+# @exitcode 1 on error
+Assert::wsl() {
+  [[ "$(uname -o)" = "GNU/Linux" ]]
+}
+
+# @description install callback
+#   set file with root ownership
+# @arg $1 fromFile:String
+# @arg $2 targetFile:String
+# @exitcode 1 on any failure
+# @see Install::file
+Install::setUserRootCallback() {
+  # shellcheck disable=SC2034 # $1 not used
+  local fromFile="$1"
+  local targetFile="$2"
+  chown root:root "${targetFile}"
+}
+
+# @description retrieve path from wslvar and then use wslpath to resolve it
+# using cache (cache is refreshed every day)
+# @arg $1 var:String the var to retrieve using wslvar
+# @arg $@ args:String[] (optional) additional arguments to pass to wslvar
+# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
+# @exitcode * if Linux::Wsl::originalWslpath cannot find the path or Linux::Wsl::originalWslvar cannot find the var
+# @stderr diagnostics information is displayed
+# @require Linux::Wsl::requireWsl
+# @feature cache
+Linux::Wsl::cachedWslpathFromWslVar() {
+  local var="$1"
+  shift || true
+  local value
+  value="$(Linux::Wsl::cachedWslvar "${var}" "$@")" || return 1
+  Linux::Wsl::cachedWslpath "${value}" || return 1
+}
+
+# @description retrieve wslvar using cache (cache is refreshed every day)
+# @arg $@ args:String[] arguments to pass to wslvar
+# @env WSL_TMPDIR String temp directory to store the wslvar cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
+# @exitcode * if Linux::Wsl::originalWslvar cannot find the variable
+# @stderr diagnostics information is displayed
+# @require Linux::Wsl::requireWsl
+# @feature cache
+Linux::Wsl::cachedWslvar() {
+  local tempEnvFile
+  tempEnvFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslvar_$(id -un)"
+
+  Cache::getPropertyValue "${tempEnvFile}" "$1" Linux::Wsl::originalWslvar "$@"
 }
 
 # @description retrieve linux distributor id
@@ -928,12 +1439,222 @@ Log::displaySkipped() {
   Log::logSkipped "$1"
 }
 
+# @description extract stats form log
+# @arg $1 logFile:String the log file to parse
+# @arg $2 status:int the status of the command associated to that log file
+# @arg $3 duration:int the duration  of the command associated to that log file
+# @stdout output with the format provided by this example src/Stats/aggregateStats.example
+# @see src/Stats/aggregateStats.example
+Stats::computeFromLog() {
+  local logFile="$1"
+  local status="$2"
+  local duration="$3"
+
+  local logStatsAwkScript
+  logStatsAwkScript="$(
+    cat <<'EOF'
+BEGIN {
+  error=0
+  warning=0
+  skipped=0
+  help=0
+  success=0
+}
+{
+  buffer = substr($0, 1, 20)
+  if(match(buffer, /(ERROR)[ ]+- /, arr) != 0) {
+    error+=1
+  } else if(match(buffer, /(WARNING)[ ]+- /, arr) != 0) {
+    warning+=1
+  } else if(match(buffer, /(SKIPPED)[ ]+- /, arr) != 0) {
+    skipped+=1
+  } else if(match(buffer, /(ERROR)[ ]+- /, arr) != 0) {
+    error+=1
+  } else if(match(buffer, /(HELP)[ ]+- /, arr) != 0) {
+    help+=1
+  } else if(match(buffer, /(SUCCESS)[ ]+- /, arr) != 0) {
+    success+=1
+  }
+
+}
+END {
+  print "error=" error
+  print "warning=" warning
+  print "skipped=" skipped
+  print "help=" help
+  print "success=" success
+}
+EOF
+  )"
+
+  if [[ -f "${logFile}" ]]; then
+    awk --source "${logStatsAwkScript}" "${logFile}"
+    echo "status=${status}"
+    echo "duration=${duration}"
+  else
+    # not executed
+    echo "status=-1"
+  fi
+}
+
+# @description display message to reflect last installation status
+Stats::statusLine() {
+  local statFile="$1"
+  local msg="$2"
+  if [[ ! -f "${statFile}" ]]; then
+    return 0
+  fi
+
+  (
+    # shellcheck source=src/Stats/logStats.example
+    source "${statFile}" || exit 1
+
+    local color="${__TEST_ERROR_COLOR}"
+    local statusMsg
+    if [[ "${status}" = "0" ]]; then
+      if [[ "${skipped}" = "0" ]]; then
+        color="${__SUCCESS_COLOR}"
+        statusMsg="SUCCESS - ${msg} successful"
+      else
+        color="${__SKIPPED_COLOR}"
+        statusMsg="SKIPPED - ${msg} skipped"
+      fi
+    elif [[ "${status}" = "-1" ]]; then
+      statusMsg="ABORTED - ${msg} not executed"
+    else
+      statusMsg="ERROR  - ${msg} in error"
+    fi
+    # overwrite final TEST line
+    echo -e "${color}${statusMsg}${__RESET_COLOR}"
+  )
+}
+
+# @description Display given text and complete the rest of the line with given character
+# @arg $1 text:String text to display
+# @arg $2 character:String (default:#) character to use to complete the line
+UI::textLine() {
+  local text="$1"
+  local character="${2:-#}"
+  ((textSize = ${#text}))
+  ((fullWith = $(tput cols)))
+  ((remainingWidth = $((fullWith - textSize))))
+  echo -n "${text}"
+  printf '%*s\n' "${remainingWidth}" '' | tr ' ' "${character}"
+}
+
+# @description get property value from file
+# if not present compute it using propertyNotFoundCallback (if provided) and store it in property file
+# @arg $1 propertyFile:String the file in which the property will be searched
+# @arg $2 key:String the property key to search in property file
+# @arg $3 propertyNotFoundCallback:Function (optional) a callback to call if property key is not found in property file
+# @arg $@ args:String[] (optional) the arguments to pass to the propertyNotFoundCallback
+# @exitcode 1 if value is not found
+# @exitcode * if propertyNotFoundCallback fails
+# @stdout the property value given by property file or by the propertyNotFoundCallback
+Cache::getPropertyValue() {
+  local value
+  local propertyFile="$1"
+  shift || true
+  local key
+  key="$(echo -E "$1" | sed -E 's#\\#/#g')"
+  shift || true
+  local propertyNotFoundCallback=$1
+  shift || true
+
+  if grep -E "^${key}=.*" "${propertyFile}" &>/dev/null; then
+    grep -E "^${key}=" "${propertyFile}" | cut -d'=' -f2
+    return 0
+  elif [[ "$(type -t "${propertyNotFoundCallback}")" = "function" ]]; then
+    value="$("${propertyNotFoundCallback}" "$@")" || return $?
+    if [[ -n "${value}" ]]; then
+      echo -E "${key}=${value}" >>"${propertyFile}"
+    fi
+    echo -E "${value}"
+    return 0
+  fi
+  return 1
+}
+
+# @description retrieve wslpath using cache (cache is refreshed every day)
+# @arg $@ args:String[] arguments to pass to wslpath
+# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
+# @exitcode * if Linux::Wsl::originalWslpath cannot find the path
+# @stderr diagnostics information is displayed
+# @require Linux::Wsl::requireWsl
+# @feature cache
+Linux::Wsl::cachedWslpath() {
+  local -a args=("$@")
+  local tempEnvFile key
+  tempEnvFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslpath_$(id -un)"
+
+  key="$(Linux::Wsl::getKeyFromWslpathOptions "$@")"
+  Cache::getPropertyValue "${tempEnvFile}" "${key}" Linux::Wsl::originalWslpath "${args[@]}"
+}
+
+# @description call simply original wslvar command
+# @arg $@ args:String[] args to pass to wslvar
+# @exitcode * wslvar exit code
+# @stdout wslvar stdout
+# @require Linux::Wsl::requireWsl
+Linux::Wsl::originalWslvar() {
+  wslvar "$@" | sed -z '$ s/[\r\n]$//'
+}
+
 # @description log message to file
 # @arg $1 message:String the message to display
 Log::logSkipped() {
   if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
     Log::logMessage "${2:-SKIPPED}" "$1"
   fi
+}
+
+# @description ensure linux runs under wsl
+# @exitcode 1 if linux does not run under wsl
+Linux::Wsl::requireWsl() {
+  Assert::wsl
+}
+
+# @description Compute a cache from wslpath options
+# @arg $@ args:String[] arguments passed to wslpath
+# @stderr diagnostics information is displayed
+# @stdout the cache key deduced from the options
+# @require Linux::Wsl::requireWsl
+# @feature cache
+# @internal
+Linux::Wsl::getKeyFromWslpathOptions() {
+  local options
+  options=$(getopt -o "auwm" -- "$@" 2>/dev/null) || {
+    Log::displayError "invalid options specified"
+    return 1
+  }
+  local key="wslpath"
+  eval set -- "${options}"
+  while true; do
+    case "$1" in
+      -a | -u | -w | -m)
+        key="${key}$1"
+        ;;
+      --)
+        shift || true
+        break
+        ;;
+      *)
+        shift || true
+        Log::displayWarning "Unknown key $1"
+        ;;
+    esac
+    shift || true
+  done
+  echo -E "${key}_$1"
+}
+
+# @description call simply original wslpath command
+# @arg $@ args:String[] args to pass to wslpath
+# @exitcode * wslpath exit code
+# @stdout wslpath stdout
+# @require Linux::Wsl::requireWsl
+Linux::Wsl::originalWslpath() {
+  wslpath "$@"
 }
 
 # FUNCTIONS
@@ -944,6 +1665,7 @@ Linux::requireUbuntu
 Env::requireLoad
 UI::requireTheme
 Log::requireLoad
+Linux::Wsl::requireWsl
 Compiler::Facade::requireCommandBinDir
 
 # @require Compiler::Facade::requireCommandBinDir
@@ -1808,6 +2530,7 @@ installScriptCommand() {
       shift || true
     done
     commandOptionParseFinished
+    InstallScripts::command
     Log::displayDebug "Command ${SCRIPT_NAME} - parse arguments: ${BASH_FRAMEWORK_ARGV[*]}"
     Log::displayDebug "Command ${SCRIPT_NAME} - parse filtered arguments: ${BASH_FRAMEWORK_ARGV_FILTERED[*]}"
   elif [[ "${options_parse_cmd}" = "help" ]]; then
@@ -1939,12 +2662,10 @@ installScriptCommand() {
   fi
 }
 
+# default action called by the facade if no interface action recognized
 defaultFacadeAction() {
   installScriptCommand parse "${BASH_FRAMEWORK_ARGV[@]}"
 }
-
-# we need non root user to be sure that all variables will be correctly deduced
-Assert::expectNonRootUser
 
 stringOrNone() {
   local string="$1"
@@ -1952,103 +2673,32 @@ stringOrNone() {
 }
 
 helpDescriptionCallback() {
-  installScript_helpDescription
+  helpDescription
   echo
 }
 
 helpLongDescriptionCallback() {
-  installScript_helpDescription
+  helpDescription
   echo
 
   echo -e "${__HELP_TITLE}List of needed variables:${__HELP_NORMAL}"
-  stringOrNone "$(installScript_helpVariables)"
+  stringOrNone "$(helpVariables)"
 
   echo -e "${__HELP_TITLE}List of dependencies:${__HELP_NORMAL}"
-  stringOrNone "$(installScript_dependencies)"
+  stringOrNone "$(dependencies)"
 }
 
-rm -f "${CONFIG_LOGS_DIR:-#}/${SCRIPT}-.*" || true
+Engine::Config::loadConfig
 
-# shellcheck disable=SC2317
-computeStatsTrap() {
-  local status="$?"
-  local step="$1"
-  local logFile="$2"
-  local statFile="$3"
-  local END
-  END="$(date +%s)"
-  Stats::computeFromLog "${logFile}" "${status}" "$((END - START))" >"${statFile}"
-  Stats::statusLine "${statFile}" "${step}"
-  return "${status}"
+scriptName() {
+  echo "Upgrade"
 }
 
-onInterrupt() {
-  Log::displayError "${SCRIPT} aborted"
-  exit 1
-}
-trap 'onInterrupt' INT TERM ABRT
-
-declare installStatus="0"
-if [[ "${SKIP_INSTALL}" = "0" ]]; then
-  Log::headLine "INSTALL - Installing ${SCRIPT}"
-  installLogFile="${CONFIG_LOGS_DIR}/${SCRIPT}-install.log"
-  installStatsFile="${CONFIG_LOGS_DIR}/${SCRIPT}-install.stat"
-
-  (
-    declare START
-    START="$(date +%s)"
-    trap 'computeStatsTrap "Installation ${SCRIPT}" "${installLogFile}" "${installStatsFile}"' EXIT INT TERM ABRT
-
-    "installScripts_${SCRIPT}_install" 2>&1 | tee "${installLogFile}"
-  ) || installStatus="$?" || true
-  if [[ "${installStatus}" != "0" ]]; then
-    # break at first install error
-    exit "${installStatus}"
-  fi
-fi
-
-declare configStatus="0"
-if [[ "${SKIP_CONFIGURE}" = "0" && "${installStatus}" = "0" ]]; then
-  Log::headLine "CONFIG  - Configuring ${SCRIPT}"
-  configLogFile="${CONFIG_LOGS_DIR}/${SCRIPT}-config.log"
-  configStatsFile="${CONFIG_LOGS_DIR}/${SCRIPT}-config.stat"
-  (
-    declare START
-    START="$(date +%s)"
-    trap 'computeStatsTrap "Configuration ${SCRIPT}" "${configLogFile}" "${configStatsFile}"' EXIT INT TERM ABRT
-
-    "installScripts_${SCRIPT}_configure" 2>&1 | tee "${configLogFile}"
-  ) || configStatus="$?" || true
-
-  if [[ "${configStatus}" != "0" ]] && "installScripts_${SCRIPT}_breakOnConfigFailure"; then
-    # break if config script error
-    exit "${configStatus}"
-  fi
-fi
-
-declare testStatus="0"
-if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" && "${configStatus}" = "0" ]]; then
-  Log::headLine "TEST    - Testing ${SCRIPT}"
-  testLogFile="${CONFIG_LOGS_DIR}/${SCRIPT}-test.log"
-  testStatsFile="${CONFIG_LOGS_DIR}/${SCRIPT}-test.stat"
-  (
-    declare START
-    START="$(date +%s)"
-    trap 'computeStatsTrap "Test ${SCRIPT}" "${testLogFile}" "${testStatsFile}"' EXIT INT TERM ABRT
-
-    "installScripts_${SCRIPT}_test" 2>&1 | tee "${testLogFile}"
-  ) || testStatus="$?" || true
-  if [[ "${testStatus}" != "0" ]] && "installScripts_${SCRIPT}_breakOnTestFailure"; then
-    # break if test script error
-    exit "${testStatus}"
-  fi
-fi
-
-installScript_helpDescription() {
+helpDescription() {
   echo "Upgrade ubuntu apt softwares"
 }
 
-installScript_helpVariables() {
+helpVariables() {
   # shellcheck disable=SC2317
   cat <<EOF
   ${__HELP_EXAMPLE}UPGRADE_UBUNTU_VERSION${__HELP_NORMAL}
@@ -2060,15 +2710,15 @@ installScript_helpVariables() {
 EOF
 }
 
-installScript_listVariables() {
+listVariables() {
   echo "UPGRADE_UBUNTU_VERSION"
 }
 
-installScript_defaultVariables() {
+defaultVariables() {
   export UPGRADE_UBUNTU_VERSION="lts"
 }
 
-installScript_checkVariables() {
+checkVariables() {
   if ! Assert::varExistsAndNotEmpty "UPGRADE_UBUNTU_VERSION"; then
     return 1
   elif ! Array::contains "${UPGRADE_UBUNTU_VERSION}" "lts" "dev"; then
@@ -2077,23 +2727,23 @@ installScript_checkVariables() {
   fi
 }
 
-installScript_fortunes() {
+fortunes() {
   return 0
 }
 
-installScript_dependencies() {
+dependencies() {
   return 0
 }
 
-installScript_breakOnConfigFailure() {
+breakOnConfigFailure() {
   return 0
 }
 
-installScript_breakOnTestFailure() {
+breakOnTestFailure() {
   return 0
 }
 
-installScript_install() {
+install() {
   # Needed before do-release-upgrade because WSL doesn't support Systemd directly
   Linux::Apt::remove snapd || true
   mv /etc/apt/apt.conf.d/20snapd.conf{,.disabled} || true
@@ -2133,52 +2783,62 @@ installScript_install() {
   sudo sed -i -r 's/^Prompt=.*$/Prompt=lts/g' /etc/update-manager/release-upgrades
 }
 
-installScript_configure() {
+configure() {
   return 0
 }
 
-installScript_test() {
+testInstall() {
+  return 0
+}
+
+testConfigure() {
   return 0
 }
 
 local action=$1
 shift || true
 case ${action} in
-  installScript_helpDescription)
-    installScript_helpDescription "$@"
+  scriptName)
+    scriptName "$@"
     ;;
-  installScript_helpVariables)
-    installScript_helpVariables "$@"
+  helpDescription)
+    helpDescription "$@"
     ;;
-  installScript_listVariables)
-    installScript_listVariables "$@"
+  helpVariables)
+    helpVariables "$@"
     ;;
-  installScript_defaultVariables)
-    installScript_defaultVariables "$@"
+  listVariables)
+    listVariables "$@"
     ;;
-  installScript_checkVariables)
-    installScript_checkVariables "$@"
+  defaultVariables)
+    defaultVariables "$@"
     ;;
-  installScript_fortunes)
-    installScript_fortunes "$@"
+  checkVariables)
+    checkVariables "$@"
     ;;
-  installScript_dependencies)
-    installScript_dependencies "$@"
+  fortunes)
+    fortunes "$@"
     ;;
-  installScript_breakOnConfigFailure)
-    installScript_breakOnConfigFailure "$@"
+  dependencies)
+    dependencies "$@"
     ;;
-  installScript_breakOnTestFailure)
-    installScript_breakOnTestFailure "$@"
+  breakOnConfigFailure)
+    breakOnConfigFailure "$@"
     ;;
-  installScript_install)
-    installScript_install "$@"
+  breakOnTestFailure)
+    breakOnTestFailure "$@"
     ;;
-  installScript_configure)
-    installScript_configure "$@"
+  install)
+    install "$@"
     ;;
-  installScript_test)
-    installScript_test "$@"
+  configure)
+    configure "$@"
+    ;;
+  testInstall)
+    testInstall "$@"
+    ;;
+  testConfigure)
+    testConfigure "$@"
     ;;
   *)
     if Assert::functionExists defaultFacadeAction; then
