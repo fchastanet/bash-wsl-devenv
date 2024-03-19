@@ -33,7 +33,9 @@ Engine::Config::loadConfig() {
   Engine::Config::loadUserVariables
   Engine::Config::loadHostIp
 
-  # TODO is it needed ? Linux::Wsl::initEnv
+  Engine::Config::requireWslu
+
+  Linux::Wsl::initEnv
   Engine::Config::loadWslVariables
 
   Engine::Config::createSudoerFile
