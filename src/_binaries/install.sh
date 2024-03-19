@@ -41,13 +41,14 @@ summary() {
   UI::drawLine '-'
   Log::headLine "Summary"
   if [[ "${SKIP_INSTALL}" = "0" ]]; then
-    Stats::aggregateStatsSummary "installation(s)" "${TMPDIR}/install.stat" "${#CONFIG_LIST[@]}"
+    Stats::aggregateStatsSummary "installation(s)" "${LOGS_DIR:-#}/install.stat" "${#CONFIG_LIST[@]}"
   fi
   if [[ "${SKIP_CONFIGURE}" = "0" ]]; then
-    Stats::aggregateStatsSummary "configuration(s)" "${TMPDIR}/config.stat" "${#CONFIG_LIST[@]}"
+    Stats::aggregateStatsSummary "configuration(s)" "${LOGS_DIR:-#}/config.stat" "${#CONFIG_LIST[@]}"
   fi
   if [[ "${SKIP_TEST}" = "0" ]]; then
-    Stats::aggregateStatsSummary "test(s)" "${TMPDIR}/test.stat" "${#CONFIG_LIST[@]}"
+    Stats::aggregateStatsSummary "test(s)" "${LOGS_DIR:-#}/test-install.stat" "${#CONFIG_LIST[@]}"
+    Stats::aggregateStatsSummary "test(s)" "${LOGS_DIR:-#}/test-configuration.stat" "${#CONFIG_LIST[@]}"
   fi
   local endDate
   endDate="$(date +%s)"
@@ -71,15 +72,15 @@ executeScript() {
     installCmd+=(--skip-test)
   fi
 
-  CONFIG_LOGS_DIR="${CONFIG_LOGS_DIR}" "${installCmd[@]}"
+  "${installCmd[@]}"
 }
 
 # we need non root user to be sure that all variables will be correctly deduced
 # @require Linux::requireExecutedAsUser
 run() {
 
-  CONFIG_LOGS_DIR="${CONFIG_LOGS_DIR:-${PERSISTENT_TMPDIR}}"
-  rm -f "${CONFIG_LOGS_DIR:-#}/${SCRIPT}-.*" || true
+  LOGS_DIR="${LOGS_DIR:-${PERSISTENT_TMPDIR}}"
+  rm -f "${LOGS_DIR:-#}/${SCRIPT}-"* || true
 
   # load selected profile
   if [[ -n "${PROFILE}" ]]; then
@@ -95,6 +96,10 @@ run() {
 
   # Start install process
   Log::rotate "${LOGS_DIR}/automatic-upgrade"
+  rm -f \
+    "${LOGS_DIR:-#}/"{install,config,test-install,test-configuration}.stat \
+    &>/dev/null || true
+
   UI::drawLine '-'
 
   if (
@@ -104,19 +109,25 @@ run() {
       (
         aggregateStat() {
           if [[ "${SKIP_INSTALL}" = "0" ]]; then
-            Stats::aggregateStats "${TMPDIR}/${configName}-install.stat" "${TMPDIR}/install.stat"
-            rm -f "${TMPDIR}/${configName}-install.stat" || true # avoid to aggregate twice if trapped twice
+            Stats::aggregateStats "${LOGS_DIR:-#}/${configName}-install.stat" "${LOGS_DIR:-#}/install.stat"
+            rm -f "${LOGS_DIR:-#}/${configName}-install.stat" || true # avoid to aggregate twice if trapped twice
           fi
           if [[ "${SKIP_CONFIGURE}" = "0" ]]; then
-            Stats::aggregateStats "${TMPDIR}/${configName}-config.stat" "${TMPDIR}/config.stat"
-            rm -f "${TMPDIR}/${configName}-config.stat" || true # avoid to aggregate twice if trapped twice
+            Stats::aggregateStats "${LOGS_DIR:-#}/${configName}-config.stat" "${LOGS_DIR:-#}/config.stat"
+            rm -f "${LOGS_DIR:-#}/${configName}-config.stat" || true # avoid to aggregate twice if trapped twice
           fi
           if [[ "${SKIP_TEST}" = "0" ]]; then
-            Stats::aggregateStats "${TMPDIR}/${configName}-test.stat" "${TMPDIR}/test.stat"
-            rm -f "${TMPDIR}/${configName}-test.stat" || true # avoid to aggregate twice if trapped twice
+            Stats::aggregateStats "${LOGS_DIR:-#}/${configName}-test-install.stat" "${LOGS_DIR:-#}/test-install.stat"
+            rm -f "${LOGS_DIR:-#}/${configName}-test-install.stat" || true # avoid to aggregate twice if trapped twice
+            Stats::aggregateStats "${LOGS_DIR:-#}/${configName}-test-configuration.stat" "${LOGS_DIR:-#}/test-configuration.stat"
+            rm -f "${LOGS_DIR:-#}/${configName}-test-configuration.stat" || true # avoid to aggregate twice if trapped twice
           fi
         }
         trap 'aggregateStat' EXIT INT TERM ABRT
+
+        rm -f \
+          "${LOGS_DIR:-#}/${configName}"-{install,config,test-install,test-configuration}.stat \
+          &>/dev/null || true
 
         executeScript "${configName}"
       ) || installStatus="$?"

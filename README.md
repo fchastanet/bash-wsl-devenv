@@ -67,7 +67,8 @@
   - [3.2. config files backup](#32-config-files-backup)
 - [4. Additional documentation](#4-additional-documentation)
 - [5. github page](#5-github-page)
-- [6. Acknowledgements](#6-acknowledgements)
+- [6. Development](#6-development)
+- [7. Acknowledgements](#7-acknowledgements)
 
 ## 1. Excerpt
 
@@ -259,7 +260,71 @@ Run the local server with docsify serve.
 
 Navigate to <http://localhost:3000/>
 
-## 6. Acknowledgements
+## 6. Development
+
+Install new wsl distribution (from powershell):
+
+```bash
+wsl --install -d Ubuntu-22.04
+```
+
+As root:
+
+```bash
+# if necessary create user
+adduser wsl
+
+# change hostname to avoid confusion with your current distribution
+oldName="$(hostname)"
+newName="UbuntuTest"
+hostname NewName
+sed -i -E -e 's/${oldName}/${newName}/' /etc/hosts
+```
+
+The folder /mnt/wsl is shared between all the distro, we simply mount / in a
+given folder each time we launch a shell if necessary:
+
+- From UbuntuTest
+
+```bash
+mkdir /mnt/wsl/UbuntuTest
+sudo mount --bind / /mnt/wsl/UbuntuTest
+```
+
+- From your current distro
+
+```bash
+mkdir /mnt/wsl/Ubuntu-20.04
+sudo mount --bind / /mnt/wsl/Ubuntu-20.04
+```
+
+- allow folder to be shared between the 2 distros
+  - from main distro, add these lines to .bashrc or .zshrc
+
+```bash
+if [[ ! -d /mnt/wsl/Ubuntu-20.04 ]]; then
+  mkdir -p /mnt/wsl/Ubuntu-20.04
+  sudo mount --bind / /mnt/wsl/Ubuntu-20.04
+fi
+```
+
+- from UbuntuTest distro, add these lines to .bashrc or .zshrc The last command
+  will link main distro home/wsl/fchastanet/bash-dev-env into this distro
+  ~/projects/bash-dev-env folder every changes into ~/projects/bash-dev-env will
+  be reflected into main distro and vice-versa
+
+```bash
+if [[ ! -d /mnt/wsl/UbuntuTest ]]; then
+  mkdir -p /mnt/wsl/UbuntuTest
+  sudo mount --bind / /mnt/wsl/UbuntuTest
+fi
+if [[ -d /mnt/wsl/Ubuntu-20.04 ]]; then
+  mkdir -p ~/projects/bash-dev-env
+  sudo mount --bind /mnt/wsl/Ubuntu-20.04/home/wsl/fchastanet/bash-dev-env ~/projects/bash-dev-env
+fi
+```
+
+## 7. Acknowledgements
 
 This project is using [bash-tpl](https://github.com/TekWizely/bash-tpl) in order
 to compile several bash files into one files.
