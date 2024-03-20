@@ -5,7 +5,6 @@ if [[ -z "${CONFIG_LIST+xxx}" ]]; then
 fi
 
 CONFIG_LIST=(
-  "MinimumRequirements"
   "Upgrade"
   "MandatorySoftwares"
   "Clean"
