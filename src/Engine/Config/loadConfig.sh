@@ -35,7 +35,7 @@ Engine::Config::loadConfig() {
 
   Engine::Config::requireWslu
 
-  Linux::Wsl::initEnv
+  #Linux::Wsl::initEnv
   Engine::Config::loadWslVariables
 
   Engine::Config::createSudoerFile

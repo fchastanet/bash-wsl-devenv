@@ -1,8 +1,12 @@
 #!/bin/bash
 
 # @description check validity of .env variables
+# @env CHECK_ENV int 0 to avoid checking environment
 # @noargs
 Engine::Config::checkEnv() {
+  if [[ "${CHECK_ENV:-1}" = "0" ]]; then
+    return 0
+  fi
   local errorCount=0 || true
   checkNotEmpty() {
     local var="$1"
@@ -49,8 +53,8 @@ Engine::Config::checkEnv() {
     Log::fatal "This script is built to support only Debian or Ubuntu distributions. You are using ${ID}."
   fi
 
-  if checkNotEmpty USER_NAME && ! getent passwd "${USER_NAME}" 2>/dev/null >/dev/null; then
-    Log::displayError "USER_NAME - user '${USER_NAME}' does not exist"
+  if checkNotEmpty USERNAME && ! getent passwd "${USERNAME}" 2>/dev/null >/dev/null; then
+    Log::displayError "USERNAME - user '${USERNAME}' does not exist"
     ((errorCount++))
   fi
 
@@ -59,8 +63,8 @@ Engine::Config::checkEnv() {
     ((errorCount++))
   fi
 
-  if checkNotEmpty "GIT_USER_NAME" && ! Assert::firstNameLastName "${GIT_USER_NAME}"; then
-    Log::displayError "GIT_USER_NAME - invalid format, expected : firstName lastName"
+  if checkNotEmpty "GIT_USERNAME" && ! Assert::firstNameLastName "${GIT_USERNAME}"; then
+    Log::displayError "GIT_USERNAME - invalid format, expected : firstName lastName"
     ((errorCount++))
   fi
 

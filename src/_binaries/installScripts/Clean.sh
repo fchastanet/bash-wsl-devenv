@@ -47,7 +47,11 @@ breakOnTestFailure() {
 }
 
 install() {
-  return 0
+  # some cleaning
+  Log::displayInfo "==> Clean up"
+  sudo apt-get -y autoremove --purge
+  sudo apt-get -y clean
+  sudo apt-get -y autoclean
 }
 
 configure() {

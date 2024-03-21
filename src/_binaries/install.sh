@@ -78,18 +78,8 @@ executeScript() {
 # we need non root user to be sure that all variables will be correctly deduced
 # @require Linux::requireExecutedAsUser
 run() {
-
   LOGS_DIR="${LOGS_DIR:-${PERSISTENT_TMPDIR}}"
   rm -f "${LOGS_DIR:-#}/${SCRIPT}-"* || true
-
-  # load selected profile
-  if [[ -n "${PROFILE}" ]]; then
-    mapfile -t CONFIG_LIST < <(
-      IFS=$'\n' Profiles::loadProfile "${BASH_DEV_ENV_ROOT_DIR}/profiles" "${PROFILE}"
-    )
-  fi
-
-  Log::displayInfo "Install ${CONFIG_LIST[*]}"
 
   Profiles::checkScriptsExistence "${INSTALL_SCRIPTS_DIR}" "" "${CONFIG_LIST[@]}"
   Log::displayInfo "Will Install ${CONFIG_LIST[*]}"
@@ -102,6 +92,12 @@ run() {
 
   UI::drawLine '-'
 
+  # indicate to install scripts to avoid loading wsl
+  export WSL_GARBAGE_COLLECT=0
+  export WSL_INIT=0
+  export CHECK_ENV=0
+  export LOAD_THEME=0
+
   if (
     # shellcheck disable=SC2317
     for configName in "${CONFIG_LIST[@]}"; do
@@ -110,17 +106,13 @@ run() {
         aggregateStat() {
           if [[ "${SKIP_INSTALL}" = "0" ]]; then
             Stats::aggregateStats "${LOGS_DIR:-#}/${configName}-install.stat" "${LOGS_DIR:-#}/install.stat"
-            rm -f "${LOGS_DIR:-#}/${configName}-install.stat" || true # avoid to aggregate twice if trapped twice
           fi
           if [[ "${SKIP_CONFIGURE}" = "0" ]]; then
             Stats::aggregateStats "${LOGS_DIR:-#}/${configName}-config.stat" "${LOGS_DIR:-#}/config.stat"
-            rm -f "${LOGS_DIR:-#}/${configName}-config.stat" || true # avoid to aggregate twice if trapped twice
           fi
           if [[ "${SKIP_TEST}" = "0" ]]; then
             Stats::aggregateStats "${LOGS_DIR:-#}/${configName}-test-install.stat" "${LOGS_DIR:-#}/test-install.stat"
-            rm -f "${LOGS_DIR:-#}/${configName}-test-install.stat" || true # avoid to aggregate twice if trapped twice
             Stats::aggregateStats "${LOGS_DIR:-#}/${configName}-test-configuration.stat" "${LOGS_DIR:-#}/test-configuration.stat"
-            rm -f "${LOGS_DIR:-#}/${configName}-test-configuration.stat" || true # avoid to aggregate twice if trapped twice
           fi
         }
         trap 'aggregateStat' EXIT INT TERM ABRT

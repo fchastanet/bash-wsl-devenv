@@ -48,23 +48,22 @@ Profiles::allDepsRecursive() {
       Log::displayError "Dependency ${i} doesn't exist"
       return 1
     fi
-    local -a dependencies
-    # shellcheck disable=SC2207
-    dependencies=($("${scriptsDir}/${i}" dependencies)) || {
-      Log::displaySkipped "${scriptsDir}/${i} does not define the command dependencies"
-      continue
-    }
+
+    if ! readarray -t newDeps < <("${scriptsDir}/${i}" dependencies); then
+      Log::displayError "Dependency ${i} - ${scriptsDir}/${i} dependencies failure"
+      return 3
+    fi
     if [[ -z "${allDepsResultSeen[${i}]+exists}" ]]; then
       addDep=1
       allDepsResultSeen["${i}"]='stored'
     fi
-    deps+=("${dependencies[@]}")
     # remove duplicates from deps preserving order
     mapfile -t deps < <(
       IFS=$'\n'
-      echo "${deps[@]}" | awk '!x[$0]++'
+      printf "%s\n" "${deps[@]}" | awk '!x[$0]++'
     )
     if ((${#newDeps} > 0)); then
+      Log::displayInfo "${i} depends on ${newDeps[*]}"
       Profiles::allDepsRecursive "${scriptsDir}" "${i}" "${newDeps[@]}"
     fi
     if [[ "${addDep}" = "1" ]]; then
