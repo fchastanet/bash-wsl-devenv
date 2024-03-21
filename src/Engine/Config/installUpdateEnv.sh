@@ -11,9 +11,9 @@ Engine::Config::installUpdateEnv() {
   fi
 
   if [[ ! -f '/etc/profile.d/updateEnv.sh' || "${CONF_DIR}/etc/profile.d/updateEnv.sh" -nt "/etc/profile.d/updateEnv.sh" ]]; then
-    # EMBED Install::file AS installFile
-    # shellcheck disable=SC2154
-    sudo "${embed_file_installFile}" -e OVERWRITE_CONFIG_FILES=1 -- "${CONF_DIR}/etc/profile.d" '/etc/profile.d' 'updateEnv.sh' Install::setUserRootCallback
+    SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
+      "${CONF_DIR}/etc/profile.d/updateEnv.sh" '/etc/profile.d/updateEnv.sh' \
+      Install::setUserRootCallback
   fi
   if [[ "$(perl -ne 'if (/export LDAP_LOGIN=(.*)/) { print $1 }' "/etc/profile.d/updateEnv.sh")" != "${LDAP_LOGIN}" ]]; then
     sudo sed -i -e "s#export LDAP_LOGIN=.*\$#export LDAP_LOGIN=${LDAP_LOGIN}#g" "/etc/profile.d/updateEnv.sh"

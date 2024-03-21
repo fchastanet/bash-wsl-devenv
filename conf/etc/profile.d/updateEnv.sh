@@ -17,7 +17,7 @@ if command -v wslpath &>/dev/null; then
   PATH="${PATH}:${BASE_MNT_C}/WINDOWS/system32"
 fi
 
-export ROOT_DIR="@DEV_ENV_ROOT_DIR@"
+export ROOT_DIR="@BASH_DEV_ENV_ROOT_DIR@"
 if [[ -f "${ROOT_DIR}/.env" ]]; then
   set -o allexport
   # shellcheck source=/.env.template

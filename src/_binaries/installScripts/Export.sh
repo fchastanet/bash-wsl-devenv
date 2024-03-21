@@ -35,7 +35,7 @@ fortunes() {
 }
 
 dependencies() {
-  return 0
+  echo "Clean"
 }
 
 breakOnConfigFailure() {
@@ -47,7 +47,22 @@ breakOnTestFailure() {
 }
 
 install() {
-  return 0
+  # some cleaning to prepare export
+  if [[ "${PREPARE_EXPORT}" = "1" ]]; then
+    Log::displayInfo "==> Clean up before export"
+    set -x
+    rm -f "${BASH_DEV_ENV_ROOT_DIR}/.env" || true
+    rm -Rf "${BACKUP_DIR:?}/"* || true
+    rm -f /etc/profile.d/updateEnv.sh || true
+    rm -Rf "/tmp/"* || true
+    rm -Rf "${USER_HOME}/.vscode-server" || true
+    rm -f "${USER_HOME}/.gitconfig" || true
+    rm -f "${USER_HOME}/.ssh/id_rsa" || true
+    rm -f "${USER_HOME}/.ssh/config" || true
+    rm -f "${USER_HOME}/.saml2aws" || true
+    rm -f "${USER_HOME}/.aws/credentials" || true
+    rm -f "${USER_HOME}/.aws/config" || true
+  fi
 }
 
 configure() {

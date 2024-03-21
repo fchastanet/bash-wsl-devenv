@@ -50,17 +50,17 @@ This function is responsible for:
 
 - exporting the following variables from .env:
 
-  - USER_GROUP
-  - USER_NAME
+  - USERGROUP
+  - USERNAME
   - GIT_USER_MAIL
-  - GIT_USER_NAME
+  - GIT_USERNAME
   - SSH_LOGIN
   - POWERSHELL_BIN
 
 - deducing and export the following variables
 
-  - USERID => computed from USER_NAME provided by .env file
-  - USER_GROUP_ID => computed from USER_GROUP provided by .env file
+  - USERID => computed from USERNAME provided by .env file
+  - USERGROUP_ID => computed from USERGROUP provided by .env file
   - ROOT_DIR => `<full path to this project directory>`
   - HOSTIP
   - IPCONFIG => heavy computation of the right command to use for ipconfig
@@ -121,7 +121,7 @@ Some of the functions you can find:
 - `getGithubLatestRelease` very useful in order to get last release version of a
   github project
 - `upgradeGithubRelease`
-- `Functions::isWsl`
+- `Assert::wsl`
 - `NetFunctions::addHost` add host in /etc/hosts and windows hosts file if wsl
   (backup file before updates)
 - validator functions

@@ -270,14 +270,15 @@ envFileTemplate="$(
   cat <<'EOF'
 # shellcheck disable=SC2034
 # wsl username
-USER_NAME="wsl"
+USERNAME="wsl"
+USERGROUP="wsl"
 USER_HOME="/home/wsl"
 
 # your login to connect to ssh servers if any
 SSH_LOGIN=""
 
 # your git full name 'FirstName LastName'
-GIT_USER_NAME=""
+GIT_USERNAME=""
 # email used for git 'ldap@domain.com'
 GIT_USER_MAIL=""
 
@@ -398,7 +399,7 @@ Engine::Config::loadConfig() {
 
   Engine::Config::requireWslu
 
-  Linux::Wsl::initEnv
+  #Linux::Wsl::initEnv
   Engine::Config::loadWslVariables
 
   Engine::Config::createSudoerFile
@@ -770,8 +771,12 @@ Assert::tty() {
 }
 
 # @description check validity of .env variables
+# @env CHECK_ENV int 0 to avoid checking environment
 # @noargs
 Engine::Config::checkEnv() {
+  if [[ "${CHECK_ENV:-1}" = "0" ]]; then
+    return 0
+  fi
   local errorCount=0 || true
   checkNotEmpty() {
     local var="$1"
@@ -818,8 +823,8 @@ Engine::Config::checkEnv() {
     Log::fatal "This script is built to support only Debian or Ubuntu distributions. You are using ${ID}."
   fi
 
-  if checkNotEmpty USER_NAME && ! getent passwd "${USER_NAME}" 2>/dev/null >/dev/null; then
-    Log::displayError "USER_NAME - user '${USER_NAME}' does not exist"
+  if checkNotEmpty USERNAME && ! getent passwd "${USERNAME}" 2>/dev/null >/dev/null; then
+    Log::displayError "USERNAME - user '${USERNAME}' does not exist"
     ((errorCount++))
   fi
 
@@ -828,8 +833,8 @@ Engine::Config::checkEnv() {
     ((errorCount++))
   fi
 
-  if checkNotEmpty "GIT_USER_NAME" && ! Assert::firstNameLastName "${GIT_USER_NAME}"; then
-    Log::displayError "GIT_USER_NAME - invalid format, expected : firstName lastName"
+  if checkNotEmpty "GIT_USERNAME" && ! Assert::firstNameLastName "${GIT_USERNAME}"; then
+    Log::displayError "GIT_USERNAME - invalid format, expected : firstName lastName"
     ((errorCount++))
   fi
 
@@ -877,14 +882,14 @@ Engine::Config::createEnvFileFromTemplate() {
 }
 
 # @description set sudoer without password temporarily
-# @env USER_NAME
+# @env USERNAME
 # @env USER_HOME
 # @set SUDOER_CHANGE
 Engine::Config::createSudoerFile() {
-  local sudoerFile="/etc/sudoers.d/${USER_NAME}-bash-dev-env-no-password"
+  local sudoerFile="/etc/sudoers.d/${USERNAME}-bash-dev-env-no-password"
 
   # create /etc/sudoers.d/userName-bash-dev-env
-  local sudoerChange="${USER_NAME} ALL=(ALL) NOPASSWD: ${BASH_DEV_ENV_ROOT_DIR}/install,/etc/cron.weekly/upgrade,/usr/sbin/service,${BASH_DEV_ENV_ROOT_DIR}/installScripts"
+  local sudoerChange="${USERNAME} ALL=(ALL) NOPASSWD: ${BASH_DEV_ENV_ROOT_DIR}/install,/etc/cron.weekly/upgrade,/usr/sbin/service,${BASH_DEV_ENV_ROOT_DIR}/installScripts"
   if [[ "${sudoerChange}" != "$(sudo cat "${sudoerFile}" 2>/dev/null || echo -n '')" ]]; then
     echo "${sudoerChange}" | sudo tee "${sudoerFile}"
     sudo chmod 0440 "${sudoerFile}"
@@ -911,9 +916,9 @@ Engine::Config::installUpdateEnv() {
   fi
 
   if [[ ! -f '/etc/profile.d/updateEnv.sh' || "${CONF_DIR}/etc/profile.d/updateEnv.sh" -nt "/etc/profile.d/updateEnv.sh" ]]; then
-    # EMBED Install::file AS installFile
-    # shellcheck disable=SC2154
-    sudo "${embed_file_installFile}" -e OVERWRITE_CONFIG_FILES=1 -- "${CONF_DIR}/etc/profile.d" '/etc/profile.d' 'updateEnv.sh' Install::setUserRootCallback
+    SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
+      "${CONF_DIR}/etc/profile.d/updateEnv.sh" '/etc/profile.d/updateEnv.sh' \
+      Install::setUserRootCallback
   fi
   if [[ "$(perl -ne 'if (/export LDAP_LOGIN=(.*)/) { print $1 }' "/etc/profile.d/updateEnv.sh")" != "${LDAP_LOGIN}" ]]; then
     sudo sed -i -e "s#export LDAP_LOGIN=.*\$#export LDAP_LOGIN=${LDAP_LOGIN}#g" "/etc/profile.d/updateEnv.sh"
@@ -959,29 +964,29 @@ Engine::Config::loadOsRelease() {
   set +o allexport
 }
 
-# @description deduce USER_HOME, USER_ID, USER_GROUP_ID and USER_GROUP from USER_NAME
-# @env USER_NAME String the name of the user
+# @description deduce USER_HOME, USER_ID, USERGROUP_ID and USERGROUP from USERNAME
+# @env USERNAME String the name of the user
 # @set USER_ID String
-# @set USER_GROUP String
-# @set USER_GROUP_ID String
+# @set USERGROUP String
+# @set USERGROUP_ID String
 # @set USER_HOME String
 Engine::Config::loadUserVariables() {
   # deduce user home and group
   # shellcheck disable=SC2153
-  USER_ID="$(getent passwd "${USER_NAME}" | cut -d: -f3)"
-  USER_GROUP_ID="$(getent passwd "${USER_NAME}" | cut -d: -f4)"
-  USER_GROUP="$(getent group "${USER_GROUP_ID}" | cut -d: -f1)"
-  USER_HOME="$(getent passwd "${USER_NAME}" | cut -d: -f6)"
+  USER_ID="$(getent passwd "${USERNAME}" | cut -d: -f3)"
+  USERGROUP_ID="$(getent passwd "${USERNAME}" | cut -d: -f4)"
+  USERGROUP="$(getent group "${USERGROUP_ID}" | cut -d: -f1)"
+  USER_HOME="$(getent passwd "${USERNAME}" | cut -d: -f6)"
 
-  if [[ -z "${USER_GROUP}" || -z "${USER_HOME}" ]]; then
-    Log::displayError "USER_NAME - unable to deduce USER_GROUP, USER_HOME from USER_NAME"
+  if [[ -z "${USERGROUP}" || -z "${USER_HOME}" ]]; then
+    Log::displayError "USERNAME - unable to deduce USERGROUP, USER_HOME from USERNAME"
     return 1
   fi
 
   export USER_HOME
   export USER_ID
-  export USER_GROUP_ID
-  export USER_GROUP
+  export USERGROUP_ID
+  export USERGROUP
 }
 
 # @description load wsl env variables
@@ -1079,51 +1084,6 @@ Env::pathPrepend() {
       PATH="$(realpath "${arg}"):${PATH}"
     fi
   done
-}
-
-# @description initialize some important variables for scripts to run correctly
-# when wsl installation is run under wsl is in progress
-# @warning initialization skipped if script not run under wsl
-# @noargs
-# @set PATH String populated with WINDOW_PATH paths
-# @set WSL_INTEROP String with current used process
-# @set WSL_DISTRO_NAME String initialized using wslpath -m /
-# @stderr diagnostics information is displayed
-# @require Linux::Wsl::requireWsl
-# @feature cache
-Linux::Wsl::initEnv() {
-  if ! Assert::wsl; then
-    return 0
-  fi
-  # Here we are parsing WINDOW_PATH env variable
-  # for each path we remove potential control character
-  # that could break PATH variable
-  # using "${dir}" we ensure path with spaces will be
-  # correctly handled
-  local dir windowsDirs
-  WINDOWS_PATH="$(wslvar PATH)"
-  # shellcheck disable=SC2207,SC2116
-  IFS=';' windowsDirs=($(echo "${WINDOWS_PATH}"))
-  for dir in "${windowsDirs[@]}"; do
-    dir="$(echo "${dir}" | tr -d '[:cntrl:]')"
-    Env::pathPrepend "${dir}"
-  done
-  export PATH
-
-  local p
-  while IFS="" read -r p || [[ -n "${p}" ]]; do
-    if [[ -e "/run/WSL/${p}_interop" ]]; then
-      export WSL_INTEROP=/run/WSL/${p}_interop
-      break
-    fi
-  done < <(
-    pstree --numeric-sort --show-pids --show-parents $$ |
-      head -1 |
-      grep -o -E '[0-9]+' |
-      tac
-  )
-  WSL_DISTRO_NAME="$(Linux::Wsl::cachedWslpath -m / | sed -E 's#.*\$/([^/]+)/$#\1#')"
-  export WSL_DISTRO_NAME
 }
 
 # @description Display given text on full line with TEST_COLOR style
@@ -1243,9 +1203,12 @@ Stats::computeStatsTrap() {
 # @description load color theme
 # @noargs
 # @env BASH_FRAMEWORK_THEME String theme to use
+# @env LOAD_THEME int 0 to avoid loading theme
 # @exitcode 0 always successful
 UI::requireTheme() {
-  UI::theme "${BASH_FRAMEWORK_THEME-default}"
+  if [[ "${LOAD_THEME:-1}" = "1" ]]; then
+    UI::theme "${BASH_FRAMEWORK_THEME-default}"
+  fi
 }
 
 # @description check if an element is contained in an array
@@ -1327,6 +1290,74 @@ Assert::wsl() {
   [[ "$(uname -o)" = "GNU/Linux" ]]
 }
 
+# @description installs file to given directory
+#
+# callbacks parameters `${fromFile} ${targetFile} $@`
+# @arg $1 fromFile - original file to copy
+# @arg $2 targetFile - target file
+# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
+# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
+# @arg $5 successCallback:Function the callback to call when file is installed successfully, by default setUserRights callback is called
+# @arg $6 failureCallback:Function the callback to call when file installation has failed, by default unableToCopyCallback callback is called
+# @arg $@ callbacksParams:String[] additional parameters passed to callbacks
+# @exitcode 1 if fromFile is not readable
+# @exitcode 2 if backup file failure
+# @exitcode 0 on success or if OVERWRITE_CONFIG_FILES=0
+# @exitcode 0 on success or if CHANGE_WINDOWS_FILES=0 and target file is a windows file
+# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
+# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target file is in windows file system, overwrite it
+# @env USERNAME (default: root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @env BASE_MNT_C String windows C drive base PATH
+# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @env SUDO_USER String the user to use as sudoer
+Install::file() {
+  local fromFile="$1"
+  local targetFile="$2"
+  local userName="${3:-${USERNAME:-root}}"
+  local userGroup="${4:-${USERGROUP:-root}}"
+  local successCallback=${5:-Install::setUserRightsCallback}
+  local failureCallback=${6:-Install::unableToCopyCallback}
+  shift 6 || true
+
+  if [[ ! -f "${fromFile}" || ! -r "${fromFile}" ]]; then
+    Log::displayError "cannot read source file '${fromFile}'"
+    return 1
+  fi
+
+  # skip if OVERWRITE_CONFIG_FILES is 0 and target file exists
+  if [[ "${OVERWRITE_CONFIG_FILES}" = "0" && -f "${targetFile}" ]]; then
+    Log::displayWarning "File '${targetFile}' exists - Skip install (because OVERWRITE_CONFIG_FILES=0 in .env file)"
+    return 0
+  fi
+
+  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
+  if [[ "${CHANGE_WINDOWS_FILES}" = "0" && "${targetFile}" =~ ^${BASE_MNT_C} ]]; then
+    Log::displayWarning "File '${targetFile}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
+    return 0
+  fi
+
+  local targetDir
+  targetDir="$(dirname "${targetFile}")"
+  if [[ ! -d "${targetDir}" ]]; then
+    ${SUDO} mkdir -p "${targetDir}"
+    ${SUDO} chown "${userName}":"${userGroup}" "${targetDir}"
+  fi
+  local fromDir
+  fromDir="$(dirname "${fromFile}")"
+  local fromFilename
+  fromFilename="$(basename "${fromFile}")"
+
+  Backup::file "${targetFile}" || return 2
+
+  if ${SUDO} cp "${fromFile}" "${targetFile}"; then
+    ${successCallback} "${fromFile}" "${targetFile}" "$@"
+    Log::displaySuccess "Installed file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
+  else
+    ${failureCallback} "${fromDir}" "${fromFilename}" "${targetFile}" "$@"
+  fi
+}
+
 # @description install callback
 #   set file with root ownership
 # @arg $1 fromFile:String
@@ -1355,22 +1386,6 @@ Linux::Apt::install() {
 # @require Linux::requireUbuntu
 Linux::Apt::update() {
   Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
-}
-
-# @description retrieve wslpath using cache (cache is refreshed every day)
-# @arg $@ args:String[] arguments to pass to wslpath
-# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
-# @exitcode * if Linux::Wsl::originalWslpath cannot find the path
-# @stderr diagnostics information is displayed
-# @require Linux::Wsl::requireWsl
-# @feature cache
-Linux::Wsl::cachedWslpath() {
-  local -a args=("$@")
-  local tempEnvFile key
-  tempEnvFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslpath_$(id -un)"
-
-  key="$(Linux::Wsl::getKeyFromWslpathOptions "$@")"
-  Cache::getPropertyValue "${tempEnvFile}" "${key}" Linux::Wsl::originalWslpath "${args[@]}"
 }
 
 # @description retrieve path from wslvar and then use wslpath to resolve it
@@ -1516,17 +1531,6 @@ UI::textLine() {
   printf '%*s\n' "${remainingWidth}" '' | tr ' ' "${character}"
 }
 
-# @description ensure linux runs under wsl
-# @exitcode 1 if linux does not run under wsl
-Linux::Wsl::requireWsl() {
-  Assert::wsl || return 1
-  local tempEnvDir
-  tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
-  File::garbageCollect "${tempEnvDir}/bash_tools_wslpath_$(id -un)" "1"
-  tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
-  File::garbageCollect "${tempEnvDir}/bash_tools_wslvar_$(id -un)" "1"
-}
-
 # @description check if argument respects this framework variable naming convention
 # - if variable begins with an uppercase or underscore, following letters have to be uppercase or underscore
 # - variable name can includes ':' or '_' or digits but not as first letter
@@ -1537,6 +1541,20 @@ Linux::Wsl::requireWsl() {
 # @see https://regex101.com/r/BUlPXS/1
 Assert::validVariableName() {
   echo "$1" | LC_ALL=POSIX grep -E -q '(^[a-z][A-Za-z_0-9:]+$)|(^[A-Z_][A-Z_0-9:]+$)'
+}
+
+# @description Backup given file in the same directory appending _ followed by the current date
+# @arg $1 file:String the file to backup
+# @stderr messages about backup file location
+# @exitcode 1 on copy failure
+Backup::file() {
+  local file="$1"
+  local backupFile
+  if [[ -f "${file}" ]]; then
+    backupFile="${file}_$(date +"%Y-%m-%d_%H:%M:%S")"
+    Log::displayInfo "Backup file '${file}' to ${backupFile}"
+    cp "${file}" "${backupFile}"
+  fi
 }
 
 # @description get property value from file
@@ -1570,6 +1588,113 @@ Cache::getPropertyValue() {
     return 0
   fi
   return 1
+}
+
+# @description install callback
+#   set file with root ownership and execution bit
+# @arg $1 fromFile:String
+# @arg $2 targetFile:String
+# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
+# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
+# @env USERNAME (default: root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @exitcode 1 on any failure
+# @see Install::file
+Install::setUserRightsCallback() {
+  # shellcheck disable=SC2034 # $1 not used
+  local fromFile="$1"
+  local targetFile="$2"
+  local userName="${3:-${USERNAME:-root}}"
+  local userGroup="${4:-${USERGROUP:-root}}"
+
+  chown "${userName}":"${userGroup}" "${targetFile}"
+}
+
+# @description install callback
+#   default callback used called when file copy has failed
+# @arg $1 fromFile:String
+# @arg $2 targetFile:String
+# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @exitcode 1 always fail
+# @stderr diagnostics information is displayed
+# @see Install::file
+Install::unableToCopyCallback() {
+  local fromDir="$1"
+  local fileName="$2"
+  local targetFile="$3"
+  Log::fatal "unable to copy file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fileName}' to '${targetFile}'"
+}
+
+# @description retrieve wslpath using cache (cache is refreshed every day)
+# @arg $@ args:String[] arguments to pass to wslpath
+# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
+# @exitcode * if Linux::Wsl::originalWslpath cannot find the path
+# @stderr diagnostics information is displayed
+# @require Linux::Wsl::requireWsl
+# @feature cache
+Linux::Wsl::cachedWslpath() {
+  local -a args=("$@")
+  local tempEnvFile key
+  tempEnvFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslpath_$(id -un)"
+
+  key="$(Linux::Wsl::getKeyFromWslpathOptions "$@")"
+  Cache::getPropertyValue "${tempEnvFile}" "${key}" Linux::Wsl::originalWslpath "${args[@]}"
+}
+
+# @description call simply original wslvar command
+# @arg $@ args:String[] args to pass to wslvar
+# @exitcode * wslvar exit code
+# @stdout wslvar stdout
+# @require Linux::Wsl::requireWsl
+Linux::Wsl::originalWslvar() {
+  wslvar "$@" | sed -z '$ s/[\r\n]$//'
+}
+
+# @description Display message using success color (bg green/fg white)
+# @arg $1 message:String the message to display
+Log::displaySuccess() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    echo -e "${__SUCCESS_COLOR}SUCCESS - ${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logSuccess "$1"
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logSkipped() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SKIPPED}" "$1"
+  fi
+}
+
+# @description Retry a command 5 times with a delay of 15 seconds between each attempt
+# @arg $@ command:String[] the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+Retry::default() {
+  Retry::parameterized 5 15 "" "$@"
+}
+
+# @description ensure linux distribution is ubuntu
+# @exitcode 1 if linux distribution is not ubuntu
+Linux::requireUbuntu() {
+    if ! Array::contains "$(Linux::getDistributorId)" "Ubuntu" "Debian"; then
+    Log::fatal "this script should be executed under Ubuntu or Debian OS"
+  fi
+}
+
+# @description ensure linux runs under wsl
+# @env WSL_GARBAGE_COLLECT int 0 to disable garbage collect of cache files
+# @exitcode 1 if linux does not run under wsl
+Linux::Wsl::requireWsl() {
+  Assert::wsl || return 1
+  if [[ "${WSL_GARBAGE_COLLECT:-1}" = "1" ]]; then
+    local tempEnvDir
+    tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
+    File::garbageCollect "${tempEnvDir}/bash_tools_wslpath_$(id -un)" "1"
+    tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
+    File::garbageCollect "${tempEnvDir}/bash_tools_wslvar_$(id -un)" "1"
+  fi
 }
 
 # @description delete files older than n days in given path
@@ -1642,43 +1767,20 @@ Linux::Wsl::originalWslpath() {
   wslpath "$@"
 }
 
-# @description call simply original wslvar command
-# @arg $@ args:String[] args to pass to wslvar
-# @exitcode * wslvar exit code
-# @stdout wslvar stdout
-# @require Linux::Wsl::requireWsl
-Linux::Wsl::originalWslvar() {
-  wslvar "$@" | sed -z '$ s/[\r\n]$//'
-}
-
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logSkipped() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SKIPPED}" "$1"
-  fi
-}
-
-# @description Retry a command 5 times with a delay of 15 seconds between each attempt
-# @arg $@ command:String[] the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-Retry::default() {
-  Retry::parameterized 5 15 "" "$@"
-}
-
-# @description ensure linux distribution is ubuntu
-# @exitcode 1 if linux distribution is not ubuntu
-Linux::requireUbuntu() {
-  [[ "$(Linux::getDistributorId)" = "Ubuntu" ]]
-}
-
 # @description retrieve linux distributor id
 # @noargs
 # @exitcode 1 if lsb_release fails or not found
 # @stdout the linux distributor id
 Linux::getDistributorId() {
   lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logSuccess() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SUCCESS}" "$1"
+  fi
 }
 
 # @description Retry a command several times depending on parameters
@@ -1724,9 +1826,9 @@ facade_main_SimpleTestsh() {
 # REQUIRES
 Env::requireLoad
 UI::requireTheme
-Linux::Wsl::requireWsl
 Log::requireLoad
 Linux::requireUbuntu
+Linux::Wsl::requireWsl
 Compiler::Facade::requireCommandBinDir
 
 # @require Compiler::Facade::requireCommandBinDir

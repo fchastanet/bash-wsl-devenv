@@ -24,6 +24,8 @@
   - [2.16. add automatic ecr](#216-add-automatic-ecr)
   - [2.17. replace curl by aria2](#217-replace-curl-by-aria2)
   - [2.18. replace docker for windows](#218-replace-docker-for-windows)
+- [dynamicConfDir](#dynamicconfdir)
+- [no need of embed_function_InstallFile](#no-need-of-embed_function_installfile)
 
 ## 1. Needed refactoring (WIP)
 
@@ -33,10 +35,10 @@ This section describes features that could be improved.
 
 This function has too much responsibilities and has to be cut in more
 specialized functions. Check that each `.env` variable validity is checked. What
-happens if `USER_NAME` does not exists. Create /etc/sudoers.d/bash-dev-env
-should be moved to Anacron configuration. Some complex computation like
-`IPCONFIG`(not sure it is still useful by the way) should be computed in a
-dedicated function (lazy load).
+happens if `USERNAME` does not exists. Create /etc/sudoers.d/bash-dev-env should
+be moved to Anacron configuration. Some complex computation like `IPCONFIG`(not
+sure it is still useful by the way) should be computed in a dedicated function
+(lazy load).
 
 ### 1.2. Refactor lib/loadAndCheckConfig.sh - loadProfile
 
@@ -171,3 +173,12 @@ add megalinter to pre-commit
 
 Podman ?
 <https://dev.to/bowmanjd/using-podman-on-windows-subsystem-for-linux-wsl-58ji>
+
+## dynamicConfDir
+
+instead of `"${CONF_DIR}/...` use dynamicConfDir to use conf_override if
+applicable
+
+## no need of embed_function_InstallFile
+
+use ${SUDO}

@@ -96,7 +96,7 @@ install() {
   fi
 
   # restore to lts development release
-  sudo sed -i -r 's/^Prompt=.*$/Prompt=lts/g' /etc/update-manager/release-upgrades
+  sudo sed -i -E 's/^Prompt=.*$/Prompt=lts/g' /etc/update-manager/release-upgrades
 }
 
 configure() {
