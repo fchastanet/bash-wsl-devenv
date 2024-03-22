@@ -33,7 +33,7 @@ Engine::Config::loadConfig() {
   Engine::Config::loadUserVariables
   Engine::Config::loadHostIp
 
-  Engine::Config::requireWslu
+  #Engine::Config::requireWslu
 
   #Linux::Wsl::initEnv
   Engine::Config::loadWslVariables

@@ -397,7 +397,7 @@ Engine::Config::loadConfig() {
   Engine::Config::loadUserVariables
   Engine::Config::loadHostIp
 
-  Engine::Config::requireWslu
+  #Engine::Config::requireWslu
 
   #Linux::Wsl::initEnv
   Engine::Config::loadWslVariables
@@ -1065,15 +1065,6 @@ Engine::Config::loadWslVariables() {
   return "${errorCount}"
 }
 
-# @description install apt wslu if necessary providing wslvar, wslpath
-Engine::Config::requireWslu() {
-  if ! command -v wslvar &>/dev/null; then
-    Log::displayInfo "Installing pre-requisite Wslu : wslvar, wslpath, ... commands"
-    Linux::Apt::update
-    Linux::Apt::install --no-install-recommends wslu
-  fi
-}
-
 # @description prepend directories to the PATH environment variable
 # @arg $@ args:String[] list of directories to prepend
 # @set PATH update PATH with the directories prepended
@@ -1371,23 +1362,6 @@ Install::setUserRootCallback() {
   chown root:root "${targetFile}"
 }
 
-# @description apt-get install
-# @arg $@ softwares:String[] list of softwares to install
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-Linux::Apt::install() {
-  Retry::default sudo apt-get install -y -q "$@"
-}
-
-# @description update apt packages list
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-Linux::Apt::update() {
-  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
-}
-
 # @description retrieve path from wslvar and then use wslpath to resolve it
 # using cache (cache is refreshed every day)
 # @arg $1 var:String the var to retrieve using wslvar
@@ -1667,22 +1641,6 @@ Log::logSkipped() {
   fi
 }
 
-# @description Retry a command 5 times with a delay of 15 seconds between each attempt
-# @arg $@ command:String[] the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-Retry::default() {
-  Retry::parameterized 5 15 "" "$@"
-}
-
-# @description ensure linux distribution is ubuntu
-# @exitcode 1 if linux distribution is not ubuntu
-Linux::requireUbuntu() {
-    if ! Array::contains "$(Linux::getDistributorId)" "Ubuntu" "Debian"; then
-    Log::fatal "this script should be executed under Ubuntu or Debian OS"
-  fi
-}
-
 # @description ensure linux runs under wsl
 # @env WSL_GARBAGE_COLLECT int 0 to disable garbage collect of cache files
 # @exitcode 1 if linux does not run under wsl
@@ -1767,57 +1725,12 @@ Linux::Wsl::originalWslpath() {
   wslpath "$@"
 }
 
-# @description retrieve linux distributor id
-# @noargs
-# @exitcode 1 if lsb_release fails or not found
-# @stdout the linux distributor id
-Linux::getDistributorId() {
-  lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
-}
-
 # @description log message to file
 # @arg $1 message:String the message to display
 Log::logSuccess() {
   if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
     Log::logMessage "${2:-SUCCESS}" "$1"
   fi
-}
-
-# @description Retry a command several times depending on parameters
-# @arg $1 maxRetries:int    $1 max retries
-# @arg $2 delay:int between attempt
-# @arg $3 message:String to display to describe the attempt
-# @arg $@ rest of parameters, the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-# @exitcode 2 if maxRetries invalid value
-Retry::parameterized() {
-  local maxRetries=$1
-  shift || true
-  local delayBetweenTries=$1
-  shift || true
-  local message="$1"
-  shift || true
-  local retriesCount=1
-  if [[ "${maxRetries}" -lt 1 ]]; then
-    Log::displayError "invalid maxRetry value"
-    return 2
-  fi
-
-  while true; do
-    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
-    if "$@"; then
-      break
-    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
-      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
-      ((retriesCount++))
-      sleep "${delayBetweenTries}"
-    else
-      Log::displayError "The command has failed after ${retriesCount} attempts."
-      return 1
-    fi
-  done
-  return 0
 }
 
 # FUNCTIONS
@@ -1827,9 +1740,12 @@ facade_main_SimpleTestsh() {
 Env::requireLoad
 UI::requireTheme
 Log::requireLoad
-Linux::requireUbuntu
 Linux::Wsl::requireWsl
 Compiler::Facade::requireCommandBinDir
+
+if Assert::functionExists initFacade; then
+  initFacade
+fi
 
 # @require Compiler::Facade::requireCommandBinDir
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
