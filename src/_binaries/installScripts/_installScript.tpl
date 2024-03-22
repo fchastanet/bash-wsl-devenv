@@ -1,9 +1,9 @@
 %
 declare commandFunctionName="installScriptCommand"
 helpDescriptionCallback() { :; }
-help=helpDescriptionCallback
+declare help=helpDescriptionCallback
 helpLongDescriptionCallback() { :; }
-longDescription=helpLongDescriptionCallback
+declare longDescription=helpLongDescriptionCallback
 %
 
 .INCLUDE "$(dynamicTemplateDir _binaries/options/options.base.tpl)"
@@ -41,5 +41,3 @@ helpLongDescriptionCallback() {
   echo -e "${__HELP_TITLE}List of dependencies:${__HELP_NORMAL}"
   stringOrNone "$(dependencies)"
 }
-
-Engine::Config::loadConfig

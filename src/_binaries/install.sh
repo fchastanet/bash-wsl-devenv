@@ -75,30 +75,10 @@ executeScript() {
   "${installCmd[@]}"
 }
 
-# we need non root user to be sure that all variables will be correctly deduced
-# @require Linux::requireExecutedAsUser
-run() {
-  LOGS_DIR="${LOGS_DIR:-${PERSISTENT_TMPDIR}}"
-  rm -f "${LOGS_DIR:-#}/${SCRIPT}-"* || true
-
-  Profiles::checkScriptsExistence "${INSTALL_SCRIPTS_DIR}" "" "${CONFIG_LIST[@]}"
-  Log::displayInfo "Will Install ${CONFIG_LIST[*]}"
-
-  # Start install process
-  Log::rotate "${LOGS_DIR}/automatic-upgrade"
-  rm -f \
-    "${LOGS_DIR:-#}/"{install,config,test-install,test-configuration}.stat \
-    &>/dev/null || true
-
-  UI::drawLine '-'
-
-  # indicate to install scripts to avoid loading wsl
-  export WSL_GARBAGE_COLLECT=0
-  export WSL_INIT=0
-  export CHECK_ENV=0
-  export LOAD_THEME=0
-
-  if (
+executeScripts() {
+  (
+    # sudoersFile is initialized in _binaries/installScripts/_installScript.tpl
+    .INCLUDE "$(dynamicTemplateDir _includes/sudoerFileManagement.tpl)"
     # shellcheck disable=SC2317
     for configName in "${CONFIG_LIST[@]}"; do
       installStatus="0"
@@ -128,7 +108,32 @@ run() {
         exit "${installStatus}"
       fi
     done
-  ) | tee "${LOGS_DIR}/automatic-upgrade"; then
+  ) 2>&1 | tee >(sed -r 's/\x1b\[[0-9;]*m//g' >> "${LOGS_DIR}/automatic-upgrade")
+}
+# we need non root user to be sure that all variables will be correctly deduced
+# @require Linux::requireExecutedAsUser
+run() {
+  LOGS_DIR="${LOGS_DIR:-${PERSISTENT_TMPDIR}}"
+  rm -f "${LOGS_DIR:-#}/${SCRIPT}-"* || true
+
+  Profiles::checkScriptsExistence "${INSTALL_SCRIPTS_DIR}" "" "${CONFIG_LIST[@]}"
+  Log::displayInfo "Will Install ${CONFIG_LIST[*]}"
+
+  # Start install process
+  Log::rotate "${LOGS_DIR}/automatic-upgrade"
+  rm -f \
+    "${LOGS_DIR:-#}/"{install,config,test-install,test-configuration}.stat \
+    &>/dev/null || true
+
+  UI::drawLine '-'
+
+  # indicate to install scripts to avoid loading wsl
+  export WSL_GARBAGE_COLLECT=0
+  export WSL_INIT=0
+  export CHECK_ENV=0
+  export LOAD_THEME=0
+
+  if executeScripts; then
     Log::displaySuccess "Successful Installation"
   else
     Log::displayError "Installation error, check logs /var/log/automatic-upgrade"
