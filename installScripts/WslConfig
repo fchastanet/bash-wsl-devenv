@@ -308,6 +308,97 @@ Conf::list() {
   )
 }
 
+# @description add the line ip hostname at the end of /etc/hosts only if hostname does not exists yet in this file
+# if wsl do the same in ${BASE_MNT_C}/Windows/System32/drivers/etc/hosts
+# @warning files are backup before being updated
+# @arg $1 hostName:String
+# @arg $2 ip:String optional, default value: 127.0.0.1
+# @set envVar type description
+# @env BASE_MNT_C String
+# @exitcode 1 description
+# @stdin description
+# @stdout description
+# @stderr diagnostics information is displayed
+# @see description
+# @require Git::requireGitCommand
+# @require Linux::requireSudoCommand
+# @feature Retry::default
+Dns::addHost() {
+  local hostName="$1"
+  local ip="${2:-127.0.0.1}"
+  local -a cmd
+
+  if ! grep -q -E "[[:space:]]${hostName}([[:space:]]|$)" /etc/hosts; then
+    ${SUDO:-} backupFile /etc/hosts
+    printf '%s\t%s\n' "${ip}" "${hostName}" | ${SUDO:-} tee -a /etc/hosts
+    Log::displaySuccess "Host ${hostName} added to /etc/hosts"
+  fi
+  if Assert::wsl; then
+    [[ -f "${BASE_MNT_C}/Windows/System32/drivers/etc/hosts" ]] || return 1
+    if ! dos2unix <"${BASE_MNT_C}/Windows/System32/drivers/etc/hosts" | grep -q -E "[[:space:]]${hostName}([[:space:]]|$)"; then
+      backupFile "${BASE_MNT_C}/Windows/System32/drivers/etc/hosts"
+      cmd=(
+        -ExecutionPolicy Bypass
+        -NoProfile
+        -Command Add-Content -Path "c:/Windows/System32/drivers/etc/hosts"
+        -Value "'${ip} ${hostName}'"
+      )
+      ${POWERSHELL_BIN:-powershell.exe} -Command "Start-Process powershell \"${cmd[*]}\" -Verb RunAs"
+      Log::displaySuccess "Host ${hostName} added to ${BASE_MNT_C}/Windows/System32/drivers/etc/hosts"
+    fi
+  fi
+}
+
+# @description try to ping the dns
+# @arg $1 host:String is the dns hostname
+# @exitcode 1 if host arg empty
+# @exitcode 2 if ping host failed
+# @exitcode 3 if ip is not bound to local ip address
+# @exitcode 4 if ifconfig result is empty
+Dns::checkHostname() {
+  local host="$1"
+  if [[ -z "${host}" ]]; then
+    return 1
+  fi
+
+  # check if host is reachable
+  local -a pingCmd=(ping -c 1 "${host}")
+  if Assert::windows; then
+    pingCmd=(ping -n 1 "${host}")
+  fi
+
+  Log::displayInfo "try to reach host ${host}"
+  if ! Command::captureOutputAndExitCode "${pingCmd[@]}"; then
+    return 2
+  fi
+
+  # get ip from ping
+  # under windows: Pinging willywonka.host.lan [127.0.0.1] with 32 bytes of data
+  # under linux: PING willywonka.host.lan (127.0.1.1) 56(84) bytes of data.
+  local ip
+  ip=$(echo "${COMMAND_OUTPUT}" | grep -i ping | grep -Eo '[0-9.]{4,}' | head -1)
+
+  # now we have to check if ip is bound to local ip address
+  if [[ ${ip} != 127.0.* ]]; then
+    # resolve to a non local address
+    # check if ip resolve to our ips
+    local -a ipconfigCmd=(ifconfig)
+    if Assert::windows; then
+      ipconfigCmd=(ipconfig)
+    fi
+
+    Log::displayInfo "check if ip(${ip}) associated to host(${host}) is listed in your network configuration"
+    if ! Command::captureOutputAndExitCode "${ipconfigCmd[*]} | grep ${ip} | cat"; then
+      return 3
+    fi
+    if [[ -z "${COMMAND_OUTPUT}" ]]; then
+      return 4
+    fi
+  fi
+
+  return 0
+}
+
 envFileTemplate="$(
   cat <<'EOF'
 # shellcheck disable=SC2034
@@ -323,6 +414,9 @@ SSH_LOGIN=""
 GIT_USERNAME=""
 # email used for git 'ldap@domain.com'
 GIT_USER_MAIL=""
+
+# hostname of the distro
+DISTRO_HOSTNAME="wslHost"
 
 # conf files that will be used to configure the different tools
 CONF_DIR="${BASH_DEV_ENV_ROOT_DIR}/conf"
@@ -893,6 +987,19 @@ Assert::tty() {
   [[ -t 1 || -t 2 ]]
 }
 
+# @description determine if the script is executed under windows (using wsl)
+# cspell:disable
+# @example text
+#   uname GitBash windows (with wsl) => MINGW64_NT-10.0 ZOXFL-6619QN2 2.10.0(0.325/5/3) 2018-06-13 23:34 x86_64 Msys
+#   uname GitBash windows (wo wsl)   => MINGW64_NT-10.0 frsa02-j5cbkc2 2.9.0(0.318/5/3) 2018-01-12 23:37 x86_64 Msys
+#   uname wsl => Linux ZOXFL-6619QN2 4.4.0-17134-Microsoft #112-Microsoft Thu Jun 07 22:57:00 PST 2018 x86_64 x86_64 x86_64 GNU/Linux
+# cspell:enable
+#
+# @exitcode 1 on error
+Assert::windows() {
+  [[ "$(uname -o)" = "Msys" ]]
+}
+
 # @description Backup given file in the same directory appending _ followed by the current date
 # @arg $1 file:String the file to backup
 # @stderr messages about backup file location
@@ -905,6 +1012,24 @@ Backup::file() {
     Log::displayInfo "Backup file '${file}' to ${backupFile}"
     cp "${file}" "${backupFile}"
   fi
+}
+
+# @description ability to call a command capturing output and exit code
+# but displaying it also to error output to follow command's progress
+# command output is sent to COMMAND_OUTPUT and stderr as well in realtime using tee
+# @arg $@ command:String[] the command to execute
+# @set COMMAND_OUTPUT String stdout of the command is returned in global variable COMMAND_OUTPUT
+# @stderr command output
+# @exitcode * exit code of the command
+Command::captureOutputAndExitCode() {
+
+  # reset COMMAND_OUTPUT before launching the command
+  unset COMMAND_OUTPUT
+
+  # trick, we capture stdout in variable COMMAND_OUTPUT
+  # and we copy also (via tee) stdout to stderr to be able to follow progress of the command
+  # shellcheck disable=SC2034
+  COMMAND_OUTPUT=$(bash -c "$*" | tee /dev/stderr) || return $?
 }
 
 # @description check validity of .env variables
@@ -1372,6 +1497,20 @@ Stats::computeStatsTrap() {
   return "${status}"
 }
 
+# @description ensure command git is available
+# @exitcode 1 if git command not available
+# @stderr diagnostics information is displayed
+Git::requireGitCommand() {
+  Assert::commandExists git
+}
+
+# @description ensure command sudo is available
+# @exitcode 1 if sudo command not available
+# @stderr diagnostics information is displayed
+Linux::requireSudoCommand() {
+  Assert::commandExists sudo
+}
+
 # @description load color theme
 # @noargs
 # @env BASH_FRAMEWORK_THEME String theme to use
@@ -1397,6 +1536,28 @@ Array::contains() {
     [[ "${element}" = "$1" ]] && return 0
   done
   return 1
+}
+
+# @description check if command specified exists or return 1
+# with error and message if not
+#
+# @arg $1 commandName:String on which existence must be checked
+# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
+#
+# @exitcode 1 if the command specified does not exist
+# @stderr diagnostic information + help if second argument is provided
+Assert::commandExists() {
+  local commandName="$1"
+  local helpIfNotExists="$2"
+
+  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
+    Log::displayError "${commandName} is not installed, please install it"
+    if [[ -n "${helpIfNotExists}" ]]; then
+      Log::displayInfo "${helpIfNotExists}"
+    fi
+    return 1
+  }
+  return 0
 }
 
 # @description check if param is valid email address
@@ -1766,6 +1927,8 @@ Linux::Wsl::originalWslpath() {
 
 facade_main_WslConfigsh() {
 # REQUIRES
+Git::requireGitCommand
+Linux::requireSudoCommand
 Env::requireLoad
 UI::requireTheme
 Log::requireLoad
@@ -2843,6 +3006,8 @@ install() {
 }
 
 configure() {
+  sudo hostnamectl set-hostname "${DISTRO_HOSTNAME}"
+  SUDO=sudo Dns::addHost "${DISTRO_HOSTNAME}"
   if Assert::wsl && [[ ! -f "/etc/wsl.conf" ]]; then
     SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
       "${CONF_DIR}/etc/wsl.conf" "/etc/wsl.conf" root root "Install::setUserRootCallback"
@@ -2856,6 +3021,14 @@ testInstall() {
 testConfigure() {
   if ! Assert::wsl; then
     return 0
+  fi
+  if [[ "$(hostnamectl hostname)" != "${DISTRO_HOSTNAME}" ]]; then
+    Log::displayError "Hostname ${DISTRO_HOSTNAME} has not been set on this distro"
+    ((++failures))
+  fi
+  if ! Dns::checkHostname "${DISTRO_HOSTNAME}"; then
+    Log::displayError "Hostname ${DISTRO_HOSTNAME} is not reachable"
+    ((++failures))
   fi
   local -i failures=0
   if ! Assert::fileExists "/etc/wsl.conf" "root" "root"; then
