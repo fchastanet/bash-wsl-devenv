@@ -51,6 +51,8 @@ install() {
 }
 
 configure() {
+  sudo hostnamectl set-hostname "${DISTRO_HOSTNAME}"
+  SUDO=sudo Dns::addHost "${DISTRO_HOSTNAME}"
   if Assert::wsl && [[ ! -f "/etc/wsl.conf" ]]; then
     SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
       "${CONF_DIR}/etc/wsl.conf" "/etc/wsl.conf" root root "Install::setUserRootCallback"
@@ -64,6 +66,14 @@ testInstall() {
 testConfigure() {
   if ! Assert::wsl; then
     return 0
+  fi
+  if [[ "$(hostnamectl hostname)" != "${DISTRO_HOSTNAME}" ]]; then
+    Log::displayError "Hostname ${DISTRO_HOSTNAME} has not been set on this distro"
+    ((++failures))
+  fi
+  if ! Dns::checkHostname "${DISTRO_HOSTNAME}"; then
+    Log::displayError "Hostname ${DISTRO_HOSTNAME} is not reachable"
+    ((++failures))
   fi
   local -i failures=0
   if ! Assert::fileExists "/etc/wsl.conf" "root" "root"; then
