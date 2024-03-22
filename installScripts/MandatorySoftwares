@@ -333,6 +333,9 @@ GIT_USERNAME=""
 # email used for git 'ldap@domain.com'
 GIT_USER_MAIL=""
 
+# hostname of the distro
+DISTRO_HOSTNAME="wslHost"
+
 # conf files that will be used to configure the different tools
 CONF_DIR="${BASH_DEV_ENV_ROOT_DIR}/conf"
 
@@ -448,7 +451,7 @@ Engine::Config::loadConfig() {
   Engine::Config::loadUserVariables
   Engine::Config::loadHostIp
 
-  #Engine::Config::requireWslu
+  Engine::Config::requireWslu
 
   #Linux::Wsl::initEnv
   Engine::Config::loadWslVariables
@@ -519,7 +522,7 @@ Framework::createTempFile() {
 # @env USERGROUP (default: root) the group name that will be used to set target files ownership
 # @env BASE_MNT_C String windows C drive base PATH
 # @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
-# @env SUDO_USER String the user to use as sudoer
+# @env SUDO String allows to use custom sudo prefix command
 Install::file() {
   local fromFile="$1"
   local targetFile="$2"
@@ -549,8 +552,8 @@ Install::file() {
   local targetDir
   targetDir="$(dirname "${targetFile}")"
   if [[ ! -d "${targetDir}" ]]; then
-    ${SUDO} mkdir -p "${targetDir}"
-    ${SUDO} chown "${userName}":"${userGroup}" "${targetDir}"
+    ${SUDO:-} mkdir -p "${targetDir}"
+    ${SUDO:-} chown "${userName}":"${userGroup}" "${targetDir}"
   fi
   local fromDir
   fromDir="$(dirname "${fromFile}")"
@@ -559,7 +562,7 @@ Install::file() {
 
   Backup::file "${targetFile}" || return 2
 
-  if ${SUDO} cp "${fromFile}" "${targetFile}"; then
+  if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
     ${successCallback} "${fromFile}" "${targetFile}" "$@"
     Log::displaySuccess "Installed file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
   else
@@ -572,13 +575,14 @@ Install::file() {
 # @arg $1 fromFile:String
 # @arg $2 targetFile:String
 # @exitcode 1 on any failure
+# @env SUDO String allows to use custom sudo prefix command
 # @see Install::file
 Install::setRootExecutableCallback() {
   # shellcheck disable=SC2034
   local fromFile="$1"
   local targetFile="$2"
-  chown root:root "${targetFile}"
-  chmod +x "${targetFile}"
+  ${SUDO:-} chown root:root "${targetFile}"
+  ${SUDO:-} chmod +x "${targetFile}"
 }
 
 # @description the command launch different actions(install, configure, test)
@@ -923,6 +927,7 @@ Assert::tty() {
 # @description Backup given file in the same directory appending _ followed by the current date
 # @arg $1 file:String the file to backup
 # @stderr messages about backup file location
+# @env SUDO String allows to use custom sudo prefix command
 # @exitcode 1 on copy failure
 Backup::file() {
   local file="$1"
@@ -930,7 +935,7 @@ Backup::file() {
   if [[ -f "${file}" ]]; then
     backupFile="${file}_$(date +"%Y-%m-%d_%H:%M:%S")"
     Log::displayInfo "Backup file '${file}' to ${backupFile}"
-    cp "${file}" "${backupFile}"
+    ${SUDO:-} cp "${file}" "${backupFile}"
   fi
 }
 
@@ -1229,6 +1234,26 @@ Engine::Config::loadWslVariables() {
   return "${errorCount}"
 }
 
+# @description install apt wslu if necessary providing wslvar, wslpath
+Engine::Config::requireWslu() {
+  if ! command -v wslvar &>/dev/null; then
+    Log::displayInfo "Installing pre-requisite Wslu : wslvar, wslpath, ... commands"
+    Linux::Apt::update
+    Linux::Apt::install --no-install-recommends wslu
+
+    # @see https://github.com/microsoft/WSL/issues/8843#issuecomment-1792256894
+    Log::displayInfo "Fix wsl interoperability due to wsl bug"
+    if [[
+      ! -f /usr/lib/binfmt.d/WSLInterop.conf &&
+      ! -f /etc/systemd/system/wsl-binfmt.service &&
+      -f /run/systemd/generator.early/wsl-binfmt.service
+    ]]; then
+      sudo sh -c 'echo :WSLInterop:M::MZ::/init:PF > /usr/lib/binfmt.d/WSLInterop.conf'
+      sudo ln -s /run/systemd/generator.early/wsl-binfmt.service /etc/systemd/system/wsl-binfmt.service
+    fi
+  fi
+}
+
 # @description prepend directories to the PATH environment variable
 # @arg $@ args:String[] list of directories to prepend
 # @set PATH update PATH with the directories prepended
@@ -1249,6 +1274,7 @@ Env::pathPrepend() {
 # @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
 # @env USERNAME (default: root) the user name that will be used to set target files ownership
 # @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @env SUDO String allows to use custom sudo prefix command
 # @exitcode 1 on any failure
 # @see Install::file
 Install::setUserRightsCallback() {
@@ -1258,7 +1284,7 @@ Install::setUserRightsCallback() {
   local userName="${3:-${USERNAME:-root}}"
   local userGroup="${4:-${USERGROUP:-root}}"
 
-  chown "${userName}":"${userGroup}" "${targetFile}"
+  ${SUDO:-} chown "${userName}":"${userGroup}" "${targetFile}"
 }
 
 # @description install callback
@@ -1510,12 +1536,13 @@ Assert::wsl() {
 # @arg $1 fromFile:String
 # @arg $2 targetFile:String
 # @exitcode 1 on any failure
+# @env SUDO String allows to use custom sudo prefix command
 # @see Install::file
 Install::setUserRootCallback() {
   # shellcheck disable=SC2034 # $1 not used
   local fromFile="$1"
   local targetFile="$2"
-  chown root:root "${targetFile}"
+  ${SUDO:-} chown root:root "${targetFile}"
 }
 
 # @description retrieve path from wslvar and then use wslpath to resolve it
@@ -2989,7 +3016,10 @@ install() {
 configure() {
   # shellcheck disable=SC2317
   updateEnvConfig() {
-    sed -i -e "s#@BASH_DEV_ENV_ROOT_DIR@#${BASH_DEV_ENV_ROOT_DIR}#g" "/etc/profile.d/updateEnv.sh"
+    sudo sed -E -i \
+      -e "s#@@@BASH_DEV_ENV_ROOT_DIR@@@#${BASH_DEV_ENV_ROOT_DIR}#g" \
+      -e "s#@@@WINDOWS_PROFILE_DIR@@@#${WINDOWS_PROFILE_DIR}#g" \
+      "/etc/profile.d/updateEnv.sh"
     Install::setRootExecutableCallback "$@"
   }
   SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
@@ -3013,9 +3043,9 @@ testConfigure() {
   local -i failures=0
 
   Assert::fileExists "/etc/profile.d/updateEnv.sh" "root" "root" || ((++failures))
-  Log::displayInfo "checking @BASH_DEV_ENV_ROOT_DIR@ replaced in /etc/profile.d/updateEnv.sh"
-  if grep -q -P "@BASH_DEV_ENV_ROOT_DIR@" "/etc/profile.d/updateEnv.sh"; then
-    Log::displayError "String '@BASH_DEV_ENV_ROOT_DIR@' has not been replaced in file /etc/profile.d/updateEnv.sh"
+  Log::displayInfo "checking @@@BASH_DEV_ENV_ROOT_DIR@@@ replaced in /etc/profile.d/updateEnv.sh"
+  if grep -q -P "@@@BASH_DEV_ENV_ROOT_DIR@@@" "/etc/profile.d/updateEnv.sh"; then
+    Log::displayError "String '@@@BASH_DEV_ENV_ROOT_DIR@@@' has not been replaced in file /etc/profile.d/updateEnv.sh"
     ((++failures))
   fi
 
