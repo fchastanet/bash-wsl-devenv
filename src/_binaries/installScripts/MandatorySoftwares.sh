@@ -82,7 +82,10 @@ install() {
 configure() {
   # shellcheck disable=SC2317
   updateEnvConfig() {
-    sed -i -e "s#@BASH_DEV_ENV_ROOT_DIR@#${BASH_DEV_ENV_ROOT_DIR}#g" "/etc/profile.d/updateEnv.sh"
+    sudo sed -E -i \
+      -e "s#@@@BASH_DEV_ENV_ROOT_DIR@@@#${BASH_DEV_ENV_ROOT_DIR}#g" \
+      -e "s#@@@WINDOWS_PROFILE_DIR@@@#${WINDOWS_PROFILE_DIR}#g" \
+      "/etc/profile.d/updateEnv.sh"
     Install::setRootExecutableCallback "$@"
   }
   SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
@@ -106,9 +109,9 @@ testConfigure() {
   local -i failures=0
 
   Assert::fileExists "/etc/profile.d/updateEnv.sh" "root" "root" || ((++failures))
-  Log::displayInfo "checking @BASH_DEV_ENV_ROOT_DIR@ replaced in /etc/profile.d/updateEnv.sh"
-  if grep -q -P "@BASH_DEV_ENV_ROOT_DIR@" "/etc/profile.d/updateEnv.sh"; then
-    Log::displayError "String '@BASH_DEV_ENV_ROOT_DIR@' has not been replaced in file /etc/profile.d/updateEnv.sh"
+  Log::displayInfo "checking @@@BASH_DEV_ENV_ROOT_DIR@@@ replaced in /etc/profile.d/updateEnv.sh"
+  if grep -q -P "@@@BASH_DEV_ENV_ROOT_DIR@@@" "/etc/profile.d/updateEnv.sh"; then
+    Log::displayError "String '@@@BASH_DEV_ENV_ROOT_DIR@@@' has not been replaced in file /etc/profile.d/updateEnv.sh"
     ((++failures))
   fi
 

@@ -12,11 +12,11 @@ export ETC_PROFILE_D_UPDATE_ENV_LOADED=1
 # shellcheck disable=SC1003
 BASE_MNT_C="$(mount | grep 'path=C:\\' | awk -F ' ' '{print $3}')"
 
-export ROOT_DIR="@BASH_DEV_ENV_ROOT_DIR@"
-if [[ -f "${ROOT_DIR}/.env" ]]; then
+export BASH_DEV_ENV_ROOT_DIR="@@@BASH_DEV_ENV_ROOT_DIR@@@"
+if [[ -f "${BASH_DEV_ENV_ROOT_DIR}/.env" ]]; then
   set -o allexport
   # shellcheck source=/.env.template
-  source "${ROOT_DIR}/.env"
+  source "${BASH_DEV_ENV_ROOT_DIR}/.env"
   set +o allexport
 fi
 
