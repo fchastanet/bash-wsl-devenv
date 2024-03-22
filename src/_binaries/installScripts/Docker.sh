@@ -3,6 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
+# EMBED Github::upgradeRelease as githubUpgradeRelease
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
@@ -115,9 +116,9 @@ install() {
 
   Log::displayInfo "Installing docker-compose"
   # shellcheck disable=SC2154
-  SUDO=sudo Github::upgradeRelease \
+  SUDO=sudo "${embed_function_GithubUpgradeRelease}" \
     /usr/local/bin/docker-compose \
-    "https://github.com/docker/compose/releases/download/v@latestVersion@/docker-compose-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)" \
+    "https://github.com/docker/compose/releases/download/@latestVersion@/docker-compose-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)" \
     "--version" \
     defaultVersion
 
@@ -136,6 +137,14 @@ configure() {
 
 testInstall() {
   local -i failures=0
+
+  if ! Linux::isSystemdRunning; then
+    if grep -q -E '^systemd=true' /etc/wsl.conf; then
+      Log::fatal "You need to restart wsl by running 'wsl --shutdown' from powershell and re-run this script, in order to start with systemd"
+    else
+      Log::fatal "/etc/wsl.conf has not been updated with systemd=true instruction, please check this install logs"
+    fi
+  fi
 
   Version::checkMinimal "docker" "docker --version" "25.0.3" || ((++failures))
   Version::checkMinimal "docker-compose" "docker-compose --version" "2.23.1" || ((++failures))
