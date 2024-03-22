@@ -226,6 +226,13 @@ Array::wrap2() {
   ) | sed -E -e 's/[[:blank:]]+$//'
 }
 
+# @description checks if function name provided exists
+# @arg $1 functionName:String
+# @exitcode 1 if function name doesn't exist
+Assert::functionExists() {
+  declare -F "$1" >/dev/null
+}
+
 # @description ensure env files are loaded
 # @arg $@ list of default files to load at the end
 # @exitcode 1 if one of env files fails to load
@@ -759,6 +766,10 @@ Git::requireGitCommand
 Log::requireLoad
 Compiler::Facade::requireCommandBinDir
 Linux::requireExecutedAsUser
+
+if Assert::functionExists initFacade; then
+  initFacade
+fi
 
 # @require Compiler::Facade::requireCommandBinDir
 # shellcheck disable=SC2034,SC2154

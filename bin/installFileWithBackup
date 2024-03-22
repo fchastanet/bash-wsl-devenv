@@ -112,6 +112,13 @@ Args::defaultHelp() {
   fi
 }
 
+# @description checks if function name provided exists
+# @arg $1 functionName:String
+# @exitcode 1 if function name doesn't exist
+Assert::functionExists() {
+  declare -F "$1" >/dev/null
+}
+
 # @description Log namespace provides 2 kind of functions
 # - Log::display* allows to display given message with
 #   given display level
@@ -530,6 +537,10 @@ Env::requireLoad
 Log::requireLoad
 UI::requireTheme
 Compiler::Facade::requireCommandBinDir
+
+if Assert::functionExists initFacade; then
+  initFacade
+fi
 
 # @require Compiler::Facade::requireCommandBinDir
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..

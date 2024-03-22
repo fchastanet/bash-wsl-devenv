@@ -224,6 +224,13 @@ Array::wrap2() {
   ) | sed -E -e 's/[[:blank:]]+$//'
 }
 
+# @description checks if function name provided exists
+# @arg $1 functionName:String
+# @exitcode 1 if function name doesn't exist
+Assert::functionExists() {
+  declare -F "$1" >/dev/null
+}
+
 # @description checkout usage doc below
 #
 # [DockerNamespace usage](DockerUsage.md ':include')
@@ -809,6 +816,10 @@ Env::requireLoad
 UI::requireTheme
 Log::requireLoad
 Compiler::Facade::requireCommandBinDir
+
+if Assert::functionExists initFacade; then
+  initFacade
+fi
 
 # @require Compiler::Facade::requireCommandBinDir
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
