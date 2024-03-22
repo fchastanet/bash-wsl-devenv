@@ -60,9 +60,6 @@ breakOnTestFailure() {
 }
 
 install() {
-  # Needed before do-release-upgrade because WSL doesn't support Systemd directly
-  Linux::Apt::remove snapd || true
-  mv /etc/apt/apt.conf.d/20snapd.conf{,.disabled} || true
   Linux::Apt::update
   Retry::default sudo apt-get upgrade -y
   Retry::default sudo apt-get dist-upgrade -y
