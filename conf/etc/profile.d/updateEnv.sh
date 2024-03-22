@@ -12,11 +12,6 @@ export ETC_PROFILE_D_UPDATE_ENV_LOADED=1
 # shellcheck disable=SC1003
 BASE_MNT_C="$(mount | grep 'path=C:\\' | awk -F ' ' '{print $3}')"
 
-# ensure /mnt/c/WINDOWS/system32 is available for root user
-if command -v wslpath &>/dev/null; then
-  PATH="${PATH}:${BASE_MNT_C}/WINDOWS/system32"
-fi
-
 export ROOT_DIR="@BASH_DEV_ENV_ROOT_DIR@"
 if [[ -f "${ROOT_DIR}/.env" ]]; then
   set -o allexport
@@ -37,6 +32,18 @@ export LC_ALL=en_US.UTF-8
 export IBUS_ENABLE_SYNC_MODE=1
 export PATH
 
+addPath() {
+  if [[ -d "$1" && ":${PATH}:" != *":$1:"* ]]; then
+    if [[ "$2" = "after" ]]; then
+      PATH="${PATH}:$1"
+    else
+      PATH="$1:${PATH}"
+    fi
+  fi
+}
+# ensure /mnt/c/WINDOWS/system32 is available for root user
+addPath "${BASE_MNT_C}/WINDOWS/System32" "after"
+
 if [[ "$(id -u)" = "0" ]]; then
   return 0
 fi
@@ -47,43 +54,31 @@ fi
 # PATH config
 ###############################################################################"
 
-if command -v wslpath &>/dev/null; then
-  # backup visual studio code path
-  if command -v code &>/dev/null; then
-    codePathBackup="$(dirname "$(command -v code)")"
-  fi
-  # optimize PATH to remove all windows PATH not needed to optimize completion
-  C_DRIVE="/mnt/c"
-  if [[ -d "${C_DRIVE}" ]]; then
-    PATH=$(echo "${PATH}" |
-      awk -v RS=: -v ORS=: "/^${C_DRIVE//\//\\/}/ {next} {print}" | sed 's/:*$//')
-  fi
-  # Add C:\Windows back so you can do `explorer.exe .` to open an explorer at current directory
-  WINDOWS_PROFILE_DIR="@@@WINDOWS_PROFILE_DIR@@@"
-  export WINDOWS_PROFILE_DIR
-  PATH="${PATH}:${C_DRIVE}/Windows"
-  PATH="${PATH}:${WINDOWS_PROFILE_DIR}/AppData/Local/Microsoft/WindowsApps"
-  # Add powershell path back
-  PATH="${PATH}:${C_DRIVE}/WINDOWS/System32/WindowsPowerShell/v1.0/"
-  # Add visual studio code path back
-  PATH="${PATH}:${codePathBackup}"
-  unset codePathBackup
+# backup visual studio code path
+if command -v code &>/dev/null; then
+  codePathBackup="$(dirname "$(command -v code)")"
 fi
-
-addPath() {
-  if [[ -d "$1" && ":${PATH}:" != *":$1:"* ]]; then
-    if [[ "$2" = "after" ]]; then
-      PATH="${PATH}:$1"
-    else
-      PATH="$1:${PATH}"
-    fi
-  fi
-}
+# optimize PATH to remove all windows PATH not needed to optimize completion
+if [[ -d "${BASE_MNT_C}" ]]; then
+  PATH=$(echo "${PATH}" |
+    awk -v RS=: -v ORS=: "/^${BASE_MNT_C//\//\\/}/ {next} {print}" | sed 's/:*$//')
+fi
+# Add C:\Windows back so you can do `explorer.exe .` to open an explorer at current directory
+WINDOWS_PROFILE_DIR="@@@WINDOWS_PROFILE_DIR@@@"
+export WINDOWS_PROFILE_DIR
+addPath "${BASE_MNT_C}/WINDOWS/System32" "after"
+addPath "${BASE_MNT_C}/Windows" "after"
+addPath "${WINDOWS_PROFILE_DIR}/AppData/Local/Microsoft/WindowsApps" "after"
+# Add powershell path back
+addPath "${BASE_MNT_C}/WINDOWS/System32/WindowsPowerShell/v1.0/" "after"
+# Add visual studio code path back
+addPath "${codePathBackup}" "after"
+unset codePathBackup
 
 # set PATH so it includes user's private bin if it exists
-addPath "${HOME}/projects/bash-tools/bin"
-addPath "${HOME}/.local/bin"
-addPath "${HOME}/.bin"
+addPath "${HOME}/projects/bash-tools/bin" "after"
+addPath "${HOME}/.local/bin" "after"
+addPath "${HOME}/.bin" "after"
 
 # Add composer bin path
 addPath "/usr/local/.composer/vendor/bin" "after"
