@@ -64,10 +64,11 @@ testInstall() {
 }
 
 testConfigure() {
+  local -i failures=0
   if ! Assert::wsl; then
     return 0
   fi
-  if [[ "$(hostnamectl hostname)" != "${DISTRO_HOSTNAME}" ]]; then
+  if [[ "$(hostnamectl | grep 'hostname' | awk -F ': ' '{print $2}')" != "${DISTRO_HOSTNAME}" ]]; then
     Log::displayError "Hostname ${DISTRO_HOSTNAME} has not been set on this distro"
     ((++failures))
   fi
@@ -75,7 +76,6 @@ testConfigure() {
     Log::displayError "Hostname ${DISTRO_HOSTNAME} is not reachable"
     ((++failures))
   fi
-  local -i failures=0
   if ! Assert::fileExists "/etc/wsl.conf" "root" "root"; then
     ((++failures))
     if ! grep -q -E "^root = /mnt/$" "/etc/wsl.conf"; then

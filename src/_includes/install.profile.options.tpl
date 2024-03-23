@@ -1,18 +1,4 @@
 %
-declare versionNumber="1.0"
-declare copyrightBeginYear="2024"
-declare commandFunctionName="installCommand"
-declare help="Install or update softwares"
-declare longDescription="""
-Install or update softwares (kube, aws, composer, node, ...),
-configure Home environnement (git config, kube, motd, ssh, dns, ...) and check configuration
-"""
-%
-
-.INCLUDE "$(dynamicTemplateDir _binaries/options/options.base.tpl)"
-.INCLUDE "$(dynamicTemplateDir _includes/install.default.options.tpl)"
-
-%
 # shellcheck source=/dev/null
 source <(
   profileHelp() { :; }
@@ -40,7 +26,6 @@ options+=(
   softwaresArgFunction
   --callback commandCallback
 )
-Options::generateCommand "${options[@]}"
 %
 
 profileHelp() {
@@ -105,8 +90,6 @@ commandCallback() {
     Log::fatal "Softwares list is empty"
   fi
 }
-
-<% ${commandFunctionName} %> parse "${BASH_FRAMEWORK_ARGV[@]}"
 
 export CONFIG_LIST
 export PROFILE

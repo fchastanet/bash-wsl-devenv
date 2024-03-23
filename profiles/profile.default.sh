@@ -5,7 +5,7 @@ if [[ -z "${CONFIG_LIST+xxx}" ]]; then
 fi
 
 # Mandatory packages
-CONFIG_LIST=(
+CONFIG_LIST+=(
   "ConformanceTest"
   "Upgrade"
   "MandatorySoftwares"
@@ -15,6 +15,7 @@ CONFIG_LIST=(
 CONFIG_LIST+=(
   "Docker"
   "Motd"
+  "AwsCli"
 )
 
 # Mandatory packages

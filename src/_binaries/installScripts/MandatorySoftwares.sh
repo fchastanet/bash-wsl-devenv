@@ -125,6 +125,7 @@ testConfigure() {
   ORIGINAL_SSH_LOGIN="${SSH_LOGIN}"
   testSourceUpdateEnv() {
     (
+      # shellcheck source=conf/etc/profile.d/updateEnv.sh
       source "/etc/profile.d/updateEnv.sh"
       [[ "${ORIGINAL_SSH_LOGIN}" = "${SSH_LOGIN}" && -n "${SSH_LOGIN}" ]]
     ) || return 1

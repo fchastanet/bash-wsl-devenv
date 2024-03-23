@@ -1,6 +1,8 @@
 #!/bin/bash
 # pam_motd does not carry the environment
-[ -f /etc/default/locale ] && . /etc/default/locale
+if [[ -f /etc/default/locale ]]; then
+  source /etc/default/locale
+fi
 export LANG
 cores=$(grep -c ^processor /proc/cpuinfo 2>/dev/null)
 [[ "${cores}" -eq "0" ]] && cores=1
