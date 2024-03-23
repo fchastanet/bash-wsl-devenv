@@ -73,6 +73,11 @@ Engine::Config::checkEnv() {
     ((errorCount++))
   fi
 
+  if checkNotEmpty "AWS_USER_MAIL" && ! Assert::emailAddress "${AWS_USER_MAIL}"; then
+    Log::displayError "AWS_USER_MAIL - invalid email address"
+    ((errorCount++))
+  fi
+
   checkVarAndDir CONF_DIR r || true
   checkVarAndDir CONF_OVERRIDE_DIR r || true
   checkVarAndDir PROJECTS_DIR r || true
@@ -91,7 +96,7 @@ Engine::Config::checkEnv() {
   checkValidValues OVERWRITE_CONFIG_FILES 0 1
   checkValidValues CHANGE_WINDOWS_FILES 0 1
   checkValidValues CAN_TALK_DURING_INSTALLATION 0 1
-  checkValidValues NON_INTERACTIVE 0 1
+  checkValidValues INSTALL_NON_INTERACTIVE 0 1
 
   checkNotEmpty WSLCONFIG_MAX_MEMORY
   checkValidValues WSLCONFIG_SWAP 0 1

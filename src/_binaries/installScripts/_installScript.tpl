@@ -1,4 +1,6 @@
 %
+declare versionNumber="1.0"
+declare copyrightBeginYear="2024"
 declare commandFunctionName="installScriptCommand"
 helpDescriptionCallback() { :; }
 declare help=helpDescriptionCallback
@@ -7,7 +9,7 @@ declare longDescription=helpLongDescriptionCallback
 %
 
 .INCLUDE "$(dynamicTemplateDir _binaries/options/options.base.tpl)"
-.INCLUDE "$(dynamicTemplateDir _includes/install.default.options.tpl)"
+.INCLUDE "$(dynamicTemplateDir _includes/install.skip.options.tpl)"
 
 %
 options+=(

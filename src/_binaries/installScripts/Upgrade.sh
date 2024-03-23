@@ -59,7 +59,22 @@ breakOnTestFailure() {
   return 0
 }
 
+removeSystemdService() {
+  local service="$?"
+  if systemctl list-units --full -all | grep -Fq "${service}"; then
+    sudo systemctl disable "${service}"
+  fi
+}
 install() {
+  # remove unneeded systemd service
+  # sshd is not needed and cause port 22 usage conflict
+  removeSystemdService ssh.service
+  sudo systemctl daemon-reload
+  sudo systemctl reset-failed
+
+  Linux::Apt::remove \
+    openssh-server
+
   Linux::Apt::update
   Retry::default sudo apt-get upgrade -y
   Retry::default sudo apt-get dist-upgrade -y

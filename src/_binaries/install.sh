@@ -3,10 +3,11 @@
 # FACADE
 # BASH_DEV_ENV_ROOT_DIR_RELATIVE_TO_BIN_DIR=
 
-.INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
+.INCLUDE "$(dynamicTemplateDir "_includes/install.options.tpl")"
 
 # variables
 CONFIG_LIST=()
+# shellcheck disable=SC2034
 PROFILE=
 SKIP_INSTALL=0
 SKIP_CONFIGURE=0
@@ -25,7 +26,7 @@ err_report() {
 }
 trap 'err_report $LINENO' ERR
 
-.INCLUDE "$(dynamicTemplateDir _binaries/install.options.tpl)"
+.INCLUDE "$(dynamicTemplateDir _includes/install.options.tpl)"
 
 # shellcheck disable=SC2317
 declare summaryDisplayed="0"
@@ -108,7 +109,7 @@ executeScripts() {
         exit "${installStatus}"
       fi
     done
-  ) 2>&1 | tee >(sed -r 's/\x1b\[[0-9;]*m//g' >> "${LOGS_DIR}/automatic-upgrade")
+  ) 2>&1 | tee >(sed -r 's/\x1b\[[0-9;]*m//g' >>"${LOGS_DIR}/automatic-upgrade")
 }
 # we need non root user to be sure that all variables will be correctly deduced
 # @require Linux::requireExecutedAsUser
@@ -131,7 +132,8 @@ run() {
   export WSL_GARBAGE_COLLECT=0
   export WSL_INIT=0
   export CHECK_ENV=0
-  export LOAD_THEME=0
+  # force interactive mode, otherwise Assert::tty return false
+  export INTERACTIVE=1
 
   if executeScripts; then
     Log::displaySuccess "Successful Installation"

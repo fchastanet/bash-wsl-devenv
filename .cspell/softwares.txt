@@ -111,3 +111,13 @@ tagname
 htmlhintrc
 mysqldump
 substr
+VIRTUALENV
+virtualenv
+WORKON_HOME
+kubens
+BUILDKIT
+pgrep
+Wslu
+wslu
+distros
+autoremove

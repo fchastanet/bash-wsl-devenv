@@ -60,18 +60,27 @@ install() {
 }
 
 configure() {
+  set -x
+  set -o
   SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
     "${CONF_DIR}/etc/update-motd.d/00-wsl-header" "/etc/update-motd.d/00-wsl-header" \
-    Install::setRootExecutableCallback
+    "root" "root" \
+    Install::setRootExecutableCallback || return 1
+
   SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
     "${CONF_DIR}/etc/update-motd.d/01-wsl-sysinfo" "/etc/update-motd.d/01-wsl-sysinfo" \
-    Install::setRootExecutableCallback
+    "root" "root" \
+    Install::setRootExecutableCallback || return 1
+
   SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${CONF_DIR}/etc/update-motd/03-wsl-automatic-upgrade" "/etc/update-motd.d/03-wsl-automatic-upgrade" \
-    Install::setRootExecutableCallback
+    "${CONF_DIR}/etc/update-motd.d/03-wsl-automatic-upgrade" "/etc/update-motd.d/03-wsl-automatic-upgrade" \
+    "root" "root" \
+    Install::setRootExecutableCallback || return 1
+
   SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
     "${CONF_DIR}/etc/cron.daily/motd" "/etc/cron.daily/motd" \
-    Install::setRootExecutableCallback
+    "root" "root" \
+    Install::setRootExecutableCallback || return 1
 
   # disable some parts
   sudo chmod 600 /etc/update-motd.d/00-header

@@ -21,6 +21,7 @@
     "**/.github/**",
     "**/.idea/**",
     "**/report/**",
-    "**/*.svg"
+    "**/*.svg",
+    "src/_binaries/installScripts/**"
   ]
 }

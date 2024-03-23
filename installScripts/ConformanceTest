@@ -260,41 +260,6 @@ Assert::wsl() {
   [[ "$(uname -o)" = "GNU/Linux" ]]
 }
 
-# @description list files of dir with given extension and display it as a list one by line
-#
-# @arg $1 dir:String the directory to list
-# @arg $2 prefix:String the profile file prefix (default: "")
-# @arg $3 ext:String the extension
-# @arg $4 findOptions:String find options, eg: -type d (Default value: '-type f')
-# @arg $5 indentStr:String the indentation can be any string compatible with sed not containing any / (Default value: '       - ')
-# @stdout list of files without extension/directory
-# @example text
-#       - default.local
-#       - default.remote
-#       - localhost-root
-# @exitcode 1 if directory does not exists
-Conf::list() {
-  local dir="$1"
-  local prefix="${2:-}"
-  local ext="${3}"
-  local findOptions="${4--type f}"
-  local indentStr="${5-       - }"
-
-  if [[ ! -d "${dir}" ]]; then
-    Log::displayError "Directory ${dir} does not exist"
-  fi
-  if [[ -n "${ext}" && "${ext:0:1}" != "." ]]; then
-    ext=".${ext}"
-  fi
-  (
-    # shellcheck disable=SC2086
-    cd "${dir}" &&
-      find . -maxdepth 1 ${findOptions} -name "${prefix}*${ext}" |
-      sed -E "s#^\./${prefix}##g" |
-        sed -E "s#${ext}\$##g" | sort | sed -E "s#^#${indentStr}#"
-  )
-}
-
 envFileTemplate="$(
   cat <<'EOF'
 # shellcheck disable=SC2034
@@ -310,6 +275,8 @@ SSH_LOGIN=""
 GIT_USERNAME=""
 # email used for git 'ldap@domain.com'
 GIT_USER_MAIL=""
+# email used to connect to aws
+AWS_USER_MAIL="fchastanet@gmail.com"
 
 # hostname of the distro
 DISTRO_HOSTNAME="wslHost"
@@ -380,7 +347,10 @@ CAN_TALK_DURING_INSTALLATION=1
 
 # if 1 install script will skip all interactive activity (saml2aws, ...),
 # so dependent installation will be skipped as well
-NON_INTERACTIVE=0
+INSTALL_NON_INTERACTIVE=0
+
+# display elapsed time since last log
+DISPLAY_DURATION=1
 
 # -----------------------------------------
 # WSLCONFIG - these parameters will help to automatically
@@ -399,6 +369,20 @@ WSLCONFIG_SWAP=0
 #POWERSHELL_BIN=/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
 #IPCONFIG_BIN=/mnt/c/Windows/system32/ipconfig.exe
 #WSL_EXE_BIN=/mnt/c/Windows/system32/wsl.exe
+
+# -----------------------------------------
+# Distro
+# Only necessary when using the script distro
+# to create or update a wsl distribution
+
+# The name of the distro displayed in `wsl -l -v` command
+DISTRO_NAME="UbuntuTest"
+# where to download the distribution
+DISTRO_URL="https://aka.ms/wslubuntu2004"
+# Profile to use with install command
+DISTRO_INSTALL_PROFILE="default"
+# The path where bash-dev-env project will be copied into target distro
+DISTRO_BASH_DEV_ENV_TARGET_DIR="${BASH_DEV_ENV_ROOT_DIR}"
 EOF
 )"
 
@@ -434,7 +418,6 @@ Engine::Config::loadConfig() {
   #Linux::Wsl::initEnv
   Engine::Config::loadWslVariables
 
-  Engine::Config::createSudoerFile
   Engine::Config::installUpdateEnv "${CONF_DIR}" "${LDAP_LOGIN}" "${WINDOWS_PROFILE_DIR}"
   Log::requireLoad
 
@@ -482,7 +465,7 @@ Framework::createTempFile() {
 
 # @description the command launch different actions(install, configure, test)
 # depending on the options selected
-# @see src/_includes/install.default.options.tpl
+# @see src/_includes/install.skip.options.tpl
 # @env SKIP_INSTALL
 # @env SKIP_CONFIGURE
 # @env SKIP_TEST
@@ -617,12 +600,31 @@ Log::displayError() {
   Log::logError "$1"
 }
 
+FIRST_LOG_DATE="$(date '+%s%3N')"
+LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
+LOG_LAST_LOG_DATE_INIT=1
+
 # @description Display message using info color (bg light blue/fg white)
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
 Log::displayInfo() {
   local type="${2:-INFO}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    echo -e "${__INFO_COLOR}${type}    - ${1}${__RESET_COLOR}" >&2
+    local durationMsg=""
+    if ((DISPLAY_DURATION == 1)); then
+      local duration
+      local -i currentLogDate
+      currentLogDate="$(date '+%s%3N')"
+      if ((LOG_LAST_LOG_DATE_INIT == 1)); then
+        LOG_LAST_LOG_DATE_INIT=0
+        duration="Ref"
+      else
+        duration="$(( (currentLogDate - FIRST_LOG_DATE) /1000 ))s/+$(( (currentLogDate - LOG_LAST_LOG_DATE) /1000 ))s"
+      fi
+      LOG_LAST_LOG_DATE="${currentLogDate}"
+      durationMsg="$(date '+%H:%M:%S.%3N')(${duration}) - "
+    fi
+    echo -e "${__INFO_COLOR}${type}    - ${durationMsg}${1}${__RESET_COLOR}" >&2
   fi
   Log::logInfo "$1" "${type}"
 }
@@ -791,7 +793,6 @@ Compiler::Facade::requireCommandBinDir() {
 # @exitcode 1 if tty not active
 # @env NON_INTERACTIVE if 1 consider as not interactive even if environment is interactive
 # @env INTERACTIVE if 1 consider as interactive even if environment is not interactive
-# @stderr diagnostic information + help if second argument is provided
 Assert::tty() {
   if [[ "${NON_INTERACTIVE:-0}" = "1" ]]; then
     return 1
@@ -799,6 +800,7 @@ Assert::tty() {
   if [[ "${INTERACTIVE:-0}" = "1" ]]; then
     return 0
   fi
+  # check if stdout or stderr is connected to terminal
   [[ -t 1 || -t 2 ]]
 }
 
@@ -875,6 +877,11 @@ Engine::Config::checkEnv() {
     ((errorCount++))
   fi
 
+  if checkNotEmpty "AWS_USER_MAIL" && ! Assert::emailAddress "${AWS_USER_MAIL}"; then
+    Log::displayError "AWS_USER_MAIL - invalid email address"
+    ((errorCount++))
+  fi
+
   checkVarAndDir CONF_DIR r || true
   checkVarAndDir CONF_OVERRIDE_DIR r || true
   checkVarAndDir PROJECTS_DIR r || true
@@ -893,7 +900,7 @@ Engine::Config::checkEnv() {
   checkValidValues OVERWRITE_CONFIG_FILES 0 1
   checkValidValues CHANGE_WINDOWS_FILES 0 1
   checkValidValues CAN_TALK_DURING_INSTALLATION 0 1
-  checkValidValues NON_INTERACTIVE 0 1
+  checkValidValues INSTALL_NON_INTERACTIVE 0 1
 
   checkNotEmpty WSLCONFIG_MAX_MEMORY
   checkValidValues WSLCONFIG_SWAP 0 1
@@ -911,30 +918,6 @@ Engine::Config::createEnvFileFromTemplate() {
     Log::displayError "a default env file has been created, please edit ${envFile}"
     return 1
   fi
-}
-
-# @description set sudoer without password temporarily
-# @env USERNAME
-# @env USER_HOME
-# @set SUDOER_CHANGE
-Engine::Config::createSudoerFile() {
-  local sudoerFile="/etc/sudoers.d/${USERNAME}-bash-dev-env-no-password"
-
-  # create /etc/sudoers.d/userName-bash-dev-env
-  local sudoerChange="${USERNAME} ALL=(ALL) NOPASSWD: ${BASH_DEV_ENV_ROOT_DIR}/install,/etc/cron.weekly/upgrade,/usr/sbin/service,${BASH_DEV_ENV_ROOT_DIR}/installScripts"
-  if [[ "${sudoerChange}" != "$(sudo cat "${sudoerFile}" 2>/dev/null || echo -n '')" ]]; then
-    echo "${sudoerChange}" | sudo tee "${sudoerFile}"
-    sudo chmod 0440 "${sudoerFile}"
-
-    echo "this file indicates that sudo has been configured to execute without password" |
-      sudo tee "${USER_HOME}/.cron_activated" >/dev/null
-
-    sudo visudo -c -s || {
-      Log::displayError "Please check syntax of '${sudoerFile}' before closing this session - 'sudo visudo'"
-      return 1
-    }
-  fi
-
 }
 
 # @description install or update /etc/profile.d/updateEnv.sh file
@@ -1106,11 +1089,9 @@ Engine::Config::requireWslu() {
 
     # @see https://github.com/microsoft/WSL/issues/8843#issuecomment-1792256894
     Log::displayInfo "Fix wsl interoperability due to wsl bug"
-    if [[
-      ! -f /usr/lib/binfmt.d/WSLInterop.conf &&
+    if [[ ! -f /usr/lib/binfmt.d/WSLInterop.conf &&
       ! -f /etc/systemd/system/wsl-binfmt.service &&
-      -f /run/systemd/generator.early/wsl-binfmt.service
-    ]]; then
+      -f /run/systemd/generator.early/wsl-binfmt.service ]]; then
       sudo sh -c 'echo :WSLInterop:M::MZ::/init:PF > /usr/lib/binfmt.d/WSLInterop.conf'
       sudo ln -s /run/systemd/generator.early/wsl-binfmt.service /etc/systemd/system/wsl-binfmt.service
     fi
@@ -1391,7 +1372,9 @@ Install::setUserRootCallback() {
 # @feature Retry::default
 # Linux::requireSudoCommand
 # @require Linux::requireUbuntu
+# @stdout diagnostics logs
 Linux::Apt::install() {
+  Log::displayInfo "Apt install $*"
   Retry::default sudo apt-get install -y -q "$@"
 }
 
@@ -1399,7 +1382,9 @@ Linux::Apt::install() {
 # @feature Retry::default
 # Linux::requireSudoCommand
 # @require Linux::requireUbuntu
+# @stdout diagnostics logs
 Linux::Apt::update() {
+  Log::displayInfo "Apt update ..."
   Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
 }
 
@@ -1526,7 +1511,7 @@ Stats::statusLine() {
     elif [[ "${status}" = "-1" ]]; then
       statusMsg="ABORTED - ${msg} not executed"
     else
-      statusMsg="ERROR  - ${msg} in error"
+      statusMsg="ERROR   - ${msg} in error"
     fi
     # overwrite final TEST line
     echo -e "${color}${statusMsg}${__RESET_COLOR}"
@@ -1851,6 +1836,28 @@ Compiler::Facade::requireCommandBinDir
 if Assert::functionExists initFacade; then
   initFacade
 fi
+Engine::Config::loadConfig
+# @description create sudoer file and add traps to remove it at the end
+# @arg $1 sudoerFile:String the file path to create
+# @env USERNAME
+# shellcheck disable=SC2317
+local sudoerFile="${SUDOER_FILE_PREFIX}/etc/sudoers.d/bash-dev-env-no-password"
+if [[ -f "${sudoerFile}" ]]; then
+  # sudoerFile probably already managed by parent script
+  true
+else
+  cleanSudoer() {
+    if [[ -f "${sudoerFile}" ]]; then
+      ${SUDO:-sudo} rm -f "${sudoerFile}" || true
+    fi
+  }
+  trap cleanSudoer EXIT HUP QUIT ABRT TERM
+
+  Log::displayInfo "Creating sudoer file"
+  echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" |
+    ${SUDO:-sudo} tee "${sudoerFile}" >/dev/null
+  ${SUDO:-sudo} chmod 0440 "${sudoerFile}"
+fi
 
 # @require Compiler::Facade::requireCommandBinDir
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
@@ -1901,7 +1908,7 @@ optionHelpCallback() {
 
 # shellcheck disable=SC2317 # if function is overridden
 optionVersionCallback() {
-  echo "${SCRIPT_NAME} version "
+  echo "${SCRIPT_NAME} version 1.0"
   exit 0
 }
 
@@ -2096,276 +2103,12 @@ commandOptionParseFinished() {
   # shellcheck disable=SC2154
   if [[ "${optionConfig}" = "1" ]]; then
     displayConfig
-  fi
-}
-
-declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
-
-copyrightCallback() {
-  if [[ -z "${copyrightBeginYear}" ]]; then
-    copyrightBeginYear="$(date +%Y)"
-  fi
-  echo "Copyright (c) ${copyrightBeginYear}-now François Chastanet"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListInfoVerboseCallback() {
-  BASH_FRAMEWORK_ARGV_FILTERED+=(--verbose)
-}
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListDebugVerboseCallback() {
-  BASH_FRAMEWORK_ARGV_FILTERED+=(-vv)
-}
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListTraceVerboseCallback() {
-  BASH_FRAMEWORK_ARGV_FILTERED+=(-vvv)
-}
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListEnvFileCallback() { :; }
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListLogLevelCallback() { :; }
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListDisplayLevelCallback() { :; }
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListNoColorCallback() {
-  BASH_FRAMEWORK_ARGV_FILTERED+=(--no-color)
-}
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListThemeCallback() { :; }
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListQuietCallback() { :; }
-
-# shellcheck disable=SC2317 # if function is overridden
-optionHelpCallback() {
-  installScriptCommand help
-  exit 0
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionVersionCallback() {
-  echo "${SCRIPT_NAME} version "
-  exit 0
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionEnvFileCallback() {
-  local envFile="$2"
-  Log::displayWarning "Command ${SCRIPT_NAME} - Option --env-file is deprecated and will be removed in the future"
-  if [[ ! -f "${envFile}" || ! -r "${envFile}" ]]; then
-    Log::displayError "Command ${SCRIPT_NAME} - Option --env-file - File '${envFile}' doesn't exist"
-    exit 1
-  fi
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionInfoVerboseCallback() {
-  BASH_FRAMEWORK_ARGS_VERBOSE_OPTION='--verbose'
-  BASH_FRAMEWORK_ARGS_VERBOSE=${__VERBOSE_LEVEL_INFO}
-  echo "BASH_FRAMEWORK_DISPLAY_LEVEL=${__LEVEL_INFO}" >> "${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionDebugVerboseCallback() {
-  BASH_FRAMEWORK_ARGS_VERBOSE_OPTION='-vv'
-  BASH_FRAMEWORK_ARGS_VERBOSE=${__VERBOSE_LEVEL_DEBUG}
-  echo "BASH_FRAMEWORK_DISPLAY_LEVEL=${__LEVEL_DEBUG}" >> "${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionTraceVerboseCallback() {
-  BASH_FRAMEWORK_ARGS_VERBOSE_OPTION='-vvv'
-  BASH_FRAMEWORK_ARGS_VERBOSE=${__VERBOSE_LEVEL_TRACE}
-  echo "BASH_FRAMEWORK_DISPLAY_LEVEL=${__LEVEL_DEBUG}" >> "${overrideEnvFile}"
-}
-
-getLevel() {
-  local levelName="$1"
-  case "${levelName^^}" in
-    OFF)
-      echo "${__LEVEL_OFF}"
-      ;;
-    ERR | ERROR)
-      echo "${__LEVEL_ERROR}"
-      ;;
-    WARN | WARNING)
-      echo "${__LEVEL_WARNING}"
-      ;;
-    INFO)
-      echo "${__LEVEL_INFO}"
-      ;;
-    DEBUG | TRACE)
-      echo "${__LEVEL_DEBUG}"
-      ;;
-    *)
-      Log::displayError "Command ${SCRIPT_NAME} - Invalid level ${level}"
-      return 1
-  esac
-}
-
-getVerboseLevel() {
-  local levelName="$1"
-  case "${levelName^^}" in
-    OFF)
-      echo "${__VERBOSE_LEVEL_OFF}"
-      ;;
-    ERR | ERROR | WARN | WARNING | INFO)
-      echo "${__VERBOSE_LEVEL_INFO}"
-      ;;
-    DEBUG)
-      echo "${__VERBOSE_LEVEL_DEBUG}"
-      ;;
-    TRACE)
-      echo "${__VERBOSE_LEVEL_TRACE}"
-      ;;
-    *)
-      Log::displayError "Command ${SCRIPT_NAME} - Invalid level ${level}"
-      return 1
-  esac
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionDisplayLevelCallback() {
-  local level="$2"
-  local logLevel verboseLevel
-  logLevel="$(getLevel "${level}")"
-  verboseLevel="$(getVerboseLevel "${level}")"
-  BASH_FRAMEWORK_ARGS_VERBOSE=${verboseLevel}
-  echo "BASH_FRAMEWORK_DISPLAY_LEVEL=${logLevel}" >> "${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionLogLevelCallback() {
-  local level="$2"
-  local logLevel verboseLevel
-  logLevel="$(getLevel "${level}")"
-  verboseLevel="$(getVerboseLevel "${level}")"
-  BASH_FRAMEWORK_ARGS_VERBOSE=${verboseLevel}
-  echo "BASH_FRAMEWORK_LOG_LEVEL=${logLevel}" >> "${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionLogFileCallback() {
-  local logFile="$2"
-  echo "BASH_FRAMEWORK_LOG_FILE='${logFile}'" >> "${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionQuietCallback() {
-  echo "BASH_FRAMEWORK_QUIET_MODE=1" >> "${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionNoColorCallback() {
-  UI::theme "noColor"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionThemeCallback() {
-  UI::theme "$2"
-}
-
-displayConfig() {
-  echo "Config"
-  UI::drawLine "-"
-  local var
-  while read -r var; do
-    printf '%-40s = %s\n' "${var}" "$(declare -p "${var}" | sed -E -e 's/^[^=]+=(.*)/\1/')"
-  done < <(typeset -p | awk 'match($3, "^(BASH_FRAMEWORK_[^=]+)=", m) { print m[1] }' | sort)
-  exit 0
-}
-
-optionBashFrameworkConfigCallback() {
-  if [[ ! -f "$2" ]]; then
-    Log::fatal "Command ${SCRIPT_NAME} - Bash framework config file '$2' does not exists"
-  fi
-}
-
-defaultFrameworkConfig="$(
-  cat <<'EOF'
-# copied from src/_includes/.framework-config.default
-# shellcheck disable=SC2034
-
-REAL_SCRIPT_FILE="${REAL_SCRIPT_FILE:-$(readlink -e "$(realpath "${BASH_SOURCE[0]}")")}"
-FRAMEWORK_ROOT_DIR="${FRAMEWORK_ROOT_DIR:-$(cd "$(readlink -e "${REAL_SCRIPT_FILE%/*}")/../.." && pwd -P)}"
-FRAMEWORK_SRC_DIR="${FRAMEWORK_SRC_DIR:-${FRAMEWORK_ROOT_DIR}/src}"
-FRAMEWORK_BIN_DIR="${FRAMEWORK_BIN_DIR:-${FRAMEWORK_ROOT_DIR}/bin}"
-FRAMEWORK_VENDOR_DIR="${FRAMEWORK_VENDOR_DIR:-${FRAMEWORK_ROOT_DIR}/vendor}"
-FRAMEWORK_VENDOR_BIN_DIR="${FRAMEWORK_VENDOR_BIN_DIR:-${FRAMEWORK_ROOT_DIR}/vendor/bin}"
-
-# describe the functions that will be skipped from being imported
-FRAMEWORK_FUNCTIONS_IGNORE_REGEXP="${FRAMEWORK_FUNCTIONS_IGNORE_REGEXP:-^(Namespace::functions|Functions::myFunction|Namespace::requireSomething|Acquire::ForceIPv4)$}"
-# describe the files that do not contain function to be imported
-NON_FRAMEWORK_FILES_REGEXP="${NON_FRAMEWORK_FILES_REGEXP:-(^bin/|.framework-config|.bats$|/testsData/|^manualTests/|/_.sh$|/ZZZ.sh$|/__all.sh$|^src/_binaries|^src/_includes|^src/batsHeaders.sh$|^src/_standalone)}"
-# describe the files that are allowed to not have an associated bats file
-BATS_FILE_NOT_NEEDED_REGEXP="${BATS_FILE_NOT_NEEDED_REGEXP:-(^bin/|.framework-config|.bats$|/testsData/|^manualTests/|/_.sh$|/ZZZ.sh$|/__all.sh$|^src/batsHeaders.sh$|^src/_includes)}"
-# describe the files that are allowed to not have a function matching the filename
-FRAMEWORK_FILES_FUNCTION_MATCHING_IGNORE_REGEXP="${FRAMEWORK_FILES_FUNCTION_MATCHING_IGNORE_REGEXP:-^bin/|^\.framework-config$|\.tpl$|/testsData/|^manualTests/|\.bats$}"
-# Source directories
-if [[ ! -v FRAMEWORK_SRC_DIRS ]]; then
-  FRAMEWORK_SRC_DIRS=(
-    "${FRAMEWORK_ROOT_DIR}/src"
-  )
-fi
-
-# export here all the variables that will be used in your templates
-export REPOSITORY_URL="${REPOSITORY_URL:-https://github.com/fchastanet/bash-tools-framework}"
-
-BASH_FRAMEWORK_THEME="${BASH_FRAMEWORK_THEME:-default}"
-BASH_FRAMEWORK_LOG_LEVEL="${BASH_FRAMEWORK_LOG_LEVEL:-0}"
-BASH_FRAMEWORK_DISPLAY_LEVEL="${BASH_FRAMEWORK_DISPLAY_LEVEL:-3}"
-BASH_FRAMEWORK_LOG_FILE="${BASH_FRAMEWORK_LOG_FILE:-${FRAMEWORK_ROOT_DIR}/logs/$(basename "$0").log}"
-BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION="${BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION:-5}"
-EOF
-)"
-
-overrideEnvFile="$(Framework::createTempFile "overrideEnvFile")"
-
-commandOptionParseFinished() {
-  # load default template framework config
-  defaultEnvFile="${PERSISTENT_TMPDIR}/.framework-config"
-  echo "${defaultFrameworkConfig}" > "${defaultEnvFile}"
-  local -a files=("${defaultEnvFile}")
-  if [[ -f "${envFile}" ]]; then
-    files+=("${envFile}")
-  fi
-  # shellcheck disable=SC2154
-  if [[ -f "${optionBashFrameworkConfig}" ]]; then
-    files+=("${optionBashFrameworkConfig}")
-  fi
-  files+=("${overrideEnvFile}")
-  Env::requireLoad "${files[@]}"
-  Log::requireLoad
-  # shellcheck disable=SC2154
-  if [[ "${optionConfig}" = "1" ]]; then
-    displayConfig
-  fi
-}
-
-profileHelp() {
-  echo "Profile name to use that contains all the softwares to install"
-  echo "List of profiles available:"
-  echo
-  Conf::list "${BASH_DEV_ENV_ROOT_DIR}/profiles" "" ".sh" "-type f" "   - "  | sort | uniq
-}
-
-softwareArgHelp() {
-  echo "List of softwares to install (--profile option cannot be used in this case)"
-  echo "List of softwares available:"
-  Conf::list "${BASH_DEV_ENV_ROOT_DIR}/installScripts" "" "" "-type f" "" |
-    grep -v -E '^(_.*|MandatorySoftwares)$' | paste -s -d ',' | sed -e 's/,/, /g' || true
-
-}
-
-validateProfile() {
-  if [[ ! -f "${BASH_DEV_ENV_ROOT_DIR}/profiles/$2.sh" ]]; then
-    Log::fatal "Profile file ${BASH_DEV_ENV_ROOT_DIR}/$2.sh doesn't exist"
   fi
 }
 
 export SKIP_INSTALL
 export SKIP_CONFIGURE
 export SKIP_TEST
-export PREPARE_EXPORT
 export SKIP_DEPENDENCIES
 
 installScriptCommand() {
@@ -2385,9 +2128,6 @@ installScriptCommand() {
     SKIP_DEPENDENCIES="0"
     local -i options_parse_optionParsedCountSKIP_DEPENDENCIES
     ((options_parse_optionParsedCountSKIP_DEPENDENCIES = 0)) || true
-    PREPARE_EXPORT="0"
-    local -i options_parse_optionParsedCountPREPARE_EXPORT
-    ((options_parse_optionParsedCountPREPARE_EXPORT = 0)) || true
     local -i options_parse_optionParsedCountOptionBashFrameworkConfig
     ((options_parse_optionParsedCountOptionBashFrameworkConfig = 0)) || true
     optionConfig="0"
@@ -2429,7 +2169,7 @@ installScriptCommand() {
       local options_parse_arg="$1"
       local argOptDefaultBehavior=0
       case "${options_parse_arg}" in
-        # Option 1/19
+        # Option 1/18
         # Option SKIP_CONFIGURE --skip-config|--skip-configure|--skip-configuration variableType Boolean min 0 max 1 authorizedValues '' regexp ''
         --skip-config | --skip-configure | --skip-configuration)
           # shellcheck disable=SC2034
@@ -2440,7 +2180,7 @@ installScriptCommand() {
           fi
           ((++options_parse_optionParsedCountSKIP_CONFIGURE))
           ;;
-        # Option 2/19
+        # Option 2/18
         # Option SKIP_INSTALL --skip-install|--skip-installation variableType Boolean min 0 max 1 authorizedValues '' regexp ''
         --skip-install | --skip-installation)
           # shellcheck disable=SC2034
@@ -2451,7 +2191,7 @@ installScriptCommand() {
           fi
           ((++options_parse_optionParsedCountSKIP_INSTALL))
           ;;
-        # Option 3/19
+        # Option 3/18
         # Option SKIP_TEST --skip-test|--skip-tests variableType Boolean min 0 max 1 authorizedValues '' regexp ''
         --skip-test | --skip-tests)
           # shellcheck disable=SC2034
@@ -2462,7 +2202,7 @@ installScriptCommand() {
           fi
           ((++options_parse_optionParsedCountSKIP_TEST))
           ;;
-        # Option 4/19
+        # Option 4/18
         # Option SKIP_DEPENDENCIES --skip-dependencies|--skip-deps variableType Boolean min 0 max 1 authorizedValues '' regexp ''
         --skip-dependencies | --skip-deps)
           # shellcheck disable=SC2034
@@ -2473,18 +2213,7 @@ installScriptCommand() {
           fi
           ((++options_parse_optionParsedCountSKIP_DEPENDENCIES))
           ;;
-        # Option 5/19
-        # Option PREPARE_EXPORT --prepare-export|-e variableType Boolean min 0 max 1 authorizedValues '' regexp ''
-        --prepare-export | -e)
-          # shellcheck disable=SC2034
-          PREPARE_EXPORT="1"
-          if ((options_parse_optionParsedCountPREPARE_EXPORT >= 1)); then
-            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-            return 1
-          fi
-          ((++options_parse_optionParsedCountPREPARE_EXPORT))
-          ;;
-        # Option 6/19
+        # Option 5/18
         # Option optionBashFrameworkConfig --bash-framework-config variableType String min 0 max 1 authorizedValues '' regexp ''
         --bash-framework-config)
           shift
@@ -2501,7 +2230,7 @@ installScriptCommand() {
           optionBashFrameworkConfig="$1"
           optionBashFrameworkConfigCallback "${options_parse_arg}" "${optionBashFrameworkConfig}"
           ;;
-        # Option 7/19
+        # Option 6/18
         # Option optionConfig --config variableType Boolean min 0 max 1 authorizedValues '' regexp ''
         --config)
           # shellcheck disable=SC2034
@@ -2512,7 +2241,7 @@ installScriptCommand() {
           fi
           ((++options_parse_optionParsedCountOptionConfig))
           ;;
-        # Option 8/19
+        # Option 7/18
         # Option optionInfoVerbose --verbose|-v variableType Boolean min 0 max 1 authorizedValues '' regexp ''
         --verbose | -v)
           # shellcheck disable=SC2034
@@ -2525,7 +2254,7 @@ installScriptCommand() {
           optionInfoVerboseCallback "${options_parse_arg}"
           updateArgListInfoVerboseCallback "${options_parse_arg}"
           ;;
-        # Option 9/19
+        # Option 8/18
         # Option optionDebugVerbose -vv variableType Boolean min 0 max 1 authorizedValues '' regexp ''
         -vv)
           # shellcheck disable=SC2034
@@ -2538,7 +2267,7 @@ installScriptCommand() {
           optionDebugVerboseCallback "${options_parse_arg}"
           updateArgListDebugVerboseCallback "${options_parse_arg}"
           ;;
-        # Option 10/19
+        # Option 9/18
         # Option optionTraceVerbose -vvv variableType Boolean min 0 max 1 authorizedValues '' regexp ''
         -vvv)
           # shellcheck disable=SC2034
@@ -2551,7 +2280,7 @@ installScriptCommand() {
           optionTraceVerboseCallback "${options_parse_arg}"
           updateArgListTraceVerboseCallback "${options_parse_arg}"
           ;;
-        # Option 11/19
+        # Option 10/18
         # Option optionEnvFiles --env-file variableType StringArray min 0 max -1 authorizedValues '' regexp ''
         --env-file)
           shift
@@ -2564,7 +2293,7 @@ installScriptCommand() {
           optionEnvFileCallback "${options_parse_arg}" "${optionEnvFiles[@]}"
           updateArgListEnvFileCallback "${options_parse_arg}" "${optionEnvFiles[@]}"
           ;;
-        # Option 12/19
+        # Option 11/18
         # Option optionNoColor --no-color variableType Boolean min 0 max 1 authorizedValues '' regexp ''
         --no-color)
           # shellcheck disable=SC2034
@@ -2577,7 +2306,7 @@ installScriptCommand() {
           optionNoColorCallback "${options_parse_arg}"
           updateArgListNoColorCallback "${options_parse_arg}"
           ;;
-        # Option 13/19
+        # Option 12/18
         # Option optionTheme --theme variableType String min 0 max 1 authorizedValues 'default|default-force|noColor' regexp ''
         --theme)
           shift
@@ -2599,7 +2328,7 @@ installScriptCommand() {
           optionThemeCallback "${options_parse_arg}" "${optionTheme}"
           updateArgListThemeCallback "${options_parse_arg}" "${optionTheme}"
           ;;
-        # Option 14/19
+        # Option 13/18
         # Option optionHelp --help|-h variableType Boolean min 0 max 1 authorizedValues '' regexp ''
         --help | -h)
           # shellcheck disable=SC2034
@@ -2611,7 +2340,7 @@ installScriptCommand() {
           ((++options_parse_optionParsedCountOptionHelp))
           optionHelpCallback "${options_parse_arg}"
           ;;
-        # Option 15/19
+        # Option 14/18
         # Option optionVersion --version variableType Boolean min 0 max 1 authorizedValues '' regexp ''
         --version)
           # shellcheck disable=SC2034
@@ -2623,7 +2352,7 @@ installScriptCommand() {
           ((++options_parse_optionParsedCountOptionVersion))
           optionVersionCallback "${options_parse_arg}"
           ;;
-        # Option 16/19
+        # Option 15/18
         # Option optionQuiet --quiet|-q variableType Boolean min 0 max 1 authorizedValues '' regexp ''
         --quiet | -q)
           # shellcheck disable=SC2034
@@ -2636,7 +2365,7 @@ installScriptCommand() {
           optionQuietCallback "${options_parse_arg}"
           updateArgListQuietCallback "${options_parse_arg}"
           ;;
-        # Option 17/19
+        # Option 16/18
         # Option optionLogLevel --log-level variableType String min 0 max 1 authorizedValues 'OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE' regexp ''
         --log-level)
           shift
@@ -2658,7 +2387,7 @@ installScriptCommand() {
           optionLogLevelCallback "${options_parse_arg}" "${optionLogLevel}"
           updateArgListLogLevelCallback "${options_parse_arg}" "${optionLogLevel}"
           ;;
-        # Option 18/19
+        # Option 17/18
         # Option optionLogFile --log-file variableType String min 0 max 1 authorizedValues '' regexp ''
         --log-file)
           shift
@@ -2676,7 +2405,7 @@ installScriptCommand() {
           optionLogFileCallback "${options_parse_arg}" "${optionLogFile}"
           updateArgListLogFileCallback "${options_parse_arg}" "${optionLogFile}"
           ;;
-        # Option 19/19
+        # Option 18/18
         # Option optionDisplayLevel --display-level variableType String min 0 max 1 authorizedValues 'OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE' regexp ''
         --display-level)
           shift
@@ -2724,7 +2453,7 @@ installScriptCommand() {
     echo -e "$(Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" "${SCRIPT_NAME}" "[OPTIONS]")"
     echo -e "$(Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" \
       "${SCRIPT_NAME}" \
-      "[--skip-config|--skip-configure|--skip-configuration]" "[--skip-install|--skip-installation]" "[--skip-test|--skip-tests]" "[--skip-dependencies|--skip-deps]" "[--prepare-export|-e]" "[--bash-framework-config <String>]" "[--config]" "[--verbose|-v]" "[-vv]" "[-vvv]" "[--env-file <String>]" "[--no-color]" "[--theme <String>]" "[--help|-h]" "[--version]" "[--quiet|-q]" "[--log-level <String>]" "[--log-file <String>]" "[--display-level <String>]")"
+      "[--skip-config|--skip-configure|--skip-configuration]" "[--skip-install|--skip-installation]" "[--skip-test|--skip-tests]" "[--skip-dependencies|--skip-deps]" "[--bash-framework-config <String>]" "[--config]" "[--verbose|-v]" "[-vv]" "[-vvv]" "[--env-file <String>]" "[--no-color]" "[--theme <String>]" "[--help|-h]" "[--version]" "[--quiet|-q]" "[--log-level <String>]" "[--log-file <String>]" "[--display-level <String>]")"
     echo
     echo -e "${__HELP_TITLE_COLOR}OPTIONS:${__RESET_COLOR}"
     echo -e "  ${__HELP_OPTION_COLOR}--skip-config${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}--skip-configure${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}--skip-configuration${__HELP_NORMAL} {single}"
@@ -2746,11 +2475,6 @@ installScriptCommand() {
     local -a helpArray
     # shellcheck disable=SC2054
     helpArray=(install\ the\ software\ requested\ without\ resolving\ dependencies)
-    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
-    echo -e "  ${__HELP_OPTION_COLOR}--prepare-export${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-e${__HELP_NORMAL} {single}"
-    local -a helpArray
-    # shellcheck disable=SC2054
-    helpArray=(prepare\ the\ wsl\ installation\ for\ export\ \(remove\ all\ sensitive\ files\))
     echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
     echo
     echo -e "${__HELP_TITLE_COLOR}GLOBAL OPTIONS:${__RESET_COLOR}"
@@ -2830,6 +2554,9 @@ installScriptCommand() {
     echo '    Possible values: OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE'
     Array::wrap2 ' ' 76 0 "$(helpLongDescriptionCallback)"
     echo
+    echo -n -e "${__HELP_TITLE_COLOR}VERSION: ${__RESET_COLOR}"
+    echo '1.0'
+    echo
     echo -e "${__HELP_TITLE_COLOR}AUTHOR:${__RESET_COLOR}"
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
@@ -2871,8 +2598,6 @@ helpLongDescriptionCallback() {
   echo -e "${__HELP_TITLE}List of dependencies:${__HELP_NORMAL}"
   stringOrNone "$(dependencies)"
 }
-
-Engine::Config::loadConfig
 
 scriptName() {
   echo "ConformanceTest"

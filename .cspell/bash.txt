@@ -64,3 +64,17 @@ zstyle
 SIGINT
 scrasnups
 Chastanet
+tput
+setaf
+srmo
+ABRT
+elif
+adduser
+autoclean
+mapfile
+noargs
+unstub
+exitcode
+substr
+allexport
+readarray
