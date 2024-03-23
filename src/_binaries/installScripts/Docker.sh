@@ -85,44 +85,20 @@ install() {
   sudo getent group docker >/dev/null || sudo groupadd docker || true
   sudo usermod -aG docker "${USERNAME}" || true
 
-  Log::displayInfo "Configure dockerd"
-  # see https://dev.to/bowmanjd/install-docker-on-windows-wsl-without-docker-desktop-34m9
-  # see https://dev.solita.fi/2021/12/21/docker-on-wsl2-without-docker-desktop.html
-  DOCKER_DIR="/var/run/docker-data"
-  DOCKER_SOCK="${DOCKER_DIR}/docker.sock"
-  DOCKER_HOST="unix://${DOCKER_SOCK}"
-  export DOCKER_HOST
-
-  if [[ ! -d "${DOCKER_DIR}" ]]; then
-    sudo mkdir -pm o=,ug=rwx "${DOCKER_DIR}" || exit 1
-  fi
-  sudo chgrp docker "${DOCKER_DIR}"
-  if [[ ! -d "/etc/docker" ]]; then
-    sudo mkdir -p /etc/docker || exit 1
-  fi
-
-  # # shellcheck disable=SC2174
-  # if [[ ! -f "/etc/docker/daemon.json" ]]; then
-  #   Log::displayInfo "Creating /etc/docker/daemon.json"
-  #   LOCAL_DNS1="$(grep nameserver </etc/resolv.conf | cut -d ' ' -f 2)"
-  #   LOCAL_DNS2="$(ip --json --family inet addr show eth0 | jq -re '.[].addr_info[].local')"
-  #   (
-  #     echo "{"
-  #     echo "  \"hosts\": [\"${DOCKER_HOST}\"],"
-  #     echo "  \"dns\": [\"${LOCAL_DNS1}\", \"${LOCAL_DNS2}\", \"8.8.8.8\", \"8.8.4.4\"]"
-  #     echo "}"
-  #   ) | sudo tee /etc/docker/daemon.json
-  # fi
-
   Log::displayInfo "Installing docker-compose"
+  # shellcheck disable=SC2317
+  dockerComposeVersionCallback() {
+    echo "v$(Version::getCommandVersionFromPlainText "$@")"
+  }
+  export -f dockerComposeVersionCallback
   # shellcheck disable=SC2154
   SUDO=sudo "${embed_function_GithubUpgradeRelease}" \
     /usr/local/bin/docker-compose \
     "https://github.com/docker/compose/releases/download/@latestVersion@/docker-compose-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)" \
     "--version" \
-    defaultVersion
+    dockerComposeVersionCallback
 
-  rm -f /usr/bin/docker-compose || true
+  sudo rm -f /usr/bin/docker-compose || true
   sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
 }
 
@@ -146,8 +122,8 @@ testInstall() {
     fi
   fi
 
-  Version::checkMinimal "docker" "docker --version" "25.0.3" || ((++failures))
-  Version::checkMinimal "docker-compose" "docker-compose --version" "2.23.1" || ((++failures))
+  Version::checkMinimal "docker" --version "25.0.3" || ((++failures))
+  Version::checkMinimal "docker-compose" --version "2.23.1" || ((++failures))
 
   echo
   UI::drawLine "-"
@@ -157,7 +133,7 @@ testInstall() {
 
   dockerIsStarted() {
     DOCKER_PS="$(docker ps 2>&1 || true)"
-    [[ -S "${DOCKER_SOCK}" && ! "${DOCKER_PS}" =~ "Cannot connect to the Docker daemon" ]]
+    [[ ! "${DOCKER_PS}" =~ "Cannot connect to the Docker daemon" ]]
   }
   Log::displayInfo "Checking if docker is started ..."
   if dockerIsStarted; then
@@ -199,6 +175,13 @@ testConfigure() {
       ((++failures))
     }
   }
+
+  Log::displayInfo "check if docker container can be launched"
+  if ! docker run --rm hello-world | grep -q "Hello from Docker!"; then
+    ((++failures))
+    Log::displayError "docker container cannot be launched"
+  fi
+  docker image rm hello-world || true
 
   return "${failures}"
 }

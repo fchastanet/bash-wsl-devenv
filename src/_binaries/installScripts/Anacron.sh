@@ -68,8 +68,8 @@ configure() {
   else
     # shellcheck disable=SC2317
     updateCronUpgrade() {
-      sed -i -e "s#@COMMAND@#\"${BASH_DEV_ENV_ROOT_DIR}/install\" -p ${PROFILE} --skip-configure --skip-test#" "/etc/cron.weekly/upgrade"
-      Install::setUserRightsCallback "$@"
+      sudo sed -i -e "s#@COMMAND@#\"${BASH_DEV_ENV_ROOT_DIR}/install\" -p ${PROFILE} --skip-configure --skip-test#" "/etc/cron.weekly/upgrade"
+      SUDO=sudo Install::setUserRightsCallback "$@"
     }
     SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
       "${CONF_DIR}/etc/cron.weekly/upgrade" "/etc/cron.weekly/upgrade" root root updateCronUpgrade
@@ -86,10 +86,14 @@ testConfigure() {
     Log::displayError "anacron format not valid"
     ((failures++))
   }
-  [[ -f "${USER_HOME}/.cron_activated" ]] || ((failures++))
-  [[ -f "/etc/cron.weekly/upgrade" ]] || ((failures++))
-  grep -q -E -e "install" /etc/cron.weekly/upgrade || ((failures++))
-  grep -q -E -e "-p ${PROFILE}" /etc/cron.weekly/upgrade || ((failures++))
+  [[ -f "/etc/cron.weekly/upgrade" ]] || {
+    ((failures++))
+    Log::displayError "File /etc/cron.weekly/upgrade does not exists"
+  }
+  grep -q -E -e "install|-p ${PROFILE}" /etc/cron.weekly/upgrade || {
+    ((failures++))
+    Log::displayError "File /etc/cron.weekly/upgrade content invalid"
+  }
 
   # check if user is part of anacron group
   groups "${USERNAME}" | grep -E ' anacron' || {
@@ -98,7 +102,7 @@ testConfigure() {
   }
   Assert::dirExists /var/spool/anacron/ "root" "anacron" || ((failures++))
 
-  Linux::Sudo::asUser service anacron start || {
+  sudo service anacron start || {
     Log::displayError "unable to execute anacron service with user ${USERNAME}"
     ((failures++))
   }

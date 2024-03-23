@@ -131,7 +131,8 @@ run() {
   export WSL_GARBAGE_COLLECT=0
   export WSL_INIT=0
   export CHECK_ENV=0
-  export LOAD_THEME=0
+  # force interactive mode, otherwise Assert::tty return false
+  export INTERACTIVE=1
 
   if executeScripts; then
     Log::displaySuccess "Successful Installation"

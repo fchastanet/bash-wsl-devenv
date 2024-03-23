@@ -25,7 +25,7 @@ Stats::statusLine() {
     elif [[ "${status}" = "-1" ]]; then
       statusMsg="ABORTED - ${msg} not executed"
     else
-      statusMsg="ERROR  - ${msg} in error"
+      statusMsg="ERROR   - ${msg} in error"
     fi
     # overwrite final TEST line
     echo -e "${color}${statusMsg}${__RESET_COLOR}"

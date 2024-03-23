@@ -380,7 +380,10 @@ CAN_TALK_DURING_INSTALLATION=1
 
 # if 1 install script will skip all interactive activity (saml2aws, ...),
 # so dependent installation will be skipped as well
-NON_INTERACTIVE=0
+INSTALL_NON_INTERACTIVE=0
+
+# display elapsed time since last log
+DISPLAY_DURATION=1
 
 # -----------------------------------------
 # WSLCONFIG - these parameters will help to automatically
@@ -399,6 +402,20 @@ WSLCONFIG_SWAP=0
 #POWERSHELL_BIN=/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
 #IPCONFIG_BIN=/mnt/c/Windows/system32/ipconfig.exe
 #WSL_EXE_BIN=/mnt/c/Windows/system32/wsl.exe
+
+# -----------------------------------------
+# Distro
+# Only necessary when using the script distro
+# to create or update a wsl distribution
+
+# The name of the distro displayed in `wsl -l -v` command
+DISTRO_NAME="UbuntuTest"
+# where to download the distribution
+DISTRO_URL="https://aka.ms/wslubuntu2004"
+# Profile to use with install command
+DISTRO_INSTALL_PROFILE="default"
+# The path where bash-dev-env project will be copied into target distro
+DISTRO_BASH_DEV_ENV_TARGET_DIR="${BASH_DEV_ENV_ROOT_DIR}"
 EOF
 )"
 
@@ -434,7 +451,6 @@ Engine::Config::loadConfig() {
   #Linux::Wsl::initEnv
   Engine::Config::loadWslVariables
 
-  Engine::Config::createSudoerFile
   Engine::Config::installUpdateEnv "${CONF_DIR}" "${LDAP_LOGIN}" "${WINDOWS_PROFILE_DIR}"
   Log::requireLoad
 
@@ -617,12 +633,31 @@ Log::displayError() {
   Log::logError "$1"
 }
 
+FIRST_LOG_DATE="$(date '+%s%3N')"
+LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
+LOG_LAST_LOG_DATE_INIT=1
+
 # @description Display message using info color (bg light blue/fg white)
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
 Log::displayInfo() {
   local type="${2:-INFO}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    echo -e "${__INFO_COLOR}${type}    - ${1}${__RESET_COLOR}" >&2
+    local durationMsg=""
+    if ((DISPLAY_DURATION == 1)); then
+      local duration
+      local -i currentLogDate
+      currentLogDate="$(date '+%s%3N')"
+      if ((LOG_LAST_LOG_DATE_INIT == 1)); then
+        LOG_LAST_LOG_DATE_INIT=0
+        duration="Ref"
+      else
+        duration="$(( (currentLogDate - FIRST_LOG_DATE) /1000 ))s/+$(( (currentLogDate - LOG_LAST_LOG_DATE) /1000 ))s"
+      fi
+      LOG_LAST_LOG_DATE="${currentLogDate}"
+      durationMsg="$(date '+%H:%M:%S.%3N')(${duration}) - "
+    fi
+    echo -e "${__INFO_COLOR}${type}    - ${durationMsg}${1}${__RESET_COLOR}" >&2
   fi
   Log::logInfo "$1" "${type}"
 }
@@ -791,7 +826,6 @@ Compiler::Facade::requireCommandBinDir() {
 # @exitcode 1 if tty not active
 # @env NON_INTERACTIVE if 1 consider as not interactive even if environment is interactive
 # @env INTERACTIVE if 1 consider as interactive even if environment is not interactive
-# @stderr diagnostic information + help if second argument is provided
 Assert::tty() {
   if [[ "${NON_INTERACTIVE:-0}" = "1" ]]; then
     return 1
@@ -799,6 +833,7 @@ Assert::tty() {
   if [[ "${INTERACTIVE:-0}" = "1" ]]; then
     return 0
   fi
+  # check if stdout or stderr is connected to terminal
   [[ -t 1 || -t 2 ]]
 }
 
@@ -893,7 +928,7 @@ Engine::Config::checkEnv() {
   checkValidValues OVERWRITE_CONFIG_FILES 0 1
   checkValidValues CHANGE_WINDOWS_FILES 0 1
   checkValidValues CAN_TALK_DURING_INSTALLATION 0 1
-  checkValidValues NON_INTERACTIVE 0 1
+  checkValidValues INSTALL_NON_INTERACTIVE 0 1
 
   checkNotEmpty WSLCONFIG_MAX_MEMORY
   checkValidValues WSLCONFIG_SWAP 0 1
@@ -911,30 +946,6 @@ Engine::Config::createEnvFileFromTemplate() {
     Log::displayError "a default env file has been created, please edit ${envFile}"
     return 1
   fi
-}
-
-# @description set sudoer without password temporarily
-# @env USERNAME
-# @env USER_HOME
-# @set SUDOER_CHANGE
-Engine::Config::createSudoerFile() {
-  local sudoerFile="/etc/sudoers.d/${USERNAME}-bash-dev-env-no-password"
-
-  # create /etc/sudoers.d/userName-bash-dev-env
-  local sudoerChange="${USERNAME} ALL=(ALL) NOPASSWD: ${BASH_DEV_ENV_ROOT_DIR}/install,/etc/cron.weekly/upgrade,/usr/sbin/service,${BASH_DEV_ENV_ROOT_DIR}/installScripts"
-  if [[ "${sudoerChange}" != "$(sudo cat "${sudoerFile}" 2>/dev/null || echo -n '')" ]]; then
-    echo "${sudoerChange}" | sudo tee "${sudoerFile}"
-    sudo chmod 0440 "${sudoerFile}"
-
-    echo "this file indicates that sudo has been configured to execute without password" |
-      sudo tee "${USER_HOME}/.cron_activated" >/dev/null
-
-    sudo visudo -c -s || {
-      Log::displayError "Please check syntax of '${sudoerFile}' before closing this session - 'sudo visudo'"
-      return 1
-    }
-  fi
-
 }
 
 # @description install or update /etc/profile.d/updateEnv.sh file
@@ -1391,7 +1402,9 @@ Install::setUserRootCallback() {
 # @feature Retry::default
 # Linux::requireSudoCommand
 # @require Linux::requireUbuntu
+# @stdout diagnostics logs
 Linux::Apt::install() {
+  Log::displayInfo "Apt install $*"
   Retry::default sudo apt-get install -y -q "$@"
 }
 
@@ -1399,7 +1412,9 @@ Linux::Apt::install() {
 # @feature Retry::default
 # Linux::requireSudoCommand
 # @require Linux::requireUbuntu
+# @stdout diagnostics logs
 Linux::Apt::update() {
+  Log::displayInfo "Apt update ..."
   Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
 }
 
@@ -1526,7 +1541,7 @@ Stats::statusLine() {
     elif [[ "${status}" = "-1" ]]; then
       statusMsg="ABORTED - ${msg} not executed"
     else
-      statusMsg="ERROR  - ${msg} in error"
+      statusMsg="ERROR   - ${msg} in error"
     fi
     # overwrite final TEST line
     echo -e "${color}${statusMsg}${__RESET_COLOR}"
@@ -1850,6 +1865,28 @@ Compiler::Facade::requireCommandBinDir
 
 if Assert::functionExists initFacade; then
   initFacade
+fi
+Engine::Config::loadConfig
+# @description create sudoer file and add traps to remove it at the end
+# @arg $1 sudoerFile:String the file path to create
+# @env USERNAME
+# shellcheck disable=SC2317
+local sudoerFile="${SUDOER_FILE_PREFIX}/etc/sudoers.d/bash-dev-env-no-password"
+if [[ -f "${sudoerFile}" ]]; then
+  # sudoerFile probably already managed by parent script
+  true
+else
+  cleanSudoer() {
+    if [[ -f "${sudoerFile}" ]]; then
+      ${SUDO:-sudo} rm -f "${sudoerFile}" || true
+    fi
+  }
+  trap cleanSudoer EXIT HUP QUIT ABRT TERM
+
+  Log::displayInfo "Creating sudoer file"
+  echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" |
+    ${SUDO:-sudo} tee "${sudoerFile}" >/dev/null
+  ${SUDO:-sudo} chmod 0440 "${sudoerFile}"
 fi
 
 # @require Compiler::Facade::requireCommandBinDir
@@ -2871,8 +2908,6 @@ helpLongDescriptionCallback() {
   echo -e "${__HELP_TITLE}List of dependencies:${__HELP_NORMAL}"
   stringOrNone "$(dependencies)"
 }
-
-Engine::Config::loadConfig
 
 scriptName() {
   echo "ConformanceTest"

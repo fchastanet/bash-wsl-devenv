@@ -287,24 +287,24 @@ given folder each time we launch a shell if necessary:
 - From UbuntuTest
 
 ```bash
-mkdir /mnt/wsl/UbuntuTest
-sudo mount --bind / /mnt/wsl/UbuntuTest
+mkdir "/mnt/wsl/${WSL_DISTRO_NAME}"
+sudo mount --bind / "/mnt/wsl/${WSL_DISTRO_NAME}"
 ```
 
 - From your current distro
 
 ```bash
-mkdir /mnt/wsl/Ubuntu-20.04
-sudo mount --bind / /mnt/wsl/Ubuntu-20.04
+mkdir "/mnt/wsl/${WSL_DISTRO_NAME}"
+sudo mount --bind / "/mnt/wsl/${WSL_DISTRO_NAME}"
 ```
 
 - allow folder to be shared between the 2 distros
   - from main distro, add these lines to .bashrc or .zshrc
 
 ```bash
-if [[ ! -d /mnt/wsl/Ubuntu-20.04 ]]; then
-  mkdir -p /mnt/wsl/Ubuntu-20.04
-  sudo mount --bind / /mnt/wsl/Ubuntu-20.04
+if [[ ! -d "/mnt/wsl/${WSL_DISTRO_NAME}" ]]; then
+  mkdir -p "/mnt/wsl/${WSL_DISTRO_NAME}"
+  sudo mount --bind / "/mnt/wsl/${WSL_DISTRO_NAME}"
 fi
 ```
 
@@ -314,13 +314,16 @@ fi
   be reflected into main distro and vice-versa
 
 ```bash
-if [[ ! -d /mnt/wsl/UbuntuTest ]]; then
-  mkdir -p /mnt/wsl/UbuntuTest
-  sudo mount --bind / /mnt/wsl/UbuntuTest
+if [[ ! -d "/mnt/wsl/${WSL_DISTRO_NAME}" ]]; then
+  mkdir -p "/mnt/wsl/${WSL_DISTRO_NAME}"
+  sudo mount --bind / "/mnt/wsl/${WSL_DISTRO_NAME}"
 fi
-if [[ -d /mnt/wsl/Ubuntu-20.04 ]]; then
+MASTER_DISTRO=Ubuntu-20.04
+if [[ -d "/mnt/wsl/${MASTER_DISTRO}" ]]; then
   mkdir -p ~/projects/bash-dev-env
-  sudo mount --bind /mnt/wsl/Ubuntu-20.04/home/wsl/fchastanet/bash-dev-env ~/projects/bash-dev-env
+  sudo mount --bind \
+    "/mnt/wsl/${MASTER_DISTRO}/home/wsl/fchastanet/bash-dev-env" \
+    ~/projects/bash-dev-env
 fi
 ```
 
