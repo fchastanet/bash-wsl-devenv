@@ -3,6 +3,10 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/update-motd.d/00-wsl-header" as motd00
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/update-motd.d/01-wsl-sysinfo" as motd01
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/update-motd.d/03-wsl-automatic-upgrade" as motd03
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/cron.daily/motd" as dailyMotd
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
@@ -60,25 +64,32 @@ install() {
 }
 
 configure() {
-  set -x
-  set -o
+  local fileToInstall
+  # shellcheck disable=SC2154
+  fileToInstall="$(Conf::dynamicConfFile "etc/update-motd.d/00-wsl-header" "${embed_file_motd00}")" || return 1
   SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${CONF_DIR}/etc/update-motd.d/00-wsl-header" "/etc/update-motd.d/00-wsl-header" \
+    "${fileToInstall}" "/etc/update-motd.d/00-wsl-header" \
     "root" "root" \
     Install::setRootExecutableCallback || return 1
 
+  # shellcheck disable=SC2154
+  fileToInstall="$(Conf::dynamicConfFile "etc/update-motd.d/01-wsl-sysinfo" "${embed_file_motd01}")" || return 1
   SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${CONF_DIR}/etc/update-motd.d/01-wsl-sysinfo" "/etc/update-motd.d/01-wsl-sysinfo" \
+    "${fileToInstall}" "/etc/update-motd.d/01-wsl-sysinfo" \
     "root" "root" \
     Install::setRootExecutableCallback || return 1
 
+  # shellcheck disable=SC2154
+  fileToInstall="$(Conf::dynamicConfFile "etc/update-motd.d/03-wsl-automatic-upgrade" "${embed_file_motd03}")" || return 1
   SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${CONF_DIR}/etc/update-motd.d/03-wsl-automatic-upgrade" "/etc/update-motd.d/03-wsl-automatic-upgrade" \
+    "${fileToInstall}" "/etc/update-motd.d/03-wsl-automatic-upgrade" \
     "root" "root" \
     Install::setRootExecutableCallback || return 1
 
+  # shellcheck disable=SC2154
+  fileToInstall="$(Conf::dynamicConfFile "etc/cron.daily/motd" "${embed_file_dailyMotd}")" || return 1
   SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${CONF_DIR}/etc/cron.daily/motd" "/etc/cron.daily/motd" \
+    "${fileToInstall}" "/etc/cron.daily/motd" \
     "root" "root" \
     Install::setRootExecutableCallback || return 1
 

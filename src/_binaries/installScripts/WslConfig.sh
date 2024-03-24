@@ -3,6 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/wsl.conf" as wslConf
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
@@ -54,8 +55,11 @@ configure() {
   sudo hostnamectl set-hostname "${DISTRO_HOSTNAME}"
   SUDO=sudo Dns::addHost "${DISTRO_HOSTNAME}"
   if Assert::wsl && [[ ! -f "/etc/wsl.conf" ]]; then
+    local fileToInstall
+    # shellcheck disable=SC2154
+    fileToInstall="$(Conf::dynamicConfFile "etc/wsl.conf" "${embed_file_wslConf}")" || return 1
     SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-      "${CONF_DIR}/etc/wsl.conf" "/etc/wsl.conf" root root "Install::setUserRootCallback"
+      "${fileToInstall}" "/etc/wsl.conf" root root "Install::setUserRootCallback"
   fi
 }
 

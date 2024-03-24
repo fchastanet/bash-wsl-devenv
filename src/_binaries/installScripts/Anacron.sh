@@ -3,6 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/cron.weekly/upgrade" as upgrade
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
@@ -71,8 +72,11 @@ configure() {
       sudo sed -i -e "s#@COMMAND@#\"${BASH_DEV_ENV_ROOT_DIR}/install\" -p ${PROFILE} --skip-configure --skip-test#" "/etc/cron.weekly/upgrade"
       SUDO=sudo Install::setUserRightsCallback "$@"
     }
+    local upgradeFile
+    # shellcheck disable=SC2154
+    upgradeFile="$(Conf::dynamicConfFile "/etc/cron.weekly/upgrade" "${embed_file_upgrade}")" || return 1
     SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-      "${CONF_DIR}/etc/cron.weekly/upgrade" "/etc/cron.weekly/upgrade" root root updateCronUpgrade
+      "${upgradeFile}" "/etc/cron.weekly/upgrade" root root updateCronUpgrade
   fi
 }
 

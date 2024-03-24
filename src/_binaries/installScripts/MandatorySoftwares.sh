@@ -3,6 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/profile.d/updateEnv.sh" as updateEnv
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
@@ -88,8 +89,11 @@ configure() {
       "/etc/profile.d/updateEnv.sh"
     Install::setRootExecutableCallback "$@"
   }
+  local fileToInstall
+  # shellcheck disable=SC2154
+  fileToInstall="$(Conf::dynamicConfFile "etc/profile.d/updateEnv.sh" "${embed_file_updateEnv}")" || return 1
   SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${CONF_DIR}/etc/profile.d/updateEnv.sh" "/etc/profile.d/updateEnv.sh" \
+    "${fileToInstall}" "/etc/profile.d/updateEnv.sh" \
     "root" "root" updateEnvConfig
 }
 

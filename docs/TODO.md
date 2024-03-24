@@ -24,8 +24,7 @@
   - [2.16. add automatic ecr](#216-add-automatic-ecr)
   - [2.17. replace curl by aria2](#217-replace-curl-by-aria2)
   - [2.18. replace docker for windows](#218-replace-docker-for-windows)
-- [dynamicConfDir](#dynamicconfdir)
-- [no need of embed_function_InstallFile](#no-need-of-embed_function_installfile)
+- [no need of embed\_function\_InstallFile](#no-need-of-embed_function_installfile)
 
 ## 1. Needed refactoring (WIP)
 
@@ -173,11 +172,6 @@ add megalinter to pre-commit
 
 Podman ?
 <https://dev.to/bowmanjd/using-podman-on-windows-subsystem-for-linux-wsl-58ji>
-
-## dynamicConfDir
-
-instead of `"${CONF_DIR}/...` use dynamicConfDir to use conf_override if
-applicable
 
 ## no need of embed_function_InstallFile
 

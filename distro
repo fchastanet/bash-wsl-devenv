@@ -875,6 +875,7 @@ Engine::Config::createEnvFileFromTemplate() {
 # @env CONF_DIR
 # @env LDAP_LOGIN
 # @env WINDOWS_PROFILE_DIR
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/profile.d/updateEnv.sh" as updateEnv
 Engine::Config::installUpdateEnv() {
   if [[ "${INSTALL_UPDATE_ENV:-1}" = "1" ]]; then
     # INSTALL_UPDATE_ENV avoids infinite loop
@@ -882,8 +883,11 @@ Engine::Config::installUpdateEnv() {
   fi
 
   if [[ ! -f '/etc/profile.d/updateEnv.sh' || "${CONF_DIR}/etc/profile.d/updateEnv.sh" -nt "/etc/profile.d/updateEnv.sh" ]]; then
+    local fileToInstall
+    # shellcheck disable=SC2154
+    fileToInstall="$(Conf::dynamicConfFile "etc/profile.d/updateEnv.sh" "${embed_file_updateEnv}")" || return 1
     SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-      "${CONF_DIR}/etc/profile.d/updateEnv.sh" '/etc/profile.d/updateEnv.sh' \
+      "${fileToInstall}" '/etc/profile.d/updateEnv.sh' \
       Install::setUserRootCallback
   fi
   if [[ "$(perl -ne 'if (/export LDAP_LOGIN=(.*)/) { print $1 }' "/etc/profile.d/updateEnv.sh")" != "${LDAP_LOGIN}" ]]; then
@@ -1244,6 +1248,30 @@ Assert::varExistsAndNotEmpty() {
 # @exitcode 1 on error
 Assert::wsl() {
   [[ "$(uname -o)" = "GNU/Linux" ]]
+}
+
+# @description select right file to load depending if file exists in this order:
+# - from conf.override
+# - from embedded file if provided
+# - from conf dir
+# @arg $1 file:String
+# @arg $2 embedFile:String eventual embedded file
+# @exitcode 1 if file does not exist at all
+Conf::dynamicConfFile() {
+  local file="${1/#\//}" # remove first slash if any
+  local embedFile="${2:-}"
+  if [[ -f "${CONF_OVERRIDE_DIR}/${file}" ]]; then
+    echo "${CONF_OVERRIDE_DIR}/${file}"
+    return 0
+  elif [[ -f "${embedFile}" ]]; then
+    echo "${embedFile}"
+    return 0
+  elif [[ -f "${CONF_DIR}/${file}" ]]; then
+    echo "${CONF_DIR}/${file}"
+    return 0
+  fi
+  Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
+  return 1
 }
 
 # @description installs file to given directory
