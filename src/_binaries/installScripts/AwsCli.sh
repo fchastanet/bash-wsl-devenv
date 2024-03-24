@@ -80,8 +80,8 @@ install() {
 configure() {
   # shellcheck disable=SC2317
   configureAwsConfig() {
-    sed -i \
-      -e "s#azure_default_username=#azure_default_username=${AWS_USER_MAIL}#" \
+    sed -i -E \
+      -e "s#azure_default_username=.+\$#azure_default_username=${AWS_USER_MAIL}#" \
       "${USER_HOME}/.aws/config"
     Install::setUserRightsCallback "$@"
   }
@@ -92,9 +92,27 @@ configure() {
 }
 
 testInstall() {
-  Version::checkMinimal "docker" --version "2.13.35" || ((++failures))
+  Version::checkMinimal "aws" --version "2.13.32" || ((++failures))
 }
 
 testConfigure() {
   Assert::fileExists "${USER_HOME}/.aws/config" "${USERNAME}" "${USERGROUP}" || return 1
+
+  if grep -q -E -e "azure_default_username=.+$" "${USER_HOME}/.aws/config"; then
+    # case where .aws/config has been overridden in conf_override folder
+    local azureUserName
+    azureUserName="$(sed -nr 's/azure_default_username=(.*)$/\1/p' "${USER_HOME}/.aws/config")"
+    if [[ -z "${azureUserName}" ]]; then
+      ((++failures))
+      Log::displayError "empty azure_default_username in '${USER_HOME}/.aws/config'"
+    elif [[ "${azureUserName}" != "${AWS_USER_MAIL}" ]]; then
+      Log::displayWarning "azureUserName is not the same as AWS_USER_MAIL in ${BASH_DEV_ENV_ROOT_DIR}/.env"
+    fi
+  elif ! grep -q -E -e "^\[default\]$" "${USER_HOME}/.aws/config"; then
+    ((++failures))
+    Log::displayError "default configuration not found in '${USER_HOME}/.aws/config'"
+  fi
+
+return "${failures}"
+
 }

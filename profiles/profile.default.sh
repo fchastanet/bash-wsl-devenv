@@ -16,6 +16,7 @@ CONFIG_LIST+=(
   "Docker"
   "Motd"
   "AwsCli"
+  "Saml2Aws"
 )
 
 # Mandatory packages

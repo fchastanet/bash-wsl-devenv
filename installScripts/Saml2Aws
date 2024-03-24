@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Docker.sh
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Saml2Aws.sh
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
 # shellcheck disable=SC2288,SC2034
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Docker
+# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Saml2Aws
 
 # ensure that no user aliases could interfere with
 # commands used in this script
@@ -224,11 +224,53 @@ Array::wrap2() {
   ) | sed -E -e 's/[[:blank:]]+$//'
 }
 
+# @description asserts that first argument is file that exists with specified ownership
+# @arg $1 file:String
+# @arg $2 user:String expected owner user name of the file (default: USERNAME or id -un command)
+# @arg $3 group:String expected owner group name of the file (default: USERGROUP or id -gn command)
+# @env USERNAME String if arg $2 is not provided
+# @env USERGROUP String if arg $3 is not provided
+# @exitcode 1 if missing file
+# @exitcode 2 if incorrect user ownership
+# @exitcode 3 if incorrect group ownership
+# @stderr diagnostics information is displayed
+Assert::fileExists() {
+  local file="$1"
+  local user="${2:-${USERNAME}}"
+  local group="${3:-${USERGROUP}}"
+  Log::displayInfo "Check ${file} exists with user ${user}:${group}"
+  if [[ ! -f "${file}" ]]; then
+    Log::displayError "missing file ${file}"
+    return 1
+  fi
+  if [[ "${user}" != "$(stat -c '%U' "${file}")" ]]; then
+    Log::displayError "incorrect user ownership on file ${file}"
+    return 2
+  fi
+  if [[ "${group}" != "$(stat -c '%G' "${file}")" ]]; then
+    Log::displayError "incorrect group ownership on file ${file}"
+    return 3
+  fi
+}
+
 # @description checks if function name provided exists
 # @arg $1 functionName:String
 # @exitcode 1 if function name doesn't exist
 Assert::functionExists() {
   declare -F "$1" >/dev/null
+}
+
+# @description determine if the script is executed under WSL
+# cspell:disable
+# @example text
+#   uname GitBash windows (with wsl) => MINGW64_NT-10.0 ZOXFL-6619QN2 2.10.0(0.325/5/3) 2018-06-13 23:34 x86_64 Msys
+#   uname GitBash windows (wo wsl)   => MINGW64_NT-10.0 frsa02-j5cbkc2 2.9.0(0.318/5/3) 2018-01-12 23:37 x86_64 Msys
+#   uname wsl => Linux ZOXFL-6619QN2 4.4.0-17134-Microsoft #112-Microsoft Thu Jun 07 22:57:00 PST 2018 x86_64 x86_64 x86_64 GNU/Linux
+# cspell:enable
+#
+# @exitcode 1 on error
+Assert::wsl() {
+  [[ "$(uname -o)" = "GNU/Linux" ]]
 }
 
 # @description convert base64 encoded back to target file
@@ -555,40 +597,6 @@ InstallScripts::command() {
   fi
 }
 
-# @description apt-get install
-# @arg $@ softwares:String[] list of softwares to install
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::install() {
-  Log::displayInfo "Apt install $*"
-  Retry::default sudo apt-get install -y -q "$@"
-}
-
-# @description update apt packages list
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::update() {
-  Log::displayInfo "Apt update ..."
-  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
-}
-
-# @description checks if Systemd is running
-# @noargs
-# @exitcode 1 if systemd is not running
-# @stdout diagnostics information
-Linux::isSystemdRunning() {
-  if [[ "$(readlink -f /sbin/init)" = "/usr/lib/systemd/systemd" ]]; then
-    Log::displayInfo "SystemD is running"
-    return 0
-  fi
-  Log::displayInfo "SystemD is not running"
-  return 1
-}
-
 # @description Log namespace provides 2 kind of functions
 # - Log::display* allows to display given message with
 #   given display level
@@ -666,6 +674,15 @@ Log::displayInfo() {
   Log::logInfo "$1" "${type}"
 }
 
+# @description Display message using skip color (yellow)
+# @arg $1 message:String the message to display
+Log::displaySkipped() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    echo -e "${__SKIPPED_COLOR}SKIPPED - ${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logSkipped "$1"
+}
+
 # @description Display message using success color (bg green/fg white)
 # @arg $1 message:String the message to display
 Log::displaySuccess() {
@@ -737,12 +754,41 @@ Log::requireLoad() {
   fi
 }
 
-# @description Retry a command 5 times with a delay of 15 seconds between each attempt
-# @arg $@ command:String[] the command to run
+# @description Retry a command several times depending on parameters
+# @arg $1 maxRetries:int    $1 max retries
+# @arg $2 delay:int between attempt
+# @arg $3 message:String to display to describe the attempt
+# @arg $@ rest of parameters, the command to run
 # @exitcode 0 on success
 # @exitcode 1 if max retries count reached
-Retry::default() {
-  Retry::parameterized 5 15 "" "$@"
+# @exitcode 2 if maxRetries invalid value
+Retry::parameterized() {
+  local maxRetries=$1
+  shift || true
+  local delayBetweenTries=$1
+  shift || true
+  local message="$1"
+  shift || true
+  local retriesCount=1
+  if [[ "${maxRetries}" -lt 1 ]]; then
+    Log::displayError "invalid maxRetry value"
+    return 2
+  fi
+
+  while true; do
+    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
+    if "$@"; then
+      break
+    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
+      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
+      ((retriesCount++))
+      sleep "${delayBetweenTries}"
+    else
+      Log::displayError "The command has failed after ${retriesCount} attempts."
+      return 1
+    fi
+  done
+  return 0
 }
 
 # @description draw a line with the character passed in parameter repeated depending on terminal width
@@ -750,6 +796,29 @@ Retry::default() {
 UI::drawLine() {
   local character="${1:-#}"
   printf '%*s\n' "${COLUMNS:-$([[ -t 0 ]] && tput cols || echo)}" '' | tr ' ' "${character}"
+}
+
+# @description display info message
+# And wall Text to speech to tell the message if wsl and powershell available
+# Else try to use bip
+# @arg $1 msg:String message to tell
+# @arg $2 talkScript:String filepath to powershell talk script
+# @env CAN_TALK_DURING_INSTALLATION if not 1 skip talking or beeping
+UI::talkToUser() {
+  local msg="${1:-Please, your input is required}"
+  local talkScript="${2-${FRAMEWORK_ROOT_DIR}/src/UI/talk.ps1}"
+
+  if [[ "${CAN_TALK_DURING_INSTALLATION:-1}" != "1" ]]; then
+    return
+  fi
+
+  Log::displayInfo "${msg}"
+  if Assert::wsl && "${BASH_FRAMEWORK_COMMAND:-command}" -v powershell.exe &>/dev/null; then
+    ${POWERSHELL_BIN:-powershell.exe} -ExecutionPolicy Bypass -NoProfile -Command \
+      "$(wslpath -w "${talkScript}")" "'${msg}'" || true
+  else
+    tput bel || true
+  fi
 }
 
 # @description load colors theme constants
@@ -882,6 +951,16 @@ Version::getCommandVersionFromPlainText() {
   local argVersion="${2:---version}"
   "${command}" "${argVersion}" 2>&1 |
     Version::parse # keep only version numbers
+}
+
+# @description filter to keep only version number from a string
+# @arg $@ files:String[] the files to filter
+# @exitcode * if one of the filter command fails
+# @stdin you can use stdin as alternative to files argument
+# @stdout the filtered content
+# shellcheck disable=SC2120
+Version::parse() {
+  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
 }
 
 # @description ensure tmpdir/bin exists and
@@ -1354,6 +1433,14 @@ Log::logMessage() {
 
 # @description log message to file
 # @arg $1 message:String the message to display
+Log::logSkipped() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SKIPPED}" "$1"
+  fi
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
 Log::logSuccess() {
   if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
     Log::logMessage "${2:-SUCCESS}" "$1"
@@ -1388,43 +1475,6 @@ Log::rotate() {
     echo >"${file}" # reset log file
     Log::displayInfo "Log rotation ${file} to ${file}.1"
   fi
-}
-
-# @description Retry a command several times depending on parameters
-# @arg $1 maxRetries:int    $1 max retries
-# @arg $2 delay:int between attempt
-# @arg $3 message:String to display to describe the attempt
-# @arg $@ rest of parameters, the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-# @exitcode 2 if maxRetries invalid value
-Retry::parameterized() {
-  local maxRetries=$1
-  shift || true
-  local delayBetweenTries=$1
-  shift || true
-  local message="$1"
-  shift || true
-  local retriesCount=1
-  if [[ "${maxRetries}" -lt 1 ]]; then
-    Log::displayError "invalid maxRetry value"
-    return 2
-  fi
-
-  while true; do
-    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
-    if "$@"; then
-      break
-    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
-      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
-      ((retriesCount++))
-      sleep "${delayBetweenTries}"
-    else
-      Log::displayError "The command has failed after ${retriesCount} attempts."
-      return 1
-    fi
-  done
-  return 0
 }
 
 # @description trap function responsible to compute and display stats after each script execution
@@ -1475,24 +1525,6 @@ Version::compare() {
     fi
   done
   return 0
-}
-
-# @description filter to keep only version number from a string
-# @arg $@ files:String[] the files to filter
-# @exitcode * if one of the filter command fails
-# @stdin you can use stdin as alternative to files argument
-# @stdout the filtered content
-# shellcheck disable=SC2120
-Version::parse() {
-  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
-}
-
-# @description ensure linux distribution is ubuntu
-# @exitcode 1 if linux distribution is not ubuntu
-Linux::requireUbuntu() {
-  if ! Array::contains "$(Linux::getDistributorId)" "Ubuntu" "Debian"; then
-    Log::fatal "this script should be executed under Ubuntu or Debian OS"
-  fi
 }
 
 # @description load color theme
@@ -1570,19 +1602,6 @@ Assert::varExistsAndNotEmpty() {
     Log::displayError "${varName} - please provide a value"
     return 2
   fi
-}
-
-# @description determine if the script is executed under WSL
-# cspell:disable
-# @example text
-#   uname GitBash windows (with wsl) => MINGW64_NT-10.0 ZOXFL-6619QN2 2.10.0(0.325/5/3) 2018-06-13 23:34 x86_64 Msys
-#   uname GitBash windows (wo wsl)   => MINGW64_NT-10.0 frsa02-j5cbkc2 2.9.0(0.318/5/3) 2018-01-12 23:37 x86_64 Msys
-#   uname wsl => Linux ZOXFL-6619QN2 4.4.0-17134-Microsoft #112-Microsoft Thu Jun 07 22:57:00 PST 2018 x86_64 x86_64 x86_64 GNU/Linux
-# cspell:enable
-#
-# @exitcode 1 on error
-Assert::wsl() {
-  [[ "$(uname -o)" = "GNU/Linux" ]]
 }
 
 # @description select right file to load depending if file exists in this order:
@@ -1691,6 +1710,27 @@ Install::setUserRootCallback() {
   ${SUDO:-} chown root:root "${targetFile}"
 }
 
+# @description apt-get install
+# @arg $@ softwares:String[] list of softwares to install
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::install() {
+  Log::displayInfo "Apt install $*"
+  Retry::default sudo apt-get install -y -q "$@"
+}
+
+# @description update apt packages list
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::update() {
+  Log::displayInfo "Apt update ..."
+  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
+}
+
 # @description retrieve path from wslvar and then use wslpath to resolve it
 # using cache (cache is refreshed every day)
 # @arg $1 var:String the var to retrieve using wslvar
@@ -1720,23 +1760,6 @@ Linux::Wsl::cachedWslvar() {
   tempEnvFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslvar_$(id -un)"
 
   Cache::getPropertyValue "${tempEnvFile}" "$1" Linux::Wsl::originalWslvar "$@"
-}
-
-# @description retrieve linux distributor id
-# @noargs
-# @exitcode 1 if lsb_release fails or not found
-# @stdout the linux distributor id
-Linux::getDistributorId() {
-  lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
-}
-
-# @description Display message using skip color (yellow)
-# @arg $1 message:String the message to display
-Log::displaySkipped() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logSkipped "$1"
 }
 
 # @description extract stats form log
@@ -1963,11 +1986,19 @@ Linux::Wsl::originalWslvar() {
   wslvar "$@" | sed -z '$ s/[\r\n]$//'
 }
 
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logSkipped() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SKIPPED}" "$1"
+# @description Retry a command 5 times with a delay of 15 seconds between each attempt
+# @arg $@ command:String[] the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+Retry::default() {
+  Retry::parameterized 5 15 "" "$@"
+}
+
+# @description ensure linux distribution is ubuntu
+# @exitcode 1 if linux distribution is not ubuntu
+Linux::requireUbuntu() {
+  if ! Array::contains "$(Linux::getDistributorId)" "Ubuntu" "Debian"; then
+    Log::fatal "this script should be executed under Ubuntu or Debian OS"
   fi
 }
 
@@ -2055,6 +2086,14 @@ Linux::Wsl::originalWslpath() {
   wslpath "$@"
 }
 
+# @description retrieve linux distributor id
+# @noargs
+# @exitcode 1 if lsb_release fails or not found
+# @stdout the linux distributor id
+Linux::getDistributorId() {
+  lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
+}
+
 # FUNCTIONS
 
 # @require Compiler::Embed::requireEmbedBinDir
@@ -2065,13 +2104,16 @@ declare -gx encoded_binary_file_GithubUpgradeRelease="IyEvdXNyL2Jpbi9lbnYgYmFzaA
 Compiler::Embed::extractFileFromBase64 \
   "${embed_function_GithubUpgradeRelease}" \
   "${encoded_binary_file_GithubUpgradeRelease}"
+Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/8537ff72412594780cf9f312e8925b1e/talkScript" "cGFyYW0oCiAgICBbUGFyYW1ldGVyKE1hbmRhdG9yeT0kdHJ1ZSwgUG9zaXRpb249MCldCiAgICBbc3RyaW5nXQogICAgJG1zZyA9ICcnCikKCkFkZC1UeXBlIC1Bc3NlbWJseU5hbWUgU3lzdGVtLnNwZWVjaAokc3BlYWsgPSBOZXctT2JqZWN0IFN5c3RlbS5TcGVlY2guU3ludGhlc2lzLlNwZWVjaFN5bnRoZXNpemVyCiRzcGVhay5TcGVhaygkbXNnKQo=" "644"
 
-facade_main_Dockersh() {
+declare -gx embed_file_talkScript="${PERSISTENT_TMPDIR:-/tmp}/8537ff72412594780cf9f312e8925b1e/talkScript"
+
+facade_main_Saml2Awssh() {
 # REQUIRES
-Linux::requireUbuntu
 Env::requireLoad
 UI::requireTheme
 Log::requireLoad
+Linux::requireUbuntu
 Linux::Wsl::requireWsl
 Compiler::Embed::requireEmbedBinDir
 Compiler::Facade::requireCommandBinDir
@@ -2107,6 +2149,7 @@ fi
 # FACADE
 # IMPLEMENT InstallScripts::interface
 # EMBED Github::upgradeRelease as githubUpgradeRelease
+# EMBED "${FRAMEWORK_ROOT_DIR}/src/UI/talk.ps1" as talkScript
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -2805,7 +2848,7 @@ installScriptCommand() {
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
     echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Docker.sh'
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Saml2Aws.sh'
     echo
     echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
     echo 'MIT License'
@@ -2844,11 +2887,11 @@ helpLongDescriptionCallback() {
 }
 
 scriptName() {
-  echo "Docker"
+  echo "Saml2Aws"
 }
 
 helpDescription() {
-  echo "install docker and docker-compose inside wsl"
+  echo "Saml2Aws"
 }
 
 helpVariables() {
@@ -2856,7 +2899,14 @@ helpVariables() {
 }
 
 listVariables() {
-  true
+  echo "AWS_AUTHENTICATOR"
+  echo "CAN_TALK_DURING_INSTALLATION"
+  echo "AWS_APP_ID"
+  echo "AWS_PROFILE"
+  echo "AWS_USER_MAIL"
+  echo "AWS_TEST_REGION"
+  echo "AWS_TEST_SECRET_ID"
+  echo "AWS_TEST_DOCKER_REGISTRY_ID"
 }
 
 defaultVariables() {
@@ -2868,156 +2918,131 @@ checkVariables() {
 }
 
 fortunes() {
-  return 0
+  if [[ "${AWS_AUTHENTICATOR:-Saml2Aws}" = "Saml2Aws" ]]; then
+    fortunes+=("use aws-login alias to log to aws using saml2aws (see https://github.com/Versent/saml2aws)")
+    if ! command -v saml2aws &>/dev/null; then
+      fortunes+=("\ninstall it using 'installAndConfigure Saml2Aws")
+    fi
+  fi
 }
 
 dependencies() {
-  echo "MandatorySoftwares"
-  echo "WslConfig"
+  echo "AwsCli"
 }
 
 breakOnConfigFailure() {
-  return 0
+  echo breakOnConfigFailure
 }
 
 breakOnTestFailure() {
-  return 0
+  echo breakOnTestFailure
 }
 
-# REQUIRE Linux::requireUbuntu
-# REQUIRE Linux::requireExecutedAsUser
 install() {
-  Log::displayInfo "install docker required packages"
-  Linux::Apt::update
-  Linux::Apt::install \
-    apt-transport-https \
-    ca-certificates \
-    curl \
-    gnupg2
 
-  # Docker utilizes iptables to implement network isolation.
-  # For good reason, Debian uses the more modern nftables, but this means
-  # that Docker cannot automatically tweak the Linux firewall.
-  # Given this, you probably want to configure Debian to use the legacy
-  # iptables by default
-  sudo update-alternatives --set iptables /usr/sbin/iptables-legacy
-
-  Log::displayInfo "install docker apt source list"
-  Retry::default curl -fsSL "https://download.docker.com/linux/${ID}/gpg" | sudo apt-key add -
-  local dockerSource="deb [arch=amd64] https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable"
-  if ! grep -q "${dockerSource}" "/etc/apt/sources.list.d/docker.list"; then
-    echo "deb [arch=amd64] https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable" | sudo tee /etc/apt/sources.list.d/docker.list
-    Linux::Apt::update
-  fi
-
-  Log::displayInfo "install docker"
-  Retry::default sudo apt-get install -y \
-    containerd.io \
-    docker-ce \
-    docker-ce-cli
-
-  USERNAME="$(id -un)"
-  Log::displayInfo "allowing user '${USERNAME}' to use docker"
-  sudo getent group docker >/dev/null || sudo groupadd docker || true
-  sudo usermod -aG docker "${USERNAME}" || true
-
-  Log::displayInfo "Installing docker-compose"
+  # @see https://github.com/fchastanet/my-documents/blob/master/HowTo/Saml2Aws.md
   # shellcheck disable=SC2317
-  dockerComposeVersionCallback() {
-    echo "v$(Version::getCommandVersionFromPlainText "$@")"
+  saml2awsInstallCallback() {
+    sudo tar xzvf "$1" -C /usr/local/bin saml2aws
+    sudo chmod +x /usr/local/bin/saml2aws
+    hash -r
   }
-  export -f dockerComposeVersionCallback
+  export -f saml2awsInstallCallback
   # shellcheck disable=SC2154
   SUDO=sudo "${embed_function_GithubUpgradeRelease}" \
-    /usr/local/bin/docker-compose \
-    "https://github.com/docker/compose/releases/download/@latestVersion@/docker-compose-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)" \
+    /usr/local/bin/saml2aws \
+    "https://github.com/Versent/saml2aws/releases/download/v@latestVersion@/saml2aws_@latestVersion@_linux_amd64.tar.gz" \
     "--version" \
-    dockerComposeVersionCallback
-
-  sudo rm -f /usr/bin/docker-compose || true
-  sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+    "Version::getCommandVersionFromPlainText" \
+    saml2awsInstallCallback \
+    "Version::parse"
 }
 
 configure() {
-  Log::displayInfo "Configuring docker-compose as docker plugin"
-  # create the docker plugins directory if it doesn't exist yet
-  # shellcheck disable=SC2153
-  mkdir -p "${USER_HOME}/.docker/cli-plugins"
-  rm -f "${HOME}/.docker/cli-plugins/docker-compose" || true
-  sudo ln -sf /usr/local/bin/docker-compose "${HOME}/.docker/cli-plugins/docker-compose"
+  mkdir -p "${USER_HOME}/.aws" || true
+
+  if Assert::wsl; then
+    # export display needed
+    # @see https://github.com/Versent/saml2aws/issues/561
+    DISPLAY="$(ip route show default | awk '/default/ {print $3}'):0.0"
+    export DISPLAY
+  fi
+
+  if [[ -n "${AWS_APP_ID}" && -n "${AWS_PROFILE}" && -n "${AWS_USER_MAIL}" ]]; then
+    Log::displayWarning "Please wait saml2aws configuration finishing ..."
+    DBUS_SESSION_BUS_ADDRESS=/dev/null saml2aws configure \
+      --idp-provider='AzureAD' \
+      --session-duration=43200 \
+      --mfa='Auto' \
+      --profile="${AWS_PROFILE}" \
+      --url='https://account.activedirectory.windowsazure.com' \
+      --username="${AWS_USER_MAIL}" \
+      --app-id="${AWS_APP_ID}" \
+      --skip-prompt
+  else
+    Log::displaySkipped "saml2aws configuration skipped as AWS_APP_ID, AWS_PROFILE or AWS_USER_MAIL are not provided"
+  fi
 }
 
 testInstall() {
-  local -i failures=0
-
-  if ! Linux::isSystemdRunning; then
-    if grep -q -E '^systemd=true' /etc/wsl.conf; then
-      Log::fatal "You need to restart wsl by running 'wsl --shutdown' from powershell and re-run this script, in order to start with systemd"
-    else
-      Log::fatal "/etc/wsl.conf has not been updated with systemd=true instruction, please check this install logs"
-    fi
-  fi
-
-  Version::checkMinimal "docker" --version "25.0.3" || ((++failures))
-  Version::checkMinimal "docker-compose" --version "2.23.1" || ((++failures))
-
-  echo
-  UI::drawLine "-"
-  Log::displayInfo "docker executable path $(command -v docker || true)"
-  Log::displayInfo "docker version $(docker --version || true)"
-  Log::displayInfo "docker-compose version $(docker-compose --version || true)"
-
-  dockerIsStarted() {
-    DOCKER_PS="$(docker ps 2>&1 || true)"
-    [[ ! "${DOCKER_PS}" =~ "Cannot connect to the Docker daemon" ]]
-  }
-  Log::displayInfo "Checking if docker is started ..."
-  if dockerIsStarted; then
-    Log::displaySuccess "Docker connection success"
-  else
-    Log::displayError "Docker is not started"
-    ((++failures))
-  fi
-  return "${failures}"
+  Version::checkMinimal "saml2aws" --version "2.36.10" || return 1
 }
 
 testConfigure() {
   local -i failures=0
+  Assert::fileExists "${USER_HOME}/.saml2aws" || ((++failures))
 
-  Log::displayInfo "check if docker-compose binary is working"
-  if ! docker-compose version &>/dev/null; then
-    Log::displayError "docker-compose failure"
-    ((++failures))
-  fi
-
-  Log::displayInfo "check if docker compose plugin is installed"
-  if [[ ! -f "${HOME}/.docker/cli-plugins/docker-compose" ]]; then
-    Log::displayError "docker compose plugin not installed in folder ${HOME}/.docker/cli-plugins/"
-    ((++failures))
-  fi
-
-  Log::displayInfo "check if docker compose plugin is working"
-  if ! docker compose version &>/dev/null; then
-    Log::displayError "docker compose plugin failure"
-    ((++failures))
-  fi
-
-  Log::displayInfo "check if docker dns is working"
-  docker run busybox ping google.com -c 1 &>/dev/null || {
-    ((++failures))
-    Log::displayError "google.com is not reachable from docker, dns issue ?"
-    ping google.com -c 1 &>/dev/null || {
-      Log::displayError "google.com is not reachable from host neither"
+  if [[ "${INSTALL_INTERACTIVE}" = "0" ]]; then
+    Log::displaySkipped "saml2aws configuration skipped as INSTALL_INTERACTIVE is set to 0"
+  elif [[ -n "${AWS_APP_ID}" && -n "${AWS_PROFILE}" && -n "${AWS_USER_MAIL}" ]]; then
+    # try to login
+    # shellcheck disable=SC2154
+    cp "${embed_file_talkScript}" "${embed_file_talkScript}.ps1"
+    UI::talkToUser "Please on Bash Dev env installation, your input may be required" \
+      "${embed_file_talkScript}.ps1"
+    if ! Retry::parameterized 3 0 \
+        "AWS Authentication, please provide your credentials ..." \
+        saml2aws login -p "${AWS_PROFILE}" --disable-keychain
+    then
       ((++failures))
-    }
-  }
+      Log::displayError "Failed to connect to aws"
+      return "${failures}"
+    fi
+    Log::displaySuccess "Aws connection succeeds"
 
-  Log::displayInfo "check if docker container can be launched"
-  if ! docker run --rm hello-world | grep -q "Hello from Docker!"; then
-    ((++failures))
-    Log::displayError "docker container cannot be launched"
+    # try to get secret
+    Log::displayInfo "Trying to get secrets from aws"
+    if ! aws secretsmanager \
+      --region "${AWS_TEST_REGION}" get-secret-value \
+      --secret-id "${AWS_TEST_SECRET_ID}" \
+      --query SecretString >/dev/null
+    then
+      ((++failures))
+      Log::displayError "Failed to connect to aws"
+      return "${failures}"
+    fi
+    Log::displaySuccess "Aws secret retrieved successfully"
+
+    # test docker private registry connection
+    if ! command -v docker &>/dev/null; then
+      Log::displaySkipped "test docker private registry connection skipped as docker command is missing"
+      return "${failures}"
+    fi
+
+    Log::displayInfo "Trying to connect docker private registry, please provide password if asked"
+    if aws ecr get-login-password --region "${AWS_TEST_REGION}" | docker login \
+        --username AWS \
+        --password-stdin \
+        "${AWS_TEST_DOCKER_REGISTRY_ID}"
+    then
+      Log::displaySuccess "docker login success"
+    else
+      ((++failures))
+      Log::displayError "Failed to connect to docker private registry"
+    fi
+  else
+    Log::displaySkipped "saml2aws configuration skipped as AWS_APP_ID, AWS_PROFILE or AWS_USER_MAIL are not provided"
   fi
-  docker image rm hello-world || true
 
   return "${failures}"
 }
@@ -3079,4 +3104,4 @@ esac
 exit 0
 }
 
-facade_main_Dockersh "$@"
+facade_main_Saml2Awssh "$@"
