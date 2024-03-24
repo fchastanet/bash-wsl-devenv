@@ -13,6 +13,7 @@ node_modules/
 yarn.lock
 
 .env
+.env.distro
 
 /profile.*.sh
 !/profile.default.sh
