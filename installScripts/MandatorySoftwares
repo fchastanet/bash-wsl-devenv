@@ -282,6 +282,56 @@ Assert::functionExists() {
   declare -F "$1" >/dev/null
 }
 
+# @description convert base64 encoded back to target file
+# if target file is executable prepend dir of target
+# file to PATH to make binary available everywhere
+# it is advised to include in the path of the target file
+# the md5sum of the binFile
+#
+# @arg $1 targetFile:String the file to write
+# @arg $2 binFileBase64:String the base64 encoded file
+# @arg $3 fileMode:String the chmod to set on the file
+# @set PATH String prepend target embedded file binary directory to PATH variable if binary executable
+Compiler::Embed::extractFileFromBase64() {
+  local targetFile="$1"
+  local binFileBase64="$2"
+  local fileMode="${3:-+x}"
+
+  if [[ ! -f "${targetFile}" ]]; then
+    mkdir -p "$(dirname "${targetFile}")"
+    base64 -d >"${targetFile}" <<<"${binFileBase64}"
+    chmod "${fileMode}" "${targetFile}"
+  fi
+
+  if [[ -x "${targetFile}" ]]; then
+    Env::pathPrepend "$(dirname "${targetFile}")"
+  fi
+}
+
+# @description select right file to load depending if file exists in this order:
+# - from conf.override
+# - from embedded file if provided
+# - from conf dir
+# @arg $1 file:String
+# @arg $2 embedFile:String eventual embedded file
+# @exitcode 1 if file does not exist at all
+Conf::dynamicConfFile() {
+  local file="${1/#\//}" # remove first slash if any
+  local embedFile="${2:-}"
+  if [[ -f "${CONF_OVERRIDE_DIR}/${file}" ]]; then
+    echo "${CONF_OVERRIDE_DIR}/${file}"
+    return 0
+  elif [[ -f "${embedFile}" ]]; then
+    echo "${embedFile}"
+    return 0
+  elif [[ -f "${CONF_DIR}/${file}" ]]; then
+    echo "${CONF_DIR}/${file}"
+    return 0
+  fi
+  Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
+  return 1
+}
+
 envFileTemplate="$(
   cat <<'EOF'
 # shellcheck disable=SC2034
@@ -1065,6 +1115,7 @@ Engine::Config::createEnvFileFromTemplate() {
 # @env CONF_DIR
 # @env LDAP_LOGIN
 # @env WINDOWS_PROFILE_DIR
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/profile.d/updateEnv.sh" as updateEnv
 Engine::Config::installUpdateEnv() {
   if [[ "${INSTALL_UPDATE_ENV:-1}" = "1" ]]; then
     # INSTALL_UPDATE_ENV avoids infinite loop
@@ -1072,8 +1123,11 @@ Engine::Config::installUpdateEnv() {
   fi
 
   if [[ ! -f '/etc/profile.d/updateEnv.sh' || "${CONF_DIR}/etc/profile.d/updateEnv.sh" -nt "/etc/profile.d/updateEnv.sh" ]]; then
+    local fileToInstall
+    # shellcheck disable=SC2154
+    fileToInstall="$(Conf::dynamicConfFile "etc/profile.d/updateEnv.sh" "${embed_file_updateEnv}")" || return 1
     SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-      "${CONF_DIR}/etc/profile.d/updateEnv.sh" '/etc/profile.d/updateEnv.sh' \
+      "${fileToInstall}" '/etc/profile.d/updateEnv.sh' \
       Install::setUserRootCallback
   fi
   if [[ "$(perl -ne 'if (/export LDAP_LOGIN=(.*)/) { print $1 }' "/etc/profile.d/updateEnv.sh")" != "${LDAP_LOGIN}" ]]; then
@@ -1890,6 +1944,10 @@ Linux::Wsl::originalWslpath() {
 
 # FUNCTIONS
 
+Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/01e58da31589370e974e174280aa0f19/updateEnv" "IyEvYmluL2Jhc2gKCiMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMKIyAhISEhISEhISEhISEhISEhISBQTEVBU0UgRE8gTk9UIE1PRElGWSBUSElTIEZJTEUgTUFOVUFMTFkgISEhISEhISEhISEhISEhISEhIQojIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjCiMgUk9PVCAmIFVTRVIgVkFSSUFCTEVTCiMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMKCiMgd2lsbCBpbnN0cnVjdCB1c2VyIC5iYXNocmMgdG8gbG9hZCB0aGF0IGZpbGUgaWYgdGhpcyB2YXJpYWJsZSBpcyBub3Qgc2V0CmV4cG9ydCBFVENfUFJPRklMRV9EX1VQREFURV9FTlZfTE9BREVEPTEKCiMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMTAwMwpCQVNFX01OVF9DPSIkKG1vdW50IHwgZ3JlcCAncGF0aD1DOlxcJyB8IGF3ayAtRiAnICcgJ3twcmludCAkM30nKSIKCmV4cG9ydCBCQVNIX0RFVl9FTlZfUk9PVF9ESVI9IkBAQEJBU0hfREVWX0VOVl9ST09UX0RJUkBAQCIKaWYgW1sgLWYgIiR7QkFTSF9ERVZfRU5WX1JPT1RfRElSfS8uZW52IiBdXTsgdGhlbgogIHNldCAtbyBhbGxleHBvcnQKICAjIHNoZWxsY2hlY2sgc291cmNlPS8uZW52LnRlbXBsYXRlCiAgc291cmNlICIke0JBU0hfREVWX0VOVl9ST09UX0RJUn0vLmVudiIKICBzZXQgK28gYWxsZXhwb3J0CmZpCgojIFNldCBRdDUgYXBwbGljYXRpb25zIHRvIHVzZSB0aGUgR3RrKyAyIHN0eWxlCmV4cG9ydCBRVF9RUEFfUExBVEZPUk1USEVNRT1ndGsyCgojIHVzZWQgYnkgZG9ja2VyLXN5bmMKZXhwb3J0IERPQ0tFUl9IT1NUPSJ1bml4Oi8vL3Zhci9ydW4vZG9ja2VyLnNvY2siCgpleHBvcnQgRURJVE9SPSd2aW0nCmV4cG9ydCBMQ19USU1FPWVuX1VTLlVURi04CmV4cG9ydCBMQ19BTEw9ZW5fVVMuVVRGLTgKZXhwb3J0IElCVVNfRU5BQkxFX1NZTkNfTU9ERT0xCmV4cG9ydCBQQVRICgphZGRQYXRoKCkgewogIGlmIFtbIC1kICIkMSIgJiYgIjoke1BBVEh9OiIgIT0gKiI6JDE6IiogXV07IHRoZW4KICAgIGlmIFtbICIkMiIgPSAiYWZ0ZXIiIF1dOyB0aGVuCiAgICAgIFBBVEg9IiR7UEFUSH06JDEiCiAgICBlbHNlCiAgICAgIFBBVEg9IiQxOiR7UEFUSH0iCiAgICBmaQogIGZpCn0KIyBlbnN1cmUgL21udC9jL1dJTkRPV1Mvc3lzdGVtMzIgaXMgYXZhaWxhYmxlIGZvciByb290IHVzZXIKYWRkUGF0aCAiJHtCQVNFX01OVF9DfS9XSU5ET1dTL1N5c3RlbTMyIiAiYWZ0ZXIiCgppZiBbWyAiJChpZCAtdSkiID0gIjAiIF1dOyB0aGVuCiAgcmV0dXJuIDAKZmkKCiMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMiCiMgVVNFUiBDb25maWcKIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyIKIyBQQVRIIGNvbmZpZwojIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIgoKIyBiYWNrdXAgdmlzdWFsIHN0dWRpbyBjb2RlIHBhdGgKaWYgY29tbWFuZCAtdiBjb2RlICY+L2Rldi9udWxsOyB0aGVuCiAgY29kZVBhdGhCYWNrdXA9IiQoZGlybmFtZSAiJChjb21tYW5kIC12IGNvZGUpIikiCmZpCiMgb3B0aW1pemUgUEFUSCB0byByZW1vdmUgYWxsIHdpbmRvd3MgUEFUSCBub3QgbmVlZGVkIHRvIG9wdGltaXplIGNvbXBsZXRpb24KaWYgW1sgLWQgIiR7QkFTRV9NTlRfQ30iIF1dOyB0aGVuCiAgUEFUSD0kKGVjaG8gIiR7UEFUSH0iIHwKICAgIGF3ayAtdiBSUz06IC12IE9SUz06ICIvXiR7QkFTRV9NTlRfQy8vXC8vXFwvfS8ge25leHR9IHtwcmludH0iIHwgc2VkICdzLzoqJC8vJykKZmkKIyBBZGQgQzpcV2luZG93cyBiYWNrIHNvIHlvdSBjYW4gZG8gYGV4cGxvcmVyLmV4ZSAuYCB0byBvcGVuIGFuIGV4cGxvcmVyIGF0IGN1cnJlbnQgZGlyZWN0b3J5CldJTkRPV1NfUFJPRklMRV9ESVI9IkBAQFdJTkRPV1NfUFJPRklMRV9ESVJAQEAiCmV4cG9ydCBXSU5ET1dTX1BST0ZJTEVfRElSCmFkZFBhdGggIiR7QkFTRV9NTlRfQ30vV0lORE9XUy9TeXN0ZW0zMiIgImFmdGVyIgphZGRQYXRoICIke0JBU0VfTU5UX0N9L1dpbmRvd3MiICJhZnRlciIKYWRkUGF0aCAiJHtXSU5ET1dTX1BST0ZJTEVfRElSfS9BcHBEYXRhL0xvY2FsL01pY3Jvc29mdC9XaW5kb3dzQXBwcyIgImFmdGVyIgojIEFkZCBwb3dlcnNoZWxsIHBhdGggYmFjawphZGRQYXRoICIke0JBU0VfTU5UX0N9L1dJTkRPV1MvU3lzdGVtMzIvV2luZG93c1Bvd2VyU2hlbGwvdjEuMC8iICJhZnRlciIKIyBBZGQgdmlzdWFsIHN0dWRpbyBjb2RlIHBhdGggYmFjawphZGRQYXRoICIke2NvZGVQYXRoQmFja3VwfSIgImFmdGVyIgp1bnNldCBjb2RlUGF0aEJhY2t1cAoKIyBzZXQgUEFUSCBzbyBpdCBpbmNsdWRlcyB1c2VyJ3MgcHJpdmF0ZSBiaW4gaWYgaXQgZXhpc3RzCmFkZFBhdGggIiR7SE9NRX0vcHJvamVjdHMvYmFzaC10b29scy9iaW4iICJhZnRlciIKYWRkUGF0aCAiJHtIT01FfS8ubG9jYWwvYmluIiAiYWZ0ZXIiCmFkZFBhdGggIiR7SE9NRX0vLmJpbiIgImFmdGVyIgoKIyBBZGQgY29tcG9zZXIgYmluIHBhdGgKYWRkUGF0aCAiL3Vzci9sb2NhbC8uY29tcG9zZXIvdmVuZG9yL2JpbiIgImFmdGVyIgoKIyBBZGQgR28gYmluIFBBVEgKYWRkUGF0aCAiJHtIT01FfS9nby9iaW4iICJhZnRlciIKCmFkZFBhdGggIi91c3IvZ2FtZXMiICJhZnRlciIKYWRkUGF0aCAiL3Vzci9sb2NhbC9nYW1lcyIgImFmdGVyIgoKIyBub2RlIGluc3RhbGxlZCB1c2luZyBuCiMgQWRkZWQgYnkgbi1pbnN0YWxsIChzZWUgaHR0cDovL2dpdC5pby9uLWluc3RhbGwtcmVwbykuCmlmIFtbIC1kICIke0hPTUV9L24iIF1dOyB0aGVuCiAgZXhwb3J0IE5fUFJFRklYPSIke0hPTUV9L24iCiAgYWRkUGF0aCAiJHtOX1BSRUZJWH0vYmluIiAiYWZ0ZXIiCmZpCmFkZFBhdGggIiR7SE9NRX0vLm5wbS1nbG9iYWwvYmluIiAiYWZ0ZXIiCgojIGFjdGl2YXRlIHB5dGhvbiAzLjkgdmlydHVhbGVudgpleHBvcnQgUElQX1JFUVVJUkVfVklSVFVBTEVOVj10cnVlCmV4cG9ydCBXT1JLT05fSE9NRT0iJHtIT01FfS8udmlydHVhbGVudiIKZXhwb3J0IFBJUF9ET1dOTE9BRF9DQUNIRT0iJHtIT01FfS8ucGlwL2NhY2hlIgppZiBbWyAtZiAiJHtIT01FfS8udmlydHVhbGVudi9weXRob24zLjkvYmluL2FjdGl2YXRlIiBdXTsgdGhlbgogICMgc2hlbGxjaGVjayBzb3VyY2U9L2Rldi9udWxsCiAgc291cmNlICIke0hPTUV9Ly52aXJ0dWFsZW52L3B5dGhvbjMuOS9iaW4vYWN0aXZhdGUiCmZpCgojIGt1YmVjdHggYW5kIGt1YmVucwphZGRQYXRoICIvb3B0L2t1YmVjdHgiICJhZnRlciIKCmV4cG9ydCBQQVRICgojIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIgojIEVudiB2YXJpYWJsZXMKIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyIKCiMgY29tcG9zZXIgaG9tZQpleHBvcnQgQ09NUE9TRVJfSE9NRT0vdXNyL2xvY2FsLy5jb21wb3NlcgoKIyBkaXNhYmxlIGJlZXAgaW4gbGVzcwpleHBvcnQgTEVTUz0iJHtMRVNTfSAtUiAtUSIKCiMgZGlzcGxheSBkb2NrZXIgYnVpbGQgcHJvZ3Jlc3MKZXhwb3J0IEJVSUxES0lUX1BST0dSRVNTPXBsYWluCgojIGRpc2FibGUgZG9ja2VyIGJ1aWxkIGtpdCBhcyB1bnN0YWJsZSBmb3Igbm93CmV4cG9ydCBET0NLRVJfQlVJTERLSVQ9MApleHBvcnQgQ09NUE9TRV9ET0NLRVJfQ0xJX0JVSUxEPTAKCiMgbWFrZSBnbG9iYWwgbm9kZSBwYWNrYWdlcyBhdmFpbGFibGUgZm9yIG5vZGUganMgc2NyaXB0cwppZiBjb21tYW5kIC12IG5wbSA+L2Rldi9udWxsIDI+JjE7IHRoZW4KICBOT0RFX1BBVEg9JChucG0gcm9vdCAtLXF1aWV0IC1nKQogIGV4cG9ydCBOT0RFX1BBVEgKZmkK" "755"
+
+declare -gx embed_file_updateEnv="${PERSISTENT_TMPDIR:-/tmp}/01e58da31589370e974e174280aa0f19/updateEnv"
+
 facade_main_MandatorySoftwaressh() {
 # REQUIRES
 Linux::requireUbuntu
@@ -1929,6 +1987,7 @@ fi
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/profile.d/updateEnv.sh" as updateEnv
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -2747,8 +2806,11 @@ configure() {
       "/etc/profile.d/updateEnv.sh"
     Install::setRootExecutableCallback "$@"
   }
+  local fileToInstall
+  # shellcheck disable=SC2154
+  fileToInstall="$(Conf::dynamicConfFile "etc/profile.d/updateEnv.sh" "${embed_file_updateEnv}")" || return 1
   SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${CONF_DIR}/etc/profile.d/updateEnv.sh" "/etc/profile.d/updateEnv.sh" \
+    "${fileToInstall}" "/etc/profile.d/updateEnv.sh" \
     "root" "root" updateEnvConfig
 }
 

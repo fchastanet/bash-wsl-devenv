@@ -260,18 +260,53 @@ Assert::functionExists() {
   declare -F "$1" >/dev/null
 }
 
-# @description select right conf dir depending if file exists either
-# in conf.override or conf folder
-Conf::dynamicConfDir() {
-  local file="$1"
+# @description convert base64 encoded back to target file
+# if target file is executable prepend dir of target
+# file to PATH to make binary available everywhere
+# it is advised to include in the path of the target file
+# the md5sum of the binFile
+#
+# @arg $1 targetFile:String the file to write
+# @arg $2 binFileBase64:String the base64 encoded file
+# @arg $3 fileMode:String the chmod to set on the file
+# @set PATH String prepend target embedded file binary directory to PATH variable if binary executable
+Compiler::Embed::extractFileFromBase64() {
+  local targetFile="$1"
+  local binFileBase64="$2"
+  local fileMode="${3:-+x}"
+
+  if [[ ! -f "${targetFile}" ]]; then
+    mkdir -p "$(dirname "${targetFile}")"
+    base64 -d >"${targetFile}" <<<"${binFileBase64}"
+    chmod "${fileMode}" "${targetFile}"
+  fi
+
+  if [[ -x "${targetFile}" ]]; then
+    Env::pathPrepend "$(dirname "${targetFile}")"
+  fi
+}
+
+# @description select right file to load depending if file exists in this order:
+# - from conf.override
+# - from embedded file if provided
+# - from conf dir
+# @arg $1 file:String
+# @arg $2 embedFile:String eventual embedded file
+# @exitcode 1 if file does not exist at all
+Conf::dynamicConfFile() {
+  local file="${1/#\//}" # remove first slash if any
+  local embedFile="${2:-}"
   if [[ -f "${CONF_OVERRIDE_DIR}/${file}" ]]; then
     echo "${CONF_OVERRIDE_DIR}/${file}"
+    return 0
+  elif [[ -f "${embedFile}" ]]; then
+    echo "${embedFile}"
     return 0
   elif [[ -f "${CONF_DIR}/${file}" ]]; then
     echo "${CONF_DIR}/${file}"
     return 0
   fi
-  Log::displayWarning "Conf::dynamicConfDir - ${file} does not exist in any config dirs declared"
+  Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
   return 1
 }
 
@@ -1154,6 +1189,7 @@ Engine::Config::createEnvFileFromTemplate() {
 # @env CONF_DIR
 # @env LDAP_LOGIN
 # @env WINDOWS_PROFILE_DIR
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/profile.d/updateEnv.sh" as updateEnv
 Engine::Config::installUpdateEnv() {
   if [[ "${INSTALL_UPDATE_ENV:-1}" = "1" ]]; then
     # INSTALL_UPDATE_ENV avoids infinite loop
@@ -1161,8 +1197,11 @@ Engine::Config::installUpdateEnv() {
   fi
 
   if [[ ! -f '/etc/profile.d/updateEnv.sh' || "${CONF_DIR}/etc/profile.d/updateEnv.sh" -nt "/etc/profile.d/updateEnv.sh" ]]; then
+    local fileToInstall
+    # shellcheck disable=SC2154
+    fileToInstall="$(Conf::dynamicConfFile "etc/profile.d/updateEnv.sh" "${embed_file_updateEnv}")" || return 1
     SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-      "${CONF_DIR}/etc/profile.d/updateEnv.sh" '/etc/profile.d/updateEnv.sh' \
+      "${fileToInstall}" '/etc/profile.d/updateEnv.sh' \
       Install::setUserRootCallback
   fi
   if [[ "$(perl -ne 'if (/export LDAP_LOGIN=(.*)/) { print $1 }' "/etc/profile.d/updateEnv.sh")" != "${LDAP_LOGIN}" ]]; then
@@ -2004,6 +2043,10 @@ Linux::getDistributorId() {
 
 # FUNCTIONS
 
+Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/d1e03d7a30fbf5088744b417b94d29f0/aws_config" "W2RlZmF1bHRdCnJlZ2lvbiA9IGV1LXdlc3QtMQo=" "644"
+
+declare -gx embed_file_aws_config="${PERSISTENT_TMPDIR:-/tmp}/d1e03d7a30fbf5088744b417b94d29f0/aws_config"
+
 facade_main_AwsClish() {
 # REQUIRES
 Env::requireLoad
@@ -2043,6 +2086,7 @@ fi
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/home/.aws/config" as aws_config
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -2858,7 +2902,8 @@ configure() {
     Install::setUserRightsCallback "$@"
   }
   local fileToInstall
-  fileToInstall="$(Conf::dynamicConfDir "conf/home/.aws/config")" || return 1
+  # shellcheck disable=SC2154
+  fileToInstall="$(Conf::dynamicConfFile "home/.aws/config" "${embed_file_aws_config}")" || return 1
   Install::file "${fileToInstall}" "${USER_HOME}/.aws/config" "${USERNAME}" "${USERGROUP}" configureAwsConfig
 }
 
