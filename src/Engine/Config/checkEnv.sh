@@ -96,7 +96,7 @@ Engine::Config::checkEnv() {
   checkValidValues OVERWRITE_CONFIG_FILES 0 1
   checkValidValues CHANGE_WINDOWS_FILES 0 1
   checkValidValues CAN_TALK_DURING_INSTALLATION 0 1
-  checkValidValues INSTALL_NON_INTERACTIVE 0 1
+  checkValidValues INSTALL_INTERACTIVE 0 1
 
   checkNotEmpty WSLCONFIG_MAX_MEMORY
   checkValidValues WSLCONFIG_SWAP 0 1

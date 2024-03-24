@@ -25,6 +25,7 @@
   - [2.17. replace curl by aria2](#217-replace-curl-by-aria2)
   - [2.18. replace docker for windows](#218-replace-docker-for-windows)
 - [no need of embed\_function\_InstallFile](#no-need-of-embed_function_installfile)
+- [implement clean in each install script](#implement-clean-in-each-install-script)
 
 ## 1. Needed refactoring (WIP)
 
@@ -176,3 +177,6 @@ Podman ?
 ## no need of embed_function_InstallFile
 
 use ${SUDO}
+
+## implement clean in each install script
+update interface
