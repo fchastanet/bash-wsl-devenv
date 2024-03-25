@@ -54,7 +54,6 @@ install() {
       set -x
       rm -f "${BASH_DEV_ENV_ROOT_DIR}/.env" || true
       rm -Rf "${BACKUP_DIR:?}/"* || true
-      rm -f /etc/profile.d/updateEnv.sh || true
       rm -Rf "/tmp/"* || true
       rm -Rf "${USER_HOME}/.vscode-server" || true
       rm -f "${USER_HOME}/.gitconfig" || true

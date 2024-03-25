@@ -113,6 +113,6 @@ testConfigure() {
     Log::displayError "default configuration not found in '${USER_HOME}/.aws/config'"
   fi
 
-return "${failures}"
+  return "${failures}"
 
 }

@@ -12,7 +12,8 @@ export ETC_PROFILE_D_UPDATE_ENV_LOADED=1
 # shellcheck disable=SC1003
 BASE_MNT_C="$(mount | grep 'path=C:\\' | awk -F ' ' '{print $3}')"
 
-export BASH_DEV_ENV_ROOT_DIR="@@@BASH_DEV_ENV_ROOT_DIR@@@"
+export BASH_TOOLS_ROOT_DIR="/home/wsl/fchastanet/bash-tools"
+export BASH_DEV_ENV_ROOT_DIR="/home/wsl/fchastanet/bash-dev-env"
 if [[ -f "${BASH_DEV_ENV_ROOT_DIR}/.env" ]]; then
   set -o allexport
   # shellcheck source=/.env.template
@@ -64,7 +65,7 @@ if [[ -d "${BASE_MNT_C}" ]]; then
     awk -v RS=: -v ORS=: "/^${BASE_MNT_C//\//\\/}/ {next} {print}" | sed 's/:*$//')
 fi
 # Add C:\Windows back so you can do `explorer.exe .` to open an explorer at current directory
-WINDOWS_PROFILE_DIR="@@@WINDOWS_PROFILE_DIR@@@"
+WINDOWS_PROFILE_DIR="/mnt/c/Users/fchastanet"
 export WINDOWS_PROFILE_DIR
 addPath "${BASE_MNT_C}/WINDOWS/System32" "after"
 addPath "${BASE_MNT_C}/Windows" "after"
@@ -76,7 +77,7 @@ addPath "${codePathBackup}" "after"
 unset codePathBackup
 
 # set PATH so it includes user's private bin if it exists
-addPath "${HOME}/projects/bash-tools/bin" "after"
+addPath "${BASH_TOOLS_ROOT_DIR}/bin" "after"
 addPath "${HOME}/.local/bin" "after"
 addPath "${HOME}/.bin" "after"
 

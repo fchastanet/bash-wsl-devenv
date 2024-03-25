@@ -26,9 +26,9 @@ listVariables() {
   echo "AWS_APP_ID"
   echo "AWS_PROFILE"
   echo "AWS_USER_MAIL"
-  echo "AWS_TEST_REGION"
+  echo "AWS_DEFAULT_REGION"
   echo "AWS_TEST_SECRET_ID"
-  echo "AWS_TEST_DOCKER_REGISTRY_ID"
+  echo "AWS_DEFAULT_DOCKER_REGISTRY_ID"
 }
 
 defaultVariables() {
@@ -134,7 +134,7 @@ testConfigure() {
     # try to get secret
     Log::displayInfo "Trying to get secrets from aws"
     if ! aws secretsmanager \
-      --region "${AWS_TEST_REGION}" get-secret-value \
+      --region "${AWS_DEFAULT_REGION}" get-secret-value \
       --secret-id "${AWS_TEST_SECRET_ID}" \
       --query SecretString >/dev/null; then
       ((++failures))
@@ -150,10 +150,10 @@ testConfigure() {
     fi
 
     Log::displayInfo "Trying to connect docker private registry, please provide password if asked"
-    if aws ecr get-login-password --region "${AWS_TEST_REGION}" | docker login \
+    if aws ecr get-login-password --region "${AWS_DEFAULT_REGION}" | docker login \
       --username AWS \
       --password-stdin \
-      "${AWS_TEST_DOCKER_REGISTRY_ID}"; then
+      "${AWS_DEFAULT_DOCKER_REGISTRY_ID}"; then
       Log::displaySuccess "docker login success"
     else
       ((++failures))

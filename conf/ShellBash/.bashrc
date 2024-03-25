@@ -7,7 +7,7 @@
 # for examples
 
 if [[ "${ETC_PROFILE_D_UPDATE_ENV_LOADED-0}" != "1" ]]; then
-  source /etc/profile.d/updateEnv.sh
+  source ${HOME}/.bash-dev-env
 fi
 
 # If running interactively
@@ -103,9 +103,6 @@ if [[ "$-" =~ .*i.* ]]; then
   if [[ -f "${HOME}/.bash_prompt" ]]; then
     # shellcheck source=conf/bash_profile/.bash_prompt
     source "${HOME}/.bash_prompt"
-  elif [[ -f "${HOME}/.bash_prompt_legacy" ]]; then
-    # shellcheck source=conf/bash_profile/.bash_prompt_legacy
-    source "${HOME}/.bash_prompt_legacy"
   fi
   # shellcheck source=conf/bash_profile/.bash_navigation
   [[ -f "${HOME}/.bash_navigation" ]] && source "${HOME}/.bash_navigation"
@@ -142,7 +139,7 @@ fi
 ###############################################################################"
 # Env variables PATH & NODE & ...
 ###############################################################################"
-# check /etc/profile.d/updateEnv.sh
+# check ${HOME}/.bash-dev-env
 
 # be sure it ends without any error code
 true
