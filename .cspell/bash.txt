@@ -79,3 +79,7 @@ substr
 allexport
 readarray
 shopt
+posix
+compgen
+shuf
+esac

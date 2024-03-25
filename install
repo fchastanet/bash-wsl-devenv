@@ -287,9 +287,9 @@ AWS_USER_MAIL="fchastanet@gmail.com"
 # app id to connect to aws account
 AWS_APP_ID=""
 AWS_PROFILE=""
-AWS_TEST_REGION=""
+AWS_DEFAULT_REGION=""
 AWS_TEST_SECRET_ID=""
-AWS_TEST_DOCKER_REGISTRY_ID=""
+AWS_DEFAULT_DOCKER_REGISTRY_ID=""
 
 # hostname of the distro
 DISTRO_HOSTNAME="wslHost"
@@ -431,7 +431,8 @@ Engine::Config::loadConfig() {
   #Linux::Wsl::initEnv
   Engine::Config::loadWslVariables
 
-  Engine::Config::installUpdateEnv "${CONF_DIR}" "${LDAP_LOGIN}" "${WINDOWS_PROFILE_DIR}"
+  Engine::Config::installBashDevEnv "${CONF_DIR}" "${LDAP_LOGIN}" "${WINDOWS_PROFILE_DIR}"
+
   Log::requireLoad
 
   export BASH_DEV_ENV_CONFIG_LOADED=1
@@ -1209,35 +1210,30 @@ Engine::Config::createEnvFileFromTemplate() {
   fi
 }
 
-# @description install or update /etc/profile.d/updateEnv.sh file
+# @description install or update "${USER_HOME}/.bash-dev-env" file
 # @env CONF_DIR
-# @env LDAP_LOGIN
 # @env WINDOWS_PROFILE_DIR
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/profile.d/updateEnv.sh" as updateEnv
-Engine::Config::installUpdateEnv() {
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/home/.bash-dev-env" as bashDevEnv
+Engine::Config::installBashDevEnv() {
   if [[ "${INSTALL_UPDATE_ENV:-1}" = "1" ]]; then
     # INSTALL_UPDATE_ENV avoids infinite loop
     return 0
   fi
 
-  if [[ ! -f '/etc/profile.d/updateEnv.sh' || "${CONF_DIR}/etc/profile.d/updateEnv.sh" -nt "/etc/profile.d/updateEnv.sh" ]]; then
-    local fileToInstall
-    # shellcheck disable=SC2154
-    fileToInstall="$(Conf::dynamicConfFile "etc/profile.d/updateEnv.sh" "${embed_file_updateEnv}")" || return 1
-    SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-      "${fileToInstall}" '/etc/profile.d/updateEnv.sh' \
-      Install::setUserRootCallback
-  fi
-  if [[ "$(perl -ne 'if (/export LDAP_LOGIN=(.*)/) { print $1 }' "/etc/profile.d/updateEnv.sh")" != "${LDAP_LOGIN}" ]]; then
-    sudo sed -i -e "s#export LDAP_LOGIN=.*\$#export LDAP_LOGIN=${LDAP_LOGIN}#g" "/etc/profile.d/updateEnv.sh"
-  fi
-  sudo sed -i -e "s#WINDOWS_PROFILE_DIR=.*\$#WINDOWS_PROFILE_DIR='${WINDOWS_PROFILE_DIR}'#" "/etc/profile.d/updateEnv.sh"
-
-  # reload env
-  set +o errexit
-  # shellcheck source=/dev/null
-  source "/etc/profile"
-  set -o errexit
+  # shellcheck disable=SC2317
+  bashDevEnvConfig() {
+    sed -E -i \
+      -e "s#BASH_DEV_ENV_ROOT_DIR=#BASH_DEV_ENV_ROOT_DIR=${BASH_DEV_ENV_ROOT_DIR}#g" \
+      -e "s#WINDOWS_PROFILE_DIR=#WINDOWS_PROFILE_DIR=${WINDOWS_PROFILE_DIR}#g" \
+      "${USER_HOME}/.bash-dev-env"
+    sudo ln -sf "${USER_HOME}/.bash-dev-env" /root/.bash-dev-env
+  }
+  local fileToInstall
+  # shellcheck disable=SC2154
+  fileToInstall="$(Conf::dynamicConfFile "home/.bash-dev-env" "${embed_file_updateEnv}")" || return 1
+  OVERWRITE_CONFIG_FILES=1 Install::file \
+    "${fileToInstall}" "${USER_HOME}/.bash-dev-env" \
+    "${USERNAME}" "${USERGROUP}" bashDevEnvConfig
 }
 
 # @description deduce wsl host ip
@@ -1681,20 +1677,6 @@ Install::file() {
     ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
     return 3
   fi
-}
-
-# @description install callback
-#   set file with root ownership
-# @arg $1 fromFile:String
-# @arg $2 targetFile:String
-# @exitcode 1 on any failure
-# @env SUDO String allows to use custom sudo prefix command
-# @see Install::file
-Install::setUserRootCallback() {
-  # shellcheck disable=SC2034 # $1 not used
-  local fromFile="$1"
-  local targetFile="$2"
-  ${SUDO:-} chown root:root "${targetFile}"
 }
 
 # @description apt-get install

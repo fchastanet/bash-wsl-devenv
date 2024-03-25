@@ -1,11 +1,5 @@
 #!/bin/bash
 
-# load LDAP_LOGIN variable
-if [[ -f "${HOME}/.bash-tools/.env" ]]; then
-  #shellcheck source=/dev/null
-  source "${HOME}/.bash-tools/.env"
-fi
-
 isWsl() {
   grep -qEi "(Microsoft|WSL)" /proc/version &>/dev/null
   return $?
@@ -55,24 +49,6 @@ alias folder-size-sorter="folderSize | sort -h"
 alias ps_full_command='ps -efww'
 alias top5='ps aux --sort=-pcpu | head -n 5'
 
-# directory commands
-alias ckls='cd "${HOME}/projects/ck_ip_ckls_devenv/workspace/ckls"'
-alias cklsDocker='cd "${HOME}/projects/ck_ip_ckls_devenv"'
-alias cklm='cd "${HOME}/projects/cklm"'
-alias deployment='cd "${HOME}/projects/ck_ip_ckls_deployment"'
-
-# docker aliases
-change_dir_and_docker_compose() {
-  local folder="$1"
-  shift 1
-  (cd "${folder}" && docker-compose "$@")
-}
-alias dc_plume_spa='docker-compose -f "${HOME}/projects/ck_plume_spa/docker/dev/docker-compose.yml" --env-file "${HOME}/projects/ck_plume_spa/docker/dev/.env"'
-alias dc_plume_api='docker-compose -f "${HOME}/projects/ck_plume_api_django/docker/dev/docker-compose.yml" --env-file "${HOME}/projects/ck_plume_api_django/docker/dev/.env"'
-alias dc_ckls='change_dir_and_docker_compose "${HOME}/projects/ck_ip_ckls_devenv"'
-alias dc_cklm='change_dir_and_docker_compose "${HOME}/projects/cklm"'
-alias dc_skills_api='change_dir_and_docker_compose "${HOME}/projects/ck_skills_api"'
-
 # applications shortcuts
 if command -v awsume &>/dev/null; then
   terminatorAlias() { terminator "$@" 2>/dev/null & }
@@ -88,6 +64,9 @@ alias docker-compose-down-one-service='docker-compose rm -f -s'
 # shellcheck disable=SC2142
 alias remoteDisplayOn=$'export DISPLAY="$(ip route show default | awk \'/default/ {print $3}\'):0.0"; export LIBGL_ALWAYS_INDIRECT=1'
 alias remoteDisplayOff='export DISPLAY=":0.0"; export LIBGL_ALWAYS_INDIRECT=0'
+if ! isWsl; then
+  alias restart-VBoxClient="killall VBoxClient && VBoxClient-all"
+fi
 
 # git commands
 gitSafelyRemoveLocalBranch() {
@@ -116,26 +95,12 @@ undoLastPushedCommit() {
 }
 alias gitUndoLastPushedCommit='undoLastPushedCommit'
 
-# AWS aliases
-alias openvpnAwsQa='sudo openvpn ${HOME}/.vpn-client-config.k8s-cluster-eu-west-1.qa.crossknowledge.net-with-cert.ovpn'
-
 if command -v saml2aws &>/dev/null; then
-  alias aws-login='saml2aws login -p ck-dev --session-duration=43200 --disable-keychain'
+  alias aws-login='saml2aws login -p "${AWS_PROFILE:-default}" --session-duration=43200 --disable-keychain'
 fi
 
 # in order to log in to asw ecr - private docker registry
-alias aws-docker-login='aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin 889859566884.dkr.ecr.eu-west-1.amazonaws.com'
-
-# ssh remote hosts
-alias ssh_adminqa='ssh -4 ${LDAP_LOGIN}@admin.qa.crossknowledge.net ${BASTION_JUMP}'
-alias ssh_cklmqa='ssh -4 ${LDAP_LOGIN}@cklm-qa.crossknowledge.com   ${BASTION_JUMP}'
-
-# ssh tunnels
-alias tunnel_db_devckls='ssh -4 ${LDAP_LOGIN}@devcklstest.crossknowledge.com    -L 3310:sql-qa:3306 -f -N  ${BASTION_JUMP} '
-alias tunnel_db_qa='ssh -4 ${LDAP_LOGIN}@admin.qa.crossknowledge.net            -L 3309:ckls-qa.ca3lmbuebmw9.eu-west-1.rds.amazonaws.com:3306 -f -N ${BASTION_JUMP} '
-alias tunnel_db_qa_mysql8='ssh -4 ${LDAP_LOGIN}@admin.qa.crossknowledge.net     -L 3309:ckls-qa-mysql8x.ca3lmbuebmw9.eu-west-1.rds.amazonaws.com:3306 -f -N ${BASTION_JUMP} '
-alias tunnel_mailserver_devqa='ssh -4 ${LDAP_LOGIN}@admin.qa.crossknowledge.net -L 1026:localhost:25 -f -N ${BASTION_JUMP} '
-alias tunnel_jenkins='ssh -4 ${BASTION} -L 8085:jenkins.crossknowledge.com:443 -f -N '
+alias aws-docker-login='aws ecr get-login-password --region "${AWS_DEFAULT_REGION}" | docker login --username AWS --password-stdin "${AWS_DEFAULT_DOCKER_REGISTRY_ID}"'
 
 sshKillAllTunnel() {
   if [[ "$(uname -o)" = "Msys" ]]; then
@@ -148,20 +113,12 @@ sshKillAllTunnel() {
 }
 alias ssh_kill_all_tunnel='sshKillAllTunnel'
 
-# ssh proxy
-alias proxy_qa='ssh -D9005 ${LDAP_LOGIN}@bst-qa.crossknowledge.net -f -N'
-
-if ! isWsl; then
-  alias restart-VBoxClient="killall VBoxClient && VBoxClient-all"
-fi
-
 # This installer aliases
-alias upgrade='sudo /etc/cron.weekly/upgrade'
+alias upgrade='/etc/cron.weekly/upgrade'
 installAndConfigure() {
   (
-    cd "${HOME}/projects/ck_ip_devenv" &&
-      sudo ./install "$@" &&
-      ./configure "$@"
+    cd "${HOME}/fchastanet/bash-dev-env" || return 1
+    ./install "$@"
   )
 }
 

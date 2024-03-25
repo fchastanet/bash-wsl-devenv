@@ -81,7 +81,7 @@ This function is responsible for:
     it expires
   - create /etc/sudoers.d/bash-dev-env (check refactoring needed section)
 
-- installing and configuring the file `/etc/profile.d/updateEnv.sh`
+- installing and configuring the file `${HOME}/.bash-dev-env`
   - the aim of this file is to provide common configuration variables for both
     ShellZsh and ShellBash
   - the main advantage of this file is that it can be automatically updated

@@ -7,7 +7,6 @@
 # EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/ShellBash/.bash_navigation" as bash_navigation
 # EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/ShellBash/.bash_profile" as bash_profile
 # EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/ShellBash/.bash_prompt" as bash_prompt
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/ShellBash/.bash_prompt_legacy" as bash_prompt_legacy
 # EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/ShellBash/.bash_logout" as bash_logout
 # EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/ShellBash/.bashrc" as bashrc
 # EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/ShellBash/.profile" as profile
@@ -19,7 +18,6 @@ declare -a filesToInstall=(
   bash_navigation
   bash_profile
   bash_prompt
-  bash_prompt_legacy
   bash_logout
   bashrc
   profile

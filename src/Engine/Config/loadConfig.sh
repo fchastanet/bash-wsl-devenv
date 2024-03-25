@@ -38,7 +38,8 @@ Engine::Config::loadConfig() {
   #Linux::Wsl::initEnv
   Engine::Config::loadWslVariables
 
-  Engine::Config::installUpdateEnv "${CONF_DIR}" "${LDAP_LOGIN}" "${WINDOWS_PROFILE_DIR}"
+  Engine::Config::installBashDevEnv "${CONF_DIR}" "${LDAP_LOGIN}" "${WINDOWS_PROFILE_DIR}"
+
   Log::requireLoad
 
   export BASH_DEV_ENV_CONFIG_LOADED=1
