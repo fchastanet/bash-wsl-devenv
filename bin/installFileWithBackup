@@ -180,8 +180,8 @@ UPGRADE_UBUNTU_VERSION=0
 AWS_AUTHENTICATOR="Saml2Aws"
 
 # Choose your preferred shell
-# possible choices: BashProfile (Legacy experience), ZshProfile (Recommended experience)
-PREFERRED_SHELL="BashProfile"
+# possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
+PREFERRED_SHELL="ShellBash"
 
 # Display Fortune tooltip at bash/zsh session open
 SHOW_FORTUNES=1
@@ -490,7 +490,7 @@ Engine::Config::checkEnv() {
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
   checkValidValues AWS_AUTHENTICATOR Saml2Aws Awsume
-  checkValidValues PREFERRED_SHELL BashProfile ZshProfile
+  checkValidValues PREFERRED_SHELL ShellBash ShellZsh
 
   checkValidValues SHOW_FORTUNES 0 1
   checkValidValues SHOW_MOTD 0 1
@@ -905,6 +905,7 @@ Conf::dynamicConfFile() {
 # @arg $@ callbacksParams:String[] additional parameters passed to callbacks
 # @exitcode 1 if fromFile is not readable
 # @exitcode 2 if backup file failure
+# @exitcode 3 if copy failure
 # @exitcode 0 on success or if OVERWRITE_CONFIG_FILES=0
 # @exitcode 0 on success or if CHANGE_WINDOWS_FILES=0 and target file is a windows file
 # @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
@@ -954,10 +955,12 @@ Install::file() {
   Backup::file "${targetFile}" || return 2
 
   if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
-    ${successCallback} "${fromFile}" "${targetFile}" "$@"
     Log::displaySuccess "Installed file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
+    ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
   else
-    ${failureCallback} "${fromDir}" "${fromFilename}" "${targetFile}" "$@"
+    Log::displayError "unable to copy file from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
+    ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
+    return 3
   fi
 }
 

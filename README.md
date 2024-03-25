@@ -107,7 +107,7 @@ dependencies:
 - [Awsume](https://awsu.me/) (alternative to Saml2Aws)
 - [AwsCli](https://aws.amazon.com/cli/?nc1=h_ls)
   - Awscli with default ck configuration
-- BashProfile with
+- ShellBash with
   - pre configured aliases
   - default variables PATH, ...
   - completions
@@ -131,7 +131,7 @@ dependencies:
   - squizlabs/php_codesniffer
   - phpmd/phpmd
   - friendsofphp/php-cs-fixer
-- ZshProfile: instead of using BashProfile, you can use Zsh shell with
+- ShellZsh: instead of using ShellBash, you can use Zsh shell with
   - pre configured aliases
   - default variables PATH, ...
   - completions
@@ -175,8 +175,8 @@ dependencies:
   - wget
 - MLocate (command locate + indexing configuration) -
   - Mlocate deprecated in favor of fd (installed with Fzf dependency of
-    BashProfile and ZshProfile) contrary to Mlocate, fd does not need to
-    maintain a db of files
+    ShellBash and ShellZsh) contrary to Mlocate, fd does not need to maintain a
+    db of files
 - Node (install n + nodejs)
 - NodeDependencies
   - hjson

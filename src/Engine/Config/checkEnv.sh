@@ -88,7 +88,7 @@ Engine::Config::checkEnv() {
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
   checkValidValues AWS_AUTHENTICATOR Saml2Aws Awsume
-  checkValidValues PREFERRED_SHELL BashProfile ZshProfile
+  checkValidValues PREFERRED_SHELL ShellBash ShellZsh
 
   checkValidValues SHOW_FORTUNES 0 1
   checkValidValues SHOW_MOTD 0 1

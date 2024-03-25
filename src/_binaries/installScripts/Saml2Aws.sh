@@ -61,7 +61,7 @@ breakOnTestFailure() {
 }
 
 install() {
-  
+
   # @see https://github.com/fchastanet/my-documents/blob/master/HowTo/Saml2Aws.md
   # shellcheck disable=SC2317
   saml2awsInstallCallback() {
@@ -123,22 +123,20 @@ testConfigure() {
     UI::talkToUser "Please on Bash Dev env installation, your input may be required" \
       "${embed_file_talkScript}.ps1"
     if ! Retry::parameterized 3 0 \
-        "AWS Authentication, please provide your credentials ..." \
-        saml2aws login -p "${AWS_PROFILE}" --disable-keychain
-    then
+      "AWS Authentication, please provide your credentials ..." \
+      saml2aws login -p "${AWS_PROFILE}" --disable-keychain; then
       ((++failures))
       Log::displayError "Failed to connect to aws"
       return "${failures}"
     fi
     Log::displaySuccess "Aws connection succeeds"
-    
+
     # try to get secret
     Log::displayInfo "Trying to get secrets from aws"
     if ! aws secretsmanager \
       --region "${AWS_TEST_REGION}" get-secret-value \
       --secret-id "${AWS_TEST_SECRET_ID}" \
-      --query SecretString >/dev/null
-    then
+      --query SecretString >/dev/null; then
       ((++failures))
       Log::displayError "Failed to connect to aws"
       return "${failures}"
@@ -146,17 +144,16 @@ testConfigure() {
     Log::displaySuccess "Aws secret retrieved successfully"
 
     # test docker private registry connection
-    if ! command -v docker &>/dev/null; then        
+    if ! command -v docker &>/dev/null; then
       Log::displaySkipped "test docker private registry connection skipped as docker command is missing"
       return "${failures}"
     fi
 
     Log::displayInfo "Trying to connect docker private registry, please provide password if asked"
     if aws ecr get-login-password --region "${AWS_TEST_REGION}" | docker login \
-        --username AWS \
-        --password-stdin \
-        "${AWS_TEST_DOCKER_REGISTRY_ID}"
-    then
+      --username AWS \
+      --password-stdin \
+      "${AWS_TEST_DOCKER_REGISTRY_ID}"; then
       Log::displaySuccess "docker login success"
     else
       ((++failures))

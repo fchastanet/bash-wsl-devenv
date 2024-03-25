@@ -230,6 +230,7 @@ Array::wrap2() {
 # @arg $3 group:String expected owner group name of the file (default: USERGROUP or id -gn command)
 # @env USERNAME String if arg $2 is not provided
 # @env USERGROUP String if arg $3 is not provided
+# @env SUDO String allows to use custom sudo prefix command
 # @exitcode 1 if missing file
 # @exitcode 2 if incorrect user ownership
 # @exitcode 3 if incorrect group ownership
@@ -239,15 +240,15 @@ Assert::fileExists() {
   local user="${2:-${USERNAME}}"
   local group="${3:-${USERGROUP}}"
   Log::displayInfo "Check ${file} exists with user ${user}:${group}"
-  if [[ ! -f "${file}" ]]; then
+  if ! ${SUDO:-} test -f "${file}" &>/dev/null; then
     Log::displayError "missing file ${file}"
     return 1
   fi
-  if [[ "${user}" != "$(stat -c '%U' "${file}")" ]]; then
+  if [[ "${user}" != "$(${SUDO:-} stat -c '%U' "${file}")" ]]; then
     Log::displayError "incorrect user ownership on file ${file}"
     return 2
   fi
-  if [[ "${group}" != "$(stat -c '%G' "${file}")" ]]; then
+  if [[ "${group}" != "$(${SUDO:-} stat -c '%G' "${file}")" ]]; then
     Log::displayError "incorrect group ownership on file ${file}"
     return 3
   fi
@@ -471,8 +472,8 @@ UPGRADE_UBUNTU_VERSION=0
 AWS_AUTHENTICATOR="Saml2Aws"
 
 # Choose your preferred shell
-# possible choices: BashProfile (Legacy experience), ZshProfile (Recommended experience)
-PREFERRED_SHELL="BashProfile"
+# possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
+PREFERRED_SHELL="ShellBash"
 
 # Display Fortune tooltip at bash/zsh session open
 SHOW_FORTUNES=1
@@ -631,6 +632,7 @@ Framework::createTempFile() {
 # @arg $@ callbacksParams:String[] additional parameters passed to callbacks
 # @exitcode 1 if fromFile is not readable
 # @exitcode 2 if backup file failure
+# @exitcode 3 if copy failure
 # @exitcode 0 on success or if OVERWRITE_CONFIG_FILES=0
 # @exitcode 0 on success or if CHANGE_WINDOWS_FILES=0 and target file is a windows file
 # @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
@@ -680,10 +682,12 @@ Install::file() {
   Backup::file "${targetFile}" || return 2
 
   if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
-    ${successCallback} "${fromFile}" "${targetFile}" "$@"
     Log::displaySuccess "Installed file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
+    ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
   else
-    ${failureCallback} "${fromDir}" "${fromFilename}" "${targetFile}" "$@"
+    Log::displayError "unable to copy file from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
+    ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
+    return 3
   fi
 }
 
@@ -933,7 +937,7 @@ Log::requireLoad() {
 # @arg $1 character:String character to use as separator (default value #)
 UI::drawLine() {
   local character="${1:-#}"
-  printf '%*s\n' "${COLUMNS:-$([[ -t 0 ]] && tput cols || echo)}" '' | tr ' ' "${character}"
+  printf -- "${character}%.0s" $(seq "${COLUMNS:-$([[ -t 0 ]] && tput cols || echo)}")
 }
 
 # @description load colors theme constants
@@ -1176,7 +1180,7 @@ Engine::Config::checkEnv() {
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
   checkValidValues AWS_AUTHENTICATOR Saml2Aws Awsume
-  checkValidValues PREFERRED_SHELL BashProfile ZshProfile
+  checkValidValues PREFERRED_SHELL ShellBash ShellZsh
 
   checkValidValues SHOW_FORTUNES 0 1
   checkValidValues SHOW_MOTD 0 1
@@ -2067,9 +2071,9 @@ Retry::parameterized() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/e1c0bb3ddc6a0bc0796ffde92a738b62/wslConf" "W2F1dG9tb3VudF0Kcm9vdCA9IC9tbnQvCgpbYm9vdF0Kc3lzdGVtZD10cnVlCgpbZXhwZXJpbWVudGFsXQpkbnNUdW5uZWxpbmc9dHJ1ZQp1c2VXaW5kb3dzRG5zQ2FjaGU9dHJ1ZQo=" "644"
+Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/b27cb77828a56b8318852a8376b94366/wslConf" "W2F1dG9tb3VudF0Kcm9vdCA9IC9tbnQvCm9wdGlvbnMgPSAibWV0YWRhdGEsdWlkPTEwMDAsZ2lkPTEwMDAsdW1hc2s9MDAyMixmbWFzaz0xMSIKCltib290XQpzeXN0ZW1kPXRydWUKCltleHBlcmltZW50YWxdCmRuc1R1bm5lbGluZz10cnVlCnVzZVdpbmRvd3NEbnNDYWNoZT10cnVlCg==" "644"
 
-declare -gx embed_file_wslConf="${PERSISTENT_TMPDIR:-/tmp}/e1c0bb3ddc6a0bc0796ffde92a738b62/wslConf"
+declare -gx embed_file_wslConf="${PERSISTENT_TMPDIR:-/tmp}/b27cb77828a56b8318852a8376b94366/wslConf"
 
 facade_main_WslConfigsh() {
 # REQUIRES
