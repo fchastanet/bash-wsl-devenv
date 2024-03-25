@@ -80,6 +80,8 @@ executeScripts() {
   (
     # sudoersFile is initialized in _binaries/installScripts/_installScript.tpl
     .INCLUDE "$(dynamicTemplateDir _includes/sudoerFileManagement.tpl)"
+    local -i configIndex=1
+    local -i configCount=${#CONFIG_LIST[@]}
     # shellcheck disable=SC2317
     for configName in "${CONFIG_LIST[@]}"; do
       installStatus="0"
@@ -102,12 +104,14 @@ executeScripts() {
           "${LOGS_DIR:-#}/${configName}"-{install,config,test-install,test-configuration}.stat \
           &>/dev/null || true
 
+        UI::drawLineWithMsg "Installing ${configName} (${configIndex}/${configCount})" '#'
         executeScript "${configName}"
       ) || installStatus="$?"
       if [[ "${installStatus}" != "0" ]]; then
         Log::displayError "Aborted after ${configName} failure"
         exit "${installStatus}"
       fi
+      ((++configIndex))
     done
   ) 2>&1 | tee >(sed -r 's/\x1b\[[0-9;]*m//g' >>"${LOGS_DIR}/automatic-upgrade")
 }

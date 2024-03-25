@@ -125,8 +125,6 @@ testInstall() {
   Version::checkMinimal "docker" --version "25.0.3" || ((++failures))
   Version::checkMinimal "docker-compose" --version "2.23.1" || ((++failures))
 
-  echo
-  UI::drawLine "-"
   Log::displayInfo "docker executable path $(command -v docker || true)"
   Log::displayInfo "docker version $(docker --version || true)"
   Log::displayInfo "docker-compose version $(docker-compose --version || true)"
@@ -167,7 +165,7 @@ testConfigure() {
   fi
 
   Log::displayInfo "check if docker dns is working"
-  docker run busybox ping google.com -c 1 &>/dev/null || {
+  sudo -u "${USERNAME}" -i docker run busybox ping google.com -c 1 &>/dev/null || {
     ((++failures))
     Log::displayError "google.com is not reachable from docker, dns issue ?"
     ping google.com -c 1 &>/dev/null || {
@@ -177,11 +175,11 @@ testConfigure() {
   }
 
   Log::displayInfo "check if docker container can be launched"
-  if ! docker run --rm hello-world | grep -q "Hello from Docker!"; then
+  if ! sudo -u "${USERNAME}" -i docker run --rm hello-world | grep -q "Hello from Docker!"; then
     ((++failures))
     Log::displayError "docker container cannot be launched"
   fi
-  docker image rm hello-world || true
+  sudo -u "${USERNAME}" -i docker image rm hello-world || true
 
   return "${failures}"
 }

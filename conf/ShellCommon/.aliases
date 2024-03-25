@@ -1,0 +1,176 @@
+#!/bin/bash
+
+# load LDAP_LOGIN variable
+if [[ -f "${HOME}/.bash-tools/.env" ]]; then
+  #shellcheck source=/dev/null
+  source "${HOME}/.bash-tools/.env"
+fi
+
+isWsl() {
+  grep -qEi "(Microsoft|WSL)" /proc/version &>/dev/null
+  return $?
+}
+
+UI::askYesNo() {
+  while true; do
+    read -p "$1 (y or n)? " -n 1 -r
+    echo # move to a new line
+    case ${REPLY} in
+      [yY]) return 0 ;;
+      [nN]) return 1 ;;
+      *)
+        read -r -N 10000000 -t '0.01' || true # empty stdin in case of control characters
+        # \\r to go back to the beginning of the line
+        Log::displayError "\\r invalid answer                                                          "
+        ;;
+    esac
+  done
+}
+
+# enable color support of ls and also add handy aliases
+if [[ -x /usr/bin/dircolors && -r "${HOME}/.dir_colors" ]]; then
+  eval "$(dircolors -b "${HOME}/.dir_colors")"
+  alias ls='ls -F --color=auto --show-control-chars'
+
+  alias grep='grep --color=auto'
+  alias fgrep='fgrep --color=auto'
+  alias egrep='egrep --color=auto'
+fi
+
+# Add an "alert" alias for long running commands.  Use like so:
+#   sleep 10; alert
+alias alert='notify-send --urgency=low -i "$([ $? = 0 ] && echo terminal || echo error)" "$(history|tail -n1|sed -e '\''s/^\s*[0-9]\+\s*//;s/[;&|]\s*alert$//'\'')"'
+
+# some more ls aliases
+alias ll='ls -alF'
+alias la='ls -A'
+alias l='ls -CF'
+function folderSize() {
+  sudo find "${1:-.}" -maxdepth 1 -mindepth 1 -print0 | xargs -0 -P 10 -L 1 sudo du -hs
+}
+alias folder-size='folderSize'
+alias folder-size-sorter="folderSize | sort -h"
+
+# ps aliases
+alias ps_full_command='ps -efww'
+alias top5='ps aux --sort=-pcpu | head -n 5'
+
+# directory commands
+alias ckls='cd "${HOME}/projects/ck_ip_ckls_devenv/workspace/ckls"'
+alias cklsDocker='cd "${HOME}/projects/ck_ip_ckls_devenv"'
+alias cklm='cd "${HOME}/projects/cklm"'
+alias deployment='cd "${HOME}/projects/ck_ip_ckls_deployment"'
+
+# docker aliases
+change_dir_and_docker_compose() {
+  local folder="$1"
+  shift 1
+  (cd "${folder}" && docker-compose "$@")
+}
+alias dc_plume_spa='docker-compose -f "${HOME}/projects/ck_plume_spa/docker/dev/docker-compose.yml" --env-file "${HOME}/projects/ck_plume_spa/docker/dev/.env"'
+alias dc_plume_api='docker-compose -f "${HOME}/projects/ck_plume_api_django/docker/dev/docker-compose.yml" --env-file "${HOME}/projects/ck_plume_api_django/docker/dev/.env"'
+alias dc_ckls='change_dir_and_docker_compose "${HOME}/projects/ck_ip_ckls_devenv"'
+alias dc_cklm='change_dir_and_docker_compose "${HOME}/projects/cklm"'
+alias dc_skills_api='change_dir_and_docker_compose "${HOME}/projects/ck_skills_api"'
+
+# applications shortcuts
+if command -v awsume &>/dev/null; then
+  terminatorAlias() { terminator "$@" 2>/dev/null & }
+  alias terminator='terminatorAlias'
+  alias t='terminator -l docker -m &'
+fi
+if ! isWsl; then
+  alias code='/usr/bin/code >/dev/null 2>&1'
+fi
+alias docker-compose-down-one-service='docker-compose rm -f -s'
+
+# X server
+# shellcheck disable=SC2142
+alias remoteDisplayOn=$'export DISPLAY="$(ip route show default | awk \'/default/ {print $3}\'):0.0"; export LIBGL_ALWAYS_INDIRECT=1'
+alias remoteDisplayOff='export DISPLAY=":0.0"; export LIBGL_ALWAYS_INDIRECT=0'
+
+# git commands
+gitSafelyRemoveLocalBranch() {
+  local branch="$1"
+  git tag "${branch}" "${branch}" && git branch -D "${branch}"
+}
+alias git-safely-remove-local-branch='gitSafelyRemoveLocalBranch'
+
+gitListBranchesForCommit() {
+  local branch="$1"
+  git branch -a --contains "${branch}"
+}
+alias git-list-branches-for-commit='gitListBranchesForCommit'
+
+# undo last pushed commit
+# - step 1: remove commit locally
+# - step 2: force-push the new HEAD commit
+# !!!! use it with care
+# this will create an "alternate reality" for people who have already fetch/pulled/cloned from the remote repository.
+undoLastPushedCommit() {
+  echo -e '\e[33m!!! use it with care\e[0m'
+  echo -e '\e[33mthis will create an "alternate reality" for people who have already fetch/pulled/cloned from the remote repository.\e[0m'
+  UI::askYesNo "do you confirm" && {
+    git reset HEAD^ && git push origin +HEAD
+  }
+}
+alias gitUndoLastPushedCommit='undoLastPushedCommit'
+
+# AWS aliases
+alias openvpnAwsQa='sudo openvpn ${HOME}/.vpn-client-config.k8s-cluster-eu-west-1.qa.crossknowledge.net-with-cert.ovpn'
+
+if command -v saml2aws &>/dev/null; then
+  alias aws-login='saml2aws login -p ck-dev --session-duration=43200 --disable-keychain'
+fi
+
+# in order to log in to asw ecr - private docker registry
+alias aws-docker-login='aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin 889859566884.dkr.ecr.eu-west-1.amazonaws.com'
+
+# ssh remote hosts
+alias ssh_adminqa='ssh -4 ${LDAP_LOGIN}@admin.qa.crossknowledge.net ${BASTION_JUMP}'
+alias ssh_cklmqa='ssh -4 ${LDAP_LOGIN}@cklm-qa.crossknowledge.com   ${BASTION_JUMP}'
+
+# ssh tunnels
+alias tunnel_db_devckls='ssh -4 ${LDAP_LOGIN}@devcklstest.crossknowledge.com    -L 3310:sql-qa:3306 -f -N  ${BASTION_JUMP} '
+alias tunnel_db_qa='ssh -4 ${LDAP_LOGIN}@admin.qa.crossknowledge.net            -L 3309:ckls-qa.ca3lmbuebmw9.eu-west-1.rds.amazonaws.com:3306 -f -N ${BASTION_JUMP} '
+alias tunnel_db_qa_mysql8='ssh -4 ${LDAP_LOGIN}@admin.qa.crossknowledge.net     -L 3309:ckls-qa-mysql8x.ca3lmbuebmw9.eu-west-1.rds.amazonaws.com:3306 -f -N ${BASTION_JUMP} '
+alias tunnel_mailserver_devqa='ssh -4 ${LDAP_LOGIN}@admin.qa.crossknowledge.net -L 1026:localhost:25 -f -N ${BASTION_JUMP} '
+alias tunnel_jenkins='ssh -4 ${BASTION} -L 8085:jenkins.crossknowledge.com:443 -f -N '
+
+sshKillAllTunnel() {
+  if [[ "$(uname -o)" = "Msys" ]]; then
+    # git bash: no way to get full process command, just kill all ssh processes
+    # shellcheck disable=SC2009
+    ps a | grep '/usr/bin/ssh' | grep -v 'grep ' | awk -F " " '{print $1}' | xargs -t --no-run-if-empty kill
+  else
+    pgrep -f 'ssh.*-L' | xargs -t --no-run-if-empty kill
+  fi
+}
+alias ssh_kill_all_tunnel='sshKillAllTunnel'
+
+# ssh proxy
+alias proxy_qa='ssh -D9005 ${LDAP_LOGIN}@bst-qa.crossknowledge.net -f -N'
+
+if ! isWsl; then
+  alias restart-VBoxClient="killall VBoxClient && VBoxClient-all"
+fi
+
+# This installer aliases
+alias upgrade='sudo /etc/cron.weekly/upgrade'
+installAndConfigure() {
+  (
+    cd "${HOME}/projects/ck_ip_devenv" &&
+      sudo ./install "$@" &&
+      ./configure "$@"
+  )
+}
+
+# directory navigation (check .inputrc for keyboard shortcuts)
+alias ..='cd ..'
+alias ...='cd ../../'
+alias ....='cd ../../../'
+alias .....='cd ../../../../'
+
+if command -v awsume &>/dev/null; then
+  alias awsume="source awsume"
+fi

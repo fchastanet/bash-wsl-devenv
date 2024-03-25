@@ -17,6 +17,7 @@ CONFIG_LIST+=(
   "Motd"
   "AwsCli"
   "Saml2Aws"
+  "ShellBash"
 )
 
 # Mandatory packages

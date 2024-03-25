@@ -83,7 +83,7 @@ This function is responsible for:
 
 - installing and configuring the file `/etc/profile.d/updateEnv.sh`
   - the aim of this file is to provide common configuration variables for both
-    ZshProfile and BashProfile
+    ShellZsh and ShellBash
   - the main advantage of this file is that it can be automatically updated
     without risking to overwrite .bashrc file
   - the variable OVERWRITE_CONFIG_FILES is ignored

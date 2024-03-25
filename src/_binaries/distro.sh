@@ -94,6 +94,11 @@ exportDistro() {
   gzip -9 "/tmp/${DISTRO_NAME}.tar"
 }
 
+isDistroSystemdRunning() {
+  [[ "$(runWslCmd readlink -f /sbin/init)" = "/usr/lib/systemd/systemd" ]] || return 1
+  runWslCmd systemctl status --no-pager &>/dev/null || return 1
+}
+
 # @require Linux::requireExecutedAsUser
 run() {
   if [[ ! -f "${BASH_DEV_ENV_ROOT_DIR}/.env.distro" ]]; then
@@ -151,7 +156,7 @@ run() {
     tee -a "/mnt/wsl/${DISTRO_NAME}/home/wsl/.bashrc" >/dev/null
 
   Log::displayInfo "Delete folder ${DISTRO_BASH_DEV_ENV_TARGET_DIR} in distro ${DISTRO_NAME}"
-  runWslCmd rm -Rf "${DISTRO_BASH_DEV_ENV_TARGET_DIR}" 2>/dev/null || true
+  runWslCmd rm -Rf "${DISTRO_BASH_DEV_ENV_TARGET_DIR}/"{*,.*} 2>/dev/null || true
 
   Log::displayInfo "Prepare archive of current dir ${DISTRO_BASH_DEV_ENV_TARGET_DIR}"
   (cd "${BASH_DEV_ENV_ROOT_DIR}" && tar czf /tmp/bashDevEnv.tgz .)
@@ -169,7 +174,7 @@ run() {
   cp -v "${BASH_DEV_ENV_ROOT_DIR}/.env.distro" "/mnt/wsl/${DISTRO_NAME}${DISTRO_BASH_DEV_ENV_TARGET_DIR}/.env"
 
   local systemdActivated=0
-  if Linux::isSystemdRunning; then
+  if isDistroSystemdRunning; then
     systemdActivated=1
   fi
   Log::displayInfo 'pre-configure /etc/wsl.conf in order to activate systemd'
@@ -188,7 +193,7 @@ run() {
     }
     Retry::parameterized 20 1 "Waiting for distro ${DISTRO_NAME} to terminate" checkDistroTerminated
     Log::displayInfo "Check if systemd has been enabled successfully"
-    if ! Linux::isSystemdRunning; then
+    if ! isDistroSystemdRunning; then
       Log::fatal "Systemd is not running"
     fi
   fi

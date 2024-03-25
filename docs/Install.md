@@ -88,7 +88,7 @@ code .env
 **launch the installation for wsl and follow the instructions**
 
 ```sh
-sudo ./install -p default
+./install -p default
 ```
 
 That's it, you're environment is installed and configured, you are ready to
@@ -100,5 +100,5 @@ develop !
 independently** eg:
 
 ```sh
-sudo ./install ZshProfile
+./install ShellZsh
 ```
