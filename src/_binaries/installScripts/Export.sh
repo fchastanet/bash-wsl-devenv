@@ -47,12 +47,17 @@ breakOnTestFailure() {
 }
 
 install() {
+  return 0
+}
+
+configure() {
   # some cleaning to prepare export
   if [[ "${PREPARE_EXPORT}" = "1" ]]; then
     (
       Log::displayInfo "==> Clean up before export"
       set -x
       rm -f "${BASH_DEV_ENV_ROOT_DIR}/.env" || true
+      rm -f "${BASH_DEV_ENV_ROOT_DIR}/.env.distro" || true
       rm -Rf "${BACKUP_DIR:?}/"* || true
       rm -Rf "/tmp/"* || true
       rm -Rf "${USER_HOME}/.vscode-server" || true
@@ -66,10 +71,6 @@ install() {
   else
     Log::displaySkipped "--export option has not been selected"
   fi
-}
-
-configure() {
-  return 0
 }
 
 testInstall() {
