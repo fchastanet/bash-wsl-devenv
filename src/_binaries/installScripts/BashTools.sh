@@ -16,7 +16,7 @@ helpDescription() {
 }
 
 fortunes() { 
-  if [[ -d "${USER_HOME}/projects/bash-tools/bin" ]]; then
+  if [[ -d "${USER_HOME}/fchastanet/bash-tools/bin" ]]; then
     fortunes+=("BashTools - cli -- tool to easily connect to your containers")
     fortunes+=("BashTools - dbImport -- tool to import database from aws or Mizar")
     fortunes+=("BashTools - dbQueryAllDatabases -- tool to execute a query on multiple databases")
@@ -49,18 +49,10 @@ configure() {
   dirToInstall="$(Conf::dynamicConfDir ".bash-tools" "${embed_dir_bash_tools_conf}")" || return 1
   OVERWRITE_CONFIG_FILES=1 Install::dir \
     "${dirToInstall}" "${USER_HOME}/.bash-tools" || return 1
-  if [[ -x "${CONF_OVERRIDE}/BashTools/postConfigure.sh" ]]; then
-    # shellcheck source=conf/SimpleTest/postConfigure.sh
-    source "${CONF_OVERRIDE}/BashTools/postConfigure.sh" || return 1
-  fi
 }
 testConfigure() {
   local -i failures=0
   Assert::dirExists "${USER_HOME}/.bash-tools" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bash-tools/cliProfiles/default.sh" || ((++failures))
-  if [[ -x "${CONF_OVERRIDE}/BashTools/postConfigureTest.sh" ]]; then
-    # shellcheck source=conf/SimpleTest/postConfigureTest.sh
-    source "${CONF_OVERRIDE}/BashTools/postConfigureTest.sh" || ((++failures))
-  fi
   return "${failures}"
 }
