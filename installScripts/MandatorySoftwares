@@ -2847,6 +2847,9 @@ configureUpdateCron() {
 configure() {
   Engine::Config::installBashDevEnv
   configureUpdateCron
+  # remove parallel nagware
+  mkdir -p "${USER_HOME}/.parallel"
+  touch "${USER_HOME}/.parallel/will-cite"
 }
 
 testConfigure() {
