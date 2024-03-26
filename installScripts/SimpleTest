@@ -272,6 +272,8 @@ PROJECTS_DIR="${USER_HOME}/projects"
 
 # where overridden config files will be backed up
 BACKUP_DIR="${BASH_DEV_ENV_ROOT_DIR}/backup"
+# backup files/dirs before installing new file (ussually 1, but 0 if using distro)
+BACKUP_BEFORE_INSTALL=1
 # logs CONF_DIR
 LOGS_DIR="${BASH_DEV_ENV_ROOT_DIR}/logs"
 # installScripts dir
@@ -1333,7 +1335,7 @@ Conf::dynamicConfFile() {
 # @env BASE_MNT_C String windows C drive base PATH
 # @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
 # @env SUDO String allows to use custom sudo prefix command
-# @env BACKUP_FILE Boolean (default: 1)
+# @env BACKUP_BEFORE_INSTALL Boolean (default: 1) backup file before installing the file
 Install::file() {
   local fromFile="$1"
   local targetFile="$2"
@@ -1371,7 +1373,7 @@ Install::file() {
   local fromFilename
   fromFilename="$(basename "${fromFile}")"
 
-  if [[ "${BACKUP_FILE:-1}" = "1" ]]; then
+  if [[ "${BACKUP_BEFORE_INSTALL:-1}" = "1" ]]; then
     Backup::file "${targetFile}" || return 2
   fi
 
@@ -1561,16 +1563,27 @@ Assert::validVariableName() {
   echo "$1" | LC_ALL=POSIX grep -E -q '(^[a-z][A-Za-z_0-9:]+$)|(^[A-Z_][A-Z_0-9:]+$)'
 }
 
-# @description Backup given file in the same directory appending _ followed by the current date
+# @description Backup given file in the same directory or in BACKUP_DIR directory
+# backup file name is composed by following fields separated by -:
+#   - if BACKUP_DIR is not empty then escaped dirname separated by @
+#   - filename(without path)
+#   - date with format %Y%m%d_%H:%M:%S (Eg: 20240326_14:45:08)
 # @arg $1 file:String the file to backup
 # @stderr messages about backup file location
 # @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_DIR if unlnow backup the file in the same directory
 # @exitcode 1 on copy failure
 Backup::file() {
   local file="$1"
-  local backupFile
+  local backupFile dirname escapedDirname
   if [[ -f "${file}" ]]; then
-    backupFile="${file}_$(date +"%Y-%m-%d_%H:%M:%S")"
+    dirname="$(dirname "${file}")"
+    escapedDirname="$(sed -e 's#^/##; s#/#@#g' <<<"${dirname}")"
+    if [[ -z "${BACKUP_DIR:-}" ]]; then
+      backupFile="${dirname}/$(basename "${file}")-$(date +"%Y%m%d_%H:%M:%S")"
+    else
+      backupFile="${BACKUP_DIR}/${escapedDirname}@$(basename "${file}")-$(date +"%Y%m%d_%H:%M:%S")"
+    fi
     Log::displayInfo "Backup file '${file}' to ${backupFile}"
     ${SUDO:-} cp "${file}" "${backupFile}"
   fi

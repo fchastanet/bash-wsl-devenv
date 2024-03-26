@@ -83,6 +83,7 @@ mountDistroFolder() {
   sudo mkdir -p "/mnt/wsl/${DISTRO_NAME}"
   sudo mount -t drvfs "\\\\wsl$\\${DISTRO_NAME}" "/mnt/wsl/${DISTRO_NAME}"
   mkdir -p "/mnt/wsl/${DISTRO_NAME}/home/wsl/fchastanet"
+  runWslCmd chown -R "${USERNAME}:${USERGROUP}" /home/wsl/fchastanet
 }
 
 exportDistro() {
