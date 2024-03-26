@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # @description install or update "${USER_HOME}/.bash-dev-env" file
-# @env CONF_DIR
 # @env WINDOWS_PROFILE_DIR
+# @env BASH_DEV_ENV_ROOT_DIR
+# @env USER_HOME
 # EMBED "${BASH_DEV_ENV_ROOT_DIR}/home/.bash-dev-env" as bashDevEnv
 Engine::Config::installBashDevEnv() {
   # shellcheck disable=SC2317
