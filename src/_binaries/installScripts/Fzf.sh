@@ -3,7 +3,6 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED Github::upgradeRelease as githubUpgradeRelease
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
@@ -60,7 +59,7 @@ install() {
   export -f installDeb
 
   # shellcheck disable=SC2154
-  SUDO=sudo "${embed_function_GithubUpgradeRelease}" \
+  SUDO=sudo Github::upgradeRelease \
     "/usr/bin/fd" \
     "https://github.com/sharkdp/fd/releases/download/v@latestVersion@/fd_@latestVersion@_amd64.deb" \
     --version \
@@ -68,7 +67,7 @@ install() {
     installDeb \
     Version::parse
 
-  SUDO=sudo "${embed_function_GithubUpgradeRelease}" \
+  SUDO=sudo Github::upgradeRelease \
     "/usr/bin/bat" \
     "https://github.com/sharkdp/bat/releases/download/v@latestVersion@/bat_@latestVersion@_amd64.deb" \
     --version \

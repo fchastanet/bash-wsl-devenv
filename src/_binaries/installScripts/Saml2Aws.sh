@@ -3,7 +3,6 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED Github::upgradeRelease as githubUpgradeRelease
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
@@ -55,7 +54,7 @@ install() {
   }
   export -f saml2awsInstallCallback
   # shellcheck disable=SC2154
-  SUDO=sudo "${embed_function_GithubUpgradeRelease}" \
+  SUDO=sudo Github::upgradeRelease \
     /usr/local/bin/saml2aws \
     "https://github.com/Versent/saml2aws/releases/download/v@latestVersion@/saml2aws_@latestVersion@_linux_amd64.tar.gz" \
     "--version" \

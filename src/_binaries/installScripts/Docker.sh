@@ -3,7 +3,6 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED Github::upgradeRelease as githubUpgradeRelease
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
@@ -67,7 +66,7 @@ install() {
   }
   export -f dockerComposeVersionCallback
   # shellcheck disable=SC2154
-  SUDO=sudo "${embed_function_GithubUpgradeRelease}" \
+  SUDO=sudo Github::upgradeRelease \
     /usr/local/bin/docker-compose \
     "https://github.com/docker/compose/releases/download/@latestVersion@/docker-compose-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)" \
     "--version" \
