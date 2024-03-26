@@ -31,21 +31,20 @@ helpDescription() {
   echo "ShellBash"
 }
 
-helpVariables() {
-  true
+dependencies() {
+  echo ShellCommon
+  echo Fasd
+  echo Fzf
+  echo Kubectx
+  echo Kubeps1
 }
 
-listVariables() {
-  true
-}
-
-defaultVariables() {
-  true
-}
-
-checkVariables() {
-  true
-}
+helpVariables() { :; }
+listVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
 
 fortunes() {
   local currentUserShell
@@ -57,28 +56,14 @@ fortunes() {
   fi
 }
 
-dependencies() {
-  echo ShellCommon
-  # font needed for displaying bash prompt
-  echo Font
-  echo Fasd
-  echo Fzf
-  echo Kubectx
-  echo Kubeps1
-}
-
-breakOnConfigFailure() {
-  echo breakOnConfigFailure
-}
-
-breakOnTestFailure() {
-  echo breakOnTestFailure
-}
-
 install() {
   Linux::Apt::update
   Linux::Apt::install \
     bash-completion
+}
+
+testInstall() {
+  Assert::fileExists /etc/profile.d/bash_completion.sh root root || return 1
 }
 
 configure() {
@@ -97,10 +82,6 @@ configure() {
     https://raw.githubusercontent.com/git/git/master/contrib/completion/git-prompt.sh || return 1
 
   Conf::installFromEmbed "ShellBash" "${filesToInstall[@]}" || return 1
-}
-
-testInstall() {
-  Assert::fileExists /etc/profile.d/bash_completion.sh root root || return 1
 }
 
 testConfigure() {

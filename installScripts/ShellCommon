@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/ShellCommon.sh
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/configureScripts/ShellCommon.sh
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -716,6 +716,22 @@ InstallScripts::command() {
   fi
 }
 
+# @description retrieve wslpath using cache (cache is refreshed every day)
+# @arg $@ args:String[] arguments to pass to wslpath
+# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
+# @exitcode * if Linux::Wsl::originalWslpath cannot find the path
+# @stderr diagnostics information is displayed
+# @require Linux::Wsl::requireWsl
+# @feature cache
+Linux::Wsl::cachedWslpath() {
+  local -a args=("$@")
+  local tempEnvFile key
+  tempEnvFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslpath_$(id -un)"
+
+  key="$(Linux::Wsl::getKeyFromWslpathOptions "$@")"
+  Cache::getPropertyValue "${tempEnvFile}" "${key}" Linux::Wsl::originalWslpath "${args[@]}"
+}
+
 # @description Log namespace provides 2 kind of functions
 # - Log::display* allows to display given message with
 #   given display level
@@ -762,6 +778,16 @@ Log::displayError() {
     echo -e "${__ERROR_COLOR}ERROR   - ${1}${__RESET_COLOR}" >&2
   fi
   Log::logError "$1"
+}
+
+# @description Display message using info color (bg light blue/fg white)
+# @arg $1 message:String the message to display
+Log::displayHelp() {
+  local type="${2:-HELP}"
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    echo -e "${__HELP_COLOR}${type}    - ${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logHelp "$1" "${type}"
 }
 
 FIRST_LOG_DATE="$(date '+%s%3N')"
@@ -981,6 +1007,39 @@ Backup::file() {
     Log::displayInfo "Backup file '${file}' to ${backupFile}"
     ${SUDO:-} cp "${file}" "${backupFile}"
   fi
+}
+
+# @description get property value from file
+# if not present compute it using propertyNotFoundCallback (if provided) and store it in property file
+# @arg $1 propertyFile:String the file in which the property will be searched
+# @arg $2 key:String the property key to search in property file
+# @arg $3 propertyNotFoundCallback:Function (optional) a callback to call if property key is not found in property file
+# @arg $@ args:String[] (optional) the arguments to pass to the propertyNotFoundCallback
+# @exitcode 1 if value is not found
+# @exitcode * if propertyNotFoundCallback fails
+# @stdout the property value given by property file or by the propertyNotFoundCallback
+Cache::getPropertyValue() {
+  local value
+  local propertyFile="$1"
+  shift || true
+  local key
+  key="$(echo -E "$1" | sed -E 's#\\#/#g')"
+  shift || true
+  local propertyNotFoundCallback=$1
+  shift || true
+
+  if grep -E "^${key}=.*" "${propertyFile}" &>/dev/null; then
+    grep -E "^${key}=" "${propertyFile}" | cut -d'=' -f2
+    return 0
+  elif [[ "$(type -t "${propertyNotFoundCallback}")" = "function" ]]; then
+    value="$("${propertyNotFoundCallback}" "$@")" || return $?
+    if [[ -n "${value}" ]]; then
+      echo -E "${key}=${value}" >>"${propertyFile}"
+    fi
+    echo -E "${value}"
+    return 0
+  fi
+  return 1
 }
 
 # @description check validity of .env variables
@@ -1319,6 +1378,49 @@ Install::unableToCopyCallback() {
   Log::fatal "unable to copy file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fileName}' to '${targetFile}'"
 }
 
+# @description Compute a cache from wslpath options
+# @arg $@ args:String[] arguments passed to wslpath
+# @stderr diagnostics information is displayed
+# @stdout the cache key deduced from the options
+# @require Linux::Wsl::requireWsl
+# @feature cache
+# @internal
+Linux::Wsl::getKeyFromWslpathOptions() {
+  local options
+  options=$(getopt -o "auwm" -- "$@" 2>/dev/null) || {
+    Log::displayError "invalid options specified"
+    return 1
+  }
+  local key="wslpath"
+  eval set -- "${options}"
+  while true; do
+    case "$1" in
+      -a | -u | -w | -m)
+        key="${key}$1"
+        ;;
+      --)
+        shift || true
+        break
+        ;;
+      *)
+        shift || true
+        Log::displayWarning "Unknown key $1"
+        ;;
+    esac
+    shift || true
+  done
+  echo -E "${key}_$1"
+}
+
+# @description call simply original wslpath command
+# @arg $@ args:String[] args to pass to wslpath
+# @exitcode * wslpath exit code
+# @stdout wslpath stdout
+# @require Linux::Wsl::requireWsl
+Linux::Wsl::originalWslpath() {
+  wslpath "$@"
+}
+
 # @description Display message using success color (bg green/fg white)
 # @arg $1 message:String the message to display
 Log::displaySuccess() {
@@ -1357,6 +1459,14 @@ Log::logError() {
 # @arg $1 message:String the message to display
 Log::logFatal() {
   Log::logMessage "${2:-FATAL}" "$1"
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logHelp() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-HELP}" "$1"
+  fi
 }
 
 # @description log message to file
@@ -1440,6 +1550,20 @@ Stats::computeStatsTrap() {
   Stats::computeFromLog "${logFile}" "${status}" "$((endDate - startDate))" >"${statFile}"
   Stats::statusLine "${statFile}" "${step}"
   return "${status}"
+}
+
+# @description ensure linux runs under wsl
+# @env WSL_GARBAGE_COLLECT int 0 to disable garbage collect of cache files
+# @exitcode 1 if linux does not run under wsl
+Linux::Wsl::requireWsl() {
+  Assert::wsl || return 1
+  if [[ "${WSL_GARBAGE_COLLECT:-1}" = "1" ]]; then
+    local tempEnvDir
+    tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
+    File::garbageCollect "${tempEnvDir}/bash_tools_wslpath_$(id -un)" "1"
+    tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
+    File::garbageCollect "${tempEnvDir}/bash_tools_wslvar_$(id -un)" "1"
+  fi
 }
 
 # @description load color theme
@@ -1530,6 +1654,33 @@ Assert::varExistsAndNotEmpty() {
 # @exitcode 1 on error
 Assert::wsl() {
   [[ "$(uname -o)" = "GNU/Linux" ]]
+}
+
+# @description delete files older than n days in given path
+# @warning use this function with caution as it will delete all files in given path without any prompt
+# @arg $1 path:String the directory in which files will be deleted or the file to delete
+# @arg $2 mtime:String expiration time in days (eg: 1 means 1 day) (default value: 1). Eg: +1 match files that have been accessed at least two days ago (rounding effect)
+# @arg $3 maxdepth:int Descend at most levels (a non-negative integer) levels of directories below the starting-points. (default value: 1)
+# @exitcode 1 if path not provided or empty
+# @exitcode * find command failure code
+# @stderr find output on error or diagnostics logs
+# @see man find atime
+File::garbageCollect() {
+  local path="$1"
+  local mtime="$2"
+  local maxdepth="${3:-1}"
+
+  if [[ -z "${path}" ]]; then
+    return 1
+  fi
+
+  if [[ ! -e "${path}" ]]; then
+    # path already removed
+    return 0
+  fi
+
+  Log::displayInfo "Garbage collect files older than ${mtime} days in path ${path} with max depth ${maxdepth}"
+  find "${path}" -depth -maxdepth "${maxdepth}" -type f -mtime "${mtime}" -print -delete
 }
 
 # @description apt-get install
@@ -1716,55 +1867,6 @@ Assert::validVariableName() {
   echo "$1" | LC_ALL=POSIX grep -E -q '(^[a-z][A-Za-z_0-9:]+$)|(^[A-Z_][A-Z_0-9:]+$)'
 }
 
-# @description get property value from file
-# if not present compute it using propertyNotFoundCallback (if provided) and store it in property file
-# @arg $1 propertyFile:String the file in which the property will be searched
-# @arg $2 key:String the property key to search in property file
-# @arg $3 propertyNotFoundCallback:Function (optional) a callback to call if property key is not found in property file
-# @arg $@ args:String[] (optional) the arguments to pass to the propertyNotFoundCallback
-# @exitcode 1 if value is not found
-# @exitcode * if propertyNotFoundCallback fails
-# @stdout the property value given by property file or by the propertyNotFoundCallback
-Cache::getPropertyValue() {
-  local value
-  local propertyFile="$1"
-  shift || true
-  local key
-  key="$(echo -E "$1" | sed -E 's#\\#/#g')"
-  shift || true
-  local propertyNotFoundCallback=$1
-  shift || true
-
-  if grep -E "^${key}=.*" "${propertyFile}" &>/dev/null; then
-    grep -E "^${key}=" "${propertyFile}" | cut -d'=' -f2
-    return 0
-  elif [[ "$(type -t "${propertyNotFoundCallback}")" = "function" ]]; then
-    value="$("${propertyNotFoundCallback}" "$@")" || return $?
-    if [[ -n "${value}" ]]; then
-      echo -E "${key}=${value}" >>"${propertyFile}"
-    fi
-    echo -E "${value}"
-    return 0
-  fi
-  return 1
-}
-
-# @description retrieve wslpath using cache (cache is refreshed every day)
-# @arg $@ args:String[] arguments to pass to wslpath
-# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
-# @exitcode * if Linux::Wsl::originalWslpath cannot find the path
-# @stderr diagnostics information is displayed
-# @require Linux::Wsl::requireWsl
-# @feature cache
-Linux::Wsl::cachedWslpath() {
-  local -a args=("$@")
-  local tempEnvFile key
-  tempEnvFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslpath_$(id -un)"
-
-  key="$(Linux::Wsl::getKeyFromWslpathOptions "$@")"
-  Cache::getPropertyValue "${tempEnvFile}" "${key}" Linux::Wsl::originalWslpath "${args[@]}"
-}
-
 # @description call simply original wslvar command
 # @arg $@ args:String[] args to pass to wslvar
 # @exitcode * wslvar exit code
@@ -1796,90 +1898,6 @@ Linux::requireUbuntu() {
   if ! Array::contains "$(Linux::getDistributorId)" "Ubuntu" "Debian"; then
     Log::fatal "this script should be executed under Ubuntu or Debian OS"
   fi
-}
-
-# @description ensure linux runs under wsl
-# @env WSL_GARBAGE_COLLECT int 0 to disable garbage collect of cache files
-# @exitcode 1 if linux does not run under wsl
-Linux::Wsl::requireWsl() {
-  Assert::wsl || return 1
-  if [[ "${WSL_GARBAGE_COLLECT:-1}" = "1" ]]; then
-    local tempEnvDir
-    tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
-    File::garbageCollect "${tempEnvDir}/bash_tools_wslpath_$(id -un)" "1"
-    tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
-    File::garbageCollect "${tempEnvDir}/bash_tools_wslvar_$(id -un)" "1"
-  fi
-}
-
-# @description delete files older than n days in given path
-# @warning use this function with caution as it will delete all files in given path without any prompt
-# @arg $1 path:String the directory in which files will be deleted or the file to delete
-# @arg $2 mtime:String expiration time in days (eg: 1 means 1 day) (default value: 1). Eg: +1 match files that have been accessed at least two days ago (rounding effect)
-# @arg $3 maxdepth:int Descend at most levels (a non-negative integer) levels of directories below the starting-points. (default value: 1)
-# @exitcode 1 if path not provided or empty
-# @exitcode * find command failure code
-# @stderr find output on error or diagnostics logs
-# @see man find atime
-File::garbageCollect() {
-  local path="$1"
-  local mtime="$2"
-  local maxdepth="${3:-1}"
-
-  if [[ -z "${path}" ]]; then
-    return 1
-  fi
-
-  if [[ ! -e "${path}" ]]; then
-    # path already removed
-    return 0
-  fi
-
-  Log::displayInfo "Garbage collect files older than ${mtime} days in path ${path} with max depth ${maxdepth}"
-  find "${path}" -depth -maxdepth "${maxdepth}" -type f -mtime "${mtime}" -print -delete
-}
-
-# @description Compute a cache from wslpath options
-# @arg $@ args:String[] arguments passed to wslpath
-# @stderr diagnostics information is displayed
-# @stdout the cache key deduced from the options
-# @require Linux::Wsl::requireWsl
-# @feature cache
-# @internal
-Linux::Wsl::getKeyFromWslpathOptions() {
-  local options
-  options=$(getopt -o "auwm" -- "$@" 2>/dev/null) || {
-    Log::displayError "invalid options specified"
-    return 1
-  }
-  local key="wslpath"
-  eval set -- "${options}"
-  while true; do
-    case "$1" in
-      -a | -u | -w | -m)
-        key="${key}$1"
-        ;;
-      --)
-        shift || true
-        break
-        ;;
-      *)
-        shift || true
-        Log::displayWarning "Unknown key $1"
-        ;;
-    esac
-    shift || true
-  done
-  echo -E "${key}_$1"
-}
-
-# @description call simply original wslpath command
-# @arg $@ args:String[] args to pass to wslpath
-# @exitcode * wslpath exit code
-# @stdout wslpath stdout
-# @require Linux::Wsl::requireWsl
-Linux::Wsl::originalWslpath() {
-  wslpath "$@"
 }
 
 # @description retrieve linux distributor id
@@ -1938,14 +1956,17 @@ declare -gx embed_file_dir_colors="${PERSISTENT_TMPDIR:-/tmp}/4467bf284005509c89
 Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/8aaf139cad8d71d786af79e2dd8e5964/vimrc" "c2V0IG5vZWIgdmIgdF92Yj0Kc2V0IHBhc3RlCnNldCBub2NvbXBhdGlibGUgImFycm93IGtleXMgY29tcGF0aWJpbGl0eQpzZXQgYmFja3NwYWNlPTIgIm1ha2UgYmFja3NwYWNlIHRvIHdvcmsKc2V0IG5vc3dhcGZpbGUgImF2b2lkIGNyZWF0aW5nIGFuIGludGVybWVkaWF0ZSBmaWxlIHdoZW4gc2F2aW5nIHRoYXQgY291bGQgYnJlYWsgZG9ja2VyIG1vdW50IGh0dHBzOi8vZ2l0aHViLmNvbS9tb2J5L21vYnkvaXNzdWVzLzE1NzkzCiIgYWN0aXZhdGVzIGZpbGV0eXBlIGRldGVjdGlvbgpmaWxldHlwZSBwbHVnaW4gaW5kZW50IG9uCnN5bnRheCBvbiAiCmNvbG9yc2NoZW1lIGRlc2VydApzZXQgcnVsZXIK" "644"
 
 declare -gx embed_file_vimrc="${PERSISTENT_TMPDIR:-/tmp}/8aaf139cad8d71d786af79e2dd8e5964/vimrc"
+Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/99d52f86115b4771f75502764ce43aca/xresources" "eHRlcm0qZmFjZU5hbWU6IE1lc2xvTEdTIE5GCnh0ZXJtKmZhY2VTaXplOiAxNAo=" "644"
+
+declare -gx embed_file_xresources="${PERSISTENT_TMPDIR:-/tmp}/99d52f86115b4771f75502764ce43aca/xresources"
 
 facade_main_ShellCommonsh() {
 # REQUIRES
+Linux::Wsl::requireWsl
 Env::requireLoad
 UI::requireTheme
 Log::requireLoad
 Linux::requireUbuntu
-Linux::Wsl::requireWsl
 Compiler::Facade::requireCommandBinDir
 
 if Assert::functionExists initFacade; then
@@ -1981,11 +2002,13 @@ fi
 # EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/ShellCommon/.inputrc" as inputrc
 # EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/ShellCommon/.dir_colors" as dir_colors
 # EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/ShellCommon/.vimrc" as vimrc
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/ShellCommon/.Xresources" as xresources
 
 declare -a filesToInstall=(
   inputrc
   dir_colors
   vimrc
+  xresources
 )
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
@@ -2685,7 +2708,7 @@ installScriptCommand() {
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
     echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/ShellCommon.sh'
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/configureScripts/ShellCommon.sh'
     echo
     echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
     echo 'MIT License'
@@ -2731,41 +2754,20 @@ helpDescription() {
   echo "ShellCommon"
 }
 
-helpVariables() {
-  true
-}
-
-listVariables() {
-  true
-}
-
-defaultVariables() {
-  true
-}
-
-checkVariables() {
-  true
-}
-
-fortunes() {
-  return 0
-}
-
 dependencies() {
-  return 0
+  # font needed for displaying bash prompt
+  echo Font
 }
 
-breakOnConfigFailure() {
-  echo breakOnConfigFailure
-}
-
-breakOnTestFailure() {
-  echo breakOnTestFailure
-}
-
-install() {
-  :
-}
+helpVariables() { :; }
+listVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+fortunes() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
+install() { :; }
+testInstall() { :; }
 
 configure() {
   Conf::installFromEmbed "ShellCommon" "${filesToInstall[@]}" || return 1
@@ -2780,14 +2782,22 @@ configure() {
   sudo sed -i -e 's/;set bell-style none/set bell-style none/g' /etc/inputrc
 }
 
-testInstall() {
-  :
-}
-
 testConfigure() {
   local -i failures=0
   Conf::installFromEmbedCheck "${filesToInstall[@]}" || ((failures = failures + $?))
   SUDO=sudo Assert::fileExists /root/.vimrc root root || ((++failures))
+
+  # check font in windows terminal configuration
+  local terminalConfFile
+  # cspell:ignore wekyb, bbwe
+  terminalConfFile="${WINDOWS_PROFILE_DIR}/AppData/Local/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/settings.json"
+  if [[ -f "${terminalConfFile}" ]]; then
+    if ! grep -q '"face": "MesloLGS NF"' "${terminalConfFile}"; then
+      Log::displayHelp "Please change your terminal settings($(Linux::Wsl::cachedWslpath -w "${terminalConfFile}")) to use font 'MesloLGS NF' for wsl profile"
+    fi
+  else
+    Log::displayHelp "please use windows terminal for better shell display results"
+  fi
 
   return "${failures}"
 }

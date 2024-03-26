@@ -14,37 +14,14 @@ helpDescription() {
   echo "Kubectx"
 }
 
-helpVariables() {
-  true
-}
-
-listVariables() {
-  true
-}
-
-defaultVariables() {
-  true
-}
-
-checkVariables() {
-  true
-}
-
-fortunes() {
-  return 0
-}
-
-dependencies() {
-  return 0
-}
-
-breakOnConfigFailure() {
-  echo breakOnConfigFailure
-}
-
-breakOnTestFailure() {
-  echo breakOnTestFailure
-}
+dependencies() { :; }
+fortunes() { :; }
+helpVariables() { :; }
+listVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
 
 install() {
   SUDO=sudo Git::cloneOrPullIfNoChanges \
@@ -55,15 +32,6 @@ install() {
   sudo ln -sf /opt/kubectx/kubens /usr/local/bin/kubens
 }
 
-configure() {
-  mkdir -p "${USER_HOME}/.bash_completion.d" || true
-  chown "${USERNAME}":"${USERGROUP}" "${USER_HOME}/.bash_completion.d"
-
-  ln -sf /opt/kubectx/completion/kubens.bash "${USER_HOME}/.bash_completion.d/kubens"
-  chown -h "${USERNAME}":"${USERGROUP}" "${USER_HOME}/.bash_completion.d/kubens"
-  ln -sf /opt/kubectx/completion/kubectx.bash "${USER_HOME}/.bash_completion.d/kubectx"
-  chown -h "${USERNAME}":"${USERGROUP}" "${USER_HOME}/.bash_completion.d/kubectx"
-}
 
 testInstall() {
   local -i failures=0
@@ -72,10 +40,5 @@ testInstall() {
   return "${failures}"
 }
 
-testConfigure() {
-  local -i failures=0
-  Assert::dirExists "${USER_HOME}/.bash_completion.d" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash_completion.d/kubens" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash_completion.d/kubectx" || ((++failures))
-  return "${failures}"
-}
+configure() { :; }
+testConfigure() { :; }

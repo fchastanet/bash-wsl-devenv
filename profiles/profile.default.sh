@@ -14,8 +14,9 @@ CONFIG_LIST+=(
 # optional packages
 CONFIG_LIST+=(
   "Docker"
-  "Motd"
-  "AwsCli"
+  "DefaultMotd"
+  "DefaultAwsConfig"
+  "DefaultKubeConfig"
   "Saml2Aws"
   "ShellBash"
 )

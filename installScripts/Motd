@@ -224,106 +224,11 @@ Array::wrap2() {
   ) | sed -E -e 's/[[:blank:]]+$//'
 }
 
-# @description asserts that first argument is a file that exists with specified ownership and is executable
-# @arg $1 file:String
-# @arg $2 user:String expected owner user name of the file (default: USERNAME or id -un command)
-# @arg $3 group:String expected owner group name of the file (default: USERGROUP or id -gn command)
-# @env USERNAME String if arg $2 is not provided
-# @env USERGROUP String if arg $3 is not provided
-# @exitcode 1 if Assert::fileExists fails
-# @exitcode 2 if file is not executable
-# @stderr diagnostics information is displayed
-# @see Assert::fileExists
-Assert::fileExecutable() {
-  local file user group
-  file="$1"
-  user="${2:-${USERNAME}}"
-  group="${3:-${USERGROUP}}"
-
-  Assert::fileExists "${file}" "${user}" "${group}" || return 1
-  if [[ ! -x "${file}" ]]; then
-    Log::displayError "file ${file} is expected to be executable"
-    return 2
-  fi
-}
-
-# @description asserts that first argument is a file that exists with specified ownership and is NOT executable
-# @arg $1 file:String
-# @arg $2 user:String expected owner user name of the file (default: USERNAME or id -un command)
-# @arg $3 group:String expected owner group name of the file (default: USERGROUP or id -gn command)
-# @env USERNAME String if arg $2 is not provided
-# @env USERGROUP String if arg $3 is not provided
-# @exitcode 1 if Assert::fileExists fails
-# @exitcode 2 if file is executable
-# @stderr diagnostics information is displayed
-# @see Assert::fileExists
-Assert::fileNotExecutable() {
-  local file user group
-  file="$1"
-  user="${2:-${USERNAME}}"
-  group="${3:-${USERGROUP}}"
-  Assert::fileExists "${file}" "${user}" "${group}" || return 1
-  if [[ -x "${file}" ]]; then
-    Log::displayError "file ${file} is expected to be not executable"
-    return 2
-  fi
-}
-
 # @description checks if function name provided exists
 # @arg $1 functionName:String
 # @exitcode 1 if function name doesn't exist
 Assert::functionExists() {
   declare -F "$1" >/dev/null
-}
-
-# @description convert base64 encoded back to target file
-# if target file is executable prepend dir of target
-# file to PATH to make binary available everywhere
-# it is advised to include in the path of the target file
-# the md5sum of the binFile
-#
-# @arg $1 targetFile:String the file to write
-# @arg $2 binFileBase64:String the base64 encoded file
-# @arg $3 fileMode:String the chmod to set on the file
-# @set PATH String prepend target embedded file binary directory to PATH variable if binary executable
-Compiler::Embed::extractFileFromBase64() {
-  local targetFile="$1"
-  local binFileBase64="$2"
-  local fileMode="${3:-+x}"
-
-  if [[ ! -f "${targetFile}" ]]; then
-    mkdir -p "$(dirname "${targetFile}")"
-    base64 -d >"${targetFile}" <<<"${binFileBase64}"
-    chmod "${fileMode}" "${targetFile}"
-  fi
-
-  if [[ -x "${targetFile}" ]]; then
-    Env::pathPrepend "$(dirname "${targetFile}")"
-  fi
-}
-
-# @description select right file to load depending if file exists in this order:
-# - from conf.override
-# - from embedded file if provided
-# - from conf dir
-# @arg $1 file:String
-# @arg $2 embedFile:String eventual embedded file
-# @exitcode 1 if file does not exist at all
-Conf::dynamicConfFile() {
-  local file="${1/#\//}" # remove first slash if any
-  local embedFile="${2:-}"
-  if [[ -f "${CONF_OVERRIDE_DIR}/${file}" ]]; then
-    echo "${CONF_OVERRIDE_DIR}/${file}"
-    return 0
-  elif [[ -f "${embedFile}" ]]; then
-    echo "${embedFile}"
-    return 0
-  elif [[ -f "${CONF_DIR}/${file}" ]]; then
-    echo "${CONF_DIR}/${file}"
-    return 0
-  fi
-  Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
-  return 1
 }
 
 envFileTemplate="$(
@@ -534,95 +439,6 @@ Env::requireLoad() {
 # @arg $1 templateName:String template name to use(optional)
 Framework::createTempFile() {
   mktemp -p "${TMPDIR:-/tmp}" -t "${1:-}.XXXXXXXXXXXX"
-}
-
-# @description installs file to given directory
-#
-# callbacks parameters `${fromFile} ${targetFile} $@`
-# @arg $1 fromFile - original file to copy
-# @arg $2 targetFile - target file
-# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
-# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
-# @arg $5 successCallback:Function the callback to call when file is installed successfully, by default setUserRights callback is called
-# @arg $6 failureCallback:Function the callback to call when file installation has failed, by default unableToCopyCallback callback is called
-# @arg $@ callbacksParams:String[] additional parameters passed to callbacks
-# @exitcode 1 if fromFile is not readable
-# @exitcode 2 if backup file failure
-# @exitcode 3 if copy failure
-# @exitcode 0 on success or if OVERWRITE_CONFIG_FILES=0
-# @exitcode 0 on success or if CHANGE_WINDOWS_FILES=0 and target file is a windows file
-# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
-# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target file is in windows file system, overwrite it
-# @env USERNAME (default: root) the user name that will be used to set target files ownership
-# @env USERGROUP (default: root) the group name that will be used to set target files ownership
-# @env BASE_MNT_C String windows C drive base PATH
-# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
-# @env SUDO String allows to use custom sudo prefix command
-# @env BACKUP_FILE Boolean (default: 1)
-Install::file() {
-  local fromFile="$1"
-  local targetFile="$2"
-  local userName="${3:-${USERNAME:-root}}"
-  local userGroup="${4:-${USERGROUP:-root}}"
-  local successCallback=${5:-Install::setUserRightsCallback}
-  local failureCallback=${6:-Install::unableToCopyCallback}
-  shift 6 || true
-
-  if [[ ! -f "${fromFile}" || ! -r "${fromFile}" ]]; then
-    Log::displayError "cannot read source file '${fromFile}'"
-    return 1
-  fi
-
-  # skip if OVERWRITE_CONFIG_FILES is 0 and target file exists
-  if [[ "${OVERWRITE_CONFIG_FILES}" = "0" && -f "${targetFile}" ]]; then
-    Log::displayWarning "File '${targetFile}' exists - Skip install (because OVERWRITE_CONFIG_FILES=0 in .env file)"
-    return 0
-  fi
-
-  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
-  if [[ "${CHANGE_WINDOWS_FILES}" = "0" && "${targetFile}" =~ ^${BASE_MNT_C} ]]; then
-    Log::displayWarning "File '${targetFile}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
-    return 0
-  fi
-
-  local targetDir
-  targetDir="$(dirname "${targetFile}")"
-  if [[ ! -d "${targetDir}" ]]; then
-    ${SUDO:-} mkdir -p "${targetDir}"
-    ${SUDO:-} chown "${userName}":"${userGroup}" "${targetDir}"
-  fi
-  local fromDir
-  fromDir="$(dirname "${fromFile}")"
-  local fromFilename
-  fromFilename="$(basename "${fromFile}")"
-
-  if [[ "${BACKUP_FILE:-1}" = "1" ]]; then
-    Backup::file "${targetFile}" || return 2
-  fi
-
-  if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
-    Log::displaySuccess "Installed file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
-    ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
-  else
-    Log::displayError "unable to copy file from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
-    ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
-    return 3
-  fi
-}
-
-# @description install callback
-#   set file with root ownership and execution bit
-# @arg $1 fromFile:String
-# @arg $2 targetFile:String
-# @exitcode 1 on any failure
-# @env SUDO String allows to use custom sudo prefix command
-# @see Install::file
-Install::setRootExecutableCallback() {
-  # shellcheck disable=SC2034
-  local fromFile="$1"
-  local targetFile="$2"
-  ${SUDO:-} chown root:root "${targetFile}"
-  ${SUDO:-} chmod +x "${targetFile}"
 }
 
 # @description the command launch different actions(install, configure, test)
@@ -971,36 +787,6 @@ Compiler::Facade::requireCommandBinDir() {
   Env::pathPrepend "${COMMAND_BIN_DIR}"
 }
 
-# @description asserts that first argument is file that exists with specified ownership
-# @arg $1 file:String
-# @arg $2 user:String expected owner user name of the file (default: USERNAME or id -un command)
-# @arg $3 group:String expected owner group name of the file (default: USERGROUP or id -gn command)
-# @env USERNAME String if arg $2 is not provided
-# @env USERGROUP String if arg $3 is not provided
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode 1 if missing file
-# @exitcode 2 if incorrect user ownership
-# @exitcode 3 if incorrect group ownership
-# @stderr diagnostics information is displayed
-Assert::fileExists() {
-  local file="$1"
-  local user="${2:-${USERNAME}}"
-  local group="${3:-${USERGROUP}}"
-  Log::displayInfo "Check ${file} exists with user ${user}:${group}"
-  if ! ${SUDO:-} test -f "${file}" &>/dev/null; then
-    Log::displayError "missing file ${file}"
-    return 1
-  fi
-  if [[ "${user}" != "$(${SUDO:-} stat -c '%U' "${file}")" ]]; then
-    Log::displayError "incorrect user ownership on file ${file}"
-    return 2
-  fi
-  if [[ "${group}" != "$(${SUDO:-} stat -c '%G' "${file}")" ]]; then
-    Log::displayError "incorrect group ownership on file ${file}"
-    return 3
-  fi
-}
-
 # @description check if tty (interactive mode) is active
 # @noargs
 # @exitcode 1 if tty not active
@@ -1015,21 +801,6 @@ Assert::tty() {
   fi
   # check if stdout or stderr is connected to terminal
   [[ -t 1 || -t 2 ]]
-}
-
-# @description Backup given file in the same directory appending _ followed by the current date
-# @arg $1 file:String the file to backup
-# @stderr messages about backup file location
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode 1 on copy failure
-Backup::file() {
-  local file="$1"
-  local backupFile
-  if [[ -f "${file}" ]]; then
-    backupFile="${file}_$(date +"%Y-%m-%d_%H:%M:%S")"
-    Log::displayInfo "Backup file '${file}' to ${backupFile}"
-    ${SUDO:-} cp "${file}" "${backupFile}"
-  fi
 }
 
 # @description check validity of .env variables
@@ -1332,51 +1103,6 @@ Env::pathPrepend() {
   done
 }
 
-# @description install callback
-#   set file with root ownership and execution bit
-# @arg $1 fromFile:String
-# @arg $2 targetFile:String
-# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
-# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
-# @env USERNAME (default: root) the user name that will be used to set target files ownership
-# @env USERGROUP (default: root) the group name that will be used to set target files ownership
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode 1 on any failure
-# @see Install::file
-Install::setUserRightsCallback() {
-  # shellcheck disable=SC2034 # $1 not used
-  local fromFile="$1"
-  local targetFile="$2"
-  local userName="${3:-${USERNAME:-root}}"
-  local userGroup="${4:-${USERGROUP:-root}}"
-
-  ${SUDO:-} chown "${userName}":"${userGroup}" "${targetFile}"
-}
-
-# @description install callback
-#   default callback used called when file copy has failed
-# @arg $1 fromFile:String
-# @arg $2 targetFile:String
-# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
-# @exitcode 1 always fail
-# @stderr diagnostics information is displayed
-# @see Install::file
-Install::unableToCopyCallback() {
-  local fromDir="$1"
-  local fileName="$2"
-  local targetFile="$3"
-  Log::fatal "unable to copy file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fileName}' to '${targetFile}'"
-}
-
-# @description Display message using success color (bg green/fg white)
-# @arg $1 message:String the message to display
-Log::displaySuccess() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    echo -e "${__SUCCESS_COLOR}SUCCESS - ${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logSuccess "$1"
-}
-
 # @description Display given text on full line with TEST_COLOR style
 # @arg $1 text:String text to display
 Log::headLine() {
@@ -1597,6 +1323,104 @@ Assert::wsl() {
   [[ "$(uname -o)" = "GNU/Linux" ]]
 }
 
+# @description select right file to load depending if file exists in this order:
+# - from conf.override
+# - from embedded file if provided
+# - from conf dir
+# @arg $1 file:String
+# @arg $2 embedFile:String eventual embedded file
+# @exitcode 1 if file does not exist at all
+Conf::dynamicConfFile() {
+  local file="${1/#\//}" # remove first slash if any
+  local embedFile="${2:-}"
+  if [[ -f "${CONF_OVERRIDE_DIR}/${file}" ]]; then
+    echo "${CONF_OVERRIDE_DIR}/${file}"
+    return 0
+  elif [[ -f "${embedFile}" ]]; then
+    echo "${embedFile}"
+    return 0
+  elif [[ -f "${CONF_DIR}/${file}" ]]; then
+    echo "${CONF_DIR}/${file}"
+    return 0
+  fi
+  Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
+  return 1
+}
+
+# @description installs file to given directory
+#
+# callbacks parameters `${fromFile} ${targetFile} $@`
+# @arg $1 fromFile - original file to copy
+# @arg $2 targetFile - target file
+# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
+# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
+# @arg $5 successCallback:Function the callback to call when file is installed successfully, by default setUserRights callback is called
+# @arg $6 failureCallback:Function the callback to call when file installation has failed, by default unableToCopyCallback callback is called
+# @arg $@ callbacksParams:String[] additional parameters passed to callbacks
+# @exitcode 1 if fromFile is not readable
+# @exitcode 2 if backup file failure
+# @exitcode 3 if copy failure
+# @exitcode 0 on success or if OVERWRITE_CONFIG_FILES=0
+# @exitcode 0 on success or if CHANGE_WINDOWS_FILES=0 and target file is a windows file
+# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
+# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target file is in windows file system, overwrite it
+# @env USERNAME (default: root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @env BASE_MNT_C String windows C drive base PATH
+# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_FILE Boolean (default: 1)
+Install::file() {
+  local fromFile="$1"
+  local targetFile="$2"
+  local userName="${3:-${USERNAME:-root}}"
+  local userGroup="${4:-${USERGROUP:-root}}"
+  local successCallback=${5:-Install::setUserRightsCallback}
+  local failureCallback=${6:-Install::unableToCopyCallback}
+  shift 6 || true
+
+  if [[ ! -f "${fromFile}" || ! -r "${fromFile}" ]]; then
+    Log::displayError "cannot read source file '${fromFile}'"
+    return 1
+  fi
+
+  # skip if OVERWRITE_CONFIG_FILES is 0 and target file exists
+  if [[ "${OVERWRITE_CONFIG_FILES}" = "0" && -f "${targetFile}" ]]; then
+    Log::displayWarning "File '${targetFile}' exists - Skip install (because OVERWRITE_CONFIG_FILES=0 in .env file)"
+    return 0
+  fi
+
+  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
+  if [[ "${CHANGE_WINDOWS_FILES}" = "0" && "${targetFile}" =~ ^${BASE_MNT_C} ]]; then
+    Log::displayWarning "File '${targetFile}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
+    return 0
+  fi
+
+  local targetDir
+  targetDir="$(dirname "${targetFile}")"
+  if [[ ! -d "${targetDir}" ]]; then
+    ${SUDO:-} mkdir -p "${targetDir}"
+    ${SUDO:-} chown "${userName}":"${userGroup}" "${targetDir}"
+  fi
+  local fromDir
+  fromDir="$(dirname "${fromFile}")"
+  local fromFilename
+  fromFilename="$(basename "${fromFile}")"
+
+  if [[ "${BACKUP_FILE:-1}" = "1" ]]; then
+    Backup::file "${targetFile}" || return 2
+  fi
+
+  if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
+    Log::displaySuccess "Installed file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
+    ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
+  else
+    Log::displayError "unable to copy file from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
+    ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
+    return 3
+  fi
+}
+
 # @description retrieve path from wslvar and then use wslpath to resolve it
 # using cache (cache is refreshed every day)
 # @arg $1 var:String the var to retrieve using wslvar
@@ -1643,14 +1467,6 @@ Log::displaySkipped() {
     echo -e "${__SKIPPED_COLOR}SKIPPED - ${1}${__RESET_COLOR}" >&2
   fi
   Log::logSkipped "$1"
-}
-
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logSuccess() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SUCCESS}" "$1"
-  fi
 }
 
 # @description Retry a command several times depending on parameters
@@ -1805,6 +1621,21 @@ Assert::validVariableName() {
   echo "$1" | LC_ALL=POSIX grep -E -q '(^[a-z][A-Za-z_0-9:]+$)|(^[A-Z_][A-Z_0-9:]+$)'
 }
 
+# @description Backup given file in the same directory appending _ followed by the current date
+# @arg $1 file:String the file to backup
+# @stderr messages about backup file location
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode 1 on copy failure
+Backup::file() {
+  local file="$1"
+  local backupFile
+  if [[ -f "${file}" ]]; then
+    backupFile="${file}_$(date +"%Y-%m-%d_%H:%M:%S")"
+    Log::displayInfo "Backup file '${file}' to ${backupFile}"
+    ${SUDO:-} cp "${file}" "${backupFile}"
+  fi
+}
+
 # @description get property value from file
 # if not present compute it using propertyNotFoundCallback (if provided) and store it in property file
 # @arg $1 propertyFile:String the file in which the property will be searched
@@ -1838,6 +1669,42 @@ Cache::getPropertyValue() {
   return 1
 }
 
+# @description install callback
+#   set file with root ownership and execution bit
+# @arg $1 fromFile:String
+# @arg $2 targetFile:String
+# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
+# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
+# @env USERNAME (default: root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode 1 on any failure
+# @see Install::file
+Install::setUserRightsCallback() {
+  # shellcheck disable=SC2034 # $1 not used
+  local fromFile="$1"
+  local targetFile="$2"
+  local userName="${3:-${USERNAME:-root}}"
+  local userGroup="${4:-${USERGROUP:-root}}"
+
+  ${SUDO:-} chown "${userName}":"${userGroup}" "${targetFile}"
+}
+
+# @description install callback
+#   default callback used called when file copy has failed
+# @arg $1 fromFile:String
+# @arg $2 targetFile:String
+# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @exitcode 1 always fail
+# @stderr diagnostics information is displayed
+# @see Install::file
+Install::unableToCopyCallback() {
+  local fromDir="$1"
+  local fileName="$2"
+  local targetFile="$3"
+  Log::fatal "unable to copy file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fileName}' to '${targetFile}'"
+}
+
 # @description retrieve wslpath using cache (cache is refreshed every day)
 # @arg $@ args:String[] arguments to pass to wslpath
 # @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
@@ -1861,6 +1728,15 @@ Linux::Wsl::cachedWslpath() {
 # @require Linux::Wsl::requireWsl
 Linux::Wsl::originalWslvar() {
   wslvar "$@" | sed -z '$ s/[\r\n]$//'
+}
+
+# @description Display message using success color (bg green/fg white)
+# @arg $1 message:String the message to display
+Log::displaySuccess() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    echo -e "${__SUCCESS_COLOR}SUCCESS - ${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logSuccess "$1"
 }
 
 # @description log message to file
@@ -1955,20 +1831,15 @@ Linux::Wsl::originalWslpath() {
   wslpath "$@"
 }
 
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logSuccess() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SUCCESS}" "$1"
+  fi
+}
+
 # FUNCTIONS
-
-Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/110c2902123fcb04aed433c4bb545cf5/motd00" "IyEvYmluL2Jhc2gKCmVjaG8gIiQodHB1dCBzZXRhZiAyKSAgIC5+fi4gICAufn4uICAgICQoZGF0ZSArIiVBLCAlZSAlQiAlWSwgJXIiKSIKZWNobyAiJCh0cHV0IHNldGFmIDIpICAnLiBcICcgJyAvIC4nICAgJCh1bmFtZSAtc3JtbykiCg==" "755"
-
-declare -gx embed_file_motd00="${PERSISTENT_TMPDIR:-/tmp}/110c2902123fcb04aed433c4bb545cf5/motd00"
-Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/9383729270123b3afb576d5aa7efe610/motd01" "IyEvYmluL2Jhc2gKIyBwYW1fbW90ZCBkb2VzIG5vdCBjYXJyeSB0aGUgZW52aXJvbm1lbnQKaWYgW1sgLWYgL2V0Yy9kZWZhdWx0L2xvY2FsZSBdXTsgdGhlbgogIHNvdXJjZSAvZXRjL2RlZmF1bHQvbG9jYWxlCmZpCmV4cG9ydCBMQU5HCmNvcmVzPSQoZ3JlcCAtYyBecHJvY2Vzc29yIC9wcm9jL2NwdWluZm8gMj4vZGV2L251bGwpCltbICIke2NvcmVzfSIgLWVxICIwIiBdXSAmJiBjb3Jlcz0xCnRocmVzaG9sZD0iJHtjb3JlczotMX0uMCIKaWYgW1sgIiQoZWNobyAiJChjdXQgLWYxIC1kICcgJyAvcHJvYy9sb2FkYXZnKSA8ICR7dGhyZXNob2xkfSIgfCBiYykiICE9ICIxIiBdXTsgdGhlbgogIGVjaG8KICBlY2hvICIgU3lzdGVtIGluZm9ybWF0aW9uIGRpc2FibGVkIGR1ZSB0byBsb2FkIGhpZ2hlciB0aGFuICR7dGhyZXNob2xkfSIKICBleGl0IDAKZmkKCigodXBTZWNvbmRzID0gIiQoL3Vzci9iaW4vY3V0IC1kLiAtZjEgL3Byb2MvdXB0aW1lKSIpKQooKHNlY3MgPSB1cFNlY29uZHMgJSA2MCkpCigobWlucyA9IHVwU2Vjb25kcyAvIDYwICUgNjApKQooKGhvdXJzID0gdXBTZWNvbmRzIC8gMzYwMCAlIDI0KSkKKChkYXlzID0gdXBTZWNvbmRzIC8gODY0MDApKQpVUFRJTUU9JChwcmludGYgIiVkIGRheXMsICUwMmRoJTAyZG0lMDJkcyIgIiR7ZGF5c30iICIke2hvdXJzfSIgIiR7bWluc30iICIke3NlY3N9IikKCiMgZ2V0IHRoZSBsb2FkIGF2ZXJhZ2VzCnJlYWQgLXIgb25lIGZpdmUgZmlmdGVlbiByZXN0IDwvcHJvYy9sb2FkYXZnCgpkaXNrU3BhY2VUb3RhbD0iJChkZiAtaCB8IGF3ayAne2lmKCQoTkYpID09ICIvIikge3ByaW50ICQoTkYtMSksIiAoIiwkKE5GLTMpLCIvIiwkKE5GLTIpLCIpIjsgZXhpdDt9fScpIgptZW1vcnlGcmVlPSIkKGZyZWUgLWggLS1tZWdhIHwgYXdrICcvTWVtOi97cHJpbnQgJDd9JykiCm1lbW9yeVRvdGFsPSIkKGZyZWUgLWggLS1tZWdhIHwgYXdrICcvTWVtOi97cHJpbnQgJDJ9JykiCgplY2hvICIkKHRwdXQgc2V0YWYgMSkgICAufiAufn5+Li5+LiIKZWNobyAiJCh0cHV0IHNldGFmIDEpICA6IC5+Lid+Jy5+LiA6ICAgVXB0aW1lLi4uLi4uLi4uLi4uLjogICAke1VQVElNRX0iCmVjaG8gIiQodHB1dCBzZXRhZiAxKSB+ICggICApICggICApIH4gIE1lbW9yeS4uLi4uLi4uLi4uLi46ICAgJHttZW1vcnlGcmVlfSAoRnJlZSkgLyAke21lbW9yeVRvdGFsfSAoVG90YWwpIgplY2hvICIkKHRwdXQgc2V0YWYgMSkoIDogJ34nLn4uJ34nIDogKSAiCmVjaG8gIiQodHB1dCBzZXRhZiAxKSB+IC5+ICggICApIH4uIH4gIExvYWQgQXZlcmFnZXMuLi4uLi46ICAgJHtvbmV9LCAke2ZpdmV9LCAke2ZpZnRlZW59ICgxLCA1LCAxNSBtaW4pIgplY2hvICIkKHRwdXQgc2V0YWYgMSkgICggIDogJ34nIDogICkgICBSdW5uaW5nIFByb2Nlc3Nlcy4uOiAgICQocHMgYXggfCB3YyAtbCB8IHRyIC1kICIgIikiCmVjaG8gIiQodHB1dCBzZXRhZiAxKSAgICd+IC5+fn4uIH4nICAgIEhvc3QgSVAgQWRkcmVzcy4uLi46ICAgJChpcCByb3V0ZSBzaG93IGRlZmF1bHQgfCBhd2sgJy9kZWZhdWx0LyB7cHJpbnQgJDN9JykiCmVjaG8gIiQodHB1dCBzZXRhZiAxKSAgICAgICAnficgICAgICAgIEhvbWUgRGlzayBTcGFjZS4uLi46ICAgJHtkaXNrU3BhY2VUb3RhbH0iCmVjaG8gLW4gIiQodHB1dCBzZ3IwKSIKCiMgc2hvdyB6b21iaWUgcHJvY2Vzc2VzClBTPSIkKHBncmVwIC1hIC1yIFopIgoKbmJab21iaWVzPSIkKGVjaG8gIiR7UFN9IiB8IHdjIC1sKSIKKChuYlpvbWJpZXMtLSkpICMgLTEgcmVtb3ZlIGhlYWRlcgppZiAoKG5iWm9tYmllcyA+IDApKTsgdGhlbgogIGVjaG8KICBlY2hvICIkKHRwdXQgc2V0YWYgMSlUaGVyZSBpcyAke25iWm9tYmllc30gWm9tYmllKHMpOiQodHB1dCBzZ3IwKSIKICBlY2hvICIke1BTfSIKZmkK" "755"
-
-declare -gx embed_file_motd01="${PERSISTENT_TMPDIR:-/tmp}/9383729270123b3afb576d5aa7efe610/motd01"
-Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/d71d9a5ec0f97bd1a01aa3e6c80a84a4/motd03" "IyEvYmluL2Jhc2gKIyBwYW1fbW90ZCBkb2VzIG5vdCBjYXJyeSB0aGUgZW52aXJvbm1lbnQKWyAtZiAvZXRjL2RlZmF1bHQvbG9jYWxlIF0gJiYgLiAvZXRjL2RlZmF1bHQvbG9jYWxlCmV4cG9ydCBMQU5HCgpkaXNwbGF5X2RhdGVfYWdvKCkgewogICgKICAgIHRlbXBIaXN0b3J5PSQobWt0ZW1wIC1wIC90bXAgLWQpCiAgICB0cmFwICdybSAtUmYgJHt0ZW1wSGlzdG9yeX0nIEVYSVQgSU5UIFRFUk0gQUJSVAogICAgY2QgIiR7dGVtcEhpc3Rvcnl9IiB8fCBleGl0IDEKICAgIGdpdCBpbml0IC1xCiAgICBnaXQgLWMgdXNlci5lbWFpbD0wIC1jIHVzZXIubmFtZT0wIGNvbW1pdCAtcSAtbSAwIC0tYWxsb3ctZW1wdHkgLS1kYXRlPSIkMSIKICAgIGdpdCBzaG93IC0tZm9ybWF0PSVhcgogICkKfQppZiBbWyAtZiAvdmFyL2xvZy9hdXRvbWF0aWMtdXBncmFkZSBdXTsgdGhlbgogIGVjaG8KICBlY2hvICIkKHRwdXQgc2V0YWYgMSkoKikgV2Vla2x5IEF1dG9tYXRpYyB1cGdyYWRlIGlzIGZhaWxpbmcgLS0gcGxlYXNlIGNoZWNrIGxvZ3MgL3Zhci9sb2cvYXV0b21hdGljLXVwZ3JhZGUiCiAgZWNobyAibGFzdCBleGVjdXRpb24gZGF0ZTogJChkaXNwbGF5X2RhdGVfYWdvICIkKGRhdGUgLXIgL3Zhci9sb2cvYXV0b21hdGljLXVwZ3JhZGUpIikiCiAgZWNobyAiJCh0cHV0IHNldGFmIDEpKCopIHRyeSB0byBsYXVuY2ggdGhlIHByb2Nlc3MgbWFudWFsbHkgOiBzdWRvIC9ldGMvY3Jvbi53ZWVrbHkvdXBncmFkZSIKICBlY2hvIC1uICIkKHRwdXQgc2dyMCkiCiAgc2VkIC1uICIvRVJST1IgICAtIC9wIiAvdmFyL2xvZy9hdXRvbWF0aWMtdXBncmFkZSB8IHRhaWwgLTUKICBzZWQgLW4gIi9IRUxQICAgIC0gL3AiIC92YXIvbG9nL2F1dG9tYXRpYy11cGdyYWRlCmVsaWYgW1sgLWYgL3Zhci9sb2cvYXV0b21hdGljLXVwZ3JhZGUtc3VjY2VzcyBdXTsgdGhlbgogIGVjaG8KICBlY2hvICIkKHRwdXQgc2V0YWYgMikoKikgV2Vla2x5IEF1dG9tYXRpYyB1cGdyYWRlIHN1Y2Nlc3MgLS0gbGFzdCBleGVjdXRpb24gZGF0ZTogJChkaXNwbGF5X2RhdGVfYWdvICIkKGRhdGUgLXIgL3Zhci9sb2cvYXV0b21hdGljLXVwZ3JhZGUtc3VjY2VzcykiKSIKICBlY2hvIC1uICIkKHRwdXQgc2dyMCkiCiAgc2VkIC1uICIvSEVMUCAgICAtIC9wIiAvdmFyL2xvZy9hdXRvbWF0aWMtdXBncmFkZS1zdWNjZXNzCmZpCmVjaG8gLW4gIiQodHB1dCBzZ3IwKSIK" "755"
-
-declare -gx embed_file_motd03="${PERSISTENT_TMPDIR:-/tmp}/d71d9a5ec0f97bd1a01aa3e6c80a84a4/motd03"
-Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/67f32facdcf8fb70a9f721cf9b82a8f9/dailyMotd" "IyEvYmluL2Jhc2gKCnVwZGF0ZS1tb3RkCg==" "755"
-
-declare -gx embed_file_dailyMotd="${PERSISTENT_TMPDIR:-/tmp}/67f32facdcf8fb70a9f721cf9b82a8f9/dailyMotd"
 
 facade_main_Motdsh() {
 # REQUIRES
@@ -2009,10 +1880,6 @@ fi
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/update-motd.d/00-wsl-header" as motd00
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/update-motd.d/01-wsl-sysinfo" as motd01
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/update-motd.d/03-wsl-automatic-upgrade" as motd03
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/cron.daily/motd" as dailyMotd
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -2757,41 +2624,14 @@ helpDescription() {
   echo "Motd"
 }
 
-helpVariables() {
-  true
-}
-
-listVariables() {
-  true
-}
-
-defaultVariables() {
-  true
-}
-
-checkVariables() {
-  true
-}
-
-fortunes() {
-  if [[ "${SHOW_MOTD}" = "1" ]]; then
-    fortunes+=("You can set SHOW_MOTD to 0 in '${BASH_DEV_ENV_ROOT_DIR}/.env' to hide motd")
-  else
-    fortunes+=("You can set SHOW_MOTD to 1 in '${BASH_DEV_ENV_ROOT_DIR}/.env' to display motd")
-  fi
-}
-
-dependencies() {
-  :
-}
-
-breakOnConfigFailure() {
-  return 0
-}
-
-breakOnTestFailure() {
-  return 0
-}
+dependencies() { :; }
+fortunes() { :; }
+helpVariables() { :; }
+listVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
 
 install() {
   Linux::Apt::update
@@ -2802,72 +2642,12 @@ install() {
   Linux::Apt::install "${PACKAGES[@]}"
 }
 
-configure() {
-  local fileToInstall
-  # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "etc/update-motd.d/00-wsl-header" "${embed_file_motd00}")" || return 1
-  SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${fileToInstall}" "/etc/update-motd.d/00-wsl-header" \
-    "root" "root" \
-    Install::setRootExecutableCallback || return 1
-
-  # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "etc/update-motd.d/01-wsl-sysinfo" "${embed_file_motd01}")" || return 1
-  SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${fileToInstall}" "/etc/update-motd.d/01-wsl-sysinfo" \
-    "root" "root" \
-    Install::setRootExecutableCallback || return 1
-
-  # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "etc/update-motd.d/03-wsl-automatic-upgrade" "${embed_file_motd03}")" || return 1
-  SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${fileToInstall}" "/etc/update-motd.d/03-wsl-automatic-upgrade" \
-    "root" "root" \
-    Install::setRootExecutableCallback || return 1
-
-  # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "etc/cron.daily/motd" "${embed_file_dailyMotd}")" || return 1
-  BACKUP_FILE=0 SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${fileToInstall}" "/etc/cron.daily/motd" \
-    "root" "root" \
-    Install::setRootExecutableCallback || return 1
-
-  # disable some parts
-  sudo chmod 600 /etc/update-motd.d/00-header
-  sudo chmod 600 /etc/update-motd.d/10-help-text
-  if [[ -f /usr/share/landscape/landscape-sysinfo.wrapper ]]; then
-    sudo chmod 600 /usr/share/landscape/landscape-sysinfo.wrapper
-  fi
-
-  # update motd cache
-  sudo update-motd >/dev/null
-
-}
-
 testInstall() {
   return 0
 }
 
-testConfigure() {
-  local -i failures=0
-  Assert::fileExecutable "/etc/update-motd.d/00-wsl-header" "root" "root" || ((++failures))
-  Assert::fileExecutable "/etc/update-motd.d/01-wsl-sysinfo" "root" "root" || ((++failures))
-  Assert::fileExecutable "/etc/update-motd.d/03-wsl-automatic-upgrade" "root" "root" || ((++failures))
-  Assert::fileNotExecutable "/etc/update-motd.d/10-help-text" "root" "root" || ((++failures))
-  Assert::fileNotExecutable "/etc/update-motd.d/00-header" "root" "root" || ((++failures))
-
-  Assert::fileExecutable "/etc/cron.daily/motd" "root" "root" || ((++failures))
-
-  if ! sudo update-motd >/dev/null; then
-    Log::displayWarning "motd not working"
-    ((++failures))
-  fi
-  if [[ -z "$(sudo update-motd)" ]]; then
-    Log::displayWarning "motd is empty"
-    ((++failures))
-  fi
-  return "${failures}"
-}
+configure() { :; }
+testConfigure() { :; }
 
 local action=$1
 shift || true

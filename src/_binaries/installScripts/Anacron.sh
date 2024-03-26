@@ -14,37 +14,14 @@ helpDescription() {
   echo "Anacron"
 }
 
-helpVariables() {
-  true
-}
-
-listVariables() {
-  true
-}
-
-defaultVariables() {
-  true
-}
-
-checkVariables() {
-  true
-}
-
-fortunes() {
-  return 0
-}
-
-dependencies() {
-  return 0
-}
-
-breakOnConfigFailure() {
-  echo breakOnConfigFailure
-}
-
-breakOnTestFailure() {
-  echo breakOnTestFailure
-}
+dependencies() { :; }
+helpVariables() { :; }
+listVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+fortunes() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
 
 install() {
   Linux::Apt::update
@@ -52,15 +29,15 @@ install() {
     anacron
 }
 
+testInstall() {
+  Assert::commandExists anacron
+}
+
 configure() {
   sudo groupadd anacron || true
   sudo adduser "${USERNAME}" anacron || true
   sudo chown root:anacron /var/spool/anacron/
   sudo chmod 755 /var/spool/anacron/
-}
-
-testInstall() {
-  Assert::commandExists anacron
 }
 
 testConfigure() {

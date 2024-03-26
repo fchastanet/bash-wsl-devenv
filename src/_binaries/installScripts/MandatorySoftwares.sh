@@ -16,37 +16,17 @@ helpDescription() {
   echo "MandatorySoftwares"
 }
 
-helpVariables() {
-  true
-}
-
-listVariables() {
-  true
-}
-
-defaultVariables() {
-  true
-}
-
-checkVariables() {
-  true
-}
-
-fortunes() {
-  return 0
-}
-
 dependencies() {
   echo "WslConfig"
 }
 
-breakOnConfigFailure() {
-  return 0
-}
-
-breakOnTestFailure() {
-  return 0
-}
+fortunes() { :; }
+helpVariables() { :; }
+listVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
 
 install() {
   Linux::Apt::update
@@ -79,7 +59,22 @@ install() {
     wget
   )
   Linux::Apt::install "${PACKAGES[@]}"
+}
 
+testInstall() {
+  local -i failures=0
+
+  Assert::commandExists "nc" || ((++failures))
+  Assert::commandExists "dos2unix" || ((++failures))
+  Assert::commandExists "jq" || ((++failures))
+  Assert::commandExists "make" || ((++failures))
+  Assert::commandExists "unzip" || ((++failures))
+  if ! PAGER=/usr/bin/cat dpkg -l cron &>/dev/null; then
+    Log::displayError "cron is not installed"
+    ((++failures))
+  fi
+
+  return "${failures}"
 }
 
 configureUpdateCron() {
@@ -115,22 +110,6 @@ configureUpdateCron() {
 configure() {
   Engine::Config::installBashDevEnv
   configureUpdateCron
-}
-
-testInstall() {
-  local -i failures=0
-
-  Assert::commandExists "nc" || ((++failures))
-  Assert::commandExists "dos2unix" || ((++failures))
-  Assert::commandExists "jq" || ((++failures))
-  Assert::commandExists "make" || ((++failures))
-  Assert::commandExists "unzip" || ((++failures))
-  if ! PAGER=/usr/bin/cat dpkg -l cron &>/dev/null; then
-    Log::displayError "cron is not installed"
-    ((++failures))
-  fi
-
-  return "${failures}"
 }
 
 testConfigure() {

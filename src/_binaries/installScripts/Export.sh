@@ -14,41 +14,19 @@ helpDescription() {
   echo "Export"
 }
 
-helpVariables() {
-  true
-}
-
-listVariables() {
-  true
-}
-
-defaultVariables() {
-  true
-}
-
-checkVariables() {
-  true
-}
-
-fortunes() {
-  return 0
-}
-
 dependencies() {
   echo "Clean"
 }
 
-breakOnConfigFailure() {
-  return 0
-}
-
-breakOnTestFailure() {
-  return 0
-}
-
-install() {
-  return 0
-}
+helpVariables() { :; }
+listVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+fortunes() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
+install() { :; }
+testInstall() { :; }
 
 configure() {
   # some cleaning to prepare export
@@ -73,9 +51,6 @@ configure() {
   fi
 }
 
-testInstall() {
-  return 0
-}
 
 testConfigure() {
   return 0

@@ -300,30 +300,6 @@ Compiler::Embed::extractFileFromBase64() {
   fi
 }
 
-# @description select right file to load depending if file exists in this order:
-# - from conf.override
-# - from embedded file if provided
-# - from conf dir
-# @arg $1 file:String
-# @arg $2 embedFile:String eventual embedded file
-# @exitcode 1 if file does not exist at all
-Conf::dynamicConfFile() {
-  local file="${1/#\//}" # remove first slash if any
-  local embedFile="${2:-}"
-  if [[ -f "${CONF_OVERRIDE_DIR}/${file}" ]]; then
-    echo "${CONF_OVERRIDE_DIR}/${file}"
-    return 0
-  elif [[ -f "${embedFile}" ]]; then
-    echo "${embedFile}"
-    return 0
-  elif [[ -f "${CONF_DIR}/${file}" ]]; then
-    echo "${CONF_DIR}/${file}"
-    return 0
-  fi
-  Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
-  return 1
-}
-
 envFileTemplate="$(
   cat <<'EOF'
 # shellcheck disable=SC2034
@@ -576,80 +552,6 @@ Git::cloneOrPullIfNoChanges() {
   fi
 }
 
-# @description installs file to given directory
-#
-# callbacks parameters `${fromFile} ${targetFile} $@`
-# @arg $1 fromFile - original file to copy
-# @arg $2 targetFile - target file
-# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
-# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
-# @arg $5 successCallback:Function the callback to call when file is installed successfully, by default setUserRights callback is called
-# @arg $6 failureCallback:Function the callback to call when file installation has failed, by default unableToCopyCallback callback is called
-# @arg $@ callbacksParams:String[] additional parameters passed to callbacks
-# @exitcode 1 if fromFile is not readable
-# @exitcode 2 if backup file failure
-# @exitcode 3 if copy failure
-# @exitcode 0 on success or if OVERWRITE_CONFIG_FILES=0
-# @exitcode 0 on success or if CHANGE_WINDOWS_FILES=0 and target file is a windows file
-# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
-# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target file is in windows file system, overwrite it
-# @env USERNAME (default: root) the user name that will be used to set target files ownership
-# @env USERGROUP (default: root) the group name that will be used to set target files ownership
-# @env BASE_MNT_C String windows C drive base PATH
-# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
-# @env SUDO String allows to use custom sudo prefix command
-# @env BACKUP_FILE Boolean (default: 1)
-Install::file() {
-  local fromFile="$1"
-  local targetFile="$2"
-  local userName="${3:-${USERNAME:-root}}"
-  local userGroup="${4:-${USERGROUP:-root}}"
-  local successCallback=${5:-Install::setUserRightsCallback}
-  local failureCallback=${6:-Install::unableToCopyCallback}
-  shift 6 || true
-
-  if [[ ! -f "${fromFile}" || ! -r "${fromFile}" ]]; then
-    Log::displayError "cannot read source file '${fromFile}'"
-    return 1
-  fi
-
-  # skip if OVERWRITE_CONFIG_FILES is 0 and target file exists
-  if [[ "${OVERWRITE_CONFIG_FILES}" = "0" && -f "${targetFile}" ]]; then
-    Log::displayWarning "File '${targetFile}' exists - Skip install (because OVERWRITE_CONFIG_FILES=0 in .env file)"
-    return 0
-  fi
-
-  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
-  if [[ "${CHANGE_WINDOWS_FILES}" = "0" && "${targetFile}" =~ ^${BASE_MNT_C} ]]; then
-    Log::displayWarning "File '${targetFile}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
-    return 0
-  fi
-
-  local targetDir
-  targetDir="$(dirname "${targetFile}")"
-  if [[ ! -d "${targetDir}" ]]; then
-    ${SUDO:-} mkdir -p "${targetDir}"
-    ${SUDO:-} chown "${userName}":"${userGroup}" "${targetDir}"
-  fi
-  local fromDir
-  fromDir="$(dirname "${fromFile}")"
-  local fromFilename
-  fromFilename="$(basename "${fromFile}")"
-
-  if [[ "${BACKUP_FILE:-1}" = "1" ]]; then
-    Backup::file "${targetFile}" || return 2
-  fi
-
-  if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
-    Log::displaySuccess "Installed file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
-    ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
-  else
-    Log::displayError "unable to copy file from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
-    ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
-    return 3
-  fi
-}
-
 # @description the command launch different actions(install, configure, test)
 # depending on the options selected
 # @see src/_includes/install.skip.options.tpl
@@ -818,16 +720,6 @@ Log::displayError() {
     echo -e "${__ERROR_COLOR}ERROR   - ${1}${__RESET_COLOR}" >&2
   fi
   Log::logError "$1"
-}
-
-# @description Display message using info color (bg light blue/fg white)
-# @arg $1 message:String the message to display
-Log::displayHelp() {
-  local type="${2:-HELP}"
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    echo -e "${__HELP_COLOR}${type}    - ${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logHelp "$1" "${type}"
 }
 
 FIRST_LOG_DATE="$(date '+%s%3N')"
@@ -1041,21 +933,6 @@ Assert::tty() {
   fi
   # check if stdout or stderr is connected to terminal
   [[ -t 1 || -t 2 ]]
-}
-
-# @description Backup given file in the same directory appending _ followed by the current date
-# @arg $1 file:String the file to backup
-# @stderr messages about backup file location
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode 1 on copy failure
-Backup::file() {
-  local file="$1"
-  local backupFile
-  if [[ -f "${file}" ]]; then
-    backupFile="${file}_$(date +"%Y-%m-%d_%H:%M:%S")"
-    Log::displayInfo "Backup file '${file}' to ${backupFile}"
-    ${SUDO:-} cp "${file}" "${backupFile}"
-  fi
 }
 
 # @description get property value from file
@@ -1421,42 +1298,6 @@ Git::pullIfNoChanges() {
   )
 }
 
-# @description install callback
-#   set file with root ownership and execution bit
-# @arg $1 fromFile:String
-# @arg $2 targetFile:String
-# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
-# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
-# @env USERNAME (default: root) the user name that will be used to set target files ownership
-# @env USERGROUP (default: root) the group name that will be used to set target files ownership
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode 1 on any failure
-# @see Install::file
-Install::setUserRightsCallback() {
-  # shellcheck disable=SC2034 # $1 not used
-  local fromFile="$1"
-  local targetFile="$2"
-  local userName="${3:-${USERNAME:-root}}"
-  local userGroup="${4:-${USERGROUP:-root}}"
-
-  ${SUDO:-} chown "${userName}":"${userGroup}" "${targetFile}"
-}
-
-# @description install callback
-#   default callback used called when file copy has failed
-# @arg $1 fromFile:String
-# @arg $2 targetFile:String
-# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
-# @exitcode 1 always fail
-# @stderr diagnostics information is displayed
-# @see Install::file
-Install::unableToCopyCallback() {
-  local fromDir="$1"
-  local fileName="$2"
-  local targetFile="$3"
-  Log::fatal "unable to copy file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fileName}' to '${targetFile}'"
-}
-
 # @description retrieve wslvar using cache (cache is refreshed every day)
 # @arg $@ args:String[] arguments to pass to wslvar
 # @env WSL_TMPDIR String temp directory to store the wslvar cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
@@ -1514,15 +1355,6 @@ Linux::Wsl::originalWslpath() {
   wslpath "$@"
 }
 
-# @description Display message using success color (bg green/fg white)
-# @arg $1 message:String the message to display
-Log::displaySuccess() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    echo -e "${__SUCCESS_COLOR}SUCCESS - ${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logSuccess "$1"
-}
-
 # @description Display given text on full line with TEST_COLOR style
 # @arg $1 text:String text to display
 Log::headLine() {
@@ -1552,14 +1384,6 @@ Log::logError() {
 # @arg $1 message:String the message to display
 Log::logFatal() {
   Log::logMessage "${2:-FATAL}" "$1"
-}
-
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logHelp() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-HELP}" "$1"
-  fi
 }
 
 # @description log message to file
@@ -1744,6 +1568,30 @@ Assert::varExistsAndNotEmpty() {
   fi
 }
 
+# @description select right file to load depending if file exists in this order:
+# - from conf.override
+# - from embedded file if provided
+# - from conf dir
+# @arg $1 file:String
+# @arg $2 embedFile:String eventual embedded file
+# @exitcode 1 if file does not exist at all
+Conf::dynamicConfFile() {
+  local file="${1/#\//}" # remove first slash if any
+  local embedFile="${2:-}"
+  if [[ -f "${CONF_OVERRIDE_DIR}/${file}" ]]; then
+    echo "${CONF_OVERRIDE_DIR}/${file}"
+    return 0
+  elif [[ -f "${embedFile}" ]]; then
+    echo "${embedFile}"
+    return 0
+  elif [[ -f "${CONF_DIR}/${file}" ]]; then
+    echo "${CONF_DIR}/${file}"
+    return 0
+  fi
+  Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
+  return 1
+}
+
 # @description delete files older than n days in given path
 # @warning use this function with caution as it will delete all files in given path without any prompt
 # @arg $1 path:String the directory in which files will be deleted or the file to delete
@@ -1769,6 +1617,80 @@ File::garbageCollect() {
 
   Log::displayInfo "Garbage collect files older than ${mtime} days in path ${path} with max depth ${maxdepth}"
   find "${path}" -depth -maxdepth "${maxdepth}" -type f -mtime "${mtime}" -print -delete
+}
+
+# @description installs file to given directory
+#
+# callbacks parameters `${fromFile} ${targetFile} $@`
+# @arg $1 fromFile - original file to copy
+# @arg $2 targetFile - target file
+# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
+# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
+# @arg $5 successCallback:Function the callback to call when file is installed successfully, by default setUserRights callback is called
+# @arg $6 failureCallback:Function the callback to call when file installation has failed, by default unableToCopyCallback callback is called
+# @arg $@ callbacksParams:String[] additional parameters passed to callbacks
+# @exitcode 1 if fromFile is not readable
+# @exitcode 2 if backup file failure
+# @exitcode 3 if copy failure
+# @exitcode 0 on success or if OVERWRITE_CONFIG_FILES=0
+# @exitcode 0 on success or if CHANGE_WINDOWS_FILES=0 and target file is a windows file
+# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
+# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target file is in windows file system, overwrite it
+# @env USERNAME (default: root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @env BASE_MNT_C String windows C drive base PATH
+# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_FILE Boolean (default: 1)
+Install::file() {
+  local fromFile="$1"
+  local targetFile="$2"
+  local userName="${3:-${USERNAME:-root}}"
+  local userGroup="${4:-${USERGROUP:-root}}"
+  local successCallback=${5:-Install::setUserRightsCallback}
+  local failureCallback=${6:-Install::unableToCopyCallback}
+  shift 6 || true
+
+  if [[ ! -f "${fromFile}" || ! -r "${fromFile}" ]]; then
+    Log::displayError "cannot read source file '${fromFile}'"
+    return 1
+  fi
+
+  # skip if OVERWRITE_CONFIG_FILES is 0 and target file exists
+  if [[ "${OVERWRITE_CONFIG_FILES}" = "0" && -f "${targetFile}" ]]; then
+    Log::displayWarning "File '${targetFile}' exists - Skip install (because OVERWRITE_CONFIG_FILES=0 in .env file)"
+    return 0
+  fi
+
+  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
+  if [[ "${CHANGE_WINDOWS_FILES}" = "0" && "${targetFile}" =~ ^${BASE_MNT_C} ]]; then
+    Log::displayWarning "File '${targetFile}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
+    return 0
+  fi
+
+  local targetDir
+  targetDir="$(dirname "${targetFile}")"
+  if [[ ! -d "${targetDir}" ]]; then
+    ${SUDO:-} mkdir -p "${targetDir}"
+    ${SUDO:-} chown "${userName}":"${userGroup}" "${targetDir}"
+  fi
+  local fromDir
+  fromDir="$(dirname "${fromFile}")"
+  local fromFilename
+  fromFilename="$(basename "${fromFile}")"
+
+  if [[ "${BACKUP_FILE:-1}" = "1" ]]; then
+    Backup::file "${targetFile}" || return 2
+  fi
+
+  if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
+    Log::displaySuccess "Installed file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
+    ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
+  else
+    Log::displayError "unable to copy file from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
+    ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
+    return 3
+  fi
 }
 
 # @description apt-get install
@@ -1799,14 +1721,6 @@ Linux::Apt::update() {
 # @require Linux::Wsl::requireWsl
 Linux::Wsl::originalWslvar() {
   wslvar "$@" | sed -z '$ s/[\r\n]$//'
-}
-
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logSuccess() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SUCCESS}" "$1"
-  fi
 }
 
 # @description extract stats form log
@@ -1953,6 +1867,66 @@ Assert::validVariableName() {
   echo "$1" | LC_ALL=POSIX grep -E -q '(^[a-z][A-Za-z_0-9:]+$)|(^[A-Z_][A-Z_0-9:]+$)'
 }
 
+# @description Backup given file in the same directory appending _ followed by the current date
+# @arg $1 file:String the file to backup
+# @stderr messages about backup file location
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode 1 on copy failure
+Backup::file() {
+  local file="$1"
+  local backupFile
+  if [[ -f "${file}" ]]; then
+    backupFile="${file}_$(date +"%Y-%m-%d_%H:%M:%S")"
+    Log::displayInfo "Backup file '${file}' to ${backupFile}"
+    ${SUDO:-} cp "${file}" "${backupFile}"
+  fi
+}
+
+# @description install callback
+#   set file with root ownership and execution bit
+# @arg $1 fromFile:String
+# @arg $2 targetFile:String
+# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
+# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
+# @env USERNAME (default: root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode 1 on any failure
+# @see Install::file
+Install::setUserRightsCallback() {
+  # shellcheck disable=SC2034 # $1 not used
+  local fromFile="$1"
+  local targetFile="$2"
+  local userName="${3:-${USERNAME:-root}}"
+  local userGroup="${4:-${USERGROUP:-root}}"
+
+  ${SUDO:-} chown "${userName}":"${userGroup}" "${targetFile}"
+}
+
+# @description install callback
+#   default callback used called when file copy has failed
+# @arg $1 fromFile:String
+# @arg $2 targetFile:String
+# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @exitcode 1 always fail
+# @stderr diagnostics information is displayed
+# @see Install::file
+Install::unableToCopyCallback() {
+  local fromDir="$1"
+  local fileName="$2"
+  local targetFile="$3"
+  Log::fatal "unable to copy file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fileName}' to '${targetFile}'"
+}
+
+# @description Display message using success color (bg green/fg white)
+# @arg $1 message:String the message to display
+Log::displaySuccess() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    echo -e "${__SUCCESS_COLOR}SUCCESS - ${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logSuccess "$1"
+}
+
 # @description Retry a command 5 times with a delay of 15 seconds between each attempt
 # @arg $@ command:String[] the command to run
 # @exitcode 0 on success
@@ -1975,6 +1949,14 @@ Linux::requireUbuntu() {
 # @stdout the linux distributor id
 Linux::getDistributorId() {
   lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logSuccess() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SUCCESS}" "$1"
+  fi
 }
 
 # @description Retry a command several times depending on parameters
@@ -2019,9 +2001,6 @@ Retry::parameterized() {
 Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/643fd1b0200bfab7dccad6776ab7b12f/fontScript" "IzwKIyBSdW4gdGhpcyBhcyBhIENvbXB1dGVyIFN0YXJ0dXAgc2NyaXB0IHRvIGFsbG93IGluc3RhbGxpbmcgZm9udHMgZnJvbSBDOlxJbnN0YWxsRm9udFwKIyBCYXNlZCBvbiBodHRwOi8vd3d3LmVkdWdlZWsubmV0L2ZvcnVtcy93aW5kb3dzLTcvMTIzMTg3LWluc3RhbGxhdGlvbi1mb250cy13aXRob3V0LWFkbWluLXJpZ2h0cy0yLmh0bWwKIyBSdW4gdGhpcyBhcyBhIENvbXB1dGVyIFN0YXJ0dXAgU2NyaXB0IGluIEdyb3VwIFBvbGljeQojIEZ1bGwgZGV0YWlscyBvbiBteSB3ZWJzaXRlIC0gaHR0cHM6Ly9tZWRpYXJlYWxtLmNvbS5hdS9hcnRpY2xlcy93aW5kb3dzLWZvbnQtaW5zdGFsbC1uby1wYXNzd29yZC1wb3dlcnNoZWxsLwojPgoKW0NtZGxldEJpbmRpbmcoU3VwcG9ydHNTaG91bGRQcm9jZXNzKV0KcGFyYW0oCiAgICAjIFNwZWNpZmllcyB0aGUgZm9udCBuYW1lIHRvIGluc3RhbGwuICBEZWZhdWx0IHZhbHVlIHdpbGwgaW5zdGFsbCBhbGwgZm9udHMuCiAgICBbUGFyYW1ldGVyKFBvc2l0aW9uPTApXQogICAgW3N0cmluZ1tdXQogICAgJFNvdXJjZURpciA9ICcnCikKCiREZXN0aW5hdGlvbiA9IChOZXctT2JqZWN0IC1Db21PYmplY3QgU2hlbGwuQXBwbGljYXRpb24pLk5hbWVzcGFjZSgweDE0KQokVGVtcEZvbGRlciAgPSAiJGVudjp0ZW1wXEZvbnRzIgoKIyBDcmVhdGUgdGhlIHNvdXJjZSBkaXJlY3RvcnkgaWYgaXQgZG9lc24ndCBhbHJlYWR5IGV4aXN0Ck5ldy1JdGVtIC1JdGVtVHlwZSBEaXJlY3RvcnkgLUZvcmNlIC1QYXRoICRTb3VyY2VEaXIgfCBPdXQtTnVsbAoKTmV3LUl0ZW0gJFRlbXBGb2xkZXIgLVR5cGUgRGlyZWN0b3J5IC1Gb3JjZSB8IE91dC1OdWxsCgpHZXQtQ2hpbGRJdGVtIC1QYXRoICRTb3VyY2UgLUluY2x1ZGUgJyoudHRmJywnKi50dGMnLCcqLm90ZicgLVJlY3Vyc2UgfCBGb3JFYWNoLU9iamVjdCB7CiAgICBJZiAoVGVzdC1QYXRoICIkKCRlbnY6dXNlcnByb2ZpbGUpXEFwcERhdGFcTG9jYWxcTWljcm9zb2Z0XFdpbmRvd3NcRm9udHNcJCgkXy5OYW1lKSIpIHsKICAgICAgICBXcml0ZS1WZXJib3NlICJGb250ICQoJF8uTmFtZSkgYWxyZWFkeSBpbnN0YWxsZWQiCiAgICB9IEVsc2UgewogICAgICAgIFdyaXRlLVZlcmJvc2UgIkluc3RhbGxpbmcgRm9udCAkKCRfLk5hbWUpIC4uLiIKICAgICAgICAkRm9udCA9ICIkVGVtcEZvbGRlclwkKCRfLk5hbWUpIgoKICAgICAgICAjIENvcHkgZm9udCB0byBsb2NhbCB0ZW1wb3JhcnkgZm9sZGVyCiAgICAgICAgQ29weS1JdGVtICQoJF8uRnVsbE5hbWUpIC1EZXN0aW5hdGlvbiAkVGVtcEZvbGRlcgoKICAgICAgICAjIEluc3RhbGwgZm9udAogICAgICAgICREZXN0aW5hdGlvbi5Db3B5SGVyZSgkRm9udCwweDEwKQoKICAgICAgICAjIERlbGV0ZSB0ZW1wb3JhcnkgY29weSBvZiBmb250CiAgICAgICAgUmVtb3ZlLUl0ZW0gJEZvbnQgLUZvcmNlCiAgICAgICAgV3JpdGUtVmVyYm9zZSAiRm9udCAkKCRfLk5hbWUpIEluc3RhbGxlZCBzdWNjZXNzZnVsbHkiCiAgICB9Cn0K" "644"
 
 declare -gx embed_file_fontScript="${PERSISTENT_TMPDIR:-/tmp}/643fd1b0200bfab7dccad6776ab7b12f/fontScript"
-Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/99d52f86115b4771f75502764ce43aca/xresources" "eHRlcm0qZmFjZU5hbWU6IE1lc2xvTEdTIE5GCnh0ZXJtKmZhY2VTaXplOiAxNAo=" "644"
-
-declare -gx embed_file_xresources="${PERSISTENT_TMPDIR:-/tmp}/99d52f86115b4771f75502764ce43aca/xresources"
 
 facade_main_Fontsh() {
 # REQUIRES
@@ -2064,7 +2043,6 @@ fi
 # FACADE
 # IMPLEMENT InstallScripts::interface
 # EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/installScripts/Font.ps1" as fontScript
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/Font/.Xresources" as xresources
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -2809,21 +2787,13 @@ helpDescription() {
   echo "Font"
 }
 
-helpVariables() {
-  true
-}
-
-listVariables() {
-  true
-}
-
-defaultVariables() {
-  true
-}
-
-checkVariables() {
-  true
-}
+dependencies() { :; }
+helpVariables() { :; }
+listVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
 
 fortunes() {
   if Assert::wsl; then
@@ -2831,18 +2801,6 @@ fortunes() {
       fortunes+=("Font 'Meslo LG S' does not seem to be installed, use 'install Font' to get better terminal results")
     fi
   fi
-}
-
-dependencies() {
-  return 0
-}
-
-breakOnConfigFailure() {
-  echo breakOnConfigFailure
-}
-
-breakOnTestFailure() {
-  echo breakOnTestFailure
 }
 
 install() {
@@ -2879,49 +2837,23 @@ install() {
   )
 }
 
-configure() {
-  if ! Assert::wsl; then
-    Log::displaySkipped "Font installs only on wsl"
-    return 0
-  fi
-
-  local fileToInstall
-  # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "Font/.Xresources" "embed_file_xresources")" || return 1
-  Install::file \
-    "${fileToInstall}" "${USER_HOME}/.Xresources" || return 1
-
-  local terminalConfFile
-  # cspell:ignore wekyb, bbwe
-  terminalConfFile="${WINDOWS_PROFILE_DIR}/AppData/Local/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/settings.json"
-  if [[ -f "${terminalConfFile}" ]]; then
-    if ! grep -q '"face": "MesloLGS NF"' "${terminalConfFile}"; then
-      Log::displayHelp "Please change your terminal settings($(Linux::Wsl::cachedWslpath -w "${terminalConfFile}")) to use font 'MesloLGS NF' for wsl profile"
-    fi
-  else
-    Log::displayHelp "please use windows terminal for better shell display results"
-  fi
-
-}
-
 testInstall() {
-  Assert::fileExists /opt/IlanCosman-tide-fonts/fonts/mesloLGS_NF_regular.ttf root root ||
-    return 1
-}
-
-testConfigure() {
   local -i failures=0
-  Assert::fileExists "${USER_HOME}/.Xresources" || ((++failures))
+
+  Assert::fileExists /opt/IlanCosman-tide-fonts/fonts/mesloLGS_NF_regular.ttf root root || ((++failures))
+
   local localAppData
   localAppData="$(Linux::Wsl::cachedWslpathFromWslVar LOCALAPPDATA)"
-  Assert::fileExists \
-    "${localAppData}/Microsoft/Windows/Fonts/mesloLGS_NF_regular.ttf" \
-    "${USERNAME}" "${USERGROUP}" || {
+  Assert::fileExists "${localAppData}/Microsoft/Windows/Fonts/mesloLGS_NF_regular.ttf" || {
     ((++failures))
     Log::displayError "Font mesloLGS_NF_regular.ttf not installed in windows folder: ${localAppData}/Microsoft/Windows/Fonts"
   }
   return "${failures}"
 }
+
+configure() { :; }
+
+testConfigure() { :; }
 
 local action=$1
 shift || true

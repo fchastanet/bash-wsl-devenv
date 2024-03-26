@@ -246,65 +246,6 @@ Assert::commandExists() {
   return 0
 }
 
-# @description asserts that first argument is directory that exists with specified ownership
-# @arg $1 dir:String
-# @arg $2 user:String expected owner user name of the directory (default: USERNAME or id -un command)
-# @arg $3 group:String expected owner group name of the directory (default: USERGROUP or id -gn command)
-# @env USERNAME String if arg $2 is not provided
-# @env USERGROUP String if arg $3 is not provided
-# @exitcode 1 if missing directory
-# @exitcode 2 if incorrect user ownership
-# @exitcode 3 if incorrect group ownership
-# @stderr diagnostics information is displayed
-Assert::dirExists() {
-  local dir="$1"
-  local user="${2:-${USERNAME:-$(id -un)}}"
-  local group="${3:-${USERGROUP:-$(id -gn)}}"
-  Log::displayInfo "Check if directory ${dir} exists with user ${user}:${group}"
-  if [[ ! -d "${dir}" ]]; then
-    Log::displayError "missing directory ${dir}"
-    return 1
-  fi
-  if [[ "${user}" != "$(stat -c '%U' "${dir}")" ]]; then
-    Log::displayError "incorrect user ownership on directory ${dir}"
-    return 2
-  fi
-  if [[ "${group}" != "$(stat -c '%G' "${dir}")" ]]; then
-    Log::displayError "incorrect group ownership on directory ${dir}"
-    return 3
-  fi
-}
-
-# @description asserts that first argument is file that exists with specified ownership
-# @arg $1 file:String
-# @arg $2 user:String expected owner user name of the file (default: USERNAME or id -un command)
-# @arg $3 group:String expected owner group name of the file (default: USERGROUP or id -gn command)
-# @env USERNAME String if arg $2 is not provided
-# @env USERGROUP String if arg $3 is not provided
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode 1 if missing file
-# @exitcode 2 if incorrect user ownership
-# @exitcode 3 if incorrect group ownership
-# @stderr diagnostics information is displayed
-Assert::fileExists() {
-  local file="$1"
-  local user="${2:-${USERNAME}}"
-  local group="${3:-${USERGROUP}}"
-  Log::displayInfo "Check ${file} exists with user ${user}:${group}"
-  if ! ${SUDO:-} test -f "${file}" &>/dev/null; then
-    Log::displayError "missing file ${file}"
-    return 1
-  fi
-  if [[ "${user}" != "$(${SUDO:-} stat -c '%U' "${file}")" ]]; then
-    Log::displayError "incorrect user ownership on file ${file}"
-    return 2
-  fi
-  if [[ "${group}" != "$(${SUDO:-} stat -c '%G' "${file}")" ]]; then
-    Log::displayError "incorrect group ownership on file ${file}"
-    return 3
-  fi
-}
-
 # @description checks if function name provided exists
 # @arg $1 functionName:String
 # @exitcode 1 if function name doesn't exist
@@ -2785,37 +2726,14 @@ helpDescription() {
   echo "Kubectx"
 }
 
-helpVariables() {
-  true
-}
-
-listVariables() {
-  true
-}
-
-defaultVariables() {
-  true
-}
-
-checkVariables() {
-  true
-}
-
-fortunes() {
-  return 0
-}
-
-dependencies() {
-  return 0
-}
-
-breakOnConfigFailure() {
-  echo breakOnConfigFailure
-}
-
-breakOnTestFailure() {
-  echo breakOnTestFailure
-}
+dependencies() { :; }
+fortunes() { :; }
+helpVariables() { :; }
+listVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
 
 install() {
   SUDO=sudo Git::cloneOrPullIfNoChanges \
@@ -2826,16 +2744,6 @@ install() {
   sudo ln -sf /opt/kubectx/kubens /usr/local/bin/kubens
 }
 
-configure() {
-  mkdir -p "${USER_HOME}/.bash_completion.d" || true
-  chown "${USERNAME}":"${USERGROUP}" "${USER_HOME}/.bash_completion.d"
-
-  ln -sf /opt/kubectx/completion/kubens.bash "${USER_HOME}/.bash_completion.d/kubens"
-  chown -h "${USERNAME}":"${USERGROUP}" "${USER_HOME}/.bash_completion.d/kubens"
-  ln -sf /opt/kubectx/completion/kubectx.bash "${USER_HOME}/.bash_completion.d/kubectx"
-  chown -h "${USERNAME}":"${USERGROUP}" "${USER_HOME}/.bash_completion.d/kubectx"
-}
-
 testInstall() {
   local -i failures=0
   Assert::commandExists kubectx || ((++failures))
@@ -2843,13 +2751,8 @@ testInstall() {
   return "${failures}"
 }
 
-testConfigure() {
-  local -i failures=0
-  Assert::dirExists "${USER_HOME}/.bash_completion.d" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash_completion.d/kubens" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash_completion.d/kubectx" || ((++failures))
-  return "${failures}"
-}
+configure() { :; }
+testConfigure() { :; }
 
 local action=$1
 shift || true

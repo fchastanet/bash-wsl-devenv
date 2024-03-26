@@ -14,6 +14,11 @@ helpDescription() {
   echo "Upgrade ubuntu apt softwares"
 }
 
+dependencies() { :; }
+fortunes() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
+
 helpVariables() {
   # shellcheck disable=SC2317
   cat <<EOF
@@ -41,22 +46,6 @@ checkVariables() {
     Log::displayError "UPGRADE_UBUNTU_VERSION values expects to be lts or dev"
     return 1
   fi
-}
-
-fortunes() {
-  return 0
-}
-
-dependencies() {
-  return 0
-}
-
-breakOnConfigFailure() {
-  return 0
-}
-
-breakOnTestFailure() {
-  return 0
 }
 
 removeSystemdService() {
@@ -111,14 +100,6 @@ install() {
   sudo sed -i -E 's/^Prompt=.*$/Prompt=lts/g' /etc/update-manager/release-upgrades
 }
 
-configure() {
-  return 0
-}
-
-testInstall() {
-  return 0
-}
-
-testConfigure() {
-  return 0
-}
+testInstall() { :; }
+configure() { :; }
+testConfigure() { :; }

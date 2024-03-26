@@ -15,41 +15,16 @@ helpDescription() {
   echo "WslConfig"
 }
 
-helpVariables() {
-  true
-}
-
-listVariables() {
-  true
-}
-
-defaultVariables() {
-  true
-}
-
-checkVariables() {
-  true
-}
-
-fortunes() {
-  return 0
-}
-
-dependencies() {
-  return 0
-}
-
-breakOnConfigFailure() {
-  return 0
-}
-
-breakOnTestFailure() {
-  return 0
-}
-
-install() {
-  return 0
-}
+dependencies() { :; }
+helpVariables() { :; }
+listVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+fortunes() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
+install() { :; }
+testInstall() { :; }
 
 configure() {
   sudo hostnamectl set-hostname "${DISTRO_HOSTNAME}"
@@ -63,9 +38,6 @@ configure() {
   fi
 }
 
-testInstall() {
-  return 0
-}
 
 testConfigure() {
   local -i failures=0
