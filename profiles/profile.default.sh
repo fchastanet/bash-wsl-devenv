@@ -19,6 +19,7 @@ CONFIG_LIST+=(
   "DefaultKubeConfig"
   "Saml2Aws"
   "ShellBash"
+  "BashTools"
 )
 
 # Mandatory packages
