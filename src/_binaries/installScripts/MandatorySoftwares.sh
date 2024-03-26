@@ -101,7 +101,7 @@ configureUpdateCron() {
     local file
     # shellcheck disable=SC2154
     file="$(Conf::dynamicConfFile "/etc/cron.d/bash-dev-env-upgrade" "${embed_file_upgradeCronTab}")" || return 1
-    SUDO=sudo OVERWRITE_CONFIG_FILES=1 BACKUP_FILE=0 Install::file \
+    SUDO=sudo OVERWRITE_CONFIG_FILES=1 BACKUP_BEFORE_INSTALL=0 Install::file \
       "${file}" "/etc/cron.d/bash-dev-env-upgrade" root root updateCronUpgrade
     sudo chmod +x "/etc/cron.d/bash-dev-env-upgrade"
   fi
@@ -110,6 +110,9 @@ configureUpdateCron() {
 configure() {
   Engine::Config::installBashDevEnv
   configureUpdateCron
+  # remove parallel nagware
+  mkdir -p "${USER_HOME}/.parallel"
+  touch "${USER_HOME}/.parallel/will-cite"
 }
 
 testConfigure() {
