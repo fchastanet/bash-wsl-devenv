@@ -43,7 +43,7 @@ fortunes() {
 }
 
 dependencies() {
-  echo "Anacron"
+  :
 }
 
 breakOnConfigFailure() {
@@ -88,7 +88,7 @@ configure() {
 
   # shellcheck disable=SC2154
   fileToInstall="$(Conf::dynamicConfFile "etc/cron.daily/motd" "${embed_file_dailyMotd}")" || return 1
-  SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
+  BACKUP_FILE=0 SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
     "${fileToInstall}" "/etc/cron.daily/motd" \
     "root" "root" \
     Install::setRootExecutableCallback || return 1

@@ -80,11 +80,6 @@ install() {
     docker-ce \
     docker-ce-cli
 
-  USERNAME="$(id -un)"
-  Log::displayInfo "allowing user '${USERNAME}' to use docker"
-  sudo getent group docker >/dev/null || sudo groupadd docker || true
-  sudo usermod -aG docker "${USERNAME}" || true
-
   Log::displayInfo "Installing docker-compose"
   # shellcheck disable=SC2317
   dockerComposeVersionCallback() {
@@ -103,12 +98,16 @@ install() {
 }
 
 configure() {
+  Log::displayInfo "allowing user '${USERNAME}' to use docker"
+  sudo getent group docker >/dev/null || sudo groupadd docker || true
+  sudo usermod -aG docker "${USERNAME}" || true
+
   Log::displayInfo "Configuring docker-compose as docker plugin"
   # create the docker plugins directory if it doesn't exist yet
   # shellcheck disable=SC2153
   mkdir -p "${USER_HOME}/.docker/cli-plugins"
-  rm -f "${HOME}/.docker/cli-plugins/docker-compose" || true
-  sudo ln -sf /usr/local/bin/docker-compose "${HOME}/.docker/cli-plugins/docker-compose"
+  rm -f "${USER_HOME}/.docker/cli-plugins/docker-compose" || true
+  sudo ln -sf /usr/local/bin/docker-compose "${USER_HOME}/.docker/cli-plugins/docker-compose"
 }
 
 testInstall() {
@@ -153,8 +152,8 @@ testConfigure() {
   fi
 
   Log::displayInfo "check if docker compose plugin is installed"
-  if [[ ! -f "${HOME}/.docker/cli-plugins/docker-compose" ]]; then
-    Log::displayError "docker compose plugin not installed in folder ${HOME}/.docker/cli-plugins/"
+  if [[ ! -f "${USER_HOME}/.docker/cli-plugins/docker-compose" ]]; then
+    Log::displayError "docker compose plugin not installed in folder ${USER_HOME}/.docker/cli-plugins/"
     ((++failures))
   fi
 
