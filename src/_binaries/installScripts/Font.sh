@@ -4,7 +4,6 @@
 # FACADE
 # IMPLEMENT InstallScripts::interface
 # EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/installScripts/Font.ps1" as fontScript
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/Font/.Xresources" as xresources
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
@@ -16,21 +15,13 @@ helpDescription() {
   echo "Font"
 }
 
-helpVariables() {
-  true
-}
-
-listVariables() {
-  true
-}
-
-defaultVariables() {
-  true
-}
-
-checkVariables() {
-  true
-}
+dependencies() { :; }
+helpVariables() { :; }
+listVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
 
 fortunes() {
   if Assert::wsl; then
@@ -38,18 +29,6 @@ fortunes() {
       fortunes+=("Font 'Meslo LG S' does not seem to be installed, use 'install Font' to get better terminal results")
     fi
   fi
-}
-
-dependencies() {
-  return 0
-}
-
-breakOnConfigFailure() {
-  echo breakOnConfigFailure
-}
-
-breakOnTestFailure() {
-  echo breakOnTestFailure
 }
 
 install() {
@@ -86,46 +65,20 @@ install() {
   )
 }
 
-configure() {
-  if ! Assert::wsl; then
-    Log::displaySkipped "Font installs only on wsl"
-    return 0
-  fi
-
-  local fileToInstall
-  # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "Font/.Xresources" "embed_file_xresources")" || return 1
-  Install::file \
-    "${fileToInstall}" "${USER_HOME}/.Xresources" || return 1
-
-  local terminalConfFile
-  # cspell:ignore wekyb, bbwe
-  terminalConfFile="${WINDOWS_PROFILE_DIR}/AppData/Local/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/settings.json"
-  if [[ -f "${terminalConfFile}" ]]; then
-    if ! grep -q '"face": "MesloLGS NF"' "${terminalConfFile}"; then
-      Log::displayHelp "Please change your terminal settings($(Linux::Wsl::cachedWslpath -w "${terminalConfFile}")) to use font 'MesloLGS NF' for wsl profile"
-    fi
-  else
-    Log::displayHelp "please use windows terminal for better shell display results"
-  fi
-
-}
-
 testInstall() {
-  Assert::fileExists /opt/IlanCosman-tide-fonts/fonts/mesloLGS_NF_regular.ttf root root ||
-    return 1
-}
-
-testConfigure() {
   local -i failures=0
-  Assert::fileExists "${USER_HOME}/.Xresources" || ((++failures))
+
+  Assert::fileExists /opt/IlanCosman-tide-fonts/fonts/mesloLGS_NF_regular.ttf root root || ((++failures))
+  
   local localAppData
   localAppData="$(Linux::Wsl::cachedWslpathFromWslVar LOCALAPPDATA)"
-  Assert::fileExists \
-    "${localAppData}/Microsoft/Windows/Fonts/mesloLGS_NF_regular.ttf" \
-    "${USERNAME}" "${USERGROUP}" || {
+  Assert::fileExists "${localAppData}/Microsoft/Windows/Fonts/mesloLGS_NF_regular.ttf" || {
     ((++failures))
     Log::displayError "Font mesloLGS_NF_regular.ttf not installed in windows folder: ${localAppData}/Microsoft/Windows/Fonts"
   }
   return "${failures}"
 }
+
+configure() { :; }
+
+testConfigure() { :; }

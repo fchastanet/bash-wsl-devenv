@@ -2834,38 +2834,18 @@ helpDescription() {
   echo "install docker and docker-compose inside wsl"
 }
 
-helpVariables() {
-  true
-}
-
-listVariables() {
-  true
-}
-
-defaultVariables() {
-  true
-}
-
-checkVariables() {
-  true
-}
-
-fortunes() {
-  return 0
-}
-
 dependencies() {
   echo "MandatorySoftwares"
   echo "WslConfig"
 }
 
-breakOnConfigFailure() {
-  return 0
-}
-
-breakOnTestFailure() {
-  return 0
-}
+helpVariables() { :; }
+listVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+fortunes() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
 
 # REQUIRE Linux::requireUbuntu
 # REQUIRE Linux::requireExecutedAsUser
@@ -2916,19 +2896,6 @@ install() {
   sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
 }
 
-configure() {
-  Log::displayInfo "allowing user '${USERNAME}' to use docker"
-  sudo getent group docker >/dev/null || sudo groupadd docker || true
-  sudo usermod -aG docker "${USERNAME}" || true
-
-  Log::displayInfo "Configuring docker-compose as docker plugin"
-  # create the docker plugins directory if it doesn't exist yet
-  # shellcheck disable=SC2153
-  mkdir -p "${USER_HOME}/.docker/cli-plugins"
-  rm -f "${USER_HOME}/.docker/cli-plugins/docker-compose" || true
-  sudo ln -sf /usr/local/bin/docker-compose "${USER_HOME}/.docker/cli-plugins/docker-compose"
-}
-
 testInstall() {
   local -i failures=0
 
@@ -2959,6 +2926,19 @@ testInstall() {
     ((++failures))
   fi
   return "${failures}"
+}
+
+configure() {
+  Log::displayInfo "allowing user '${USERNAME}' to use docker"
+  sudo getent group docker >/dev/null || sudo groupadd docker || true
+  sudo usermod -aG docker "${USERNAME}" || true
+
+  Log::displayInfo "Configuring docker-compose as docker plugin"
+  # create the docker plugins directory if it doesn't exist yet
+  # shellcheck disable=SC2153
+  mkdir -p "${USER_HOME}/.docker/cli-plugins"
+  rm -f "${USER_HOME}/.docker/cli-plugins/docker-compose" || true
+  sudo ln -sf /usr/local/bin/docker-compose "${USER_HOME}/.docker/cli-plugins/docker-compose"
 }
 
 testConfigure() {

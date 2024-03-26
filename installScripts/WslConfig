@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/WslConfig.sh
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/configureScripts/WslConfig.sh
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -2809,7 +2809,7 @@ installScriptCommand() {
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
     echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/WslConfig.sh'
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/configureScripts/WslConfig.sh'
     echo
     echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
     echo 'MIT License'
@@ -2855,41 +2855,16 @@ helpDescription() {
   echo "WslConfig"
 }
 
-helpVariables() {
-  true
-}
-
-listVariables() {
-  true
-}
-
-defaultVariables() {
-  true
-}
-
-checkVariables() {
-  true
-}
-
-fortunes() {
-  return 0
-}
-
-dependencies() {
-  return 0
-}
-
-breakOnConfigFailure() {
-  return 0
-}
-
-breakOnTestFailure() {
-  return 0
-}
-
-install() {
-  return 0
-}
+dependencies() { :; }
+helpVariables() { :; }
+listVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+fortunes() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
+install() { :; }
+testInstall() { :; }
 
 configure() {
   sudo hostnamectl set-hostname "${DISTRO_HOSTNAME}"
@@ -2901,10 +2876,6 @@ configure() {
     SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
       "${fileToInstall}" "/etc/wsl.conf" root root "Install::setUserRootCallback"
   fi
-}
-
-testInstall() {
-  return 0
 }
 
 testConfigure() {

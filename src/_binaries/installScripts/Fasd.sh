@@ -14,21 +14,13 @@ helpDescription() {
   echo "Fasd"
 }
 
-helpVariables() {
-  true
-}
-
-listVariables() {
-  true
-}
-
-defaultVariables() {
-  true
-}
-
-checkVariables() {
-  true
-}
+dependencies() { :; }
+helpVariables() { :; }
+listVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
 
 fortunes() {
   if command -v fasd &>/dev/null; then
@@ -39,32 +31,15 @@ fortunes() {
   fi
 }
 
-dependencies() {
-  return 0
-}
-
-breakOnConfigFailure() {
-  echo breakOnConfigFailure
-}
-
-breakOnTestFailure() {
-  echo breakOnTestFailure
-}
-
 install() {
   Linux::Apt::addRepository ppa:aacebedo/fasd
   Linux::Apt::install \
     fasd
 }
 
-configure() {
-  :
-}
-
 testInstall() {
   Assert::commandExists fasd || return 1
 }
 
-testConfigure() {
-  :
-}
+configure() { :; }
+testConfigure() { :; }

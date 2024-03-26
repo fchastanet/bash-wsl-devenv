@@ -15,21 +15,13 @@ helpDescription() {
   echo "Fzf"
 }
 
-helpVariables() {
-  true
-}
-
-listVariables() {
-  true
-}
-
-defaultVariables() {
-  true
-}
-
-checkVariables() {
-  true
-}
+dependencies() { :; }
+helpVariables() { :; }
+listVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
 
 fortunes() {
   if command -v bat &>/dev/null; then
@@ -46,18 +38,6 @@ fortunes() {
     fortunes+=("Fzf -- fd -- fd is a program to find entries in your filesystem. It is a simple, fast and user-friendly alternative to find. While it does not aim to support all of find's powerful functionality, it provides sensible (opinionated) defaults for a majority of use cases. - https://github.com/sharkdp/fd")
   fi
 
-}
-
-dependencies() {
-  return 0
-}
-
-breakOnConfigFailure() {
-  echo breakOnConfigFailure
-}
-
-breakOnTestFailure() {
-  echo breakOnTestFailure
 }
 
 install() {
@@ -97,10 +77,6 @@ install() {
     Version::parse
 }
 
-configure() {
-  :
-}
-
 testInstall() {
   local -i failures=0
   Version::checkMinimal "fd" --version "8.4.0" || ((++failures))
@@ -110,6 +86,5 @@ testInstall() {
   return "${failures}"
 }
 
-testConfigure() {
-  :
-}
+configure() { :; }
+testConfigure() { :; }

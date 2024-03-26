@@ -14,37 +14,14 @@ helpDescription() {
   echo "Clean"
 }
 
-helpVariables() {
-  true
-}
-
-listVariables() {
-  true
-}
-
-defaultVariables() {
-  true
-}
-
-checkVariables() {
-  true
-}
-
-fortunes() {
-  return 0
-}
-
-dependencies() {
-  return 0
-}
-
-breakOnConfigFailure() {
-  return 0
-}
-
-breakOnTestFailure() {
-  return 0
-}
+dependencies() { :; }
+helpVariables() { :; }
+listVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+fortunes() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
 
 install() {
   # some cleaning
@@ -54,14 +31,6 @@ install() {
   sudo apt-get -y autoclean
 }
 
-configure() {
-  return 0
-}
-
-testInstall() {
-  return 0
-}
-
-testConfigure() {
-  return 0
-}
+configure() { :; }
+testInstall() { :; }
+testConfigure() { :; }

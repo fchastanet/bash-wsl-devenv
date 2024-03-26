@@ -14,46 +14,19 @@ helpDescription() {
   echo "Kubeps1"
 }
 
-helpVariables() {
-  true
-}
-
-listVariables() {
-  true
-}
-
-defaultVariables() {
-  true
-}
-
-checkVariables() {
-  true
-}
-
-fortunes() {
-  return 0
-}
-
-dependencies() {
-  return 0
-}
-
-breakOnConfigFailure() {
-  echo breakOnConfigFailure
-}
-
-breakOnTestFailure() {
-  echo breakOnTestFailure
-}
+dependencies() { :; }
+fortunes() { :; }
+helpVariables() { :; }
+listVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
 
 install() {
   SUDO=sudo Git::cloneOrPullIfNoChanges \
     "/opt/kubeps1" \
     "https://github.com/jonmosco/kube-ps1.git"
-}
-
-configure() {
-  :
 }
 
 testInstall() {
@@ -62,6 +35,5 @@ testInstall() {
   return "${failures}"
 }
 
-testConfigure() {
-  :
-}
+configure() { :; }
+testConfigure() { :; }
