@@ -102,9 +102,9 @@ isDistroSystemdRunning() {
 # @require Linux::requireExecutedAsUser
 run() {
   if [[ ! -f "${BASH_DEV_ENV_ROOT_DIR}/.env.distro" ]]; then
-    Log::displayError "please create ${BASH_DEV_ENV_ROOT_DIR}/.env.distro using ${BASH_DEV_ENV_ROOT_DIR}/.env.template"
-    Log::displayError echo "cp .env.template .env.distro"
-    Log::displayError echo "code .env"
+    Log::displayError "please create ${BASH_DEV_ENV_ROOT_DIR}/.env.distro using ${BASH_DEV_ENV_ROOT_DIR}/.env.distro.template"
+    Log::displayError echo "cp .env.distro.template .env.distro"
+    Log::displayError echo "code .env.distro"
     exit 1
   fi
 
