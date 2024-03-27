@@ -5,5 +5,7 @@ if [[ -z "${CONFIG_LIST+xxx}" ]]; then
 fi
 
 CONFIG_LIST=(
-  CodeCheckers
+  "CodeCheckers"
+  "Oq"
+  "PlantUml"
 )

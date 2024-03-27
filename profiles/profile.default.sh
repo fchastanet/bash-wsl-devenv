@@ -22,6 +22,8 @@ CONFIG_LIST+=(
   "BashTools"
   "PreCommitConfig"
   "CodeCheckers"
+  "Oq"
+  "PlantUml"
 )
 
 # Mandatory packages
