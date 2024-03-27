@@ -43,14 +43,16 @@ summary() {
   UI::drawLine '-'
   Log::headLine "Summary"
   if [[ "${SKIP_INSTALL}" = "0" ]]; then
-    Stats::aggregateStatsSummary "installation(s)" "${LOGS_DIR:-#}/install.stat" "${#CONFIG_LIST[@]}"
-  fi
-  if [[ "${SKIP_CONFIGURE}" = "0" ]]; then
-    Stats::aggregateStatsSummary "configuration(s)" "${LOGS_DIR:-#}/config.stat" "${#CONFIG_LIST[@]}"
+    Stats::aggregateStatsSummary "installation(s)" "${LOGS_DIR:-#}/install.stat"
   fi
   if [[ "${SKIP_TEST}" = "0" ]]; then
-    Stats::aggregateStatsSummary "test(s)" "${LOGS_DIR:-#}/test-install.stat" "${#CONFIG_LIST[@]}"
-    Stats::aggregateStatsSummary "test(s)" "${LOGS_DIR:-#}/test-configuration.stat" "${#CONFIG_LIST[@]}"
+    Stats::aggregateStatsSummary "installation test(s)" "${LOGS_DIR:-#}/test-install.stat"
+  fi
+  if [[ "${SKIP_CONFIGURE}" = "0" ]]; then
+    Stats::aggregateStatsSummary "configuration(s)" "${LOGS_DIR:-#}/config.stat"
+  fi
+  if [[ "${SKIP_TEST}" = "0" ]]; then
+    Stats::aggregateStatsSummary "configuration test(s)" "${LOGS_DIR:-#}/test-configuration.stat"
   fi
   local endDate
   endDate="$(date +%s)"

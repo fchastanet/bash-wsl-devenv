@@ -476,7 +476,7 @@ InstallScripts::command() {
     fi
   }
   local hook
-  if [[ "${SKIP_INSTALL}" = "0" ]]; then
+  if [[ "${SKIP_INSTALL}" = "0" ]] && ! InstallScripts::scriptFunctionEmpty install; then
     Log::headLine "INSTALL - Installing ${scriptName}"
     logFile="${logsDir}/${scriptName}-install.log"
     statsFile="${logsDir}/${scriptName}-install.stat"
@@ -495,7 +495,8 @@ InstallScripts::command() {
   fi
 
   local testInstallStatus="0"
-  if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" ]]; then
+  if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" ]] &&
+    ! InstallScripts::scriptFunctionEmpty testInstall; then
     Log::headLine "TEST    - Testing ${scriptName} installation"
     logFile="${logsDir}/${scriptName}-test-install.log"
     statsFile="${logsDir}/${scriptName}-test-install.stat"
@@ -516,7 +517,8 @@ InstallScripts::command() {
   fi
 
   local configStatus="0"
-  if [[ "${SKIP_CONFIGURE}" = "0" && "${installStatus}" = "0" ]]; then
+  if [[ "${SKIP_CONFIGURE}" = "0" && "${installStatus}" = "0" ]] &&
+    ! InstallScripts::scriptFunctionEmpty configure; then
     Log::headLine "CONFIG  - Configuring ${scriptName}"
     logFile="${logsDir}/${scriptName}-config.log"
     statsFile="${logsDir}/${scriptName}-config.stat"
@@ -538,7 +540,8 @@ InstallScripts::command() {
   fi
 
   local testConfigStatus="0"
-  if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" && "${configStatus}" = "0" ]]; then
+  if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" && "${configStatus}" = "0" ]] &&
+    ! InstallScripts::scriptFunctionEmpty configure; then
     Log::headLine "TEST    - Testing ${scriptName} configuration"
     logFile="${logsDir}/${scriptName}-test-configuration.log"
     statsFile="${logsDir}/${scriptName}-test-configuration.stat"
@@ -1248,6 +1251,14 @@ Env::pathPrepend() {
       PATH="$(realpath "${arg}"):${PATH}"
     fi
   done
+}
+
+# @description check if function is empty
+# @arg $1 function:Function
+# @exitcode 0 if
+InstallScripts::scriptFunctionEmpty() {
+  local pattern="^[ \t]+(:|true)"
+  [[ "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} && "$(declare -f "$1" | sed '4q;d')" = "}" ]]
 }
 
 # @description Display given text on full line with TEST_COLOR style
@@ -2847,13 +2858,8 @@ testInstall() {
   Version::checkMinimal "aws" --version "2.13.32" || ((++failures))
 }
 
-configure() {
-  :
-}
-
-testConfigure() {
-  :
-}
+configure() { :; }
+testConfigure() { :; }
 
 local action=$1
 shift || true

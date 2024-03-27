@@ -32,9 +32,6 @@ install() {
   Linux::Apt::install "${PACKAGES[@]}"
 }
 
-testInstall() {
-  return 0
-}
-
+testInstall() { :; }
 configure() { :; } 
 testConfigure() { :; }

@@ -37,5 +37,4 @@ testInstall() {
 }
 
 configure() { :; }
-
 testConfigure() { :; }

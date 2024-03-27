@@ -820,6 +820,7 @@ Stats::aggregateStats() {
     if [[ ! -f "${aggregateStatFile}" ]]; then
       (
         echo "count=0"
+        echo "appCount=0"
         echo "error=0"
         echo "warning=0"
         echo "skipped=0"
@@ -829,12 +830,11 @@ Stats::aggregateStats() {
         echo "statusSuccess=0"
       ) >"${aggregateStatFile}"
     fi
-    if [[ ! -f "${statFile}" ]]; then
-      return 0
-    fi
 
     # shellcheck source=src/Stats/logStats.example
-    source "${statFile}"
+    if [[ -f "${statFile}" ]]; then
+      source "${statFile}"
+    fi
     local newError="${error}"
     local newWarning="${warning}"
     local newSkipped="${skipped}"
@@ -842,32 +842,34 @@ Stats::aggregateStats() {
     local newSuccess="${success}"
     local newDuration="${duration}"
     local newStatus="${status}"
-
     # shellcheck source=src/Stats/aggregateStats.example
     source "${aggregateStatFile}"
-
-    ((count++)) || true
-    if ((newStatus == 0)); then
-      ((statusSuccess++)) || true
+    if [[ -f "${statFile}" ]]; then
+      ((count++)) || true
+      ((appCount++)) || true
+      if ((newStatus == 0)); then
+        ((statusSuccess++)) || true
+      fi
+      if ((newError > 0)); then
+        ((error++)) || true
+      fi
+      if ((newWarning > 0)); then
+        ((warning++)) || true
+      fi
+      if ((newSkipped > 0)); then
+        ((skipped++)) || true
+      fi
+      if ((newHelp > 0)); then
+        ((help++)) || true
+      fi
+      if ((newSuccess > 0)); then
+        ((success++)) || true
+      fi
+      ((duration = duration + newDuration)) || true
     fi
-    if ((newError > 0)); then
-      ((error++)) || true
-    fi
-    if ((newWarning > 0)); then
-      ((warning++)) || true
-    fi
-    if ((newSkipped > 0)); then
-      ((skipped++)) || true
-    fi
-    if ((newHelp > 0)); then
-      ((help++)) || true
-    fi
-    if ((newSuccess > 0)); then
-      ((success++)) || true
-    fi
-    ((duration = duration + newDuration)) || true
     (
       echo "count=${count}"
+      echo "appCount=${appCount}"
       echo "error=${error}"
       echo "warning=${warning}"
       echo "skipped=${skipped}"
@@ -884,7 +886,6 @@ Stats::aggregateStats() {
 Stats::aggregateStatsSummary() {
   local msg="$1"
   local aggregateStatFile="$2"
-  local appCount="$3"
   if [[ ! -f "${aggregateStatFile}" ]]; then
     return 0
   fi
@@ -894,9 +895,15 @@ Stats::aggregateStatsSummary() {
     source "${aggregateStatFile}"
 
     echo -e "${__SUCCESS_COLOR}${count}${__RESET_COLOR} / ${__INFO_COLOR}${appCount}${__RESET_COLOR} ${msg} executed"
-    echo -e " - ${__ERROR_COLOR}${error} ${msg} with error${__RESET_COLOR}"
-    echo -e " - ${__SKIPPED_COLOR}${skipped} partial ${msg} (check logs marked as skipped)${__RESET_COLOR}"
-    echo -e " - ${__WARNING_COLOR}${warning} ${msg} with warning${__RESET_COLOR}"
+    if [[ "${error}" != "0" ]]; then
+      echo -e " - ${__ERROR_COLOR}${error} ${msg} with error${__RESET_COLOR}"
+    fi
+    if [[ "${skipped}" != "0" ]]; then
+      echo -e " - ${__SKIPPED_COLOR}${skipped} partial ${msg} (check logs marked as skipped)${__RESET_COLOR}"
+    fi
+    if [[ "${warning}" != "0" ]]; then
+      echo -e " - ${__WARNING_COLOR}${warning} ${msg} with warning${__RESET_COLOR}"
+    fi
     echo -e " - ${__INFO_COLOR}Duration: ${duration}s${__RESET_COLOR}"
   )
 }
@@ -3787,14 +3794,16 @@ summary() {
   UI::drawLine '-'
   Log::headLine "Summary"
   if [[ "${SKIP_INSTALL}" = "0" ]]; then
-    Stats::aggregateStatsSummary "installation(s)" "${LOGS_DIR:-#}/install.stat" "${#CONFIG_LIST[@]}"
-  fi
-  if [[ "${SKIP_CONFIGURE}" = "0" ]]; then
-    Stats::aggregateStatsSummary "configuration(s)" "${LOGS_DIR:-#}/config.stat" "${#CONFIG_LIST[@]}"
+    Stats::aggregateStatsSummary "installation(s)" "${LOGS_DIR:-#}/install.stat"
   fi
   if [[ "${SKIP_TEST}" = "0" ]]; then
-    Stats::aggregateStatsSummary "test(s)" "${LOGS_DIR:-#}/test-install.stat" "${#CONFIG_LIST[@]}"
-    Stats::aggregateStatsSummary "test(s)" "${LOGS_DIR:-#}/test-configuration.stat" "${#CONFIG_LIST[@]}"
+    Stats::aggregateStatsSummary "installation test(s)" "${LOGS_DIR:-#}/test-install.stat"
+  fi
+  if [[ "${SKIP_CONFIGURE}" = "0" ]]; then
+    Stats::aggregateStatsSummary "configuration(s)" "${LOGS_DIR:-#}/config.stat"
+  fi
+  if [[ "${SKIP_TEST}" = "0" ]]; then
+    Stats::aggregateStatsSummary "configuration test(s)" "${LOGS_DIR:-#}/test-configuration.stat"
   fi
   local endDate
   endDate="$(date +%s)"
