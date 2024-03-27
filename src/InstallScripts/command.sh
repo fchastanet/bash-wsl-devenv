@@ -41,10 +41,12 @@ InstallScripts::command() {
       startDate="$(date +%s)"
       trap 'Stats::computeStatsTrap "Installation ${scriptName}" "${logFile}" "${statsFile}" "${startDate}"' EXIT INT TERM ABRT
       
-      sourceHook preInstall
-      install 2>&1 | tee "${logFile}"
-      sourceHook postInstall
-    )
+      local -i failures=0
+      sourceHook preInstall || ((++failures))
+      install || ((++failures))
+      sourceHook postInstall || ((++failures))
+      exit "${failures}"
+    ) 2>&1 | tee "${logFile}"
   fi
 
   local testInstallStatus="0"
@@ -55,10 +57,13 @@ InstallScripts::command() {
     (
       startDate="$(date +%s)"
       trap 'Stats::computeStatsTrap "Test ${scriptName}" "${logFile}" "${statsFile}" "${startDate}"' EXIT INT TERM ABRT
-      sourceHook preTestInstall
-      testInstall 2>&1 | tee "${logFile}"
-      sourceHook postTestInstall
-    ) || testInstallStatus="$?" || true
+
+      local -i failures=0
+      sourceHook preTestInstall || ((++failures))
+      testInstall || ((++failures))
+      sourceHook postTestInstall || ((++failures))
+      exit "${failures}"
+    ) 2>&1 | tee "${logFile}" || testInstallStatus="$?" || true
     if [[ "${testInstallStatus}" != "0" ]] && breakOnTestFailure; then
       # break if test script error
       exit "${testInstallStatus}"
@@ -74,10 +79,12 @@ InstallScripts::command() {
       startDate="$(date +%s)"
       trap 'Stats::computeStatsTrap "Configuration ${scriptName}" "${logFile}" "${statsFile}" "${startDate}"' EXIT INT TERM ABRT
 
-      sourceHook preConfigure
-      configure 2>&1 | tee "${logFile}"
-      sourceHook postConfigure
-    ) || configStatus="$?" || true
+      local -i failures=0
+      sourceHook preConfigure || ((++failures))
+      configure || ((++failures))
+      sourceHook postConfigure || ((++failures))
+      exit "${failures}"
+    ) 2>&1 | tee "${logFile}" || configStatus="$?" || true
 
     if [[ "${configStatus}" != "0" ]] && breakOnConfigFailure; then
       # break if config script error
@@ -94,10 +101,12 @@ InstallScripts::command() {
       startDate="$(date +%s)"
       trap 'Stats::computeStatsTrap "Test ${scriptName}" "${logFile}" "${statsFile}" "${startDate}"' EXIT INT TERM ABRT
 
-      sourceHook preTestConfigure
-      testConfigure 2>&1 | tee "${logFile}"
-      sourceHook postTestConfigure
-    ) || testConfigStatus="$?" || true
+      local -i failures=0
+      sourceHook preTestConfigure || ((++failures))
+      testConfigure || ((++failures))
+      sourceHook postTestConfigure || ((++failures))
+      exit "${failures}"
+    ) 2>&1 | tee "${logFile}" || testConfigStatus="$?" || true
     if [[ "${testConfigStatus}" != "0" ]] && breakOnTestFailure; then
       # break if test script error
       exit "${testConfigStatus}"

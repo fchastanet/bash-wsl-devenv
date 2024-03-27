@@ -45,6 +45,7 @@ configure() {
       rm -f "${USER_HOME}/.saml2aws" || true
       rm -f "${USER_HOME}/.aws/credentials" || true
       rm -f "${USER_HOME}/.aws/config" || true
+      rm -f "${USER_HOME}/.ssh/known_hosts.old" || true
     )
   else
     Log::displaySkipped "--export option has not been selected"

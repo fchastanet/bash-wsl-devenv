@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Docker.sh
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/configureScripts/PreCommitConfig.sh
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
 # shellcheck disable=SC2288,SC2034
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Docker
+# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/PreCommitConfig
 
 # ensure that no user aliases could interfere with
 # commands used in this script
@@ -224,11 +224,66 @@ Array::wrap2() {
   ) | sed -E -e 's/[[:blank:]]+$//'
 }
 
+# @description asserts that first argument is directory that exists with specified ownership
+# @arg $1 dir:String
+# @arg $2 user:String expected owner user name of the directory (default: USERNAME or id -un command)
+# @arg $3 group:String expected owner group name of the directory (default: USERGROUP or id -gn command)
+# @env USERNAME String if arg $2 is not provided
+# @env USERGROUP String if arg $3 is not provided
+# @exitcode 1 if missing directory
+# @exitcode 2 if incorrect user ownership
+# @exitcode 3 if incorrect group ownership
+# @stderr diagnostics information is displayed
+Assert::dirExists() {
+  local dir="$1"
+  local user="${2:-${USERNAME:-$(id -un)}}"
+  local group="${3:-${USERGROUP:-$(id -gn)}}"
+  Log::displayInfo "Check if directory ${dir} exists with user ${user}:${group}"
+  if [[ ! -d "${dir}" ]]; then
+    Log::displayError "missing directory ${dir}"
+    return 1
+  fi
+  if [[ "${user}" != "$(stat -c '%U' "${dir}")" ]]; then
+    Log::displayError "incorrect user ownership on directory ${dir}"
+    return 2
+  fi
+  if [[ "${group}" != "$(stat -c '%G' "${dir}")" ]]; then
+    Log::displayError "incorrect group ownership on directory ${dir}"
+    return 3
+  fi
+}
+
 # @description checks if function name provided exists
 # @arg $1 functionName:String
 # @exitcode 1 if function name doesn't exist
 Assert::functionExists() {
   declare -F "$1" >/dev/null
+}
+
+# @description convert base64 encoded back to target file
+# if target file is executable prepend dir of target
+# file to PATH to make binary available everywhere
+# it is advised to include in the path of the target file
+# the md5sum of the binFile
+#
+# @arg $1 targetFile:String the file to write
+# @arg $2 binFileBase64:String the base64 encoded file
+# @arg $3 fileMode:String the chmod to set on the file
+# @set PATH String prepend target embedded file binary directory to PATH variable if binary executable
+Compiler::Embed::extractFileFromBase64() {
+  local targetFile="$1"
+  local binFileBase64="$2"
+  local fileMode="${3:-+x}"
+
+  if [[ ! -f "${targetFile}" ]]; then
+    mkdir -p "$(dirname "${targetFile}")"
+    base64 -d >"${targetFile}" <<<"${binFileBase64}"
+    chmod "${fileMode}" "${targetFile}"
+  fi
+
+  if [[ -x "${targetFile}" ]]; then
+    Env::pathPrepend "$(dirname "${targetFile}")"
+  fi
 }
 
 envFileTemplate="$(
@@ -445,61 +500,6 @@ Framework::createTempFile() {
   mktemp -p "${TMPDIR:-/tmp}" -t "${1:-}.XXXXXXXXXXXX"
 }
 
-# @description upgrade given binary to latest github release using retry
-#
-# releaseUrl argument : the placeholder @latestVersion@ will be replaced by the latest release version
-# @arg $1 targetFile:String target binary file (eg: /usr/local/bin/kind)
-# @arg $2 releaseUrl:String github release url (eg: https://github.com/kubernetes-sigs/kind/releases/download/@latestVersion@/kind-linux-amd64)
-# @arg $3 argVersion:String parameter to add to existing command to compute current version
-# @arg $4 versionCallback:Function function called to get software version (default: Version::getCommandVersionFromPlainText will call software with argument --version)
-# @arg $5 installCallback:Function function called to install the file retrieved on github (default copy as is and set execution bit)
-# @arg $6 parseVersionCallback:Function function to call to filter the version retrieved (Eg: Version::parse)
-# @stdout log messages about retry, install, upgrade
-Github::upgradeRelease() {
-  local targetFile="$1"
-  local releaseUrl="$2"
-  local argVersion="${3:---version}"
-  local versionCallback="${4:-Version::getCommandVersionFromPlainText}"
-  # shellcheck disable=SC2034
-  local installCallback="${5:-}"
-  local parseVersionCallback="${6:-}"
-  local latestVersion
-  local repo
-
-  repo="$(Github::extractRepoFromGithubUrl "${releaseUrl}")"
-  Github::getLatestRelease "${repo}" latestVersion ||
-    Log::fatal "Repo ${repo} latest version not found"
-  if [[ "$(type -t "${parseVersionCallback}")" = "function" ]]; then
-    latestVersion="$(${parseVersionCallback} <<<"${latestVersion}")"
-  fi
-  Log::displayInfo "Repo ${repo} latest version found is ${latestVersion}"
-
-  local currentVersion="not existing"
-  if [[ -f "${targetFile}" ]]; then
-    currentVersion="$(${versionCallback} "${targetFile}" "${argVersion}" 2>&1 || true)"
-  fi
-  if [[ "${currentVersion}" = "${latestVersion}" ]]; then
-    Log::displayInfo "${targetFile} version ${latestVersion} already installed"
-  else
-    if [[ -z "${currentVersion}" ]]; then
-      Log::displayInfo "Installing ${targetFile} with version ${latestVersion}"
-    else
-      Log::displayInfo "Upgrading ${targetFile} from version ${currentVersion} to ${latestVersion}"
-    fi
-    local url
-    url="$(echo "${releaseUrl}" | sed -E "s/@latestVersion@/${latestVersion}/g")"
-    Log::displayInfo "Using url ${url}"
-    newSoftware=$(mktemp -p "${TMPDIR:-/tmp}" -t github.newSoftware.XXXX)
-    Retry::default curl \
-      -L \
-      -o "${newSoftware}" \
-      --fail \
-      "${url}"
-
-    Github::defaultInstall "${newSoftware}" "${targetFile}" "${latestVersion}" "${installCallback}"
-  fi
-}
-
 # @description the command launch different actions(install, configure, test)
 # depending on the options selected
 # @see src/_includes/install.skip.options.tpl
@@ -612,40 +612,6 @@ InstallScripts::command() {
       exit "${testConfigStatus}"
     fi
   fi
-}
-
-# @description apt-get install
-# @arg $@ softwares:String[] list of softwares to install
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::install() {
-  Log::displayInfo "Apt install $*"
-  Retry::default sudo apt-get install -y -q "$@"
-}
-
-# @description update apt packages list
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::update() {
-  Log::displayInfo "Apt update ..."
-  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
-}
-
-# @description checks if Systemd is running
-# @noargs
-# @exitcode 1 if systemd is not running
-# @stdout diagnostics information
-Linux::isSystemdRunning() {
-  if [[ "$(readlink -f /sbin/init)" = "/usr/lib/systemd/systemd" ]] && systemctl status --no-pager &>/dev/null; then
-    Log::displayInfo "SystemD is running"
-    return 0
-  fi
-  Log::displayInfo "SystemD is not running"
-  return 1
 }
 
 # @description Log namespace provides 2 kind of functions
@@ -796,14 +762,6 @@ Log::requireLoad() {
   fi
 }
 
-# @description Retry a command 5 times with a delay of 15 seconds between each attempt
-# @arg $@ command:String[] the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-Retry::default() {
-  Retry::parameterized 5 15 "" "$@"
-}
-
 # @description draw a line with the character passed in parameter repeated depending on terminal width
 # @arg $1 character:String character to use as separator (default value #)
 UI::drawLine() {
@@ -891,58 +849,6 @@ UI::theme() {
   fi
 }
 
-# @description Check that command version is greater than expected minimal version
-# display warning if command version greater than expected minimal version
-# display error if command version less than expected minimal version and exit 1
-# @arg $1 commandName:String command path
-# @arg $2 argVersion:String command line parameters to launch to get command version
-# @arg $3 minimalVersion:String expected minimal command version
-# @arg $4 parseVersionCallback:Function
-# @arg $5 help:String optional help message to display if command does not exist
-# @exitcode 0 if command version greater or equal to expected minimal version
-# @exitcode 1 if command version less than expected minimal version
-# @exitcode 2 if command does not exist
-Version::checkMinimal() {
-  local commandName="$1"
-  local argVersion="$2"
-  local minimalVersion="$3"
-  local parseVersionCallback=${4:-Version::parse}
-  local help="${5:-}"
-
-  Assert::commandExists "${commandName}" "${help}" || return 2
-
-  # shellcheck disable=SC2034
-  local status=0
-  # shellcheck disable=SC2034
-  local -a pipeStatus=()
-  local version
-  version="$("${commandName}" "${argVersion}" 2>&1 | ${parseVersionCallback} || Bash::handlePipelineFailure status pipeStatus)"
-
-  Log::displayDebug "check ${commandName} version ${version} against minimal ${minimalVersion}"
-
-  Version::compare "${version}" "${minimalVersion}" || {
-    local result=$?
-    if [[ "${result}" = "1" ]]; then
-      Log::displayDebug "${commandName} version is ${version} greater than ${minimalVersion}, OK let's continue"
-    elif [[ "${result}" = "2" ]]; then
-      Log::displayError "${commandName} minimal version is ${minimalVersion}, your version is ${version}"
-      return 1
-    fi
-    return 0
-  }
-
-}
-
-# @description extract software version number
-# @arg $1 command:String the command that will be called with --version parameter
-# @arg $2 argVersion:String  allows to override default --version parameter
-Version::getCommandVersionFromPlainText() {
-  local command="$1"
-  local argVersion="${2:---version}"
-  "${command}" "${argVersion}" 2>&1 |
-    Version::parse # keep only version numbers
-}
-
 # @description ensure COMMAND_BIN_DIR env var is set
 # and PATH correctly prepared
 # @noargs
@@ -951,28 +857,6 @@ Version::getCommandVersionFromPlainText() {
 Compiler::Facade::requireCommandBinDir() {
   COMMAND_BIN_DIR="${CURRENT_DIR}"
   Env::pathPrepend "${COMMAND_BIN_DIR}"
-}
-
-# @description check if command specified exists or return 1
-# with error and message if not
-#
-# @arg $1 commandName:String on which existence must be checked
-# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
-#
-# @exitcode 1 if the command specified does not exist
-# @stderr diagnostic information + help if second argument is provided
-Assert::commandExists() {
-  local commandName="$1"
-  local helpIfNotExists="$2"
-
-  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
-    Log::displayError "${commandName} is not installed, please install it"
-    if [[ -n "${helpIfNotExists}" ]]; then
-      Log::displayInfo "${helpIfNotExists}"
-    fi
-    return 1
-  }
-  return 0
 }
 
 # @description check if tty (interactive mode) is active
@@ -989,36 +873,6 @@ Assert::tty() {
   fi
   # check if stdout or stderr is connected to terminal
   [[ -t 1 || -t 2 ]]
-}
-
-# @description ignore exit code 141 from simple command pipes
-# @example use with:
-#   local resultingStatus=0
-#   local -a originalPipeStatus=()
-#   cmd1 | cmd2 || Bash::handlePipelineFailure resultingStatus originalPipeStatus || true
-#   [[ "${resultingStatus}" = "0" ]]
-# @arg $1 resultingStatusCode:&int (passed by reference) (optional) resulting status code
-# @arg $2 originalStatus:int[] (passed by reference) (optional) copy of original PIPESTATUS array
-# @env PIPESTATUS assuming that this function is called like in the example provided
-# @see https://unix.stackexchange.com/a/709880/582856
-Bash::handlePipelineFailure() {
-  local -a pipeStatusBackup=("${PIPESTATUS[@]}")
-  local -n handlePipelineFailure_resultingStatusCode=$1
-  local -n handlePipelineFailure_originalStatus=$2
-  # shellcheck disable=SC2034
-  handlePipelineFailure_originalStatus=("${pipeStatusBackup[@]}")
-  handlePipelineFailure_resultingStatusCode=0
-  local statusCode
-  for statusCode in "${pipeStatusBackup[@]}"; do
-    if ((statusCode == 141)); then
-      return 0
-    elif ((statusCode > 0)); then
-      # shellcheck disable=SC2034
-      handlePipelineFailure_resultingStatusCode="${statusCode}"
-      break
-    fi
-  done
-  return "${handlePipelineFailure_resultingStatusCode}"
 }
 
 # @description select right file to load depending if file exists in this order:
@@ -1349,84 +1203,6 @@ Env::pathPrepend() {
   done
 }
 
-# @description intermediate callback that is used by Github::upgradeRelease
-# or Github::installRelease
-# if installCallback is not set, it allows to:
-#   - copy the downloaded file to the right target file
-#   - and set the execution bit
-# else
-#   installCallback is called with newSoftware, targetFile, version arguments
-# fi
-# @warning do not use this function as callback for Github::upgradeRelease or Github::installRelease, as it would result to an infinite loop
-# @arg $1 newSoftware:String the downloaded software file
-# @arg $2 targetFile:String where we want to copy the file
-# @arg $3 version:String the version that has been downloaded
-# @arg $4 installCallback:Function (optional) the callback to call with 3 first arguments
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode * on failure
-# @see Github::upgradeRelease
-# @see Github::installRelease
-# @internal
-Github::defaultInstall() {
-  local newSoftware="$1"
-  local targetFile="$2"
-  local version="$3"
-  local installCallback=$4
-  # shellcheck disable=SC2086
-  mkdir -p "$(dirname "${targetFile}")"
-  if [[ "$(type -t "${installCallback}")" = "function" ]]; then
-    ${installCallback} "${newSoftware}" "${targetFile}" "${version}"
-  else
-    ${SUDO:-} mv "${newSoftware}" "${targetFile}"
-    ${SUDO:-} chmod +x "${targetFile}"
-    hash -r
-    ${SUDO:-} rm -f "${newSoftware}" || true
-  fi
-}
-
-# @description github repository eg: kubernetes-sigs/kind
-# @arg $1 githubUrl:String eg: https://github.com/kubernetes-sigs/kind/releases/download/@latestVersion@/kind-linux-amd64
-# @exitcode 1 if no matching repo found in provided url, 0 otherwise
-# @stdout the repo in the form owner/repo
-Github::extractRepoFromGithubUrl() {
-  local githubUrl="$1"
-  local result
-  result="$(sed -n -E 's#^https://github.com/([^/]+/[^/]+)/.*$#\1#p' <<<"${githubUrl}")"
-  if [[ -z "${result}" ]]; then
-    return 1
-  fi
-  echo "${result}"
-}
-
-# @description Retrieve the latest version number of a github release using Github API using retry
-# repo arg with fchastanet/bash-tools value would match https://github.com/fchastanet/bash-tools
-# @arg $1 repo:String repository in the format fchastanet/bash-tools
-# @arg $2 resultRef:&String reference to a variable that will contain the result of the command
-# @stdout log messages about retry
-Github::getLatestRelease() {
-  local repo="$1"
-  # we need to pass the result through a reference instead of output directly
-  # because retry can output too
-  local -n resultRef=$2
-  resultRef=""
-  local resultFile
-  resultFile="$(mktemp -p "${TMPDIR:-/tmp}" -t githubLatestRelease.XXXX)"
-  # Get latest release from GitHub api
-  if Retry::default curl \
-    -L \
-    -o "${resultFile}" \
-    --fail \
-    --silent \
-    "https://api.github.com/repos/${repo}/releases/latest"; then
-    # shellcheck disable=SC2034
-    resultRef="$(Version::githubApiExtractVersion <"${resultFile}")"
-    return 0
-  fi
-  # display curl result in case of failure
-  cat >&2 "${resultFile}"
-  rm -f "${resultFile}"
-}
-
 # @description Display given text on full line with TEST_COLOR style
 # @arg $1 text:String text to display
 Log::headLine() {
@@ -1531,43 +1307,6 @@ Log::rotate() {
   fi
 }
 
-# @description Retry a command several times depending on parameters
-# @arg $1 maxRetries:int    $1 max retries
-# @arg $2 delay:int between attempt
-# @arg $3 message:String to display to describe the attempt
-# @arg $@ rest of parameters, the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-# @exitcode 2 if maxRetries invalid value
-Retry::parameterized() {
-  local maxRetries=$1
-  shift || true
-  local delayBetweenTries=$1
-  shift || true
-  local message="$1"
-  shift || true
-  local retriesCount=1
-  if [[ "${maxRetries}" -lt 1 ]]; then
-    Log::displayError "invalid maxRetry value"
-    return 2
-  fi
-
-  while true; do
-    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
-    if "$@"; then
-      break
-    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
-      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
-      ((retriesCount++))
-      sleep "${delayBetweenTries}"
-    else
-      Log::displayError "The command has failed after ${retriesCount} attempts."
-      return 1
-    fi
-  done
-  return 0
-}
-
 # @description trap function responsible to compute and display stats after each script execution
 # @arg $1 step:String current step (msg)
 # @arg $2 logFile:String
@@ -1584,56 +1323,6 @@ Stats::computeStatsTrap() {
   Stats::computeFromLog "${logFile}" "${status}" "$((endDate - startDate))" >"${statFile}"
   Stats::statusLine "${statFile}" "${step}"
   return "${status}"
-}
-
-# @description compare 2 version numbers
-# @arg $1 version1:String version 1
-# @arg $2 version2:String version 2
-# @exitcode 0 if equal
-# @exitcode 1 if version1 > version2
-# @exitcode 2 else
-Version::compare() {
-  if [[ "$1" = "$2" ]]; then
-    return 0
-  fi
-  local IFS=.
-  # shellcheck disable=2206
-  local i ver1=($1) ver2=($2)
-  # fill empty fields in ver1 with zeros
-  for ((i = ${#ver1[@]}; i < ${#ver2[@]}; i++)); do
-    ver1[i]=0
-  done
-  for ((i = 0; i < ${#ver1[@]}; i++)); do
-    if [[ -z "${ver2[i]+unset}" ]] || [[ -z ${ver2[i]} ]]; then
-      # fill empty fields in ver2 with zeros
-      ver2[i]=0
-    fi
-    if ((10#${ver1[i]} > 10#${ver2[i]})); then
-      return 1
-    fi
-    if ((10#${ver1[i]} < 10#${ver2[i]})); then
-      return 2
-    fi
-  done
-  return 0
-}
-
-# @description filter to keep only version number from a string
-# @arg $@ files:String[] the files to filter
-# @exitcode * if one of the filter command fails
-# @stdin you can use stdin as alternative to files argument
-# @stdout the filtered content
-# shellcheck disable=SC2120
-Version::parse() {
-  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
-}
-
-# @description ensure linux distribution is ubuntu
-# @exitcode 1 if linux distribution is not ubuntu
-Linux::requireUbuntu() {
-  if ! Array::contains "$(Linux::getDistributorId)" "Ubuntu" "Debian"; then
-    Log::fatal "this script should be executed under Ubuntu or Debian OS"
-  fi
 }
 
 # @description load color theme
@@ -1800,6 +1489,27 @@ Install::file() {
   fi
 }
 
+# @description apt-get install
+# @arg $@ softwares:String[] list of softwares to install
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::install() {
+  Log::displayInfo "Apt install $*"
+  Retry::default sudo apt-get install -y -q "$@"
+}
+
+# @description update apt packages list
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::update() {
+  Log::displayInfo "Apt update ..."
+  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
+}
+
 # @description retrieve path from wslvar and then use wslpath to resolve it
 # using cache (cache is refreshed every day)
 # @arg $1 var:String the var to retrieve using wslvar
@@ -1829,14 +1539,6 @@ Linux::Wsl::cachedWslvar() {
   tempEnvFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslvar_$(id -un)"
 
   Cache::getPropertyValue "${tempEnvFile}" "$1" Linux::Wsl::originalWslvar "$@"
-}
-
-# @description retrieve linux distributor id
-# @noargs
-# @exitcode 1 if lsb_release fails or not found
-# @stdout the linux distributor id
-Linux::getDistributorId() {
-  lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
 }
 
 # @description Display message using skip color (yellow)
@@ -1949,16 +1651,6 @@ UI::textLine() {
   ((remainingWidth = $((fullWith - textSize))))
   echo -n "${text}"
   printf '%*s\n' "${remainingWidth}" '' | tr ' ' "${character}"
-}
-
-# @description extract version number from github api
-# @noargs
-# @stdin json result of github API
-# @exitcode 1 if jq or Version::parse fails
-# @stdout the version parsed
-# @require Linux::requireJqCommand
-Version::githubApiExtractVersion() {
-  jq -r ".tag_name"
 }
 
 # @description check if argument respects this framework variable naming convention
@@ -2101,6 +1793,22 @@ Log::logSkipped() {
   fi
 }
 
+# @description Retry a command 5 times with a delay of 15 seconds between each attempt
+# @arg $@ command:String[] the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+Retry::default() {
+  Retry::parameterized 5 15 "" "$@"
+}
+
+# @description ensure linux distribution is ubuntu
+# @exitcode 1 if linux distribution is not ubuntu
+Linux::requireUbuntu() {
+  if ! Array::contains "$(Linux::getDistributorId)" "Ubuntu" "Debian"; then
+    Log::fatal "this script should be executed under Ubuntu or Debian OS"
+  fi
+}
+
 # @description ensure linux runs under wsl
 # @env WSL_GARBAGE_COLLECT int 0 to disable garbage collect of cache files
 # @exitcode 1 if linux does not run under wsl
@@ -2113,13 +1821,6 @@ Linux::Wsl::requireWsl() {
     tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
     File::garbageCollect "${tempEnvDir}/bash_tools_wslvar_$(id -un)" "1"
   fi
-}
-
-# @description ensure command jq is available
-# @exitcode 1 if jq command not available
-# @stderr diagnostics information is displayed
-Linux::requireJqCommand() {
-  Assert::commandExists jq
 }
 
 # @description delete files older than n days in given path
@@ -2192,16 +1893,64 @@ Linux::Wsl::originalWslpath() {
   wslpath "$@"
 }
 
+# @description retrieve linux distributor id
+# @noargs
+# @exitcode 1 if lsb_release fails or not found
+# @stdout the linux distributor id
+Linux::getDistributorId() {
+  lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
+}
+
+# @description Retry a command several times depending on parameters
+# @arg $1 maxRetries:int    $1 max retries
+# @arg $2 delay:int between attempt
+# @arg $3 message:String to display to describe the attempt
+# @arg $@ rest of parameters, the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+# @exitcode 2 if maxRetries invalid value
+Retry::parameterized() {
+  local maxRetries=$1
+  shift || true
+  local delayBetweenTries=$1
+  shift || true
+  local message="$1"
+  shift || true
+  local retriesCount=1
+  if [[ "${maxRetries}" -lt 1 ]]; then
+    Log::displayError "invalid maxRetry value"
+    return 2
+  fi
+
+  while true; do
+    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
+    if "$@"; then
+      break
+    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
+      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
+      ((retriesCount++))
+      sleep "${delayBetweenTries}"
+    else
+      Log::displayError "The command has failed after ${retriesCount} attempts."
+      return 1
+    fi
+  done
+  return 0
+}
+
 # FUNCTIONS
 
-facade_main_Dockersh() {
+Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/4b5f08f2531286389183886a095cfc68/preCommitConfig" "LS0tCnJlcG9zOgogIC0gcmVwbzogbG9jYWwKICAgIGhvb2tzOgogICAgICAtIGlkOiBqcy1mYWlsdXJlCiAgICAgICAgbmFtZToganMtZmFpbHVyZQogICAgICAgIGVudHJ5OiBiYXNoIC1jICdzZXQgLXg7IGVjaG8gImZhaWx1cmUiID4gdGVzdC5qczsgZXhpdCAxJwogICAgICAgIGxhbmd1YWdlOiBzeXN0ZW0KICAgICAgICB0eXBlczogW2phdmFzY3JpcHRdCiAgICAgICAgcGFzc19maWxlbmFtZXM6IHRydWUKICAgICAgLSBpZDogcGhwLXN1Y2Nlc3MKICAgICAgICBuYW1lOiBwaHAtc3VjY2VzcwogICAgICAgIGVudHJ5OiBiYXNoIC1jICdzZXQgLXg7IGVjaG8gInN1Y2Nlc3MiID4gdGVzdC5waHA7IGV4aXQgMCcKICAgICAgICBsYW5ndWFnZTogc3lzdGVtCiAgICAgICAgdHlwZXM6IFtwaHBdCiAgICAgICAgcGFzc19maWxlbmFtZXM6IHRydWUK" "644"
+
+declare -gx embed_file_preCommitConfig="${PERSISTENT_TMPDIR:-/tmp}/4b5f08f2531286389183886a095cfc68/preCommitConfig"
+
+facade_main_PreCommitConfigsh() {
 # REQUIRES
-Linux::requireUbuntu
 Env::requireLoad
 UI::requireTheme
 Log::requireLoad
+Linux::requireUbuntu
 Linux::Wsl::requireWsl
-Linux::requireJqCommand
 Compiler::Facade::requireCommandBinDir
 
 if Assert::functionExists initFacade; then
@@ -2234,6 +1983,7 @@ fi
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/PreCommit/.pre-commit-config.yaml" as preCommitConfig
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -2932,7 +2682,7 @@ installScriptCommand() {
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
     echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Docker.sh'
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/configureScripts/PreCommitConfig.sh'
     echo
     echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
     echo 'MIT License'
@@ -2971,157 +2721,112 @@ helpLongDescriptionCallback() {
 }
 
 scriptName() {
-  echo "Docker"
+  echo "PreCommitConfig"
 }
 
 helpDescription() {
-  echo "install docker and docker-compose inside wsl"
+  echo "PreCommitConfig"
 }
 
 dependencies() {
-  echo "MandatorySoftwares"
-  echo "WslConfig"
+  echo "PreCommit"
+  echo "GitConfig"
+}
+
+fortunes() {
+  fortunes+=("PreCommit - pre-commit hooks template is automatically applied on git clone or git init")
+  fortunes+=("PreCommit - You can disable git hooks template using 'git config --global --unset init.templatedir'")
 }
 
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
-fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
-
-# REQUIRE Linux::requireUbuntu
-# REQUIRE Linux::requireExecutedAsUser
-install() {
-  Log::displayInfo "install docker required packages"
-  Linux::Apt::update
-  Linux::Apt::install \
-    apt-transport-https \
-    ca-certificates \
-    curl \
-    gnupg2
-
-  # Docker utilizes iptables to implement network isolation.
-  # For good reason, Debian uses the more modern nftables, but this means
-  # that Docker cannot automatically tweak the Linux firewall.
-  # Given this, you probably want to configure Debian to use the legacy
-  # iptables by default
-  sudo update-alternatives --set iptables /usr/sbin/iptables-legacy
-
-  Log::displayInfo "install docker apt source list"
-  Retry::default curl -fsSL "https://download.docker.com/linux/${ID}/gpg" | sudo apt-key add -
-  local dockerSource="deb [arch=amd64] https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable"
-  if ! grep -q "${dockerSource}" "/etc/apt/sources.list.d/docker.list"; then
-    echo "deb [arch=amd64] https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable" | sudo tee /etc/apt/sources.list.d/docker.list
-    Linux::Apt::update
-  fi
-
-  Log::displayInfo "install docker"
-  Retry::default sudo apt-get install -y \
-    containerd.io \
-    docker-ce \
-    docker-ce-cli
-
-  Log::displayInfo "Installing docker-compose"
-  # shellcheck disable=SC2317
-  dockerComposeVersionCallback() {
-    echo "v$(Version::getCommandVersionFromPlainText "$@")"
-  }
-  export -f dockerComposeVersionCallback
-  # shellcheck disable=SC2154
-  SUDO=sudo Github::upgradeRelease \
-    /usr/local/bin/docker-compose \
-    "https://github.com/docker/compose/releases/download/@latestVersion@/docker-compose-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)" \
-    "--version" \
-    dockerComposeVersionCallback
-
-  sudo rm -f /usr/bin/docker-compose || true
-  sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
-}
-
-testInstall() {
-  local -i failures=0
-
-  if ! Linux::isSystemdRunning; then
-    if grep -q -E '^systemd=true' /etc/wsl.conf; then
-      Log::fatal "You need to restart wsl by running 'wsl --shutdown' from powershell and re-run this script, in order to start with systemd"
-    else
-      Log::fatal "/etc/wsl.conf has not been updated with systemd=true instruction, please check this install logs"
-    fi
-  fi
-
-  Version::checkMinimal "docker" --version "25.0.3" || ((++failures))
-  Version::checkMinimal "docker-compose" --version "2.23.1" || ((++failures))
-
-  Log::displayInfo "docker executable path $(command -v docker || true)"
-  Log::displayInfo "docker version $(docker --version || true)"
-  Log::displayInfo "docker-compose version $(docker-compose --version || true)"
-
-  dockerIsStarted() {
-    DOCKER_PS="$(docker ps 2>&1 || true)"
-    [[ ! "${DOCKER_PS}" =~ "Cannot connect to the Docker daemon" ]]
-  }
-  Log::displayInfo "Checking if docker is started ..."
-  if dockerIsStarted; then
-    Log::displaySuccess "Docker connection success"
-  else
-    Log::displayError "Docker is not started"
-    ((++failures))
-  fi
-  return "${failures}"
-}
+install() { :; }
+testInstall() { :; }
 
 configure() {
-  Log::displayInfo "allowing user '${USERNAME}' to use docker"
-  sudo getent group docker >/dev/null || sudo groupadd docker || true
-  sudo usermod -aG docker "${USERNAME}" || true
+  if [[ ! -f "${USER_HOME}/.virtualenvs/python3.9/bin/activate" ]]; then
+    Log::displayError "VirtualEnv has not been installed correctly"
+  fi
+  # Load virtualenv
+  # shellcheck source=/dev/null
+  source "${USER_HOME}/.virtualenvs/python3.9/bin/activate"
+  if [[ ! -d "${USER_HOME}/.config/git/pre-commit-template" ]]; then
+    pre-commit init-templatedir -t pre-commit "${USER_HOME}/.config/git/pre-commit-template"
+  fi
 
-  Log::displayInfo "Configuring docker-compose as docker plugin"
-  # create the docker plugins directory if it doesn't exist yet
-  # shellcheck disable=SC2153
-  mkdir -p "${USER_HOME}/.docker/cli-plugins"
-  rm -f "${USER_HOME}/.docker/cli-plugins/docker-compose" || true
-  sudo ln -sf /usr/local/bin/docker-compose "${USER_HOME}/.docker/cli-plugins/docker-compose"
+  git config --global init.templatedir "${USER_HOME}/.config/git/pre-commit-template"
+
+  # copy original pre-commit hook using pre-commit command
+  pre-commit init-templatedir "${USER_HOME}/.config/git/pre-commit-template"
 }
 
 testConfigure() {
   local -i failures=0
 
-  Log::displayInfo "check if docker-compose binary is working"
-  if ! docker-compose version &>/dev/null; then
-    Log::displayError "docker-compose failure"
+  Assert::dirExists "${USER_HOME}/.config/git/pre-commit-template" || ((++failures))
+
+  Log::displayInfo "check if git init.templatedir correctly set"
+  if [[ "$(git config --global --get init.templatedir)" != "${USER_HOME}/.config/git/pre-commit-template" ]]; then
+    Log::displayError "git init.templatedir has not been correctly set"
     ((++failures))
   fi
 
-  Log::displayInfo "check if docker compose plugin is installed"
-  if [[ ! -f "${USER_HOME}/.docker/cli-plugins/docker-compose" ]]; then
-    Log::displayError "docker compose plugin not installed in folder ${USER_HOME}/.docker/cli-plugins/"
-    ((++failures))
-  fi
-
-  Log::displayInfo "check if docker compose plugin is working"
-  if ! docker compose version &>/dev/null; then
-    Log::displayError "docker compose plugin failure"
-    ((++failures))
-  fi
-
-  Log::displayInfo "check if docker dns is working"
-  sudo -u "${USERNAME}" -i docker run busybox ping google.com -c 1 &>/dev/null || {
-    ((++failures))
-    Log::displayError "google.com is not reachable from docker, dns issue ?"
-    ping google.com -c 1 &>/dev/null || {
-      Log::displayError "google.com is not reachable from host neither"
-      ((++failures))
-    }
+  checkGitHooksCreatedOn() {
+    local callback=$1
+    (
+      local tempDir
+      tempDir="$(mktemp -d)"
+      trap 'rm -Rf "${tempDir}" &>/dev/null || true' EXIT INT TERM ABRT
+      ${callback} "${tempDir}"
+      if [[ ! -f "${tempDir}/.git/hooks/pre-commit" ]]; then
+        Log::displayError "pre-commit hook has not been installed during ${callback}"
+        exit 2
+      fi
+      if [[ ! -f "${tempDir}/.git/hooks/pre-push" ]]; then
+        Log::displayError "pre-push hook has not been installed during ${callback}"
+        exit 3
+      fi
+    ) || return 1
   }
+  Log::displayInfo "check that git init sets hooks automatically"
+  # shellcheck disable=SC2317
+  gitInit() { git init "$1"; }
+  checkGitHooksCreatedOn gitInit || ((++failures))
 
-  Log::displayInfo "check if docker container can be launched"
-  if ! sudo -u "${USERNAME}" -i docker run --rm hello-world | grep -q "Hello from Docker!"; then
-    ((++failures))
-    Log::displayError "docker container cannot be launched"
-  fi
-  sudo -u "${USERNAME}" -i docker image rm hello-world || true
+  Log::displayInfo "check that git clone sets hooks automatically"
+  # shellcheck disable=SC2317
+  gitClone() { git clone https://github.com/fchastanet/repo-test.git "$1"; }
+  checkGitHooksCreatedOn gitClone || ((++failures))
+
+  Log::displayInfo "check that committing, runs pre-commit hook"
+  (
+    local tempDir
+    tempDir="$(mktemp -d)"
+    trap 'rm -Rf "${tempDir}" &>/dev/null || true' EXIT INT TERM ABRT
+    cd "${tempDir}"
+    git init
+    git checkout -b fix/1867
+    # shellcheck disable=SC2154
+    cp "${embed_file_preCommitConfig}" .pre-commit-config.yaml
+    echo "test" >test.js
+    echo "test" >test.php
+    git add test.*
+    if git commit -m 'test'; then
+      Log::displayError "pre-commit should have prevent the commit"
+    else
+      Log::displaySuccess "pre-commit has prevented the commit with success"
+      if [[ "$(cat test.js)" != "failure" ]]; then
+        Log::displayError "pre-commit should have changed content of test.js"
+      fi
+      if [[ "$(cat test.php)" != "success" ]]; then
+        Log::displayError "pre-commit should have changed content of test.php"
+      fi
+    fi
+  ) || ((++failures))
 
   return "${failures}"
 }
@@ -3183,4 +2888,4 @@ esac
 exit 0
 }
 
-facade_main_Dockersh "$@"
+facade_main_PreCommitConfigsh "$@"

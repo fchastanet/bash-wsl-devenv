@@ -25,7 +25,10 @@ fortunes() {
   fi
 }
 
-dependencies() { :; }
+dependencies() {
+  echo "PreCommitConfig"
+}
+
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }

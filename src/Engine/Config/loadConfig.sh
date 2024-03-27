@@ -42,5 +42,7 @@ Engine::Config::loadConfig() {
 
   Log::requireLoad
 
+  export PATH="${PATH}:${USER_HOME}/.local/bin"
+
   export BASH_DEV_ENV_CONFIG_LOADED=1
 }
