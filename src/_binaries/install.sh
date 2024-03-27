@@ -30,6 +30,7 @@ trap 'err_report $LINENO' ERR
 
 # shellcheck disable=SC2317
 declare summaryDisplayed="0"
+declare -g installResultCode=0
 summary() {
   local startDate="$1"
   if [[ "${summaryDisplayed}" = "1" ]]; then
@@ -55,6 +56,11 @@ summary() {
   endDate="$(date +%s)"
   Log::displayInfo "Total duration: $((endDate - startDate))s"
   summaryDisplayed="1"
+  if [[ "${installResultCode}" = "0" ]]; then
+    Log::displaySuccess "Successful Installation"
+  else
+    Log::displayError "Installation error, check logs /var/log/automatic-upgrade"
+  fi
 }
 trap 'summary "${INSTALL_START}"' EXIT INT TERM ABRT
 
@@ -139,11 +145,7 @@ run() {
   # force interactive mode, otherwise Assert::tty return false
   export INTERACTIVE=1
 
-  if executeScripts; then
-    Log::displaySuccess "Successful Installation"
-  else
-    Log::displayError "Installation error, check logs /var/log/automatic-upgrade"
-  fi
+  executeScripts || installResultCode=$?
 }
 
 if [[ "${BASH_FRAMEWORK_QUIET_MODE:-0}" = "1" ]]; then
