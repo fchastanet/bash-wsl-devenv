@@ -3,6 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/Python/etc/profile.d/python_path.sh" as python_path
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
@@ -55,6 +56,16 @@ install() {
   # Installing virtualenv
   PIP_REQUIRE_VIRTUALENV=false python -m pip install virtualenv
 
+  # Configure bin path
+  Log::displayInfo "Install /etc/profile.d/python_path.sh"
+  local fileToInstall
+  # shellcheck disable=SC2154
+  fileToInstall="$(Conf::dynamicConfFile "etc/profile.d/python_path.sh" "${embed_file_python_path}")" || return 1
+  SUDO=sudo OVERWRITE_CONFIG_FILES=1 BACKUP_BEFORE_INSTALL=0 Install::file \
+    "${fileToInstall}" "/etc/profile.d/python_path.sh" \
+    "root" "root" \
+    Install::setRootExecutableCallback || return 1
+
   # Upgrade of pip packages will be done on subsequent calls during upgrade cron
   upgradePipPackages
 }
@@ -69,6 +80,7 @@ testInstall() {
   # since virtualenv is not loaded python 3.9 is not yet available
   Version::checkMinimal "python" "--version" "3.8.10" || ((++failures))
   Version::checkMinimal "virtualenv" "--version" "20.25.1" || ((++failures))
+  Assert::fileExists "/etc/profile.d/python_path.sh" root root || ((++failures))
   return "${failures}"
 }
 
