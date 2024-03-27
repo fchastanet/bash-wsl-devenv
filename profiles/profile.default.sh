@@ -20,6 +20,7 @@ CONFIG_LIST+=(
   "Saml2Aws"
   "ShellBash"
   "BashTools"
+  "PreCommitConfig"
 )
 
 # Mandatory packages

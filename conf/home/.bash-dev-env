@@ -102,9 +102,9 @@ addPath "${HOME}/.npm-global/bin" "after"
 export PIP_REQUIRE_VIRTUALENV=true
 export WORKON_HOME="${HOME}/.virtualenv"
 export PIP_DOWNLOAD_CACHE="${HOME}/.pip/cache"
-if [[ -f "${HOME}/.virtualenv/python3.9/bin/activate" ]]; then
+if [[ -f "${HOME}/.virtualenvs/python3.9/bin/activate" ]]; then
   # shellcheck source=/dev/null
-  source "${HOME}/.virtualenv/python3.9/bin/activate"
+  source "${HOME}/.virtualenvs/python3.9/bin/activate"
 fi
 
 # kubectx and kubens

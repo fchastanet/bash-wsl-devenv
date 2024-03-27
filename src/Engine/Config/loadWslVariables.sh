@@ -19,6 +19,7 @@ Engine::Config::loadWslVariables() {
   fi
   # shellcheck disable=SC1003
   BASE_MNT_C="$(mount | grep 'path=C:\\' | awk -F ' ' '{print $3}')"
+  export BASE_MNT_C
 
   WINDOWS_DIR="$(Linux::Wsl::cachedWslpathFromWslVar SystemRoot)"
   WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C}/Windows}"
