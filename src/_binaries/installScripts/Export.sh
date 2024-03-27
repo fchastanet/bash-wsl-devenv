@@ -53,6 +53,4 @@ configure() {
 }
 
 
-testConfigure() {
-  return 0
-}
+testConfigure() { :; }

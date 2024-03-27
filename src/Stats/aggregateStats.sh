@@ -14,6 +14,7 @@ Stats::aggregateStats() {
     if [[ ! -f "${aggregateStatFile}" ]]; then
       (
         echo "count=0"
+        echo "appCount=0"
         echo "error=0"
         echo "warning=0"
         echo "skipped=0"
@@ -23,12 +24,11 @@ Stats::aggregateStats() {
         echo "statusSuccess=0"
       ) >"${aggregateStatFile}"
     fi
-    if [[ ! -f "${statFile}" ]]; then
-      return 0
-    fi
 
     # shellcheck source=src/Stats/logStats.example
-    source "${statFile}"
+    if [[ -f "${statFile}" ]]; then
+      source "${statFile}"
+    fi
     local newError="${error}"
     local newWarning="${warning}"
     local newSkipped="${skipped}"
@@ -36,32 +36,34 @@ Stats::aggregateStats() {
     local newSuccess="${success}"
     local newDuration="${duration}"
     local newStatus="${status}"
-
     # shellcheck source=src/Stats/aggregateStats.example
     source "${aggregateStatFile}"
-
-    ((count++)) || true
-    if ((newStatus == 0)); then
-      ((statusSuccess++)) || true
+    if [[ -f "${statFile}" ]]; then
+      ((count++)) || true
+      ((appCount++)) || true
+      if ((newStatus == 0)); then
+        ((statusSuccess++)) || true
+      fi
+      if ((newError > 0)); then
+        ((error++)) || true
+      fi
+      if ((newWarning > 0)); then
+        ((warning++)) || true
+      fi
+      if ((newSkipped > 0)); then
+        ((skipped++)) || true
+      fi
+      if ((newHelp > 0)); then
+        ((help++)) || true
+      fi
+      if ((newSuccess > 0)); then
+        ((success++)) || true
+      fi
+      ((duration = duration + newDuration)) || true
     fi
-    if ((newError > 0)); then
-      ((error++)) || true
-    fi
-    if ((newWarning > 0)); then
-      ((warning++)) || true
-    fi
-    if ((newSkipped > 0)); then
-      ((skipped++)) || true
-    fi
-    if ((newHelp > 0)); then
-      ((help++)) || true
-    fi
-    if ((newSuccess > 0)); then
-      ((success++)) || true
-    fi
-    ((duration = duration + newDuration)) || true
     (
       echo "count=${count}"
+      echo "appCount=${appCount}"
       echo "error=${error}"
       echo "warning=${warning}"
       echo "skipped=${skipped}"

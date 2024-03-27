@@ -21,6 +21,7 @@ CONFIG_LIST+=(
   "ShellBash"
   "BashTools"
   "PreCommitConfig"
+  "CodeCheckers"
 )
 
 # Mandatory packages
