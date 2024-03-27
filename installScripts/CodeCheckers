@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Python.sh
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/CodeCheckers.sh
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
 # shellcheck disable=SC2288,SC2034
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Python
+# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/CodeCheckers
 
 # ensure that no user aliases could interfere with
 # commands used in this script
@@ -224,93 +224,11 @@ Array::wrap2() {
   ) | sed -E -e 's/[[:blank:]]+$//'
 }
 
-# @description asserts that first argument is file that exists with specified ownership
-# @arg $1 file:String
-# @arg $2 user:String expected owner user name of the file (default: USERNAME or id -un command)
-# @arg $3 group:String expected owner group name of the file (default: USERGROUP or id -gn command)
-# @env USERNAME String if arg $2 is not provided
-# @env USERGROUP String if arg $3 is not provided
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode 1 if missing file
-# @exitcode 2 if incorrect user ownership
-# @exitcode 3 if incorrect group ownership
-# @stderr diagnostics information is displayed
-Assert::fileExists() {
-  local file="$1"
-  local user="${2:-${USERNAME}}"
-  local group="${3:-${USERGROUP}}"
-  Log::displayInfo "Check ${file} exists with user ${user}:${group}"
-  if ! ${SUDO:-} test -f "${file}" &>/dev/null; then
-    Log::displayError "missing file ${file}"
-    return 1
-  fi
-  if [[ "${user}" != "$(${SUDO:-} stat -c '%U' "${file}")" ]]; then
-    Log::displayError "incorrect user ownership on file ${file}"
-    return 2
-  fi
-  if [[ "${group}" != "$(${SUDO:-} stat -c '%G' "${file}")" ]]; then
-    Log::displayError "incorrect group ownership on file ${file}"
-    return 3
-  fi
-}
-
 # @description checks if function name provided exists
 # @arg $1 functionName:String
 # @exitcode 1 if function name doesn't exist
 Assert::functionExists() {
   declare -F "$1" >/dev/null
-}
-
-# @description convert base64 encoded back to target file
-# if target file is executable prepend dir of target
-# file to PATH to make binary available everywhere
-# it is advised to include in the path of the target file
-# the md5sum of the binFile
-#
-# @arg $1 targetFile:String the file to write
-# @arg $2 binFileBase64:String the base64 encoded file
-# @arg $3 fileMode:String the chmod to set on the file
-# @set PATH String prepend target embedded file binary directory to PATH variable if binary executable
-Compiler::Embed::extractFileFromBase64() {
-  local targetFile="$1"
-  local binFileBase64="$2"
-  local fileMode="${3:-+x}"
-
-  if [[ ! -f "${targetFile}" ]]; then
-    mkdir -p "$(dirname "${targetFile}")"
-    base64 -d >"${targetFile}" <<<"${binFileBase64}"
-    chmod "${fileMode}" "${targetFile}"
-  fi
-
-  if [[ -x "${targetFile}" ]]; then
-    Env::pathPrepend "$(dirname "${targetFile}")"
-  fi
-}
-
-# @description select right file to load depending if file exists in this order:
-# - from conf.override
-# - from embedded file if provided
-# - from conf dir
-# @arg $1 file:String
-# @arg $2 embedFile:String eventual embedded file
-# @exitcode 1 if file does not exist at all
-Conf::dynamicConfFile() {
-  local file="${1/#\//}" # remove first slash if any
-  local embedFile="${2:-}"
-  if [[ -f "${CONF_OVERRIDE_DIR}/${file}" ]]; then
-    echo "${CONF_OVERRIDE_DIR}/${file}"
-    return 0
-  elif [[ -f "${embedFile}" ]]; then
-    echo "${embedFile}"
-    return 0
-  elif [[ -f "${CONF_DIR}/${file}" ]]; then
-    echo "${CONF_DIR}/${file}"
-    return 0
-  fi
-  if [[ "${IGNORE_ERROR:-0}" = "0" ]]; then
-    Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
-    return 1
-  fi
 }
 
 envFileTemplate="$(
@@ -527,95 +445,6 @@ Framework::createTempFile() {
   mktemp -p "${TMPDIR:-/tmp}" -t "${1:-}.XXXXXXXXXXXX"
 }
 
-# @description installs file to given directory
-#
-# callbacks parameters `${fromFile} ${targetFile} $@`
-# @arg $1 fromFile - original file to copy
-# @arg $2 targetFile - target file
-# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
-# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
-# @arg $5 successCallback:Function the callback to call when file is installed successfully, by default setUserRights callback is called
-# @arg $6 failureCallback:Function the callback to call when file installation has failed, by default unableToCopyCallback callback is called
-# @arg $@ callbacksParams:String[] additional parameters passed to callbacks
-# @exitcode 1 if fromFile is not readable
-# @exitcode 2 if backup file failure
-# @exitcode 3 if copy failure
-# @exitcode 0 on success or if OVERWRITE_CONFIG_FILES=0
-# @exitcode 0 on success or if CHANGE_WINDOWS_FILES=0 and target file is a windows file
-# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
-# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target file is in windows file system, overwrite it
-# @env USERNAME (default: root) the user name that will be used to set target files ownership
-# @env USERGROUP (default: root) the group name that will be used to set target files ownership
-# @env BASE_MNT_C String windows C drive base PATH
-# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
-# @env SUDO String allows to use custom sudo prefix command
-# @env BACKUP_BEFORE_INSTALL Boolean (default: 1) backup file before installing the file
-Install::file() {
-  local fromFile="$1"
-  local targetFile="$2"
-  local userName="${3:-${USERNAME:-root}}"
-  local userGroup="${4:-${USERGROUP:-root}}"
-  local successCallback=${5:-Install::setUserRightsCallback}
-  local failureCallback=${6:-Install::unableToCopyCallback}
-  shift 6 || true
-
-  if [[ ! -f "${fromFile}" || ! -r "${fromFile}" ]]; then
-    Log::displayError "cannot read source file '${fromFile}'"
-    return 1
-  fi
-
-  # skip if OVERWRITE_CONFIG_FILES is 0 and target file exists
-  if [[ "${OVERWRITE_CONFIG_FILES}" = "0" && -f "${targetFile}" ]]; then
-    Log::displayWarning "File '${targetFile}' exists - Skip install (because OVERWRITE_CONFIG_FILES=0 in .env file)"
-    return 0
-  fi
-
-  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
-  if [[ "${CHANGE_WINDOWS_FILES}" = "0" && "${targetFile}" =~ ^${BASE_MNT_C} ]]; then
-    Log::displayWarning "File '${targetFile}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
-    return 0
-  fi
-
-  local targetDir
-  targetDir="$(dirname "${targetFile}")"
-  if [[ ! -d "${targetDir}" ]]; then
-    ${SUDO:-} mkdir -p "${targetDir}"
-    ${SUDO:-} chown "${userName}":"${userGroup}" "${targetDir}"
-  fi
-  local fromDir
-  fromDir="$(dirname "${fromFile}")"
-  local fromFilename
-  fromFilename="$(basename "${fromFile}")"
-
-  if [[ "${BACKUP_BEFORE_INSTALL:-1}" = "1" ]]; then
-    Backup::file "${targetFile}" || return 2
-  fi
-
-  if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
-    Log::displaySuccess "Installed file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
-    ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
-  else
-    Log::displayError "unable to copy file from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
-    ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
-    return 3
-  fi
-}
-
-# @description install callback
-#   set file with root ownership and execution bit
-# @arg $1 fromFile:String
-# @arg $2 targetFile:String
-# @exitcode 1 on any failure
-# @env SUDO String allows to use custom sudo prefix command
-# @see Install::file
-Install::setRootExecutableCallback() {
-  # shellcheck disable=SC2034
-  local fromFile="$1"
-  local targetFile="$2"
-  ${SUDO:-} chown root:root "${targetFile}"
-  ${SUDO:-} chmod +x "${targetFile}"
-}
-
 # @description the command launch different actions(install, configure, test)
 # depending on the options selected
 # @see src/_includes/install.skip.options.tpl
@@ -730,17 +559,6 @@ InstallScripts::command() {
   fi
 }
 
-# @description add apt repository followed by an apt-get update
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::addRepository() {
-  Log::displayInfo "Apt add repository $1"
-  Retry::default sudo add-apt-repository -y "$1"
-  Retry::default Linux::Apt::update
-}
-
 # @description apt-get install
 # @arg $@ softwares:String[] list of softwares to install
 # @feature Retry::default
@@ -750,6 +568,16 @@ Linux::Apt::addRepository() {
 Linux::Apt::install() {
   Log::displayInfo "Apt install $*"
   Retry::default sudo apt-get install -y -q "$@"
+}
+
+# @description update apt packages list
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::update() {
+  Log::displayInfo "Apt update ..."
+  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
 }
 
 # @description Log namespace provides 2 kind of functions
@@ -827,6 +655,15 @@ Log::displayInfo() {
     echo -e "${__INFO_COLOR}${type}    - ${durationMsg}${1}${__RESET_COLOR}" >&2
   fi
   Log::logInfo "$1" "${type}"
+}
+
+# @description Display message using skip color (yellow)
+# @arg $1 message:String the message to display
+Log::displaySkipped() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    echo -e "${__SKIPPED_COLOR}SKIPPED - ${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logSkipped "$1"
 }
 
 # @description Display message using warning color (yellow)
@@ -1068,32 +905,6 @@ Assert::tty() {
   [[ -t 1 || -t 2 ]]
 }
 
-# @description Backup given file in the same directory or in BACKUP_DIR directory
-# backup file name is composed by following fields separated by -:
-#   - if BACKUP_DIR is not empty then escaped dirname separated by @
-#   - filename(without path)
-#   - date with format %Y%m%d_%H:%M:%S (Eg: 20240326_14:45:08)
-# @arg $1 file:String the file to backup
-# @stderr messages about backup file location
-# @env SUDO String allows to use custom sudo prefix command
-# @env BACKUP_DIR if unlnow backup the file in the same directory
-# @exitcode 1 on copy failure
-Backup::file() {
-  local file="$1"
-  local backupFile dirname escapedDirname
-  if [[ -f "${file}" ]]; then
-    dirname="$(dirname "${file}")"
-    escapedDirname="$(sed -e 's#^/##; s#/#@#g' <<<"${dirname}")"
-    if [[ -z "${BACKUP_DIR:-}" ]]; then
-      backupFile="${dirname}/$(basename "${file}")-$(date +"%Y%m%d_%H:%M:%S")"
-    else
-      backupFile="${BACKUP_DIR}/${escapedDirname}@$(basename "${file}")-$(date +"%Y%m%d_%H:%M:%S")"
-    fi
-    Log::displayInfo "Backup file '${file}' to ${backupFile}"
-    ${SUDO:-} cp "${file}" "${backupFile}"
-  fi
-}
-
 # @description ignore exit code 141 from simple command pipes
 # @example use with:
 #   local resultingStatus=0
@@ -1122,6 +933,32 @@ Bash::handlePipelineFailure() {
     fi
   done
   return "${handlePipelineFailure_resultingStatusCode}"
+}
+
+# @description select right file to load depending if file exists in this order:
+# - from conf.override
+# - from embedded file if provided
+# - from conf dir
+# @arg $1 file:String
+# @arg $2 embedFile:String eventual embedded file
+# @exitcode 1 if file does not exist at all
+Conf::dynamicConfFile() {
+  local file="${1/#\//}" # remove first slash if any
+  local embedFile="${2:-}"
+  if [[ -f "${CONF_OVERRIDE_DIR}/${file}" ]]; then
+    echo "${CONF_OVERRIDE_DIR}/${file}"
+    return 0
+  elif [[ -f "${embedFile}" ]]; then
+    echo "${embedFile}"
+    return 0
+  elif [[ -f "${CONF_DIR}/${file}" ]]; then
+    echo "${CONF_DIR}/${file}"
+    return 0
+  fi
+  if [[ "${IGNORE_ERROR:-0}" = "0" ]]; then
+    Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
+    return 1
+  fi
 }
 
 # @description check validity of .env variables
@@ -1426,61 +1263,6 @@ Env::pathPrepend() {
   done
 }
 
-# @description install callback
-#   set file with root ownership and execution bit
-# @arg $1 fromFile:String
-# @arg $2 targetFile:String
-# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
-# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
-# @env USERNAME (default: root) the user name that will be used to set target files ownership
-# @env USERGROUP (default: root) the group name that will be used to set target files ownership
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode 1 on any failure
-# @see Install::file
-Install::setUserRightsCallback() {
-  # shellcheck disable=SC2034 # $1 not used
-  local fromFile="$1"
-  local targetFile="$2"
-  local userName="${3:-${USERNAME:-root}}"
-  local userGroup="${4:-${USERGROUP:-root}}"
-
-  ${SUDO:-} chown "${userName}":"${userGroup}" "${targetFile}"
-}
-
-# @description install callback
-#   default callback used called when file copy has failed
-# @arg $1 fromFile:String
-# @arg $2 targetFile:String
-# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
-# @exitcode 1 always fail
-# @stderr diagnostics information is displayed
-# @see Install::file
-Install::unableToCopyCallback() {
-  local fromDir="$1"
-  local fileName="$2"
-  local targetFile="$3"
-  Log::fatal "unable to copy file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fileName}' to '${targetFile}'"
-}
-
-# @description update apt packages list
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::update() {
-  Log::displayInfo "Apt update ..."
-  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
-}
-
-# @description Display message using success color (bg green/fg white)
-# @arg $1 message:String the message to display
-Log::displaySuccess() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    echo -e "${__SUCCESS_COLOR}SUCCESS - ${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logSuccess "$1"
-}
-
 # @description Display given text on full line with TEST_COLOR style
 # @arg $1 text:String text to display
 Log::headLine() {
@@ -1544,6 +1326,14 @@ Log::logMessage() {
     date="$(date '+%Y-%m-%d %H:%M:%S')"
     touch "${BASH_FRAMEWORK_LOG_FILE}"
     printf "%s|%7s|%s\n" "${date}" "${levelMsg}" "${msg}" >>"${BASH_FRAMEWORK_LOG_FILE}"
+  fi
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logSkipped() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SKIPPED}" "$1"
   fi
 }
 
@@ -1743,6 +1533,80 @@ Assert::wsl() {
   [[ "$(uname -o)" = "GNU/Linux" ]]
 }
 
+# @description installs file to given directory
+#
+# callbacks parameters `${fromFile} ${targetFile} $@`
+# @arg $1 fromFile - original file to copy
+# @arg $2 targetFile - target file
+# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
+# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
+# @arg $5 successCallback:Function the callback to call when file is installed successfully, by default setUserRights callback is called
+# @arg $6 failureCallback:Function the callback to call when file installation has failed, by default unableToCopyCallback callback is called
+# @arg $@ callbacksParams:String[] additional parameters passed to callbacks
+# @exitcode 1 if fromFile is not readable
+# @exitcode 2 if backup file failure
+# @exitcode 3 if copy failure
+# @exitcode 0 on success or if OVERWRITE_CONFIG_FILES=0
+# @exitcode 0 on success or if CHANGE_WINDOWS_FILES=0 and target file is a windows file
+# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
+# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target file is in windows file system, overwrite it
+# @env USERNAME (default: root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @env BASE_MNT_C String windows C drive base PATH
+# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_BEFORE_INSTALL Boolean (default: 1) backup file before installing the file
+Install::file() {
+  local fromFile="$1"
+  local targetFile="$2"
+  local userName="${3:-${USERNAME:-root}}"
+  local userGroup="${4:-${USERGROUP:-root}}"
+  local successCallback=${5:-Install::setUserRightsCallback}
+  local failureCallback=${6:-Install::unableToCopyCallback}
+  shift 6 || true
+
+  if [[ ! -f "${fromFile}" || ! -r "${fromFile}" ]]; then
+    Log::displayError "cannot read source file '${fromFile}'"
+    return 1
+  fi
+
+  # skip if OVERWRITE_CONFIG_FILES is 0 and target file exists
+  if [[ "${OVERWRITE_CONFIG_FILES}" = "0" && -f "${targetFile}" ]]; then
+    Log::displayWarning "File '${targetFile}' exists - Skip install (because OVERWRITE_CONFIG_FILES=0 in .env file)"
+    return 0
+  fi
+
+  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
+  if [[ "${CHANGE_WINDOWS_FILES}" = "0" && "${targetFile}" =~ ^${BASE_MNT_C} ]]; then
+    Log::displayWarning "File '${targetFile}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
+    return 0
+  fi
+
+  local targetDir
+  targetDir="$(dirname "${targetFile}")"
+  if [[ ! -d "${targetDir}" ]]; then
+    ${SUDO:-} mkdir -p "${targetDir}"
+    ${SUDO:-} chown "${userName}":"${userGroup}" "${targetDir}"
+  fi
+  local fromDir
+  fromDir="$(dirname "${fromFile}")"
+  local fromFilename
+  fromFilename="$(basename "${fromFile}")"
+
+  if [[ "${BACKUP_BEFORE_INSTALL:-1}" = "1" ]]; then
+    Backup::file "${targetFile}" || return 2
+  fi
+
+  if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
+    Log::displaySuccess "Installed file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
+    ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
+  else
+    Log::displayError "unable to copy file from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
+    ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
+    return 3
+  fi
+}
+
 # @description retrieve path from wslvar and then use wslpath to resolve it
 # using cache (cache is refreshed every day)
 # @arg $1 var:String the var to retrieve using wslvar
@@ -1780,23 +1644,6 @@ Linux::Wsl::cachedWslvar() {
 # @stdout the linux distributor id
 Linux::getDistributorId() {
   lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
-}
-
-# @description Display message using skip color (yellow)
-# @arg $1 message:String the message to display
-Log::displaySkipped() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logSkipped "$1"
-}
-
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logSuccess() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SUCCESS}" "$1"
-  fi
 }
 
 # @description Retry a command several times depending on parameters
@@ -1951,6 +1798,32 @@ Assert::validVariableName() {
   echo "$1" | LC_ALL=POSIX grep -E -q '(^[a-z][A-Za-z_0-9:]+$)|(^[A-Z_][A-Z_0-9:]+$)'
 }
 
+# @description Backup given file in the same directory or in BACKUP_DIR directory
+# backup file name is composed by following fields separated by -:
+#   - if BACKUP_DIR is not empty then escaped dirname separated by @
+#   - filename(without path)
+#   - date with format %Y%m%d_%H:%M:%S (Eg: 20240326_14:45:08)
+# @arg $1 file:String the file to backup
+# @stderr messages about backup file location
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_DIR if unlnow backup the file in the same directory
+# @exitcode 1 on copy failure
+Backup::file() {
+  local file="$1"
+  local backupFile dirname escapedDirname
+  if [[ -f "${file}" ]]; then
+    dirname="$(dirname "${file}")"
+    escapedDirname="$(sed -e 's#^/##; s#/#@#g' <<<"${dirname}")"
+    if [[ -z "${BACKUP_DIR:-}" ]]; then
+      backupFile="${dirname}/$(basename "${file}")-$(date +"%Y%m%d_%H:%M:%S")"
+    else
+      backupFile="${BACKUP_DIR}/${escapedDirname}@$(basename "${file}")-$(date +"%Y%m%d_%H:%M:%S")"
+    fi
+    Log::displayInfo "Backup file '${file}' to ${backupFile}"
+    ${SUDO:-} cp "${file}" "${backupFile}"
+  fi
+}
+
 # @description get property value from file
 # if not present compute it using propertyNotFoundCallback (if provided) and store it in property file
 # @arg $1 propertyFile:String the file in which the property will be searched
@@ -1984,6 +1857,42 @@ Cache::getPropertyValue() {
   return 1
 }
 
+# @description install callback
+#   set file with root ownership and execution bit
+# @arg $1 fromFile:String
+# @arg $2 targetFile:String
+# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
+# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
+# @env USERNAME (default: root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode 1 on any failure
+# @see Install::file
+Install::setUserRightsCallback() {
+  # shellcheck disable=SC2034 # $1 not used
+  local fromFile="$1"
+  local targetFile="$2"
+  local userName="${3:-${USERNAME:-root}}"
+  local userGroup="${4:-${USERGROUP:-root}}"
+
+  ${SUDO:-} chown "${userName}":"${userGroup}" "${targetFile}"
+}
+
+# @description install callback
+#   default callback used called when file copy has failed
+# @arg $1 fromFile:String
+# @arg $2 targetFile:String
+# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @exitcode 1 always fail
+# @stderr diagnostics information is displayed
+# @see Install::file
+Install::unableToCopyCallback() {
+  local fromDir="$1"
+  local fileName="$2"
+  local targetFile="$3"
+  Log::fatal "unable to copy file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fileName}' to '${targetFile}'"
+}
+
 # @description retrieve wslpath using cache (cache is refreshed every day)
 # @arg $@ args:String[] arguments to pass to wslpath
 # @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
@@ -2009,12 +1918,13 @@ Linux::Wsl::originalWslvar() {
   wslvar "$@" | sed -z '$ s/[\r\n]$//'
 }
 
-# @description log message to file
+# @description Display message using success color (bg green/fg white)
 # @arg $1 message:String the message to display
-Log::logSkipped() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SKIPPED}" "$1"
+Log::displaySuccess() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    echo -e "${__SUCCESS_COLOR}SUCCESS - ${1}${__RESET_COLOR}" >&2
   fi
+  Log::logSuccess "$1"
 }
 
 # @description ensure linux runs under wsl
@@ -2101,13 +2011,17 @@ Linux::Wsl::originalWslpath() {
   wslpath "$@"
 }
 
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logSuccess() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SUCCESS}" "$1"
+  fi
+}
+
 # FUNCTIONS
 
-Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/9c620daee500142c2cf55804bfa7d178/python_path" "IyEvYmluL2Jhc2gKCltbIDoke1BBVEh9OiA9PSAqIjoke0hPTUV9Ly5sb2NhbC9iaW46IiogXV0gfHwgUEFUSD0iJHtIT01FfS8ubG9jYWwvYmluOiR7UEFUSH0iCmV4cG9ydCBQQVRI" "644"
-
-declare -gx embed_file_python_path="${PERSISTENT_TMPDIR:-/tmp}/9c620daee500142c2cf55804bfa7d178/python_path"
-
-facade_main_Pythonsh() {
+facade_main_CodeCheckerssh() {
 # REQUIRES
 Linux::requireUbuntu
 Env::requireLoad
@@ -2146,7 +2060,6 @@ fi
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/Python/etc/profile.d/python_path.sh" as python_path
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -2845,7 +2758,7 @@ installScriptCommand() {
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
     echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Python.sh'
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/CodeCheckers.sh'
     echo
     echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
     echo 'MIT License'
@@ -2884,125 +2797,52 @@ helpLongDescriptionCallback() {
 }
 
 scriptName() {
-  echo "Python"
+  echo "CodeCheckers"
 }
 
 helpDescription() {
-  echo "Python"
+  echo "CodeCheckers"
 }
 
-fortunes() {
-  fortunes+=("Python - virtualenv is automatically loaded by ~/.bash-dev-env")
+dependencies() {
+  # Go is needed by shfmt
+  echo "Go"
+  # Python is needed by shfmt-py
+  echo "Python"
+  echo "NodeDependencies"
 }
-dependencies() { :; }
+
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
+fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 
 install() {
-  Linux::Apt::addRepository ppa:deadsnakes/ppa
-  local -a packages=(
-    build-essential
-    # libdbus-glib-1-dev needed by dbus-python
-    libdbus-glib-1-dev
-    # libgirepository1.0-dev needed by dbus-python
-    libgirepository1.0-dev
-    # libcairo2-dev needed by PyGObject
-    libcairo2-dev
-    # libkrb5-dev needed by pykerberos
-    libkrb5-dev
-    python3.9
-    # needed by some pip dependencies
-    python3-cairo-dev
-    python3-dbus
-    python3.9-distutils
-    python3.9-dev
-    python-is-python3
-    python3-pip
-  )
-  Linux::Apt::install "${packages[@]}"
-
-  mkdir -p \
-    "${USER_HOME}/.local/bin" \
-    "${USER_HOME}/.local/lib"
-
-  # Installing virtualenv
-  PIP_REQUIRE_VIRTUALENV=false python -m pip install virtualenv
-
-  # Configure bin path
-  Log::displayInfo "Install /etc/profile.d/python_path.sh"
-  local fileToInstall
-  # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "etc/profile.d/python_path.sh" "${embed_file_python_path}")" || return 1
-  SUDO=sudo OVERWRITE_CONFIG_FILES=1 BACKUP_BEFORE_INSTALL=0 Install::file \
-    "${fileToInstall}" "/etc/profile.d/python_path.sh" \
-    "root" "root" \
-    Install::setRootExecutableCallback || return 1
-
-  # Upgrade of pip packages will be done on subsequent calls during upgrade cron
-  upgradePipPackages
-}
-
-removeDuplicatePipPackages() {
-  # remove duplicate pip packages with ~ prefix that breaks pip packages upgrade otherwise
-  find "${VIRTUAL_ENV}/lib/python3.9/site-packages" -name '~*' -exec rm -Rf {} ';' || true
+  Linux::Apt::update
+  Linux::Apt::install \
+    shellcheck
+  if [[ -f "${USER_HOME}/.virtualenvs/python3.9/bin/activate" ]]; then
+    # shellcheck source=/dev/null
+    source "${USER_HOME}/.virtualenvs/python3.9/bin/activate"
+    pip install --user shfmt-py
+  else
+    Log::displaySkipped "VirtualEnv has not been installed correctly"
+    return 1
+  fi
 }
 
 testInstall() {
   local -i failures=0
-  # since virtualenv is not loaded python 3.9 is not yet available
-  Version::checkMinimal "python" "--version" "3.8.10" || ((++failures))
-  Version::checkMinimal "virtualenv" "--version" "20.25.1" || ((++failures))
-  Assert::fileExists "/etc/profile.d/python_path.sh" root root || ((++failures))
+  Version::checkMinimal "shellcheck" --version "0.7.0" || ((++failures))
+  Version::checkMinimal "shfmt" --version "3.7.0" || ((++failures))
   return "${failures}"
 }
 
-configure() {
-  # create home directory that will receive virtualenv configs
-  mkdir -p "${USER_HOME}/.virtualenvs" || true
-  mkdir -p "${USER_HOME}/.pip/cache" || true
-
-  # create python3.9 virtual env
-  # virtualenv (for Python 3) and venv (for Python 2)
-  # allows you to manage separate package installations
-  # for different projects.
-  virtualenv --system-site-packages --python=/usr/bin/python3.9 "${USER_HOME}/.virtualenvs/python3.9"
-  upgradePipPackages
-}
-
-upgradePipPackages() {
-  if [[ "${PIP_PACKAGES_UPGRADED:-0}" = "1" ]]; then
-    return 0
-  fi
-  if [[ -f "${USER_HOME}/.virtualenvs/python3.9/bin/activate" ]]; then
-    # load this virtualenv
-    # shellcheck source=/dev/null
-    source "${USER_HOME}/.virtualenvs/python3.9/bin/activate"
-
-    # remove duplicate pip packages with ~ prefix that breaks pip packages upgrade otherwise
-    find "${VIRTUAL_ENV}/lib/python3.9/site-packages" -name '~*' -exec rm -Rf {} ';' || true
-
-    # install/upgrade pip
-    python -m pip install --upgrade pip
-    PIP_PACKAGES_UPGRADED=1
-  fi
-}
-
-testConfigure() {
-  local -i failures=0
-  # shellcheck source=/dev/null
-  source "${USER_HOME}/.virtualenvs/python3.9/bin/activate"
-  Version::checkMinimal "python" "--version" "3.9.18" || ((++failures))
-  Version::checkMinimal "pip" "--version" "24.0" || ((++failures))
-  [[ "${VIRTUAL_ENV}" = "${USER_HOME}/.virtualenvs/python3.9" ]] || {
-    Log::displayError "Virtualenv has not been loaded correctly"
-    ((++failures))
-  }
-  return "${failures}"
-}
+configure() { :; }
+testConfigure() { :; }
 
 local action=$1
 shift || true
@@ -3061,4 +2901,4 @@ esac
 exit 0
 }
 
-facade_main_Pythonsh "$@"
+facade_main_CodeCheckerssh "$@"

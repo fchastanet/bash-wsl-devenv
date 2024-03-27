@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Python.sh
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/NodeNpm.sh
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
 # shellcheck disable=SC2288,SC2034
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Python
+# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/NodeNpm
 
 # ensure that no user aliases could interfere with
 # commands used in this script
@@ -730,28 +730,6 @@ InstallScripts::command() {
   fi
 }
 
-# @description add apt repository followed by an apt-get update
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::addRepository() {
-  Log::displayInfo "Apt add repository $1"
-  Retry::default sudo add-apt-repository -y "$1"
-  Retry::default Linux::Apt::update
-}
-
-# @description apt-get install
-# @arg $@ softwares:String[] list of softwares to install
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::install() {
-  Log::displayInfo "Apt install $*"
-  Retry::default sudo apt-get install -y -q "$@"
-}
-
 # @description Log namespace provides 2 kind of functions
 # - Log::display* allows to display given message with
 #   given display level
@@ -889,6 +867,14 @@ Log::requireLoad() {
       Log::rotate "${BASH_FRAMEWORK_LOG_FILE}" "${BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION}"
     fi
   fi
+}
+
+# @description Retry a command 5 times with a delay of 15 seconds between each attempt
+# @arg $@ command:String[] the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+Retry::default() {
+  Retry::parameterized 5 15 "" "$@"
 }
 
 # @description draw a line with the character passed in parameter repeated depending on terminal width
@@ -1462,16 +1448,6 @@ Install::unableToCopyCallback() {
   Log::fatal "unable to copy file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fileName}' to '${targetFile}'"
 }
 
-# @description update apt packages list
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::update() {
-  Log::displayInfo "Apt update ..."
-  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
-}
-
 # @description Display message using success color (bg green/fg white)
 # @arg $1 message:String the message to display
 Log::displaySuccess() {
@@ -1577,12 +1553,41 @@ Log::rotate() {
   fi
 }
 
-# @description Retry a command 5 times with a delay of 15 seconds between each attempt
-# @arg $@ command:String[] the command to run
+# @description Retry a command several times depending on parameters
+# @arg $1 maxRetries:int    $1 max retries
+# @arg $2 delay:int between attempt
+# @arg $3 message:String to display to describe the attempt
+# @arg $@ rest of parameters, the command to run
 # @exitcode 0 on success
 # @exitcode 1 if max retries count reached
-Retry::default() {
-  Retry::parameterized 5 15 "" "$@"
+# @exitcode 2 if maxRetries invalid value
+Retry::parameterized() {
+  local maxRetries=$1
+  shift || true
+  local delayBetweenTries=$1
+  shift || true
+  local message="$1"
+  shift || true
+  local retriesCount=1
+  if [[ "${maxRetries}" -lt 1 ]]; then
+    Log::displayError "invalid maxRetry value"
+    return 2
+  fi
+
+  while true; do
+    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
+    if "$@"; then
+      break
+    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
+      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
+      ((retriesCount++))
+      sleep "${delayBetweenTries}"
+    else
+      Log::displayError "The command has failed after ${retriesCount} attempts."
+      return 1
+    fi
+  done
+  return 0
 }
 
 # @description trap function responsible to compute and display stats after each script execution
@@ -1643,14 +1648,6 @@ Version::compare() {
 # shellcheck disable=SC2120
 Version::parse() {
   sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
-}
-
-# @description ensure linux distribution is ubuntu
-# @exitcode 1 if linux distribution is not ubuntu
-Linux::requireUbuntu() {
-  if ! Array::contains "$(Linux::getDistributorId)" "Ubuntu" "Debian"; then
-    Log::fatal "this script should be executed under Ubuntu or Debian OS"
-  fi
 }
 
 # @description load color theme
@@ -1743,6 +1740,27 @@ Assert::wsl() {
   [[ "$(uname -o)" = "GNU/Linux" ]]
 }
 
+# @description apt-get install
+# @arg $@ softwares:String[] list of softwares to install
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::install() {
+  Log::displayInfo "Apt install $*"
+  Retry::default sudo apt-get install -y -q "$@"
+}
+
+# @description update apt packages list
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::update() {
+  Log::displayInfo "Apt update ..."
+  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
+}
+
 # @description retrieve path from wslvar and then use wslpath to resolve it
 # using cache (cache is refreshed every day)
 # @arg $1 var:String the var to retrieve using wslvar
@@ -1774,14 +1792,6 @@ Linux::Wsl::cachedWslvar() {
   Cache::getPropertyValue "${tempEnvFile}" "$1" Linux::Wsl::originalWslvar "$@"
 }
 
-# @description retrieve linux distributor id
-# @noargs
-# @exitcode 1 if lsb_release fails or not found
-# @stdout the linux distributor id
-Linux::getDistributorId() {
-  lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
-}
-
 # @description Display message using skip color (yellow)
 # @arg $1 message:String the message to display
 Log::displaySkipped() {
@@ -1797,43 +1807,6 @@ Log::logSuccess() {
   if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
     Log::logMessage "${2:-SUCCESS}" "$1"
   fi
-}
-
-# @description Retry a command several times depending on parameters
-# @arg $1 maxRetries:int    $1 max retries
-# @arg $2 delay:int between attempt
-# @arg $3 message:String to display to describe the attempt
-# @arg $@ rest of parameters, the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-# @exitcode 2 if maxRetries invalid value
-Retry::parameterized() {
-  local maxRetries=$1
-  shift || true
-  local delayBetweenTries=$1
-  shift || true
-  local message="$1"
-  shift || true
-  local retriesCount=1
-  if [[ "${maxRetries}" -lt 1 ]]; then
-    Log::displayError "invalid maxRetry value"
-    return 2
-  fi
-
-  while true; do
-    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
-    if "$@"; then
-      break
-    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
-      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
-      ((retriesCount++))
-      sleep "${delayBetweenTries}"
-    else
-      Log::displayError "The command has failed after ${retriesCount} attempts."
-      return 1
-    fi
-  done
-  return 0
 }
 
 # @description extract stats form log
@@ -2017,6 +1990,14 @@ Log::logSkipped() {
   fi
 }
 
+# @description ensure linux distribution is ubuntu
+# @exitcode 1 if linux distribution is not ubuntu
+Linux::requireUbuntu() {
+  if ! Array::contains "$(Linux::getDistributorId)" "Ubuntu" "Debian"; then
+    Log::fatal "this script should be executed under Ubuntu or Debian OS"
+  fi
+}
+
 # @description ensure linux runs under wsl
 # @env WSL_GARBAGE_COLLECT int 0 to disable garbage collect of cache files
 # @exitcode 1 if linux does not run under wsl
@@ -2101,18 +2082,26 @@ Linux::Wsl::originalWslpath() {
   wslpath "$@"
 }
 
+# @description retrieve linux distributor id
+# @noargs
+# @exitcode 1 if lsb_release fails or not found
+# @stdout the linux distributor id
+Linux::getDistributorId() {
+  lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
+}
+
 # FUNCTIONS
 
-Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/9c620daee500142c2cf55804bfa7d178/python_path" "IyEvYmluL2Jhc2gKCltbIDoke1BBVEh9OiA9PSAqIjoke0hPTUV9Ly5sb2NhbC9iaW46IiogXV0gfHwgUEFUSD0iJHtIT01FfS8ubG9jYWwvYmluOiR7UEFUSH0iCmV4cG9ydCBQQVRI" "644"
+Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/b1978dd38f75a6e5094db3e62979bf39/n_path" "IyEvYmluL2Jhc2gKCmV4cG9ydCBOX1BSRUZJWD0iJHtIT01FfS9uIgpbWyA6JHtQQVRIfTogPT0gKiI6JHtOX1BSRUZJWH0vYmluOiIqIF1dIHx8IFBBVEg9IiR7Tl9QUkVGSVh9L2Jpbjoke1BBVEh9IgpleHBvcnQgUEFUSD0iJHtIT01FfS8ubnBtLWdsb2JhbC9iaW4vOiR7UEFUSH0i" "644"
 
-declare -gx embed_file_python_path="${PERSISTENT_TMPDIR:-/tmp}/9c620daee500142c2cf55804bfa7d178/python_path"
+declare -gx embed_file_n_path="${PERSISTENT_TMPDIR:-/tmp}/b1978dd38f75a6e5094db3e62979bf39/n_path"
 
-facade_main_Pythonsh() {
+facade_main_NodeNpmsh() {
 # REQUIRES
-Linux::requireUbuntu
 Env::requireLoad
 UI::requireTheme
 Log::requireLoad
+Linux::requireUbuntu
 Linux::Wsl::requireWsl
 Compiler::Facade::requireCommandBinDir
 
@@ -2146,7 +2135,7 @@ fi
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/Python/etc/profile.d/python_path.sh" as python_path
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/NodeNpm/etc/profile.d/n_path.sh" as n_path
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -2845,7 +2834,7 @@ installScriptCommand() {
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
     echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Python.sh'
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/NodeNpm.sh'
     echo
     echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
     echo 'MIT License'
@@ -2884,125 +2873,54 @@ helpLongDescriptionCallback() {
 }
 
 scriptName() {
-  echo "Python"
+  echo "NodeNpm"
 }
 
 helpDescription() {
-  echo "Python"
+  echo "NodeNpm"
 }
 
-fortunes() {
-  fortunes+=("Python - virtualenv is automatically loaded by ~/.bash-dev-env")
-}
 dependencies() { :; }
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
+fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 
 install() {
-  Linux::Apt::addRepository ppa:deadsnakes/ppa
-  local -a packages=(
-    build-essential
-    # libdbus-glib-1-dev needed by dbus-python
-    libdbus-glib-1-dev
-    # libgirepository1.0-dev needed by dbus-python
-    libgirepository1.0-dev
-    # libcairo2-dev needed by PyGObject
-    libcairo2-dev
-    # libkrb5-dev needed by pykerberos
-    libkrb5-dev
-    python3.9
-    # needed by some pip dependencies
-    python3-cairo-dev
-    python3-dbus
-    python3.9-distutils
-    python3.9-dev
-    python-is-python3
-    python3-pip
-  )
-  Linux::Apt::install "${packages[@]}"
-
-  mkdir -p \
-    "${USER_HOME}/.local/bin" \
-    "${USER_HOME}/.local/lib"
-
-  # Installing virtualenv
-  PIP_REQUIRE_VIRTUALENV=false python -m pip install virtualenv
-
-  # Configure bin path
-  Log::displayInfo "Install /etc/profile.d/python_path.sh"
+  if [[ ! -d "${USER_HOME}/n" ]]; then
+    # -y avoid interactive
+    # -n no automatic bash profile install
+    Retry::default curl --fail -L https://git.io/n-install |
+      N_PREFIX="${USER_HOME}/n" bash -s -- -y -n latest
+  else
+    # update node
+    N_PREFIX="${USER_HOME}/n" "${USER_HOME}/n/bin/n" latest
+  fi
+  Log::displayInfo "Install /etc/profile.d/n_path.sh"
   local fileToInstall
   # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "etc/profile.d/python_path.sh" "${embed_file_python_path}")" || return 1
+  fileToInstall="$(Conf::dynamicConfFile "etc/profile.d/n_path.sh" "${embed_file_n_path}")" || return 1
   SUDO=sudo OVERWRITE_CONFIG_FILES=1 BACKUP_BEFORE_INSTALL=0 Install::file \
-    "${fileToInstall}" "/etc/profile.d/python_path.sh" \
+    "${fileToInstall}" "/etc/profile.d/n_path.sh" \
     "root" "root" \
     Install::setRootExecutableCallback || return 1
-
-  # Upgrade of pip packages will be done on subsequent calls during upgrade cron
-  upgradePipPackages
-}
-
-removeDuplicatePipPackages() {
-  # remove duplicate pip packages with ~ prefix that breaks pip packages upgrade otherwise
-  find "${VIRTUAL_ENV}/lib/python3.9/site-packages" -name '~*' -exec rm -Rf {} ';' || true
 }
 
 testInstall() {
   local -i failures=0
-  # since virtualenv is not loaded python 3.9 is not yet available
-  Version::checkMinimal "python" "--version" "3.8.10" || ((++failures))
-  Version::checkMinimal "virtualenv" "--version" "20.25.1" || ((++failures))
-  Assert::fileExists "/etc/profile.d/python_path.sh" root root || ((++failures))
+  Assert::fileExists "/etc/profile.d/n_path.sh" root root || return 1
+  # shellcheck source=/conf/NodeNpm/etc/profile.d/n_path.sh
+  HOME="${USER_HOME}" source /etc/profile.d/n_path.sh
+  Version::checkMinimal "node" "-v" "20.6.1" || ((++failures))
+  Version::checkMinimal "npm" "-v" "10.3.0" || ((++failures))
   return "${failures}"
 }
 
-configure() {
-  # create home directory that will receive virtualenv configs
-  mkdir -p "${USER_HOME}/.virtualenvs" || true
-  mkdir -p "${USER_HOME}/.pip/cache" || true
-
-  # create python3.9 virtual env
-  # virtualenv (for Python 3) and venv (for Python 2)
-  # allows you to manage separate package installations
-  # for different projects.
-  virtualenv --system-site-packages --python=/usr/bin/python3.9 "${USER_HOME}/.virtualenvs/python3.9"
-  upgradePipPackages
-}
-
-upgradePipPackages() {
-  if [[ "${PIP_PACKAGES_UPGRADED:-0}" = "1" ]]; then
-    return 0
-  fi
-  if [[ -f "${USER_HOME}/.virtualenvs/python3.9/bin/activate" ]]; then
-    # load this virtualenv
-    # shellcheck source=/dev/null
-    source "${USER_HOME}/.virtualenvs/python3.9/bin/activate"
-
-    # remove duplicate pip packages with ~ prefix that breaks pip packages upgrade otherwise
-    find "${VIRTUAL_ENV}/lib/python3.9/site-packages" -name '~*' -exec rm -Rf {} ';' || true
-
-    # install/upgrade pip
-    python -m pip install --upgrade pip
-    PIP_PACKAGES_UPGRADED=1
-  fi
-}
-
-testConfigure() {
-  local -i failures=0
-  # shellcheck source=/dev/null
-  source "${USER_HOME}/.virtualenvs/python3.9/bin/activate"
-  Version::checkMinimal "python" "--version" "3.9.18" || ((++failures))
-  Version::checkMinimal "pip" "--version" "24.0" || ((++failures))
-  [[ "${VIRTUAL_ENV}" = "${USER_HOME}/.virtualenvs/python3.9" ]] || {
-    Log::displayError "Virtualenv has not been loaded correctly"
-    ((++failures))
-  }
-  return "${failures}"
-}
+configure() { :; }
+testConfigure() { :; }
 
 local action=$1
 shift || true
@@ -3061,4 +2979,4 @@ esac
 exit 0
 }
 
-facade_main_Pythonsh "$@"
+facade_main_NodeNpmsh "$@"
