@@ -54,7 +54,7 @@ install() {
 }
 
 testInstall() {
-  Version::checkMinimal "aws" --version "2.13.32" || ((++failures))
+  Version::checkMinimal "aws" --version "2.13.32" || return 1
 }
 
 configure() { :; }

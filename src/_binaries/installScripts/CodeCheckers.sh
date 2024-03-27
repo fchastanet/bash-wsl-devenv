@@ -15,6 +15,7 @@ helpDescription() {
 }
 
 dependencies() {
+  echo "Hadolint"
   # Go is needed by shfmt
   echo "Go"
   # Python is needed by shfmt-py

@@ -33,7 +33,7 @@ install() {
       sha256sum -c hash.txt || {
         Log::displayError "update-golang sha checksum doesn't match"
       }
-      rm -f hash.txt
+      sudo rm -f hash.txt
       Log::displayInfo "Install/update go ..."
       sudo ./update-golang.sh
       sudo ln -sf /usr/local/go/bin/go /usr/local/bin/go

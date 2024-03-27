@@ -46,7 +46,9 @@ install() {
 }
 
 testInstall() {
+  local -i failures=0
   Version::checkMinimal "pre-commit" "--version" "3.6.2" || ((++failures))
+  return "${failures}"
 }
 
 configure() { :; }

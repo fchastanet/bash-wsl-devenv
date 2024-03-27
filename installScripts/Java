@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Go.sh
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Java.sh
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
 # shellcheck disable=SC2288,SC2034
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Go
+# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Java
 
 # ensure that no user aliases could interfere with
 # commands used in this script
@@ -445,48 +445,6 @@ Framework::createTempFile() {
   mktemp -p "${TMPDIR:-/tmp}" -t "${1:-}.XXXXXXXXXXXX"
 }
 
-# @description clone the repository if not done yet, else pull it if no change in it
-# @arg $1 dir:String directory in which repository is installed or will be cloned
-# @arg $2 repo:String repository url
-# @arg $3 cloneCallback:Function callback on successful clone
-# @arg $4 pullCallback:Function callback on successful pull
-# @env GIT_CLONE_OPTIONS:String additional options to pass to git clone command
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode 0 on successful pulling/cloning, 1 on failure
-Git::cloneOrPullIfNoChanges() {
-  local dir="$1"
-  shift || true
-  local repo="$1"
-  shift || true
-  local cloneCallback=${1:-}
-  shift || true
-  local pullCallback=${1:-}
-  shift || true
-
-  if [[ -d "${dir}/.git" ]]; then
-    if ! Git::pullIfNoChanges "${dir}"; then
-      return 1
-    fi
-    # shellcheck disable=SC2086
-    if [[ "$(type -t ${pullCallback})" = "function" ]]; then
-      ${pullCallback} "${dir}"
-    fi
-  else
-    Log::displayInfo "cloning ${repo} ..."
-    ${SUDO:-} mkdir -p "$(${SUDO:-} dirname "${dir}")"
-    # shellcheck disable=SC2086,SC2248
-    if ${SUDO:-} git clone ${GIT_CLONE_OPTIONS} --progress "$@" "${repo}" "${dir}"; then
-      # shellcheck disable=SC2086
-      if [[ "$(type -t ${cloneCallback})" = "function" ]]; then
-        ${cloneCallback} "${dir}"
-      fi
-    else
-      Log::displayError "Cloning '${repo}' on '${dir}' failed"
-      return 1
-    fi
-  fi
-}
-
 # @description the command launch different actions(install, configure, test)
 # depending on the options selected
 # @see src/_includes/install.skip.options.tpl
@@ -602,6 +560,27 @@ InstallScripts::command() {
       exit "${testConfigStatus}"
     fi
   fi
+}
+
+# @description apt-get install
+# @arg $@ softwares:String[] list of softwares to install
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::install() {
+  Log::displayInfo "Apt install $*"
+  Retry::default sudo apt-get install -y -q "$@"
+}
+
+# @description update apt packages list
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::update() {
+  Log::displayInfo "Apt update ..."
+  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
 }
 
 # @description Log namespace provides 2 kind of functions
@@ -743,14 +722,6 @@ Log::requireLoad() {
   fi
 }
 
-# @description Retry a command 5 times with a delay of 15 seconds between each attempt
-# @arg $@ command:String[] the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-Retry::default() {
-  Retry::parameterized 5 15 "" "$@"
-}
-
 # @description draw a line with the character passed in parameter repeated depending on terminal width
 # @arg $1 character:String character to use as separator (default value #)
 UI::drawLine() {
@@ -878,6 +849,16 @@ Version::checkMinimal() {
     return 0
   }
 
+}
+
+# @description filter to keep only version number from a string
+# @arg $@ files:String[] the files to filter
+# @exitcode * if one of the filter command fails
+# @stdin you can use stdin as alternative to files argument
+# @stdout the filtered content
+# shellcheck disable=SC2120
+Version::parse() {
+  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
 }
 
 # @description ensure COMMAND_BIN_DIR env var is set
@@ -1286,36 +1267,6 @@ Env::pathPrepend() {
   done
 }
 
-# @description pull git directory only if no change has been detected
-# @arg $1 dir:String the git directory to pull
-# @exitcode 0 on successful pulling
-# @exitcode 1 on any other failure
-# @exitcode 2 changes detected, pull avoided
-# @exitcode 3 not a git directory
-# @exitcode 4 not able to update index
-# @stderr diagnostics information is displayed
-# @env SUDO String allows to use custom sudo prefix command
-# @require Git::requireGitCommand
-Git::pullIfNoChanges() {
-  local dir="$1"
-  if [[ ! -d "${dir}/.git" ]]; then
-    return 3
-  fi
-  (
-    cd "${dir}" || return 3
-    if ! ${SUDO:-} git update-index --refresh &>/dev/null; then
-      Log::displayWarning "Impossible to update git index of '${dir}' - check if you have modified file"
-      return 4
-    fi
-    if ! ${SUDO:-} git diff-index --quiet HEAD --; then
-      Log::displayWarning "Pulling git repository '${dir}' avoided as changes detected"
-      return 2
-    fi
-    Log::displayInfo "Pull git repository '${dir}' as no changes detected"
-    ${SUDO:-} git pull --progress
-  )
-}
-
 # @description check if function is empty
 # @arg $1 function:Function
 # @exitcode 0 if
@@ -1420,41 +1371,12 @@ Log::rotate() {
   fi
 }
 
-# @description Retry a command several times depending on parameters
-# @arg $1 maxRetries:int    $1 max retries
-# @arg $2 delay:int between attempt
-# @arg $3 message:String to display to describe the attempt
-# @arg $@ rest of parameters, the command to run
+# @description Retry a command 5 times with a delay of 15 seconds between each attempt
+# @arg $@ command:String[] the command to run
 # @exitcode 0 on success
 # @exitcode 1 if max retries count reached
-# @exitcode 2 if maxRetries invalid value
-Retry::parameterized() {
-  local maxRetries=$1
-  shift || true
-  local delayBetweenTries=$1
-  shift || true
-  local message="$1"
-  shift || true
-  local retriesCount=1
-  if [[ "${maxRetries}" -lt 1 ]]; then
-    Log::displayError "invalid maxRetry value"
-    return 2
-  fi
-
-  while true; do
-    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
-    if "$@"; then
-      break
-    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
-      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
-      ((retriesCount++))
-      sleep "${delayBetweenTries}"
-    else
-      Log::displayError "The command has failed after ${retriesCount} attempts."
-      return 1
-    fi
-  done
-  return 0
+Retry::default() {
+  Retry::parameterized 5 15 "" "$@"
 }
 
 # @description trap function responsible to compute and display stats after each script execution
@@ -1507,14 +1429,12 @@ Version::compare() {
   return 0
 }
 
-# @description filter to keep only version number from a string
-# @arg $@ files:String[] the files to filter
-# @exitcode * if one of the filter command fails
-# @stdin you can use stdin as alternative to files argument
-# @stdout the filtered content
-# shellcheck disable=SC2120
-Version::parse() {
-  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
+# @description ensure linux distribution is ubuntu
+# @exitcode 1 if linux distribution is not ubuntu
+Linux::requireUbuntu() {
+  if ! Array::contains "$(Linux::getDistributorId)" "Ubuntu" "Debian"; then
+    Log::fatal "this script should be executed under Ubuntu or Debian OS"
+  fi
 }
 
 # @description load color theme
@@ -1681,27 +1601,6 @@ Install::file() {
   fi
 }
 
-# @description apt-get install
-# @arg $@ softwares:String[] list of softwares to install
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::install() {
-  Log::displayInfo "Apt install $*"
-  Retry::default sudo apt-get install -y -q "$@"
-}
-
-# @description update apt packages list
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::update() {
-  Log::displayInfo "Apt update ..."
-  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
-}
-
 # @description retrieve path from wslvar and then use wslpath to resolve it
 # using cache (cache is refreshed every day)
 # @arg $1 var:String the var to retrieve using wslvar
@@ -1733,6 +1632,14 @@ Linux::Wsl::cachedWslvar() {
   Cache::getPropertyValue "${tempEnvFile}" "$1" Linux::Wsl::originalWslvar "$@"
 }
 
+# @description retrieve linux distributor id
+# @noargs
+# @exitcode 1 if lsb_release fails or not found
+# @stdout the linux distributor id
+Linux::getDistributorId() {
+  lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
+}
+
 # @description Display message using skip color (yellow)
 # @arg $1 message:String the message to display
 Log::displaySkipped() {
@@ -1740,6 +1647,43 @@ Log::displaySkipped() {
     echo -e "${__SKIPPED_COLOR}SKIPPED - ${1}${__RESET_COLOR}" >&2
   fi
   Log::logSkipped "$1"
+}
+
+# @description Retry a command several times depending on parameters
+# @arg $1 maxRetries:int    $1 max retries
+# @arg $2 delay:int between attempt
+# @arg $3 message:String to display to describe the attempt
+# @arg $@ rest of parameters, the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+# @exitcode 2 if maxRetries invalid value
+Retry::parameterized() {
+  local maxRetries=$1
+  shift || true
+  local delayBetweenTries=$1
+  shift || true
+  local message="$1"
+  shift || true
+  local retriesCount=1
+  if [[ "${maxRetries}" -lt 1 ]]; then
+    Log::displayError "invalid maxRetry value"
+    return 2
+  fi
+
+  while true; do
+    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
+    if "$@"; then
+      break
+    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
+      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
+      ((retriesCount++))
+      sleep "${delayBetweenTries}"
+    else
+      Log::displayError "The command has failed after ${retriesCount} attempts."
+      return 1
+    fi
+  done
+  return 0
 }
 
 # @description extract stats form log
@@ -1843,13 +1787,6 @@ UI::textLine() {
   ((remainingWidth = $((fullWith - textSize))))
   echo -n "${text}"
   printf '%*s\n' "${remainingWidth}" '' | tr ' ' "${character}"
-}
-
-# @description ensure command git is available
-# @exitcode 1 if git command not available
-# @stderr diagnostics information is displayed
-Git::requireGitCommand() {
-  Assert::commandExists git
 }
 
 # @description check if argument respects this framework variable naming convention
@@ -2001,14 +1938,6 @@ Log::logSkipped() {
   fi
 }
 
-# @description ensure linux distribution is ubuntu
-# @exitcode 1 if linux distribution is not ubuntu
-Linux::requireUbuntu() {
-  if ! Array::contains "$(Linux::getDistributorId)" "Ubuntu" "Debian"; then
-    Log::fatal "this script should be executed under Ubuntu or Debian OS"
-  fi
-}
-
 # @description ensure linux runs under wsl
 # @env WSL_GARBAGE_COLLECT int 0 to disable garbage collect of cache files
 # @exitcode 1 if linux does not run under wsl
@@ -2093,14 +2022,6 @@ Linux::Wsl::originalWslpath() {
   wslpath "$@"
 }
 
-# @description retrieve linux distributor id
-# @noargs
-# @exitcode 1 if lsb_release fails or not found
-# @stdout the linux distributor id
-Linux::getDistributorId() {
-  lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
-}
-
 # @description log message to file
 # @arg $1 message:String the message to display
 Log::logSuccess() {
@@ -2111,13 +2032,12 @@ Log::logSuccess() {
 
 # FUNCTIONS
 
-facade_main_Gosh() {
+facade_main_Javash() {
 # REQUIRES
+Linux::requireUbuntu
 Env::requireLoad
 UI::requireTheme
-Git::requireGitCommand
 Log::requireLoad
-Linux::requireUbuntu
 Linux::Wsl::requireWsl
 Compiler::Facade::requireCommandBinDir
 
@@ -2849,7 +2769,7 @@ installScriptCommand() {
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
     echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Go.sh'
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Java.sh'
     echo
     echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
     echo 'MIT License'
@@ -2888,11 +2808,11 @@ helpLongDescriptionCallback() {
 }
 
 scriptName() {
-  echo "Go"
+  echo "Java"
 }
 
 helpDescription() {
-  echo "Go"
+  echo "Java"
 }
 
 dependencies() { :; }
@@ -2905,31 +2825,17 @@ breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 
 install() {
-  # shellcheck disable=SC2317
-  updateGo() {
-    (
-      cd /opt/update-golang || exit 1
-      Retry::default sudo curl \
-        -o hash.txt https://raw.githubusercontent.com/udhos/update-golang/master/update-golang.sh.sha256
-      sha256sum -c hash.txt || {
-        Log::displayError "update-golang sha checksum doesn't match"
-      }
-      sudo rm -f hash.txt
-      Log::displayInfo "Install/update go ..."
-      sudo ./update-golang.sh
-      sudo ln -sf /usr/local/go/bin/go /usr/local/bin/go
-      sudo ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt
-    )
-  }
-  SUDO=sudo Git::cloneOrPullIfNoChanges \
-    "/opt/update-golang" \
-    "https://github.com/udhos/update-golang" \
-    updateGo \
-    updateGo
+  Linux::Apt::update
+  Linux::Apt::install \
+    openjdk-17-jre
 }
 
 testInstall() {
-  Version::checkMinimal "go" "version" "1.22.1" || return 1
+  # shellcheck disable=SC2317
+  parseJavaVersion() {
+    head -1 | Version::parse
+  }
+  Version::checkMinimal "java" "--version" "17.0.10" parseJavaVersion || return 1
 }
 
 configure() { :; }
@@ -2992,4 +2898,4 @@ esac
 exit 0
 }
 
-facade_main_Gosh "$@"
+facade_main_Javash "$@"
