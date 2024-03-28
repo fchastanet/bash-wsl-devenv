@@ -15,7 +15,7 @@ helpDescription() {
   echo "Python"
 }
 
-fortunes() { 
+fortunes() {
   fortunes+=("Python - virtualenv is automatically loaded by ~/.bash-dev-env")
 }
 dependencies() { :; }
@@ -52,7 +52,7 @@ install() {
   mkdir -p \
     "${USER_HOME}/.local/bin" \
     "${USER_HOME}/.local/lib"
-  
+
   # Installing virtualenv
   PIP_REQUIRE_VIRTUALENV=false python -m pip install virtualenv
 
@@ -90,8 +90,8 @@ configure() {
   mkdir -p "${USER_HOME}/.pip/cache" || true
 
   # create python3.9 virtual env
-  # virtualenv (for Python 3) and venv (for Python 2) 
-  # allows you to manage separate package installations 
+  # virtualenv (for Python 3) and venv (for Python 2)
+  # allows you to manage separate package installations
   # for different projects.
   virtualenv --system-site-packages --python=/usr/bin/python3.9 "${USER_HOME}/.virtualenvs/python3.9"
   upgradePipPackages

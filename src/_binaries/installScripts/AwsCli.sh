@@ -18,12 +18,14 @@ dependencies() {
   echo "Xvsb"
 }
 
+# jscpd:ignore-start
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+# jscpd:ignore-end
 
 fortunes() {
   if ! command -v aws &>/dev/null; then

@@ -14,10 +14,12 @@ helpDescription() {
   echo "Upgrade ubuntu apt softwares"
 }
 
+# jscpd:ignore-start
 dependencies() { :; }
 fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+# jscpd:ignore-end
 
 helpVariables() {
   # shellcheck disable=SC2317

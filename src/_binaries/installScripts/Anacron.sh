@@ -46,7 +46,7 @@ testConfigure() {
     Log::displayError "anacron format not valid"
     ((failures++))
   }
-  
+
   # check if user is part of anacron group
   groups "${USERNAME}" | grep -E ' anacron' || {
     Log::displayError "${USERNAME} is not part of anacron group"

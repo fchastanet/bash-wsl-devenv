@@ -15,6 +15,7 @@ helpDescription() {
   echo "It checks also validity of .env file content"
 }
 
+# jscpd:ignore-start
 dependencies() { :; }
 helpVariables() { :; }
 listVariables() { :; }
@@ -23,6 +24,7 @@ checkVariables() { :; }
 fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+# jscpd:ignore-end
 
 install() {
   Log::displayInfo "Linux version : $(lsb_release -a)"

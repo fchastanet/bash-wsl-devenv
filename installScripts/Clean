@@ -272,7 +272,7 @@ PROJECTS_DIR="${USER_HOME}/projects"
 
 # where overridden config files will be backed up
 BACKUP_DIR="${BASH_DEV_ENV_ROOT_DIR}/backup"
-# backup files/dirs before installing new file (ussually 1, but 0 if using distro)
+# backup files/dirs before installing new file (usually 1, but 0 if using distro)
 BACKUP_BEFORE_INSTALL=1
 # logs CONF_DIR
 LOGS_DIR="${BASH_DEV_ENV_ROOT_DIR}/logs"
@@ -629,7 +629,7 @@ Log::displayInfo() {
         LOG_LAST_LOG_DATE_INIT=0
         duration="Ref"
       else
-        duration="$(( (currentLogDate - FIRST_LOG_DATE) /1000 ))s/+$(( (currentLogDate - LOG_LAST_LOG_DATE) /1000 ))s"
+        duration="$(((currentLogDate - FIRST_LOG_DATE) / 1000))s/+$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000))s"
       fi
       LOG_LAST_LOG_DATE="${currentLogDate}"
       durationMsg="$(date '+%H:%M:%S.%3N')(${duration}) - "
@@ -1144,7 +1144,7 @@ Env::pathPrepend() {
 
 # @description check if function is empty
 # @arg $1 function:Function
-# @exitcode 0 if
+# @exitcode 0 if function is considered empty (body with : or true)
 InstallScripts::scriptFunctionEmpty() {
   local pattern="^[ \t]+(:|true)"
   [[ "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} && "$(declare -f "$1" | sed '4q;d')" = "}" ]]
@@ -1612,7 +1612,7 @@ Assert::validVariableName() {
 # @arg $1 file:String the file to backup
 # @stderr messages about backup file location
 # @env SUDO String allows to use custom sudo prefix command
-# @env BACKUP_DIR if unlnow backup the file in the same directory
+# @env BACKUP_DIR if not set backup the file in the same directory as original file
 # @exitcode 1 on copy failure
 Backup::file() {
   local file="$1"
@@ -2679,6 +2679,7 @@ helpDescription() {
   echo "Clean"
 }
 
+# jscpd:ignore-start
 dependencies() { :; }
 helpVariables() { :; }
 listVariables() { :; }
@@ -2687,6 +2688,7 @@ checkVariables() { :; }
 fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+# jscpd:ignore-end
 
 install() {
   # some cleaning

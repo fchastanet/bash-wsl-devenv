@@ -15,16 +15,17 @@ helpDescription() {
   echo "PreCommitConfig"
 }
 
-dependencies() { 
+dependencies() {
   echo "PreCommit"
   echo "GitConfig"
 }
 
-fortunes() { 
+fortunes() {
   fortunes+=("PreCommit - pre-commit hooks template is automatically applied on git clone or git init")
   fortunes+=("PreCommit - You can disable git hooks template using 'git config --global --unset init.templatedir'")
 }
 
+# jscpd:ignore-start
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
@@ -33,6 +34,7 @@ breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 install() { :; }
 testInstall() { :; }
+# jscpd:ignore-end
 
 configure() {
   if [[ ! -f "${USER_HOME}/.virtualenvs/python3.9/bin/activate" ]]; then
@@ -55,7 +57,7 @@ testConfigure() {
   local -i failures=0
 
   Assert::dirExists "${USER_HOME}/.config/git/pre-commit-template" || ((++failures))
-  
+
   Log::displayInfo "check if git init.templatedir correctly set"
   if [[ "$(git config --global --get init.templatedir)" != "${USER_HOME}/.config/git/pre-commit-template" ]]; then
     Log::displayError "git init.templatedir has not been correctly set"
@@ -83,7 +85,7 @@ testConfigure() {
   # shellcheck disable=SC2317
   gitInit() { git init "$1"; }
   checkGitHooksCreatedOn gitInit || ((++failures))
-  
+
   Log::displayInfo "check that git clone sets hooks automatically"
   # shellcheck disable=SC2317
   gitClone() { git clone https://github.com/fchastanet/repo-test.git "$1"; }

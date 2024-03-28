@@ -121,3 +121,4 @@ xorg
 xsession
 Xsrv
 xvfb
+Wbem

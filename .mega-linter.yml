@@ -73,6 +73,7 @@ EDITORCONFIG_EDITORCONFIG_CHECKER_FILTER_REGEX_EXCLUDE: |
     \.git/|
     /testsData/|
     ^pages/Commands.md|
+    ^conf/.bash-tools/dbQueries/databaseSize.sql|
     ^.*-megalinter_file_names_cspell.txt
   )
 

@@ -14,7 +14,7 @@ helpDescription() {
   echo "NodeDependencies"
 }
 
-dependencies() { 
+dependencies() {
   echo "NodeNpm"
 }
 

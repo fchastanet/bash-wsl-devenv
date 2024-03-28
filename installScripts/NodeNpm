@@ -354,7 +354,7 @@ PROJECTS_DIR="${USER_HOME}/projects"
 
 # where overridden config files will be backed up
 BACKUP_DIR="${BASH_DEV_ENV_ROOT_DIR}/backup"
-# backup files/dirs before installing new file (ussually 1, but 0 if using distro)
+# backup files/dirs before installing new file (usually 1, but 0 if using distro)
 BACKUP_BEFORE_INSTALL=1
 # logs CONF_DIR
 LOGS_DIR="${BASH_DEV_ENV_ROOT_DIR}/logs"
@@ -800,7 +800,7 @@ Log::displayInfo() {
         LOG_LAST_LOG_DATE_INIT=0
         duration="Ref"
       else
-        duration="$(( (currentLogDate - FIRST_LOG_DATE) /1000 ))s/+$(( (currentLogDate - LOG_LAST_LOG_DATE) /1000 ))s"
+        duration="$(((currentLogDate - FIRST_LOG_DATE) / 1000))s/+$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000))s"
       fi
       LOG_LAST_LOG_DATE="${currentLogDate}"
       durationMsg="$(date '+%H:%M:%S.%3N')(${duration}) - "
@@ -1065,7 +1065,7 @@ Assert::tty() {
 # @arg $1 file:String the file to backup
 # @stderr messages about backup file location
 # @env SUDO String allows to use custom sudo prefix command
-# @env BACKUP_DIR if unlnow backup the file in the same directory
+# @env BACKUP_DIR if not set backup the file in the same directory as original file
 # @exitcode 1 on copy failure
 Backup::file() {
   local file="$1"
@@ -1453,7 +1453,7 @@ Install::unableToCopyCallback() {
 
 # @description check if function is empty
 # @arg $1 function:Function
-# @exitcode 0 if
+# @exitcode 0 if function is considered empty (body with : or true)
 InstallScripts::scriptFunctionEmpty() {
   local pattern="^[ \t]+(:|true)"
   [[ "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} && "$(declare -f "$1" | sed '4q;d')" = "}" ]]
@@ -2103,9 +2103,9 @@ Linux::getDistributorId() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/b1978dd38f75a6e5094db3e62979bf39/n_path" "IyEvYmluL2Jhc2gKCmV4cG9ydCBOX1BSRUZJWD0iJHtIT01FfS9uIgpbWyA6JHtQQVRIfTogPT0gKiI6JHtOX1BSRUZJWH0vYmluOiIqIF1dIHx8IFBBVEg9IiR7Tl9QUkVGSVh9L2Jpbjoke1BBVEh9IgpleHBvcnQgUEFUSD0iJHtIT01FfS8ubnBtLWdsb2JhbC9iaW4vOiR7UEFUSH0i" "644"
+Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/75d6c6a1c059d4f80662260921ff1cc7/n_path" "IyEvYmluL2Jhc2gKCmV4cG9ydCBOX1BSRUZJWD0iJHtIT01FfS9uIgpbWyA6JHtQQVRIfTogPT0gKiI6JHtOX1BSRUZJWH0vYmluOiIqIF1dIHx8IFBBVEg9IiR7Tl9QUkVGSVh9L2Jpbjoke1BBVEh9IgpleHBvcnQgUEFUSD0iJHtIT01FfS8ubnBtLWdsb2JhbC9iaW4vOiR7UEFUSH0iCg==" "755"
 
-declare -gx embed_file_n_path="${PERSISTENT_TMPDIR:-/tmp}/b1978dd38f75a6e5094db3e62979bf39/n_path"
+declare -gx embed_file_n_path="${PERSISTENT_TMPDIR:-/tmp}/75d6c6a1c059d4f80662260921ff1cc7/n_path"
 
 facade_main_NodeNpmsh() {
 # REQUIRES

@@ -30,6 +30,7 @@ dependencies() {
   echo Font
 }
 
+# jscpd:ignore-start
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
@@ -39,6 +40,7 @@ breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 install() { :; }
 testInstall() { :; }
+# jscpd:ignore-end
 
 configure() {
   Conf::installFromEmbed "ShellCommon" "${filesToInstall[@]}" || return 1
@@ -52,7 +54,6 @@ configure() {
   # disable bell
   sudo sed -i -e 's/;set bell-style none/set bell-style none/g' /etc/inputrc
 }
-
 
 testConfigure() {
   local -i failures=0

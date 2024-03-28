@@ -69,7 +69,7 @@ testInstall() {
   local -i failures=0
 
   Assert::fileExists /opt/IlanCosman-tide-fonts/fonts/mesloLGS_NF_regular.ttf root root || ((++failures))
-  
+
   local localAppData
   localAppData="$(Linux::Wsl::cachedWslpathFromWslVar LOCALAPPDATA)"
   Assert::fileExists "${localAppData}/Microsoft/Windows/Fonts/mesloLGS_NF_regular.ttf" || {

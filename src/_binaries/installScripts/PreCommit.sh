@@ -14,7 +14,7 @@ helpDescription() {
   echo "PreCommit"
 }
 
-dependencies() { 
+dependencies() {
   # pre-commit is a python package
   echo "Python"
 }

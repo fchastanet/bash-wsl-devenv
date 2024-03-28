@@ -15,7 +15,7 @@ helpDescription() {
   echo "BashTools"
 }
 
-fortunes() { 
+fortunes() {
   if [[ -d "${USER_HOME}/fchastanet/bash-tools/bin" ]]; then
     fortunes+=("BashTools - cli -- tool to easily connect to your containers")
     fortunes+=("BashTools - dbImport -- tool to import database from aws or Mizar")

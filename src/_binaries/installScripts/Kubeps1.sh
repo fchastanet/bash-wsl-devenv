@@ -14,6 +14,7 @@ helpDescription() {
   echo "Kubeps1"
 }
 
+# jscpd:ignore-start
 dependencies() { :; }
 fortunes() { :; }
 helpVariables() { :; }
@@ -22,6 +23,7 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+# jscpd:ignore-end
 
 install() {
   SUDO=sudo Git::cloneOrPullIfNoChanges \
