@@ -6,6 +6,4 @@ fi
 
 CONFIG_LIST=(
   "CodeCheckers"
-  "Oq"
-  "PlantUml"
 )

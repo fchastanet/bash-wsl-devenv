@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Fzf.sh
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Php.sh
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
 # shellcheck disable=SC2288,SC2034
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Fzf
+# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Php
 
 # ensure that no user aliases could interfere with
 # commands used in this script
@@ -445,103 +445,6 @@ Framework::createTempFile() {
   mktemp -p "${TMPDIR:-/tmp}" -t "${1:-}.XXXXXXXXXXXX"
 }
 
-# @description clone the repository if not done yet, else pull it if no change in it
-# @arg $1 dir:String directory in which repository is installed or will be cloned
-# @arg $2 repo:String repository url
-# @arg $3 cloneCallback:Function callback on successful clone
-# @arg $4 pullCallback:Function callback on successful pull
-# @env GIT_CLONE_OPTIONS:String additional options to pass to git clone command
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode 0 on successful pulling/cloning, 1 on failure
-Git::cloneOrPullIfNoChanges() {
-  local dir="$1"
-  shift || true
-  local repo="$1"
-  shift || true
-  local cloneCallback=${1:-}
-  shift || true
-  local pullCallback=${1:-}
-  shift || true
-
-  if [[ -d "${dir}/.git" ]]; then
-    if ! Git::pullIfNoChanges "${dir}"; then
-      return 1
-    fi
-    # shellcheck disable=SC2086
-    if [[ "$(type -t ${pullCallback})" = "function" ]]; then
-      ${pullCallback} "${dir}"
-    fi
-  else
-    Log::displayInfo "cloning ${repo} ..."
-    ${SUDO:-} mkdir -p "$(${SUDO:-} dirname "${dir}")"
-    # shellcheck disable=SC2086,SC2248
-    if ${SUDO:-} git clone ${GIT_CLONE_OPTIONS} --progress "$@" "${repo}" "${dir}"; then
-      # shellcheck disable=SC2086
-      if [[ "$(type -t ${cloneCallback})" = "function" ]]; then
-        ${cloneCallback} "${dir}"
-      fi
-    else
-      Log::displayError "Cloning '${repo}' on '${dir}' failed"
-      return 1
-    fi
-  fi
-}
-
-# @description upgrade given binary to latest github release using retry
-#
-# releaseUrl argument : the placeholder @latestVersion@ will be replaced by the latest release version
-# @arg $1 targetFile:String target binary file (eg: /usr/local/bin/kind)
-# @arg $2 releaseUrl:String github release url (eg: https://github.com/kubernetes-sigs/kind/releases/download/@latestVersion@/kind-linux-amd64)
-# @arg $3 argVersion:String parameter to add to existing command to compute current version
-# @arg $4 versionCallback:Function function called to get software version (default: Version::getCommandVersionFromPlainText will call software with argument --version)
-# @arg $5 installCallback:Function function called to install the file retrieved on github (default copy as is and set execution bit)
-# @arg $6 parseVersionCallback:Function function to call to filter the version retrieved (Eg: Version::parse)
-# @stdout log messages about retry, install, upgrade
-Github::upgradeRelease() {
-  local targetFile="$1"
-  local releaseUrl="$2"
-  local argVersion="${3:---version}"
-  local versionCallback="${4:-Version::getCommandVersionFromPlainText}"
-  # shellcheck disable=SC2034
-  local installCallback="${5:-}"
-  local parseVersionCallback="${6:-}"
-  local latestVersion
-  local repo
-
-  repo="$(Github::extractRepoFromGithubUrl "${releaseUrl}")"
-  Github::getLatestRelease "${repo}" latestVersion ||
-    Log::fatal "Repo ${repo} latest version not found"
-  if [[ "$(type -t "${parseVersionCallback}")" = "function" ]]; then
-    latestVersion="$(${parseVersionCallback} <<<"${latestVersion}")"
-  fi
-  Log::displayInfo "Repo ${repo} latest version found is ${latestVersion}"
-
-  local currentVersion="not existing"
-  if [[ -f "${targetFile}" ]]; then
-    currentVersion="$(${versionCallback} "${targetFile}" "${argVersion}" 2>&1 || true)"
-  fi
-  if [[ "${currentVersion}" = "${latestVersion}" ]]; then
-    Log::displayInfo "${targetFile} version ${latestVersion} already installed"
-  else
-    if [[ -z "${currentVersion}" ]]; then
-      Log::displayInfo "Installing ${targetFile} with version ${latestVersion}"
-    else
-      Log::displayInfo "Upgrading ${targetFile} from version ${currentVersion} to ${latestVersion}"
-    fi
-    local url
-    url="$(echo "${releaseUrl}" | sed -E "s/@latestVersion@/${latestVersion}/g")"
-    Log::displayInfo "Using url ${url}"
-    newSoftware=$(mktemp -p "${TMPDIR:-/tmp}" -t github.newSoftware.XXXX)
-    Retry::default curl \
-      -L \
-      -o "${newSoftware}" \
-      --fail \
-      "${url}"
-
-    Github::defaultInstall "${newSoftware}" "${targetFile}" "${latestVersion}" "${installCallback}"
-  fi
-}
-
 # @description the command launch different actions(install, configure, test)
 # depending on the options selected
 # @see src/_includes/install.skip.options.tpl
@@ -946,26 +849,6 @@ Version::checkMinimal() {
     return 0
   }
 
-}
-
-# @description extract software version number
-# @arg $1 command:String the command that will be called with --version parameter
-# @arg $2 argVersion:String  allows to override default --version parameter
-Version::getCommandVersionFromPlainText() {
-  local command="$1"
-  local argVersion="${2:---version}"
-  "${command}" "${argVersion}" 2>&1 |
-    Version::parse # keep only version numbers
-}
-
-# @description filter to keep only version number from a string
-# @arg $@ files:String[] the files to filter
-# @exitcode * if one of the filter command fails
-# @stdin you can use stdin as alternative to files argument
-# @stdout the filtered content
-# shellcheck disable=SC2120
-Version::parse() {
-  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
 }
 
 # @description ensure COMMAND_BIN_DIR env var is set
@@ -1374,114 +1257,6 @@ Env::pathPrepend() {
   done
 }
 
-# @description pull git directory only if no change has been detected
-# @arg $1 dir:String the git directory to pull
-# @exitcode 0 on successful pulling
-# @exitcode 1 on any other failure
-# @exitcode 2 changes detected, pull avoided
-# @exitcode 3 not a git directory
-# @exitcode 4 not able to update index
-# @stderr diagnostics information is displayed
-# @env SUDO String allows to use custom sudo prefix command
-# @require Git::requireGitCommand
-Git::pullIfNoChanges() {
-  local dir="$1"
-  if [[ ! -d "${dir}/.git" ]]; then
-    return 3
-  fi
-  (
-    cd "${dir}" || return 3
-    if ! ${SUDO:-} git update-index --refresh &>/dev/null; then
-      Log::displayWarning "Impossible to update git index of '${dir}' - check if you have modified file"
-      return 4
-    fi
-    if ! ${SUDO:-} git diff-index --quiet HEAD --; then
-      Log::displayWarning "Pulling git repository '${dir}' avoided as changes detected"
-      return 2
-    fi
-    Log::displayInfo "Pull git repository '${dir}' as no changes detected"
-    ${SUDO:-} git pull --progress
-  )
-}
-
-# @description intermediate callback that is used by Github::upgradeRelease
-# or Github::installRelease
-# if installCallback is not set, it allows to:
-#   - copy the downloaded file to the right target file
-#   - and set the execution bit
-# else
-#   installCallback is called with newSoftware, targetFile, version arguments
-# fi
-# @warning do not use this function as callback for Github::upgradeRelease or Github::installRelease, as it would result to an infinite loop
-# @arg $1 newSoftware:String the downloaded software file
-# @arg $2 targetFile:String where we want to copy the file
-# @arg $3 version:String the version that has been downloaded
-# @arg $4 installCallback:Function (optional) the callback to call with 3 first arguments
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode * on failure
-# @see Github::upgradeRelease
-# @see Github::installRelease
-# @internal
-Github::defaultInstall() {
-  local newSoftware="$1"
-  local targetFile="$2"
-  local version="$3"
-  local installCallback=$4
-  # shellcheck disable=SC2086
-  ${SUDO:-} mkdir -p "$(dirname "${targetFile}")"
-  if [[ "$(type -t "${installCallback}")" = "function" ]]; then
-    ${installCallback} "${newSoftware}" "${targetFile}" "${version}"
-  else
-    ${SUDO:-} mv "${newSoftware}" "${targetFile}"
-    ${SUDO:-} chmod +x "${targetFile}"
-    hash -r
-    ${SUDO:-} rm -f "${newSoftware}" || true
-  fi
-}
-
-# @description github repository eg: kubernetes-sigs/kind
-# @arg $1 githubUrl:String eg: https://github.com/kubernetes-sigs/kind/releases/download/@latestVersion@/kind-linux-amd64
-# @exitcode 1 if no matching repo found in provided url, 0 otherwise
-# @stdout the repo in the form owner/repo
-Github::extractRepoFromGithubUrl() {
-  local githubUrl="$1"
-  local result
-  result="$(sed -n -E 's#^https://github.com/([^/]+/[^/]+)/.*$#\1#p' <<<"${githubUrl}")"
-  if [[ -z "${result}" ]]; then
-    return 1
-  fi
-  echo "${result}"
-}
-
-# @description Retrieve the latest version number of a github release using Github API using retry
-# repo arg with fchastanet/bash-tools value would match https://github.com/fchastanet/bash-tools
-# @arg $1 repo:String repository in the format fchastanet/bash-tools
-# @arg $2 resultRef:&String reference to a variable that will contain the result of the command
-# @stdout log messages about retry
-Github::getLatestRelease() {
-  local repo="$1"
-  # we need to pass the result through a reference instead of output directly
-  # because retry can output too
-  local -n resultRef=$2
-  resultRef=""
-  local resultFile
-  resultFile="$(mktemp -p "${TMPDIR:-/tmp}" -t githubLatestRelease.XXXX)"
-  # Get latest release from GitHub api
-  if Retry::default curl \
-    -L \
-    -o "${resultFile}" \
-    --fail \
-    --silent \
-    "https://api.github.com/repos/${repo}/releases/latest"; then
-    # shellcheck disable=SC2034
-    resultRef="$(Version::githubApiExtractVersion <"${resultFile}")"
-    return 0
-  fi
-  # display curl result in case of failure
-  cat >&2 "${resultFile}"
-  rm -f "${resultFile}"
-}
-
 # @description check if function is empty
 # @arg $1 function:Function
 # @exitcode 0 if
@@ -1642,6 +1417,16 @@ Version::compare() {
     fi
   done
   return 0
+}
+
+# @description filter to keep only version number from a string
+# @arg $@ files:String[] the files to filter
+# @exitcode * if one of the filter command fails
+# @stdin you can use stdin as alternative to files argument
+# @stdout the filtered content
+# shellcheck disable=SC2120
+Version::parse() {
+  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
 }
 
 # @description ensure linux distribution is ubuntu
@@ -2004,23 +1789,6 @@ UI::textLine() {
   printf '%*s\n' "${remainingWidth}" '' | tr ' ' "${character}"
 }
 
-# @description extract version number from github api
-# @noargs
-# @stdin json result of github API
-# @exitcode 1 if jq or Version::parse fails
-# @stdout the version parsed
-# @require Linux::requireJqCommand
-Version::githubApiExtractVersion() {
-  jq -r ".tag_name"
-}
-
-# @description ensure command git is available
-# @exitcode 1 if git command not available
-# @stderr diagnostics information is displayed
-Git::requireGitCommand() {
-  Assert::commandExists git
-}
-
 # @description check if argument respects this framework variable naming convention
 # - if variable begins with an uppercase or underscore, following letters have to be uppercase or underscore
 # - variable name can includes ':' or '_' or digits but not as first letter
@@ -2184,13 +1952,6 @@ Linux::Wsl::requireWsl() {
   fi
 }
 
-# @description ensure command jq is available
-# @exitcode 1 if jq command not available
-# @stderr diagnostics information is displayed
-Linux::requireJqCommand() {
-  Assert::commandExists jq
-}
-
 # @description delete files older than n days in given path
 # @warning use this function with caution as it will delete all files in given path without any prompt
 # @arg $1 path:String the directory in which files will be deleted or the file to delete
@@ -2271,15 +2032,13 @@ Log::logSuccess() {
 
 # FUNCTIONS
 
-facade_main_Fzfsh() {
+facade_main_Phpsh() {
 # REQUIRES
 Linux::requireUbuntu
 Env::requireLoad
 UI::requireTheme
-Git::requireGitCommand
 Log::requireLoad
 Linux::Wsl::requireWsl
-Linux::requireJqCommand
 Compiler::Facade::requireCommandBinDir
 
 if Assert::functionExists initFacade; then
@@ -3010,7 +2769,7 @@ installScriptCommand() {
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
     echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Fzf.sh'
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Php.sh'
     echo
     echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
     echo 'MIT License'
@@ -3049,11 +2808,11 @@ helpLongDescriptionCallback() {
 }
 
 scriptName() {
-  echo "Fzf"
+  echo "Php"
 }
 
 helpDescription() {
-  echo "Fzf"
+  echo "Php"
 }
 
 dependencies() { :; }
@@ -3061,69 +2820,36 @@ helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
+fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 
-fortunes() {
-  if command -v bat &>/dev/null; then
-    fortunes+=("Fzf -- bat - Use bat command to pre-visualize one or multiple files")
-  fi
-
-  if command -v fzf &>/dev/null; then
-    fortunes+=("Fzf -- fzf - Use CTRL-T - Paste the selected file path(s) into the command line")
-    fortunes+=("Fzf -- fzf - Use CTRL-R - search command line from zsh/bash history")
-    fortunes+=("Fzf -- fzf - Use ALT-C - easily select sub directory of current directory")
-  fi
-
-  if command -v fd &>/dev/null; then
-    fortunes+=("Fzf -- fd -- fd is a program to find entries in your filesystem. It is a simple, fast and user-friendly alternative to find. While it does not aim to support all of find's powerful functionality, it provides sensible (opinionated) defaults for a majority of use cases. - https://github.com/sharkdp/fd")
-  fi
-
-}
-
 install() {
+  PACKAGES=(
+    php
+    php-curl
+    # needed by php code sniffer: php-mbstring
+    php-mbstring
+    # needed by composer : php-xml
+    php-xml
+  )
   Linux::Apt::update
-  Linux::Apt::install \
-    tree # tree command is used by some fzf key binding
-
-  Log::displayInfo "install fzf"
-  SUDO=sudo Git::cloneOrPullIfNoChanges \
-    "/opt/fzf" \
-    "https://github.com/junegunn/fzf.git"
-
-  sudo /opt/fzf/install --bin
-  sudo ln -sf /opt/fzf/bin/fzf /usr/local/bin/fzf
-
-  # shellcheck disable=SC2317
-  function installDeb() {
-    sudo dpkg -i "$1"
-  }
-  export -f installDeb
-
-  # shellcheck disable=SC2154
-  SUDO=sudo Github::upgradeRelease \
-    "/usr/bin/fd" \
-    "https://github.com/sharkdp/fd/releases/download/v@latestVersion@/fd_@latestVersion@_amd64.deb" \
-    --version \
-    Version::getCommandVersionFromPlainText \
-    installDeb \
-    Version::parse
-
-  SUDO=sudo Github::upgradeRelease \
-    "/usr/bin/bat" \
-    "https://github.com/sharkdp/bat/releases/download/v@latestVersion@/bat_@latestVersion@_amd64.deb" \
-    --version \
-    Version::getCommandVersionFromPlainText \
-    installDeb \
-    Version::parse
+  Linux::Apt::install "${PACKAGES[@]}"
 }
 
+checkPhpModuleExists() {
+  if ! php -m | grep -q "$1"; then
+    Log::displayError "Php module $1 not found"
+    return 1
+  fi
+  Log::displayInfo "Php module $1 is installed"
+}
 testInstall() {
   local -i failures=0
-  Version::checkMinimal "fd" --version "8.4.0" || ((++failures))
-  Version::checkMinimal "fzf" --version "0.44.1" || ((++failures))
-  Version::checkMinimal "bat" --version "0.22.1" || ((++failures))
-
+  Version::checkMinimal "php" --version "7.4.3" || ((++failures))
+  checkPhpModuleExists curl || ((++failures))
+  checkPhpModuleExists mbstring || ((++failures))
+  checkPhpModuleExists xml || ((++failures))
   return "${failures}"
 }
 
@@ -3187,4 +2913,4 @@ esac
 exit 0
 }
 
-facade_main_Fzfsh "$@"
+facade_main_Phpsh "$@"
