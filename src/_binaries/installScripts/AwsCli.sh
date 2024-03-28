@@ -14,7 +14,10 @@ helpDescription() {
   echo "AwsCli"
 }
 
-dependencies() { :; }
+dependencies() {
+  echo "Xvsb"
+}
+
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }

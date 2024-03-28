@@ -112,6 +112,7 @@ wslu
 Wslu
 wslvar
 xcalc
+xdpyinfo
 xfonts
 xlaunch
 xming
