@@ -28,6 +28,7 @@ listVariables() {
   echo "USERGROUP"
 }
 
+# jscpd:ignore-start
 helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
@@ -36,6 +37,7 @@ breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 install() { :; }
 testInstall() { :; }
+# jscpd:ignore-end
 
 configure() {
   # install default configuration
@@ -77,7 +79,7 @@ configure() {
 
 testConfigure() {
   local -i failures=0
-  
+
   Assert::fileExists "${USER_HOME}/.aws/config" "${USERNAME}" "${USERGROUP}" || ((++failures))
 
   if grep -q -E -e "azure_default_username=.+$" "${USER_HOME}/.aws/config"; then

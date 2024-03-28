@@ -14,7 +14,7 @@ helpDescription() {
   echo "Tig"
 }
 
-fortunes() { 
+fortunes() {
   fortunes+=("Tig - use 'tig' command to browse git repository's logs")
 }
 

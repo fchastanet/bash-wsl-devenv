@@ -8,7 +8,6 @@
 # EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/GitConfig/.tigrc" as tigrc
 # EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/GitConfig/.config/git" as dot_config_dir
 
-
 declare -a filesToInstall=(
   gitconfig
   gitignore
@@ -24,14 +23,15 @@ helpDescription() {
   echo "GitConfig"
 }
 
-dependencies() { 
+dependencies() {
   echo "Tig"
 }
 
-fortunes() { 
+fortunes() {
   fortunes+=("GitConfig - default main branch is set to $(git config --global --get init.defaultBranch) set in your ~/.gitconfig")
 }
 
+# jscpd:ignore-start
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
@@ -40,6 +40,7 @@ breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 install() { :; }
 testInstall() { :; }
+# jscpd:ignore-end
 
 configure() {
   OVERWRITE_CONFIG_FILES=0 Conf::installFromEmbed "GitConfig" "${filesToInstall[@]}" || return 1

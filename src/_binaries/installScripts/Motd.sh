@@ -33,5 +33,5 @@ install() {
 }
 
 testInstall() { :; }
-configure() { :; } 
+configure() { :; }
 testConfigure() { :; }

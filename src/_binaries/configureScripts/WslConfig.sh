@@ -15,6 +15,7 @@ helpDescription() {
   echo "WslConfig"
 }
 
+# jscpd:ignore-start
 dependencies() { :; }
 helpVariables() { :; }
 listVariables() { :; }
@@ -25,6 +26,7 @@ breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 install() { :; }
 testInstall() { :; }
+# jscpd:ignore-end
 
 configure() {
   sudo hostnamectl set-hostname "${DISTRO_HOSTNAME}"
@@ -37,7 +39,6 @@ configure() {
       "${fileToInstall}" "/etc/wsl.conf" root root "Install::setUserRootCallback"
   fi
 }
-
 
 testConfigure() {
   local -i failures=0

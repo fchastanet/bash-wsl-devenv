@@ -19,5 +19,5 @@ Engine::Config::installBashDevEnv() {
   fileToInstall="$(Conf::dynamicConfFile "home/.bash-dev-env" "${embed_file_updateEnv}")" || return 1
   OVERWRITE_CONFIG_FILES=1 Install::file \
     "${fileToInstall}" "${USER_HOME}/.bash-dev-env" \
-    "${USERNAME}" "${USERGROUP}" bashDevEnvConfig  
+    "${USERNAME}" "${USERGROUP}" bashDevEnvConfig
 }

@@ -38,11 +38,13 @@ fortunes() {
   fi
 }
 
+# jscpd:ignore-start
 helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+# jscpd:ignore-end
 
 install() {
   # @see https://github.com/fchastanet/my-documents/blob/master/HowTo/Saml2Aws.md

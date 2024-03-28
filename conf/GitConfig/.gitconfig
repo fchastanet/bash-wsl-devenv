@@ -5,7 +5,7 @@
 [gc]
 
 [include]
-    path = ~/.bash-tools/.gitconfig
+  path = ~/.bash-tools/.gitconfig
 
 # @see https://www.durdn.com/blog/2012/11/22/must-have-git-aliases-advanced-examples/
 [alias]
@@ -67,4 +67,4 @@
   default = current
 
 [pull]
-	ff = only
+  ff = only

@@ -15,7 +15,7 @@ helpDescription() {
   echo "Composer"
 }
 
-dependencies() { 
+dependencies() {
   echo "Php"
 }
 
@@ -34,7 +34,7 @@ install() {
   else
     # install composer last version
     (
-      trap 'rm -f composer-setup.php || true' EXIT 
+      trap 'rm -f composer-setup.php || true' EXIT
       cd /tmp || exit 1
       EXPECTED_CHECKSUM="$(php -r 'copy("https://composer.github.io/installer.sig", "php://stdout");')"
       php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"

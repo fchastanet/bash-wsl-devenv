@@ -52,5 +52,4 @@ configure() {
   fi
 }
 
-
 testConfigure() { :; }

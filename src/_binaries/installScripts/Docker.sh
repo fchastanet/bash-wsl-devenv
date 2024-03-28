@@ -19,6 +19,7 @@ dependencies() {
   echo "WslConfig"
 }
 
+# jscpd:ignore-start
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
@@ -26,6 +27,7 @@ checkVariables() { :; }
 fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+# jscpd:ignore-end
 
 # REQUIRE Linux::requireUbuntu
 # REQUIRE Linux::requireExecutedAsUser

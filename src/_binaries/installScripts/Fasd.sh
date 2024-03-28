@@ -14,6 +14,7 @@ helpDescription() {
   echo "Fasd"
 }
 
+# jscpd:ignore-start
 dependencies() { :; }
 helpVariables() { :; }
 listVariables() { :; }
@@ -21,6 +22,7 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+# jscpd:ignore-end
 
 fortunes() {
   if command -v fasd &>/dev/null; then

@@ -40,7 +40,7 @@ InstallScripts::command() {
     (
       startDate="$(date +%s)"
       trap 'Stats::computeStatsTrap "Installation ${scriptName}" "${logFile}" "${statsFile}" "${startDate}"' EXIT INT TERM ABRT
-      
+
       local -i failures=0
       sourceHook preInstall || ((++failures))
       install || ((++failures))
@@ -50,7 +50,7 @@ InstallScripts::command() {
   fi
 
   local testInstallStatus="0"
-  if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" ]] && 
+  if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" ]] &&
     ! InstallScripts::scriptFunctionEmpty testInstall; then
     Log::headLine "TEST    - Testing ${scriptName} installation"
     logFile="${logsDir}/${scriptName}-test-install.log"

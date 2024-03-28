@@ -14,11 +14,12 @@ helpDescription() {
   echo "DefaultKubeConfig"
 }
 
-dependencies() { 
+dependencies() {
   echo "Kubectx"
   echo "Kubeps1"
 }
 
+# jscpd:ignore-start
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
@@ -28,6 +29,7 @@ breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 install() { :; }
 testInstall() { :; }
+# jscpd:ignore-end
 
 configure() {
   mkdir -p "${USER_HOME}/.bash_completion.d" || true

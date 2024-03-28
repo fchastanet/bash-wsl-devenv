@@ -14,6 +14,7 @@ helpDescription() {
   echo "Fzf"
 }
 
+# jscpd:ignore-start
 dependencies() { :; }
 helpVariables() { :; }
 listVariables() { :; }
@@ -21,6 +22,7 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+# jscpd:ignore-end
 
 fortunes() {
   if command -v bat &>/dev/null; then

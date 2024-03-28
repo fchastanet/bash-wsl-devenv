@@ -36,7 +36,7 @@ install() {
   Linux::Apt::update
   Linux::Apt::install \
     shellcheck
-  
+
   Log::displayInfo "Installing python dependencies shfmt-py"
   if [[ -f "${USER_HOME}/.virtualenvs/python3.9/bin/activate" ]]; then
     # shellcheck source=/dev/null

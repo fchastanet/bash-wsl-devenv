@@ -18,6 +18,7 @@ dependencies() {
   echo "Java"
 }
 
+# jscpd:ignore-start
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
@@ -25,6 +26,7 @@ checkVariables() { :; }
 fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+# jscpd:ignore-end
 
 plantumlVersion() {
   java -jar /opt/java/plantuml.jar -version | head -1 | Version::parse

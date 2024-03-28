@@ -87,11 +87,11 @@ configureUpdateCron() {
       local -a cmd=(
         CAN_TALK_DURING_INSTALLATION=0
         INSTALL_INTERACTIVE=0
-        sudo 
+        sudo
         -i -n
         -u "${USERNAME}"
-        "${BASH_DEV_ENV_ROOT_DIR}/install" 
-        -p "${PROFILE}" 
+        "${BASH_DEV_ENV_ROOT_DIR}/install"
+        -p "${PROFILE}"
         --skip-configure --skip-test
       )
       sudo sed -i -E -e "s#@COMMAND@#(cd '${BASH_DEV_ENV_ROOT_DIR}' \&\& ${cmd[*]} \&>'${BASH_DEV_ENV_ROOT_DIR}/logs/upgrade-job.log')#" "/etc/cron.d/bash-dev-env-upgrade"

@@ -28,7 +28,7 @@ install() {
   if [[ ! -d "${USER_HOME}/n" ]]; then
     # -y avoid interactive
     # -n no automatic bash profile install
-    Retry::default curl --fail -L https://git.io/n-install | 
+    Retry::default curl --fail -L https://git.io/n-install |
       N_PREFIX="${USER_HOME}/n" bash -s -- -y -n latest
   else
     # update node

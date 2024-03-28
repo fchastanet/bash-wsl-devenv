@@ -32,7 +32,6 @@ install() {
   sudo ln -sf /opt/kubectx/kubens /usr/local/bin/kubens
 }
 
-
 testInstall() {
   local -i failures=0
   Assert::commandExists kubectx || ((++failures))

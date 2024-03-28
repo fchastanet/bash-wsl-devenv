@@ -14,6 +14,7 @@ helpDescription() {
   echo "Oq"
 }
 
+# jscpd:ignore-start
 dependencies() { :; }
 helpVariables() { :; }
 listVariables() { :; }
@@ -22,6 +23,7 @@ checkVariables() { :; }
 fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+# jscpd:ignore-end
 
 oqParseVersion() {
   grep "oq" | Version::parse
