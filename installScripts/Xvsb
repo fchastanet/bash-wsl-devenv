@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/AwsCli.sh
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Xvsb.sh
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
 # shellcheck disable=SC2288,SC2034
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/AwsCli
+# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Xvsb
 
 # ensure that no user aliases could interfere with
 # commands used in this script
@@ -562,6 +562,27 @@ InstallScripts::command() {
   fi
 }
 
+# @description apt-get install
+# @arg $@ softwares:String[] list of softwares to install
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::install() {
+  Log::displayInfo "Apt install $*"
+  Retry::default sudo apt-get install -y -q "$@"
+}
+
+# @description update apt packages list
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::update() {
+  Log::displayInfo "Apt update ..."
+  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
+}
+
 # @description Log namespace provides 2 kind of functions
 # - Log::display* allows to display given message with
 #   given display level
@@ -639,15 +660,6 @@ Log::displayInfo() {
   Log::logInfo "$1" "${type}"
 }
 
-# @description Display message using skip color (yellow)
-# @arg $1 message:String the message to display
-Log::displaySkipped() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logSkipped "$1"
-}
-
 # @description Display message using warning color (yellow)
 # @arg $1 message:String the message to display
 Log::displayWarning() {
@@ -708,14 +720,6 @@ Log::requireLoad() {
       Log::rotate "${BASH_FRAMEWORK_LOG_FILE}" "${BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION}"
     fi
   fi
-}
-
-# @description Retry a command 5 times with a delay of 15 seconds between each attempt
-# @arg $@ command:String[] the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-Retry::default() {
-  Retry::parameterized 5 15 "" "$@"
 }
 
 # @description draw a line with the character passed in parameter repeated depending on terminal width
@@ -805,48 +809,6 @@ UI::theme() {
   fi
 }
 
-# @description Check that command version is greater than expected minimal version
-# display warning if command version greater than expected minimal version
-# display error if command version less than expected minimal version and exit 1
-# @arg $1 commandName:String command path
-# @arg $2 argVersion:String command line parameters to launch to get command version
-# @arg $3 minimalVersion:String expected minimal command version
-# @arg $4 parseVersionCallback:Function
-# @arg $5 help:String optional help message to display if command does not exist
-# @exitcode 0 if command version greater or equal to expected minimal version
-# @exitcode 1 if command version less than expected minimal version
-# @exitcode 2 if command does not exist
-Version::checkMinimal() {
-  local commandName="$1"
-  local argVersion="$2"
-  local minimalVersion="$3"
-  local parseVersionCallback=${4:-Version::parse}
-  local help="${5:-}"
-
-  Assert::commandExists "${commandName}" "${help}" || return 2
-
-  # shellcheck disable=SC2034
-  local status=0
-  # shellcheck disable=SC2034
-  local -a pipeStatus=()
-  local version
-  version="$("${commandName}" "${argVersion}" 2>&1 | ${parseVersionCallback} || Bash::handlePipelineFailure status pipeStatus)"
-
-  Log::displayDebug "check ${commandName} version ${version} against minimal ${minimalVersion}"
-
-  Version::compare "${version}" "${minimalVersion}" || {
-    local result=$?
-    if [[ "${result}" = "1" ]]; then
-      Log::displayDebug "${commandName} version is ${version} greater than ${minimalVersion}, OK let's continue"
-    elif [[ "${result}" = "2" ]]; then
-      Log::displayError "${commandName} minimal version is ${minimalVersion}, your version is ${version}"
-      return 1
-    fi
-    return 0
-  }
-
-}
-
 # @description ensure COMMAND_BIN_DIR env var is set
 # and PATH correctly prepared
 # @noargs
@@ -855,28 +817,6 @@ Version::checkMinimal() {
 Compiler::Facade::requireCommandBinDir() {
   COMMAND_BIN_DIR="${CURRENT_DIR}"
   Env::pathPrepend "${COMMAND_BIN_DIR}"
-}
-
-# @description check if command specified exists or return 1
-# with error and message if not
-#
-# @arg $1 commandName:String on which existence must be checked
-# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
-#
-# @exitcode 1 if the command specified does not exist
-# @stderr diagnostic information + help if second argument is provided
-Assert::commandExists() {
-  local commandName="$1"
-  local helpIfNotExists="$2"
-
-  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
-    Log::displayError "${commandName} is not installed, please install it"
-    if [[ -n "${helpIfNotExists}" ]]; then
-      Log::displayInfo "${helpIfNotExists}"
-    fi
-    return 1
-  }
-  return 0
 }
 
 # @description check if tty (interactive mode) is active
@@ -893,36 +833,6 @@ Assert::tty() {
   fi
   # check if stdout or stderr is connected to terminal
   [[ -t 1 || -t 2 ]]
-}
-
-# @description ignore exit code 141 from simple command pipes
-# @example use with:
-#   local resultingStatus=0
-#   local -a originalPipeStatus=()
-#   cmd1 | cmd2 || Bash::handlePipelineFailure resultingStatus originalPipeStatus || true
-#   [[ "${resultingStatus}" = "0" ]]
-# @arg $1 resultingStatusCode:&int (passed by reference) (optional) resulting status code
-# @arg $2 originalStatus:int[] (passed by reference) (optional) copy of original PIPESTATUS array
-# @env PIPESTATUS assuming that this function is called like in the example provided
-# @see https://unix.stackexchange.com/a/709880/582856
-Bash::handlePipelineFailure() {
-  local -a pipeStatusBackup=("${PIPESTATUS[@]}")
-  local -n handlePipelineFailure_resultingStatusCode=$1
-  local -n handlePipelineFailure_originalStatus=$2
-  # shellcheck disable=SC2034
-  handlePipelineFailure_originalStatus=("${pipeStatusBackup[@]}")
-  handlePipelineFailure_resultingStatusCode=0
-  local statusCode
-  for statusCode in "${pipeStatusBackup[@]}"; do
-    if ((statusCode == 141)); then
-      return 0
-    elif ((statusCode > 0)); then
-      # shellcheck disable=SC2034
-      handlePipelineFailure_resultingStatusCode="${statusCode}"
-      break
-    fi
-  done
-  return "${handlePipelineFailure_resultingStatusCode}"
 }
 
 # @description select right file to load depending if file exists in this order:
@@ -1329,14 +1239,6 @@ Log::logMessage() {
 
 # @description log message to file
 # @arg $1 message:String the message to display
-Log::logSkipped() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SKIPPED}" "$1"
-  fi
-}
-
-# @description log message to file
-# @arg $1 message:String the message to display
 Log::logWarning() {
   if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_WARNING)); then
     Log::logMessage "${2:-WARNING}" "$1"
@@ -1365,41 +1267,12 @@ Log::rotate() {
   fi
 }
 
-# @description Retry a command several times depending on parameters
-# @arg $1 maxRetries:int    $1 max retries
-# @arg $2 delay:int between attempt
-# @arg $3 message:String to display to describe the attempt
-# @arg $@ rest of parameters, the command to run
+# @description Retry a command 5 times with a delay of 15 seconds between each attempt
+# @arg $@ command:String[] the command to run
 # @exitcode 0 on success
 # @exitcode 1 if max retries count reached
-# @exitcode 2 if maxRetries invalid value
-Retry::parameterized() {
-  local maxRetries=$1
-  shift || true
-  local delayBetweenTries=$1
-  shift || true
-  local message="$1"
-  shift || true
-  local retriesCount=1
-  if [[ "${maxRetries}" -lt 1 ]]; then
-    Log::displayError "invalid maxRetry value"
-    return 2
-  fi
-
-  while true; do
-    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
-    if "$@"; then
-      break
-    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
-      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
-      ((retriesCount++))
-      sleep "${delayBetweenTries}"
-    else
-      Log::displayError "The command has failed after ${retriesCount} attempts."
-      return 1
-    fi
-  done
-  return 0
+Retry::default() {
+  Retry::parameterized 5 15 "" "$@"
 }
 
 # @description trap function responsible to compute and display stats after each script execution
@@ -1420,46 +1293,12 @@ Stats::computeStatsTrap() {
   return "${status}"
 }
 
-# @description compare 2 version numbers
-# @arg $1 version1:String version 1
-# @arg $2 version2:String version 2
-# @exitcode 0 if equal
-# @exitcode 1 if version1 > version2
-# @exitcode 2 else
-Version::compare() {
-  if [[ "$1" = "$2" ]]; then
-    return 0
+# @description ensure linux distribution is ubuntu
+# @exitcode 1 if linux distribution is not ubuntu
+Linux::requireUbuntu() {
+  if ! Array::contains "$(Linux::getDistributorId)" "Ubuntu" "Debian"; then
+    Log::fatal "this script should be executed under Ubuntu or Debian OS"
   fi
-  local IFS=.
-  # shellcheck disable=2206
-  local i ver1=($1) ver2=($2)
-  # fill empty fields in ver1 with zeros
-  for ((i = ${#ver1[@]}; i < ${#ver2[@]}; i++)); do
-    ver1[i]=0
-  done
-  for ((i = 0; i < ${#ver1[@]}; i++)); do
-    if [[ -z "${ver2[i]+unset}" ]] || [[ -z ${ver2[i]} ]]; then
-      # fill empty fields in ver2 with zeros
-      ver2[i]=0
-    fi
-    if ((10#${ver1[i]} > 10#${ver2[i]})); then
-      return 1
-    fi
-    if ((10#${ver1[i]} < 10#${ver2[i]})); then
-      return 2
-    fi
-  done
-  return 0
-}
-
-# @description filter to keep only version number from a string
-# @arg $@ files:String[] the files to filter
-# @exitcode * if one of the filter command fails
-# @stdin you can use stdin as alternative to files argument
-# @stdout the filtered content
-# shellcheck disable=SC2120
-Version::parse() {
-  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
 }
 
 # @description load color theme
@@ -1626,27 +1465,6 @@ Install::file() {
   fi
 }
 
-# @description apt-get install
-# @arg $@ softwares:String[] list of softwares to install
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::install() {
-  Log::displayInfo "Apt install $*"
-  Retry::default sudo apt-get install -y -q "$@"
-}
-
-# @description update apt packages list
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::update() {
-  Log::displayInfo "Apt update ..."
-  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
-}
-
 # @description retrieve path from wslvar and then use wslpath to resolve it
 # using cache (cache is refreshed every day)
 # @arg $1 var:String the var to retrieve using wslvar
@@ -1676,6 +1494,60 @@ Linux::Wsl::cachedWslvar() {
   tempEnvFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslvar_$(id -un)"
 
   Cache::getPropertyValue "${tempEnvFile}" "$1" Linux::Wsl::originalWslvar "$@"
+}
+
+# @description retrieve linux distributor id
+# @noargs
+# @exitcode 1 if lsb_release fails or not found
+# @stdout the linux distributor id
+Linux::getDistributorId() {
+  lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
+}
+
+# @description Display message using skip color (yellow)
+# @arg $1 message:String the message to display
+Log::displaySkipped() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    echo -e "${__SKIPPED_COLOR}SKIPPED - ${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logSkipped "$1"
+}
+
+# @description Retry a command several times depending on parameters
+# @arg $1 maxRetries:int    $1 max retries
+# @arg $2 delay:int between attempt
+# @arg $3 message:String to display to describe the attempt
+# @arg $@ rest of parameters, the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+# @exitcode 2 if maxRetries invalid value
+Retry::parameterized() {
+  local maxRetries=$1
+  shift || true
+  local delayBetweenTries=$1
+  shift || true
+  local message="$1"
+  shift || true
+  local retriesCount=1
+  if [[ "${maxRetries}" -lt 1 ]]; then
+    Log::displayError "invalid maxRetry value"
+    return 2
+  fi
+
+  while true; do
+    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
+    if "$@"; then
+      break
+    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
+      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
+      ((retriesCount++))
+      sleep "${delayBetweenTries}"
+    else
+      Log::displayError "The command has failed after ${retriesCount} attempts."
+      return 1
+    fi
+  done
+  return 0
 }
 
 # @description extract stats form log
@@ -1922,11 +1794,11 @@ Log::displaySuccess() {
   Log::logSuccess "$1"
 }
 
-# @description ensure linux distribution is ubuntu
-# @exitcode 1 if linux distribution is not ubuntu
-Linux::requireUbuntu() {
-  if ! Array::contains "$(Linux::getDistributorId)" "Ubuntu" "Debian"; then
-    Log::fatal "this script should be executed under Ubuntu or Debian OS"
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logSkipped() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SKIPPED}" "$1"
   fi
 }
 
@@ -2014,14 +1886,6 @@ Linux::Wsl::originalWslpath() {
   wslpath "$@"
 }
 
-# @description retrieve linux distributor id
-# @noargs
-# @exitcode 1 if lsb_release fails or not found
-# @stdout the linux distributor id
-Linux::getDistributorId() {
-  lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
-}
-
 # @description log message to file
 # @arg $1 message:String the message to display
 Log::logSuccess() {
@@ -2032,12 +1896,12 @@ Log::logSuccess() {
 
 # FUNCTIONS
 
-facade_main_AwsClish() {
+facade_main_Xvsbsh() {
 # REQUIRES
+Linux::requireUbuntu
 Env::requireLoad
 UI::requireTheme
 Log::requireLoad
-Linux::requireUbuntu
 Linux::Wsl::requireWsl
 Compiler::Facade::requireCommandBinDir
 
@@ -2769,7 +2633,7 @@ installScriptCommand() {
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
     echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/AwsCli.sh'
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Xvsb.sh'
     echo
     echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
     echo 'MIT License'
@@ -2808,57 +2672,60 @@ helpLongDescriptionCallback() {
 }
 
 scriptName() {
-  echo "AwsCli"
-}
-
-helpDescription() {
-  echo "AwsCli"
-}
-
-dependencies() {
   echo "Xvsb"
 }
 
+helpDescription() {
+  echo "Xvsb"
+}
+
+dependencies() { :; }
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
+fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 
-fortunes() {
-  if ! command -v aws &>/dev/null; then
-    echo "aws -- AwsCli not installed - install it using '${BASH_DEV_ENV_ROOT_DIR}/installScripts/AwsCli'"
-  fi
-}
-
 install() {
-  # install aws-cli
-  if [[ -f "/usr/local/bin/aws" && -z "$(find /usr/local/bin/aws -mtime +6)" ]]; then
-    Log::displaySkipped "aws-cli installed as binary not older than 6 days"
-    exit 0
-  fi
+  # use to launch headless chrome (used by aws cli)
+  # https://stackoverflow.com/a/61043049/3045926
+  # Install Xvfb
+  Linux::Apt::update
+  Linux::Apt::install \
+    xvfb
 
-  (
-    cd /tmp || exit 1
-    rm -Rf ./aws
-    Retry::default curl \
-      --fail \
-      -o "awscli.zip" \
-      "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
-    unzip -o awscli.zip >/dev/null
-    if [[ -f /usr/local/bin/aws ]]; then
-      sudo ./aws/install --install-dir /usr/local/aws-cli --bin-dir /usr/local/bin --update
-    else
-      sudo ./aws/install --install-dir /usr/local/aws-cli --bin-dir /usr/local/bin
-    fi
-    rm -Rf ./aws
-    rm -f awscli.zip
-  )
+  # Dependencies to make "headless" chrome
+  Linux::Apt::install \
+    gtk2-engines-pixbuf \
+    xorg \
+    xvfb
+
+  Linux::Apt::install \
+    dbus-x11 \
+    xfonts-100dpi \
+    xfonts-75dpi \
+    xfonts-base \
+    xfonts-cyrillic \
+    xfonts-scalable
 }
 
 testInstall() {
-  Version::checkMinimal "aws" --version "2.13.32" || return 1
+  local -i failures=0
+  Log::displayInfo "Check if xvfb is installed"
+  sudo apt-cache show xvfb &>/dev/null || {
+    Log::displayError "xvfb not installed"
+    ((++failures))
+  }
+  Log::displayInfo "Check if xvfb is running"
+  local xdpyinfoResult
+  # capture only stderr: 3>&1 1>/dev/null 2>&3
+  xdpyinfoResult="$(xdpyinfo -display :0 3>&1 1>/dev/null 2>&3)" || {
+    Log::displayError "xdpyinfo returned that error : ${xdpyinfoResult}"
+    ((++failures))
+  }
+  return "${failures}"
 }
 
 configure() { :; }
@@ -2921,4 +2788,4 @@ esac
 exit 0
 }
 
-facade_main_AwsClish "$@"
+facade_main_Xvsbsh "$@"
