@@ -16,10 +16,7 @@ helpDescription() {
   echo "MandatorySoftwares"
 }
 
-dependencies() {
-  echo "WslConfig"
-}
-
+dependencies() { :; }
 fortunes() { :; }
 helpVariables() { :; }
 listVariables() { :; }

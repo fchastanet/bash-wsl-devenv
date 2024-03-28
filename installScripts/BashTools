@@ -474,7 +474,7 @@ EOF
 # @description load .env file
 # @arg $1 envFile:String the file to load
 Engine::Config::loadConfig() {
-  if [[ "${BASH_DEV_ENV_CONFIG_LOADED:-}" = "1" ]]; then
+  if [[ "${BASH_DEV_ENV_CONFIG_LOADED:-0}" = "1" ]]; then
     return 0
   fi
   local envFile="${BASH_DEV_ENV_ROOT_DIR}/.env"
@@ -649,7 +649,7 @@ InstallScripts::command() {
   }
   local hook
   if [[ "${SKIP_INSTALL}" = "0" ]] && ! InstallScripts::scriptFunctionEmpty install; then
-    Log::headLine "INSTALL - Installing ${scriptName}"
+    Log::headLine "INSTALL" "Installing ${scriptName}"
     logFile="${logsDir}/${scriptName}-install.log"
     statsFile="${logsDir}/${scriptName}-install.stat"
 
@@ -669,7 +669,7 @@ InstallScripts::command() {
   local testInstallStatus="0"
   if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" ]] &&
     ! InstallScripts::scriptFunctionEmpty testInstall; then
-    Log::headLine "TEST    - Testing ${scriptName} installation"
+    Log::headLine "TEST" "Testing ${scriptName} installation"
     logFile="${logsDir}/${scriptName}-test-install.log"
     statsFile="${logsDir}/${scriptName}-test-install.stat"
     (
@@ -691,7 +691,7 @@ InstallScripts::command() {
   local configStatus="0"
   if [[ "${SKIP_CONFIGURE}" = "0" && "${installStatus}" = "0" ]] &&
     ! InstallScripts::scriptFunctionEmpty configure; then
-    Log::headLine "CONFIG  - Configuring ${scriptName}"
+    Log::headLine "CONFIG" "Configuring ${scriptName}"
     logFile="${logsDir}/${scriptName}-config.log"
     statsFile="${logsDir}/${scriptName}-config.stat"
     (
@@ -714,7 +714,7 @@ InstallScripts::command() {
   local testConfigStatus="0"
   if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" && "${configStatus}" = "0" ]] &&
     ! InstallScripts::scriptFunctionEmpty configure; then
-    Log::headLine "TEST    - Testing ${scriptName} configuration"
+    Log::headLine "TEST" "Testing ${scriptName} configuration"
     logFile="${logsDir}/${scriptName}-test-configuration.log"
     statsFile="${logsDir}/${scriptName}-test-configuration.stat"
     (
@@ -768,7 +768,8 @@ export __VERBOSE_LEVEL_TRACE=3
 # @arg $1 message:String the message to display
 Log::displayDebug() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_DEBUG)); then
-    echo -e "${__DEBUG_COLOR}DEBUG   - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__DEBUG_COLOR}DEBUG   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logDebug "$1"
 }
@@ -777,14 +778,11 @@ Log::displayDebug() {
 # @arg $1 message:String the message to display
 Log::displayError() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_ERROR)); then
-    echo -e "${__ERROR_COLOR}ERROR   - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__ERROR_COLOR}ERROR   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logError "$1"
 }
-
-FIRST_LOG_DATE="$(date '+%s%3N')"
-LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
-LOG_LAST_LOG_DATE_INIT=1
 
 # @description Display message using info color (bg light blue/fg white)
 # @arg $1 message:String the message to display
@@ -792,21 +790,8 @@ LOG_LAST_LOG_DATE_INIT=1
 Log::displayInfo() {
   local type="${2:-INFO}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    local durationMsg=""
-    if ((DISPLAY_DURATION == 1)); then
-      local duration
-      local -i currentLogDate
-      currentLogDate="$(date '+%s%3N')"
-      if ((LOG_LAST_LOG_DATE_INIT == 1)); then
-        LOG_LAST_LOG_DATE_INIT=0
-        duration="Ref"
-      else
-        duration="$(((currentLogDate - FIRST_LOG_DATE) / 1000))s/+$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000))s"
-      fi
-      LOG_LAST_LOG_DATE="${currentLogDate}"
-      durationMsg="$(date '+%H:%M:%S.%3N')(${duration}) - "
-    fi
-    echo -e "${__INFO_COLOR}${type}    - ${durationMsg}${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__INFO_COLOR}${type}    - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logInfo "$1" "${type}"
 }
@@ -815,7 +800,8 @@ Log::displayInfo() {
 # @arg $1 message:String the message to display
 Log::displayWarning() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
-    echo -e "${__WARNING_COLOR}WARN    - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__WARNING_COLOR}WARN    - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logWarning "$1"
 }
@@ -823,7 +809,8 @@ Log::displayWarning() {
 # @description Display message using error color (red) and exit immediately with error status 1
 # @arg $1 message:String the message to display
 Log::fatal() {
-  echo -e "${__ERROR_COLOR}FATAL   - ${1}${__RESET_COLOR}" >&2
+  Log::computeDuration
+  echo -e "${__ERROR_COLOR}FATAL   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   Log::logFatal "$1"
   exit 1
 }
@@ -1422,11 +1409,44 @@ InstallScripts::scriptFunctionEmpty() {
   [[ "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} && "$(declare -f "$1" | sed '4q;d')" = "}" ]]
 }
 
+declare -g FIRST_LOG_DATE LOG_LAST_LOG_DATE LOG_LAST_LOG_DATE_INIT LOG_LAST_DURATION_STR
+FIRST_LOG_DATE="$(date '+%s%3N')"
+LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
+LOG_LAST_LOG_DATE_INIT=1
+LOG_LAST_DURATION_STR=""
+
+# @description Display message using info color (bg light blue/fg white)
+# @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+Log::computeDuration() {
+  if ((DISPLAY_DURATION == 1)); then
+    local -i duration=0
+    local -i delta=0
+    local -i currentLogDate
+    currentLogDate="$(date '+%s%3N')"
+    if ((LOG_LAST_LOG_DATE_INIT == 1)); then
+      LOG_LAST_LOG_DATE_INIT=0
+      LOG_LAST_DURATION_STR="Ref"
+    else
+      duration=$(((currentLogDate - FIRST_LOG_DATE) / 1000))
+      delta=$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000))
+      LOG_LAST_DURATION_STR="${duration}s/+${delta}s"
+    fi
+    LOG_LAST_LOG_DATE="${currentLogDate}"
+    # shellcheck disable=SC2034
+    LOG_LAST_DURATION_STR="$(date '+%H:%M:%S.%3N')(${LOG_LAST_DURATION_STR}) - "
+  else
+    # shellcheck disable=SC2034
+    LOG_LAST_DURATION_STR=""
+  fi
+}
+
 # @description Display message using success color (bg green/fg white)
 # @arg $1 message:String the message to display
 Log::displaySuccess() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    echo -e "${__SUCCESS_COLOR}SUCCESS - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__SUCCESS_COLOR}SUCCESS - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logSuccess "$1"
 }
@@ -1434,10 +1454,16 @@ Log::displaySuccess() {
 # @description Display given text on full line with TEST_COLOR style
 # @arg $1 text:String text to display
 Log::headLine() {
-  local text="$1"
-  local message
-  message="$(UI::textLine "${text}" " ")"
-  echo -e "${__TEST_COLOR}${message}${__RESET_COLOR}"
+  local type="$1"
+  local text="$2"
+  local message="${type}   - ${text}"
+  if [[ -z "${type}" ]]; then
+    message="${text}"
+  else
+    Log::computeDuration
+    message="$(printf '%-7s - %s%s' "${type}" "${LOG_LAST_DURATION_STR}" "${text}")"
+  fi
+  echo -e "${__TEST_COLOR}$(UI::textLine "${message}" " ")${__RESET_COLOR}" >&2
 }
 
 # @description log message to file
@@ -1824,7 +1850,8 @@ Linux::Wsl::cachedWslvar() {
 # @arg $1 message:String the message to display
 Log::displaySkipped() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logSkipped "$1"
 }
@@ -1902,7 +1929,7 @@ Stats::statusLine() {
   if [[ ! -f "${statFile}" ]]; then
     return 0
   fi
-
+  Log::computeDuration
   (
     # shellcheck source=src/Stats/logStats.example
     source "${statFile}" || exit 1
@@ -1912,15 +1939,15 @@ Stats::statusLine() {
     if [[ "${status}" = "0" ]]; then
       if [[ "${skipped}" = "0" ]]; then
         color="${__SUCCESS_COLOR}"
-        statusMsg="SUCCESS - ${msg} successful"
+        statusMsg="SUCCESS - ${LOG_LAST_DURATION_STR}${msg} successful"
       else
         color="${__SKIPPED_COLOR}"
-        statusMsg="SKIPPED - ${msg} skipped"
+        statusMsg="SKIPPED - ${LOG_LAST_DURATION_STR}${msg} skipped"
       fi
     elif [[ "${status}" = "-1" ]]; then
-      statusMsg="ABORTED - ${msg} not executed"
+      statusMsg="ABORTED - ${LOG_LAST_DURATION_STR}${msg} not executed"
     else
-      statusMsg="ERROR   - ${msg} in error"
+      statusMsg="ERROR   - ${LOG_LAST_DURATION_STR}${msg} in error"
     fi
     # overwrite final TEST line
     echo -e "${color}${statusMsg}${__RESET_COLOR}"
@@ -2234,11 +2261,12 @@ Retry::parameterized() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/bash_tools_conf" "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"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/bash_tools_conf" "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"
 
 declare -gx embed_dir_bash_tools_conf="${TMPDIR:-/tmp}/bash_tools_conf"
 
 facade_main_BashToolssh() {
+
 # REQUIRES
 Linux::requireTarCommand
 Env::requireLoad

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/githubReleaseScripts/Hadolint.sh
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/githubReleaseScripts/Fd.sh
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
 # shellcheck disable=SC2288,SC2034
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Hadolint
+# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Fd
 
 # ensure that no user aliases could interfere with
 # commands used in this script
@@ -618,6 +618,13 @@ InstallScripts::command() {
       exit "${testConfigStatus}"
     fi
   fi
+}
+
+# @description Install debian package (with .deb extension)
+# @arg $1 debFile:String
+Linux::installDeb() {
+  sudo dpkg -i "$1"
+  sudo rm -f "$1"
 }
 
 # @description Log namespace provides 2 kind of functions
@@ -2224,7 +2231,7 @@ Log::logSuccess() {
 
 # FUNCTIONS
 
-facade_main_Hadolintsh() {
+facade_main_Fdsh() {
 
 # REQUIRES
 Env::requireLoad
@@ -2963,7 +2970,7 @@ installScriptCommand() {
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
     echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/githubReleaseScripts/Hadolint.sh'
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/githubReleaseScripts/Fd.sh'
     echo
     echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
     echo 'MIT License'
@@ -3019,17 +3026,23 @@ testConfigure() { :; }
 # jscpd:ignore-end
 
 scriptName() {
-  echo "Hadolint"
+  echo "Fd"
+}
+
+fortunes() {
+  if command -v fd &>/dev/null; then
+    fortunes+=("Fd -- fd is a program to find entries in your filesystem. It is a simple, fast and user-friendly alternative to find. While it does not aim to support all of find's powerful functionality, it provides sensible (opinionated) defaults for a majority of use cases. - https://github.com/sharkdp/fd")
+  fi
 }
 
 install() {
-  SUDO=sudo Github::upgradeRelease \
-    "/usr/local/bin/hadolint" \
-    "https://github.com/hadolint/hadolint/releases/download/v@latestVersion@/hadolint-Linux-x86_64"
+  SUDO=sudo INSTALL_CALLBACK=Linux::installDeb Github::upgradeRelease \
+    "/usr/bin/fd" \
+    "https://github.com/sharkdp/fd/releases/download/v@latestVersion@/fd_@latestVersion@_amd64.deb"
 }
 
 testInstall() {
-  Version::checkMinimal "hadolint" --version "2.12.0" || return 1
+  Version::checkMinimal "fd" --version "8.4.0" || return 1
 }
 
 local action=$1
@@ -3089,4 +3102,4 @@ esac
 exit 0
 }
 
-facade_main_Hadolintsh "$@"
+facade_main_Fdsh "$@"

@@ -7,8 +7,9 @@ fi
 # Mandatory packages
 CONFIG_LIST+=(
   "ConformanceTest"
-  "Upgrade"
   "MandatorySoftwares"
+  "WslConfig"
+  "Upgrade"
 )
 
 # optional packages

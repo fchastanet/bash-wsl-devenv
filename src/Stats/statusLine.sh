@@ -7,7 +7,7 @@ Stats::statusLine() {
   if [[ ! -f "${statFile}" ]]; then
     return 0
   fi
-
+  Log::computeDuration
   (
     # shellcheck source=src/Stats/logStats.example
     source "${statFile}" || exit 1
@@ -17,15 +17,15 @@ Stats::statusLine() {
     if [[ "${status}" = "0" ]]; then
       if [[ "${skipped}" = "0" ]]; then
         color="${__SUCCESS_COLOR}"
-        statusMsg="SUCCESS - ${msg} successful"
+        statusMsg="SUCCESS - ${LOG_LAST_DURATION_STR}${msg} successful"
       else
         color="${__SKIPPED_COLOR}"
-        statusMsg="SKIPPED - ${msg} skipped"
+        statusMsg="SKIPPED - ${LOG_LAST_DURATION_STR}${msg} skipped"
       fi
     elif [[ "${status}" = "-1" ]]; then
-      statusMsg="ABORTED - ${msg} not executed"
+      statusMsg="ABORTED - ${LOG_LAST_DURATION_STR}${msg} not executed"
     else
-      statusMsg="ERROR   - ${msg} in error"
+      statusMsg="ERROR   - ${LOG_LAST_DURATION_STR}${msg} in error"
     fi
     # overwrite final TEST line
     echo -e "${color}${statusMsg}${__RESET_COLOR}"

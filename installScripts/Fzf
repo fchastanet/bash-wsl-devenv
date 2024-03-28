@@ -368,7 +368,7 @@ EOF
 # @description load .env file
 # @arg $1 envFile:String the file to load
 Engine::Config::loadConfig() {
-  if [[ "${BASH_DEV_ENV_CONFIG_LOADED:-}" = "1" ]]; then
+  if [[ "${BASH_DEV_ENV_CONFIG_LOADED:-0}" = "1" ]]; then
     return 0
   fi
   local envFile="${BASH_DEV_ENV_ROOT_DIR}/.env"
@@ -445,80 +445,41 @@ Framework::createTempFile() {
   mktemp -p "${TMPDIR:-/tmp}" -t "${1:-}.XXXXXXXXXXXX"
 }
 
-# @description clone the repository if not done yet, else pull it if no change in it
-# @arg $1 dir:String directory in which repository is installed or will be cloned
-# @arg $2 repo:String repository url
-# @arg $3 cloneCallback:Function callback on successful clone
-# @arg $4 pullCallback:Function callback on successful pull
-# @env GIT_CLONE_OPTIONS:String additional options to pass to git clone command
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode 0 on successful pulling/cloning, 1 on failure
-Git::cloneOrPullIfNoChanges() {
-  local dir="$1"
-  shift || true
-  local repo="$1"
-  shift || true
-  local cloneCallback=${1:-}
-  shift || true
-  local pullCallback=${1:-}
-  shift || true
-
-  if [[ -d "${dir}/.git" ]]; then
-    if ! Git::pullIfNoChanges "${dir}"; then
-      return 1
-    fi
-    # shellcheck disable=SC2086
-    if [[ "$(type -t ${pullCallback})" = "function" ]]; then
-      ${pullCallback} "${dir}"
-    fi
-  else
-    Log::displayInfo "cloning ${repo} ..."
-    ${SUDO:-} mkdir -p "$(${SUDO:-} dirname "${dir}")"
-    # shellcheck disable=SC2086,SC2248
-    if ${SUDO:-} git clone ${GIT_CLONE_OPTIONS} --progress "$@" "${repo}" "${dir}"; then
-      # shellcheck disable=SC2086
-      if [[ "$(type -t ${cloneCallback})" = "function" ]]; then
-        ${cloneCallback} "${dir}"
-      fi
-    else
-      Log::displayError "Cloning '${repo}' on '${dir}' failed"
-      return 1
-    fi
-  fi
-}
-
 # @description upgrade given binary to latest github release using retry
 #
 # releaseUrl argument : the placeholder @latestVersion@ will be replaced by the latest release version
 # @arg $1 targetFile:String target binary file (eg: /usr/local/bin/kind)
 # @arg $2 releaseUrl:String github release url (eg: https://github.com/kubernetes-sigs/kind/releases/download/@latestVersion@/kind-linux-amd64)
-# @arg $3 argVersion:String parameter to add to existing command to compute current version
-# @arg $4 versionCallback:Function function called to get software version (default: Version::getCommandVersionFromPlainText will call software with argument --version)
+# @arg $3 softVersionArg:String parameter to add to existing command to compute current version
+# @arg $4 softVersionCallback:Function function called to get software version (default: Version::getCommandVersionFromPlainText will call software with argument --version)
 # @arg $5 installCallback:Function function called to install the file retrieved on github (default copy as is and set execution bit)
-# @arg $6 parseVersionCallback:Function function to call to filter the version retrieved (Eg: Version::parse)
+# @arg $6 parseGithubVersionCallback:Function function to call to filter the version retrieved from github (Default: Version::parse)
 # @stdout log messages about retry, install, upgrade
+# @env SOFT_VERSION_CALLBACK pass softVersionCallback by env variable instead of passing it by arg
+# @env PARSE_VERSION_CALLBACK pass parseGithubVersionCallback by env variable instead of passing it by arg
+# @env INSTALL_CALLBACK pass installCallback by env variable instead of passing it by arg
 Github::upgradeRelease() {
   local targetFile="$1"
   local releaseUrl="$2"
-  local argVersion="${3:---version}"
-  local versionCallback="${4:-Version::getCommandVersionFromPlainText}"
+  local softVersionArg="${3:---version}"
+  local softVersionCallback="${4:-${SOFT_VERSION_CALLBACK:-Version::getCommandVersionFromPlainText}}"
   # shellcheck disable=SC2034
-  local installCallback="${5:-}"
-  local parseVersionCallback="${6:-}"
+  local installCallback="${5:-${INSTALL_CALLBACK:-}}"
+  local parseGithubVersionCallback="${6:-${PARSE_VERSION_CALLBACK:-Version::parse}}"
   local latestVersion
   local repo
 
   repo="$(Github::extractRepoFromGithubUrl "${releaseUrl}")"
   Github::getLatestRelease "${repo}" latestVersion ||
     Log::fatal "Repo ${repo} latest version not found"
-  if [[ "$(type -t "${parseVersionCallback}")" = "function" ]]; then
-    latestVersion="$(${parseVersionCallback} <<<"${latestVersion}")"
+  if [[ "$(type -t "${parseGithubVersionCallback}")" = "function" ]]; then
+    latestVersion="$(${parseGithubVersionCallback} <<<"${latestVersion}")"
   fi
   Log::displayInfo "Repo ${repo} latest version found is ${latestVersion}"
 
   local currentVersion="not existing"
   if [[ -f "${targetFile}" ]]; then
-    currentVersion="$(${versionCallback} "${targetFile}" "${argVersion}" 2>&1 || true)"
+    currentVersion="$(${softVersionCallback} "${targetFile}" "${softVersionArg}" 2>&1 || true)"
   fi
   if [[ "${currentVersion}" = "${latestVersion}" ]]; then
     Log::displayInfo "${targetFile} version ${latestVersion} already installed"
@@ -574,7 +535,7 @@ InstallScripts::command() {
   }
   local hook
   if [[ "${SKIP_INSTALL}" = "0" ]] && ! InstallScripts::scriptFunctionEmpty install; then
-    Log::headLine "INSTALL - Installing ${scriptName}"
+    Log::headLine "INSTALL" "Installing ${scriptName}"
     logFile="${logsDir}/${scriptName}-install.log"
     statsFile="${logsDir}/${scriptName}-install.stat"
 
@@ -594,7 +555,7 @@ InstallScripts::command() {
   local testInstallStatus="0"
   if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" ]] &&
     ! InstallScripts::scriptFunctionEmpty testInstall; then
-    Log::headLine "TEST    - Testing ${scriptName} installation"
+    Log::headLine "TEST" "Testing ${scriptName} installation"
     logFile="${logsDir}/${scriptName}-test-install.log"
     statsFile="${logsDir}/${scriptName}-test-install.stat"
     (
@@ -616,7 +577,7 @@ InstallScripts::command() {
   local configStatus="0"
   if [[ "${SKIP_CONFIGURE}" = "0" && "${installStatus}" = "0" ]] &&
     ! InstallScripts::scriptFunctionEmpty configure; then
-    Log::headLine "CONFIG  - Configuring ${scriptName}"
+    Log::headLine "CONFIG" "Configuring ${scriptName}"
     logFile="${logsDir}/${scriptName}-config.log"
     statsFile="${logsDir}/${scriptName}-config.stat"
     (
@@ -639,7 +600,7 @@ InstallScripts::command() {
   local testConfigStatus="0"
   if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" && "${configStatus}" = "0" ]] &&
     ! InstallScripts::scriptFunctionEmpty configure; then
-    Log::headLine "TEST    - Testing ${scriptName} configuration"
+    Log::headLine "TEST" "Testing ${scriptName} configuration"
     logFile="${logsDir}/${scriptName}-test-configuration.log"
     statsFile="${logsDir}/${scriptName}-test-configuration.stat"
     (
@@ -714,7 +675,8 @@ export __VERBOSE_LEVEL_TRACE=3
 # @arg $1 message:String the message to display
 Log::displayDebug() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_DEBUG)); then
-    echo -e "${__DEBUG_COLOR}DEBUG   - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__DEBUG_COLOR}DEBUG   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logDebug "$1"
 }
@@ -723,14 +685,11 @@ Log::displayDebug() {
 # @arg $1 message:String the message to display
 Log::displayError() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_ERROR)); then
-    echo -e "${__ERROR_COLOR}ERROR   - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__ERROR_COLOR}ERROR   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logError "$1"
 }
-
-FIRST_LOG_DATE="$(date '+%s%3N')"
-LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
-LOG_LAST_LOG_DATE_INIT=1
 
 # @description Display message using info color (bg light blue/fg white)
 # @arg $1 message:String the message to display
@@ -738,21 +697,8 @@ LOG_LAST_LOG_DATE_INIT=1
 Log::displayInfo() {
   local type="${2:-INFO}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    local durationMsg=""
-    if ((DISPLAY_DURATION == 1)); then
-      local duration
-      local -i currentLogDate
-      currentLogDate="$(date '+%s%3N')"
-      if ((LOG_LAST_LOG_DATE_INIT == 1)); then
-        LOG_LAST_LOG_DATE_INIT=0
-        duration="Ref"
-      else
-        duration="$(((currentLogDate - FIRST_LOG_DATE) / 1000))s/+$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000))s"
-      fi
-      LOG_LAST_LOG_DATE="${currentLogDate}"
-      durationMsg="$(date '+%H:%M:%S.%3N')(${duration}) - "
-    fi
-    echo -e "${__INFO_COLOR}${type}    - ${durationMsg}${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__INFO_COLOR}${type}    - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logInfo "$1" "${type}"
 }
@@ -761,7 +707,8 @@ Log::displayInfo() {
 # @arg $1 message:String the message to display
 Log::displayWarning() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
-    echo -e "${__WARNING_COLOR}WARN    - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__WARNING_COLOR}WARN    - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logWarning "$1"
 }
@@ -769,7 +716,8 @@ Log::displayWarning() {
 # @description Display message using error color (red) and exit immediately with error status 1
 # @arg $1 message:String the message to display
 Log::fatal() {
-  echo -e "${__ERROR_COLOR}FATAL   - ${1}${__RESET_COLOR}" >&2
+  Log::computeDuration
+  echo -e "${__ERROR_COLOR}FATAL   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   Log::logFatal "$1"
   exit 1
 }
@@ -946,26 +894,6 @@ Version::checkMinimal() {
     return 0
   }
 
-}
-
-# @description extract software version number
-# @arg $1 command:String the command that will be called with --version parameter
-# @arg $2 argVersion:String  allows to override default --version parameter
-Version::getCommandVersionFromPlainText() {
-  local command="$1"
-  local argVersion="${2:---version}"
-  "${command}" "${argVersion}" 2>&1 |
-    Version::parse # keep only version numbers
-}
-
-# @description filter to keep only version number from a string
-# @arg $@ files:String[] the files to filter
-# @exitcode * if one of the filter command fails
-# @stdin you can use stdin as alternative to files argument
-# @stdout the filtered content
-# shellcheck disable=SC2120
-Version::parse() {
-  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
 }
 
 # @description ensure COMMAND_BIN_DIR env var is set
@@ -1374,36 +1302,6 @@ Env::pathPrepend() {
   done
 }
 
-# @description pull git directory only if no change has been detected
-# @arg $1 dir:String the git directory to pull
-# @exitcode 0 on successful pulling
-# @exitcode 1 on any other failure
-# @exitcode 2 changes detected, pull avoided
-# @exitcode 3 not a git directory
-# @exitcode 4 not able to update index
-# @stderr diagnostics information is displayed
-# @env SUDO String allows to use custom sudo prefix command
-# @require Git::requireGitCommand
-Git::pullIfNoChanges() {
-  local dir="$1"
-  if [[ ! -d "${dir}/.git" ]]; then
-    return 3
-  fi
-  (
-    cd "${dir}" || return 3
-    if ! ${SUDO:-} git update-index --refresh &>/dev/null; then
-      Log::displayWarning "Impossible to update git index of '${dir}' - check if you have modified file"
-      return 4
-    fi
-    if ! ${SUDO:-} git diff-index --quiet HEAD --; then
-      Log::displayWarning "Pulling git repository '${dir}' avoided as changes detected"
-      return 2
-    fi
-    Log::displayInfo "Pull git repository '${dir}' as no changes detected"
-    ${SUDO:-} git pull --progress
-  )
-}
-
 # @description intermediate callback that is used by Github::upgradeRelease
 # or Github::installRelease
 # if installCallback is not set, it allows to:
@@ -1490,13 +1388,51 @@ InstallScripts::scriptFunctionEmpty() {
   [[ "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} && "$(declare -f "$1" | sed '4q;d')" = "}" ]]
 }
 
+declare -g FIRST_LOG_DATE LOG_LAST_LOG_DATE LOG_LAST_LOG_DATE_INIT LOG_LAST_DURATION_STR
+FIRST_LOG_DATE="$(date '+%s%3N')"
+LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
+LOG_LAST_LOG_DATE_INIT=1
+LOG_LAST_DURATION_STR=""
+
+# @description Display message using info color (bg light blue/fg white)
+# @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+Log::computeDuration() {
+  if ((DISPLAY_DURATION == 1)); then
+    local -i duration=0
+    local -i delta=0
+    local -i currentLogDate
+    currentLogDate="$(date '+%s%3N')"
+    if ((LOG_LAST_LOG_DATE_INIT == 1)); then
+      LOG_LAST_LOG_DATE_INIT=0
+      LOG_LAST_DURATION_STR="Ref"
+    else
+      duration=$(((currentLogDate - FIRST_LOG_DATE) / 1000))
+      delta=$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000))
+      LOG_LAST_DURATION_STR="${duration}s/+${delta}s"
+    fi
+    LOG_LAST_LOG_DATE="${currentLogDate}"
+    # shellcheck disable=SC2034
+    LOG_LAST_DURATION_STR="$(date '+%H:%M:%S.%3N')(${LOG_LAST_DURATION_STR}) - "
+  else
+    # shellcheck disable=SC2034
+    LOG_LAST_DURATION_STR=""
+  fi
+}
+
 # @description Display given text on full line with TEST_COLOR style
 # @arg $1 text:String text to display
 Log::headLine() {
-  local text="$1"
-  local message
-  message="$(UI::textLine "${text}" " ")"
-  echo -e "${__TEST_COLOR}${message}${__RESET_COLOR}"
+  local type="$1"
+  local text="$2"
+  local message="${type}   - ${text}"
+  if [[ -z "${type}" ]]; then
+    message="${text}"
+  else
+    Log::computeDuration
+    message="$(printf '%-7s - %s%s' "${type}" "${LOG_LAST_DURATION_STR}" "${text}")"
+  fi
+  echo -e "${__TEST_COLOR}$(UI::textLine "${message}" " ")${__RESET_COLOR}" >&2
 }
 
 # @description log message to file
@@ -1642,6 +1578,26 @@ Version::compare() {
     fi
   done
   return 0
+}
+
+# @description extract software version number
+# @arg $1 command:String the command that will be called with --version parameter
+# @arg $2 argVersion:String  allows to override default --version parameter
+Version::getCommandVersionFromPlainText() {
+  local command="$1"
+  local argVersion="${2:---version}"
+  "${command}" "${argVersion}" 2>&1 |
+    Version::parse # keep only version numbers
+}
+
+# @description filter to keep only version number from a string
+# @arg $@ files:String[] the files to filter
+# @exitcode * if one of the filter command fails
+# @stdin you can use stdin as alternative to files argument
+# @stdout the filtered content
+# shellcheck disable=SC2120
+Version::parse() {
+  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
 }
 
 # @description ensure linux distribution is ubuntu
@@ -1859,7 +1815,8 @@ Linux::getDistributorId() {
 # @arg $1 message:String the message to display
 Log::displaySkipped() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logSkipped "$1"
 }
@@ -1966,7 +1923,7 @@ Stats::statusLine() {
   if [[ ! -f "${statFile}" ]]; then
     return 0
   fi
-
+  Log::computeDuration
   (
     # shellcheck source=src/Stats/logStats.example
     source "${statFile}" || exit 1
@@ -1976,15 +1933,15 @@ Stats::statusLine() {
     if [[ "${status}" = "0" ]]; then
       if [[ "${skipped}" = "0" ]]; then
         color="${__SUCCESS_COLOR}"
-        statusMsg="SUCCESS - ${msg} successful"
+        statusMsg="SUCCESS - ${LOG_LAST_DURATION_STR}${msg} successful"
       else
         color="${__SKIPPED_COLOR}"
-        statusMsg="SKIPPED - ${msg} skipped"
+        statusMsg="SKIPPED - ${LOG_LAST_DURATION_STR}${msg} skipped"
       fi
     elif [[ "${status}" = "-1" ]]; then
-      statusMsg="ABORTED - ${msg} not executed"
+      statusMsg="ABORTED - ${LOG_LAST_DURATION_STR}${msg} not executed"
     else
-      statusMsg="ERROR   - ${msg} in error"
+      statusMsg="ERROR   - ${LOG_LAST_DURATION_STR}${msg} in error"
     fi
     # overwrite final TEST line
     echo -e "${color}${statusMsg}${__RESET_COLOR}"
@@ -2012,13 +1969,6 @@ UI::textLine() {
 # @require Linux::requireJqCommand
 Version::githubApiExtractVersion() {
   jq -r ".tag_name"
-}
-
-# @description ensure command git is available
-# @exitcode 1 if git command not available
-# @stderr diagnostics information is displayed
-Git::requireGitCommand() {
-  Assert::commandExists git
 }
 
 # @description check if argument respects this framework variable naming convention
@@ -2157,7 +2107,8 @@ Linux::Wsl::originalWslvar() {
 # @arg $1 message:String the message to display
 Log::displaySuccess() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    echo -e "${__SUCCESS_COLOR}SUCCESS - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__SUCCESS_COLOR}SUCCESS - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logSuccess "$1"
 }
@@ -2188,7 +2139,9 @@ Linux::Wsl::requireWsl() {
 # @exitcode 1 if jq command not available
 # @stderr diagnostics information is displayed
 Linux::requireJqCommand() {
-  Assert::commandExists jq
+  if [[ "${SKIP_REQUIRE_JQ:-0}" = "0" && "${SKIP_REQUIRES:-0}" = "0" ]]; then
+    Assert::commandExists jq
+  fi
 }
 
 # @description delete files older than n days in given path
@@ -2272,11 +2225,11 @@ Log::logSuccess() {
 # FUNCTIONS
 
 facade_main_Fzfsh() {
+
 # REQUIRES
 Linux::requireUbuntu
 Env::requireLoad
 UI::requireTheme
-Git::requireGitCommand
 Log::requireLoad
 Linux::Wsl::requireWsl
 Linux::requireJqCommand
@@ -3056,8 +3009,12 @@ helpDescription() {
   echo "Fzf"
 }
 
+dependencies() {
+  echo "Fd"
+  echo "Bat"
+}
+
 # jscpd:ignore-start
-dependencies() { :; }
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
@@ -3067,20 +3024,17 @@ breakOnTestFailure() { :; }
 # jscpd:ignore-end
 
 fortunes() {
-  if command -v bat &>/dev/null; then
-    fortunes+=("Fzf -- bat - Use bat command to pre-visualize one or multiple files")
-  fi
-
   if command -v fzf &>/dev/null; then
     fortunes+=("Fzf -- fzf - Use CTRL-T - Paste the selected file path(s) into the command line")
     fortunes+=("Fzf -- fzf - Use CTRL-R - search command line from zsh/bash history")
     fortunes+=("Fzf -- fzf - Use ALT-C - easily select sub directory of current directory")
   fi
+}
 
-  if command -v fd &>/dev/null; then
-    fortunes+=("Fzf -- fd -- fd is a program to find entries in your filesystem. It is a simple, fast and user-friendly alternative to find. While it does not aim to support all of find's powerful functionality, it provides sensible (opinionated) defaults for a majority of use cases. - https://github.com/sharkdp/fd")
-  fi
-
+fzfInstall() {
+  sudo tar -xvzf "$1" --directory /usr/local/bin
+  sudo chmod +x /usr/local/bin/fzf
+  sudo rm -f "$1"
 }
 
 install() {
@@ -3089,44 +3043,13 @@ install() {
     tree # tree command is used by some fzf key binding
 
   Log::displayInfo "install fzf"
-  SUDO=sudo Git::cloneOrPullIfNoChanges \
-    "/opt/fzf" \
-    "https://github.com/junegunn/fzf.git"
-
-  sudo /opt/fzf/install --bin
-  sudo ln -sf /opt/fzf/bin/fzf /usr/local/bin/fzf
-
-  # shellcheck disable=SC2317
-  function installDeb() {
-    sudo dpkg -i "$1"
-  }
-  export -f installDeb
-
-  # shellcheck disable=SC2154
-  SUDO=sudo Github::upgradeRelease \
-    "/usr/bin/fd" \
-    "https://github.com/sharkdp/fd/releases/download/v@latestVersion@/fd_@latestVersion@_amd64.deb" \
-    --version \
-    Version::getCommandVersionFromPlainText \
-    installDeb \
-    Version::parse
-
-  SUDO=sudo Github::upgradeRelease \
-    "/usr/bin/bat" \
-    "https://github.com/sharkdp/bat/releases/download/v@latestVersion@/bat_@latestVersion@_amd64.deb" \
-    --version \
-    Version::getCommandVersionFromPlainText \
-    installDeb \
-    Version::parse
+  SUDO=sudo INSTALL_CALLBACK=fzfInstall Github::upgradeRelease \
+    "/usr/local/bin/fzf" \
+    "https://github.com/junegunn/fzf/releases/download/@latestVersion@/fzf-@latestVersion@-linux_amd64.tar.gz"
 }
 
 testInstall() {
-  local -i failures=0
-  Version::checkMinimal "fd" --version "8.4.0" || ((++failures))
-  Version::checkMinimal "fzf" --version "0.44.1" || ((++failures))
-  Version::checkMinimal "bat" --version "0.22.1" || ((++failures))
-
-  return "${failures}"
+  Version::checkMinimal "fzf" --version "0.44.1" || return 1
 }
 
 configure() { :; }

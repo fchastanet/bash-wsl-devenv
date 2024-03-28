@@ -32,7 +32,7 @@ InstallScripts::command() {
   }
   local hook
   if [[ "${SKIP_INSTALL}" = "0" ]] && ! InstallScripts::scriptFunctionEmpty install; then
-    Log::headLine "INSTALL - Installing ${scriptName}"
+    Log::headLine "INSTALL" "Installing ${scriptName}"
     logFile="${logsDir}/${scriptName}-install.log"
     statsFile="${logsDir}/${scriptName}-install.stat"
 
@@ -52,7 +52,7 @@ InstallScripts::command() {
   local testInstallStatus="0"
   if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" ]] &&
     ! InstallScripts::scriptFunctionEmpty testInstall; then
-    Log::headLine "TEST    - Testing ${scriptName} installation"
+    Log::headLine "TEST" "Testing ${scriptName} installation"
     logFile="${logsDir}/${scriptName}-test-install.log"
     statsFile="${logsDir}/${scriptName}-test-install.stat"
     (
@@ -74,7 +74,7 @@ InstallScripts::command() {
   local configStatus="0"
   if [[ "${SKIP_CONFIGURE}" = "0" && "${installStatus}" = "0" ]] &&
     ! InstallScripts::scriptFunctionEmpty configure; then
-    Log::headLine "CONFIG  - Configuring ${scriptName}"
+    Log::headLine "CONFIG" "Configuring ${scriptName}"
     logFile="${logsDir}/${scriptName}-config.log"
     statsFile="${logsDir}/${scriptName}-config.stat"
     (
@@ -97,7 +97,7 @@ InstallScripts::command() {
   local testConfigStatus="0"
   if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" && "${configStatus}" = "0" ]] &&
     ! InstallScripts::scriptFunctionEmpty configure; then
-    Log::headLine "TEST    - Testing ${scriptName} configuration"
+    Log::headLine "TEST" "Testing ${scriptName} configuration"
     logFile="${logsDir}/${scriptName}-test-configuration.log"
     statsFile="${logsDir}/${scriptName}-test-configuration.stat"
     (

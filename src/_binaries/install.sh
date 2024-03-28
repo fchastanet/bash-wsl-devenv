@@ -37,11 +37,11 @@ summary() {
     return 0
   fi
   UI::drawLine '-'
-  Log::headLine "Important messages recapitulative"
+  Log::headLine "" "Important messages recapitulative"
   Stats::logRecapitulative "${LOGS_DIR}/automatic-upgrade"
 
   UI::drawLine '-'
-  Log::headLine "Summary"
+  Log::headLine "" "Summary"
   if [[ "${SKIP_INSTALL}" = "0" ]]; then
     Stats::aggregateStatsSummary "installation(s)" "${LOGS_DIR:-#}/install.stat"
   fi

@@ -52,6 +52,7 @@ checkVariables() {
 
 removeSystemdService() {
   local service="$?"
+  Log::displayInfo "remove unneeded systemd service : ${service}"
   if systemctl list-units --full -all | grep -Fq "${service}"; then
     sudo systemctl disable "${service}"
   fi
@@ -67,14 +68,17 @@ install() {
     openssh-server
 
   Linux::Apt::update
+  Log::displayInfo "Apt upgrade"
   Retry::default sudo apt-get upgrade -y
+  Log::displayInfo "Dist Apt upgrade"
   Retry::default sudo apt-get dist-upgrade -y
+  Log::displayInfo "Apt autoremove"
   Retry::default sudo apt-get autoremove -y
 
   # add do-release-upgrade
   Linux::Apt::install ubuntu-release-upgrader-core
 
-  # configure to upgrade to the latest LTS development release
+  Log::displayInfo "configure to upgrade to the latest LTS development release"
   sudo sed -i -r 's/^Prompt=.*$/Prompt=lts/g' /etc/update-manager/release-upgrades
   if sudo do-release-upgrade -c; then
     if [[ "${UPGRADE_UBUNTU_VERSION}" = "lts" ]]; then
@@ -86,7 +90,7 @@ install() {
     fi
   fi
 
-  # configure to upgrade to the latest non-LTS development release
+  Log::displayInfo "configure to upgrade to the latest non-LTS development release"
   sudo sed -i -r 's/^Prompt=.*$/Prompt=normal/g' /etc/update-manager/release-upgrades
   if sudo do-release-upgrade -c; then
     if [[ "${UPGRADE_UBUNTU_VERSION}" = "dev" ]]; then
@@ -98,7 +102,7 @@ install() {
     fi
   fi
 
-  # restore to lts development release
+  Log::displayInfo "restore to lts development release"
   sudo sed -i -E 's/^Prompt=.*$/Prompt=lts/g' /etc/update-manager/release-upgrades
 }
 

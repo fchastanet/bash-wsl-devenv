@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # REQUIRES
 if Assert::functionExists initFacade; then
   initFacade

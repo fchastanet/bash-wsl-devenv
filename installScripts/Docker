@@ -368,7 +368,7 @@ EOF
 # @description load .env file
 # @arg $1 envFile:String the file to load
 Engine::Config::loadConfig() {
-  if [[ "${BASH_DEV_ENV_CONFIG_LOADED:-}" = "1" ]]; then
+  if [[ "${BASH_DEV_ENV_CONFIG_LOADED:-0}" = "1" ]]; then
     return 0
   fi
   local envFile="${BASH_DEV_ENV_ROOT_DIR}/.env"
@@ -445,61 +445,6 @@ Framework::createTempFile() {
   mktemp -p "${TMPDIR:-/tmp}" -t "${1:-}.XXXXXXXXXXXX"
 }
 
-# @description upgrade given binary to latest github release using retry
-#
-# releaseUrl argument : the placeholder @latestVersion@ will be replaced by the latest release version
-# @arg $1 targetFile:String target binary file (eg: /usr/local/bin/kind)
-# @arg $2 releaseUrl:String github release url (eg: https://github.com/kubernetes-sigs/kind/releases/download/@latestVersion@/kind-linux-amd64)
-# @arg $3 argVersion:String parameter to add to existing command to compute current version
-# @arg $4 versionCallback:Function function called to get software version (default: Version::getCommandVersionFromPlainText will call software with argument --version)
-# @arg $5 installCallback:Function function called to install the file retrieved on github (default copy as is and set execution bit)
-# @arg $6 parseVersionCallback:Function function to call to filter the version retrieved (Eg: Version::parse)
-# @stdout log messages about retry, install, upgrade
-Github::upgradeRelease() {
-  local targetFile="$1"
-  local releaseUrl="$2"
-  local argVersion="${3:---version}"
-  local versionCallback="${4:-Version::getCommandVersionFromPlainText}"
-  # shellcheck disable=SC2034
-  local installCallback="${5:-}"
-  local parseVersionCallback="${6:-}"
-  local latestVersion
-  local repo
-
-  repo="$(Github::extractRepoFromGithubUrl "${releaseUrl}")"
-  Github::getLatestRelease "${repo}" latestVersion ||
-    Log::fatal "Repo ${repo} latest version not found"
-  if [[ "$(type -t "${parseVersionCallback}")" = "function" ]]; then
-    latestVersion="$(${parseVersionCallback} <<<"${latestVersion}")"
-  fi
-  Log::displayInfo "Repo ${repo} latest version found is ${latestVersion}"
-
-  local currentVersion="not existing"
-  if [[ -f "${targetFile}" ]]; then
-    currentVersion="$(${versionCallback} "${targetFile}" "${argVersion}" 2>&1 || true)"
-  fi
-  if [[ "${currentVersion}" = "${latestVersion}" ]]; then
-    Log::displayInfo "${targetFile} version ${latestVersion} already installed"
-  else
-    if [[ -z "${currentVersion}" ]]; then
-      Log::displayInfo "Installing ${targetFile} with version ${latestVersion}"
-    else
-      Log::displayInfo "Upgrading ${targetFile} from version ${currentVersion} to ${latestVersion}"
-    fi
-    local url
-    url="$(echo "${releaseUrl}" | sed -E "s/@latestVersion@/${latestVersion}/g")"
-    Log::displayInfo "Using url ${url}"
-    newSoftware=$(mktemp -p "${TMPDIR:-/tmp}" -t github.newSoftware.XXXX)
-    Retry::default curl \
-      -L \
-      -o "${newSoftware}" \
-      --fail \
-      "${url}"
-
-    Github::defaultInstall "${newSoftware}" "${targetFile}" "${latestVersion}" "${installCallback}"
-  fi
-}
-
 # @description the command launch different actions(install, configure, test)
 # depending on the options selected
 # @see src/_includes/install.skip.options.tpl
@@ -532,7 +477,7 @@ InstallScripts::command() {
   }
   local hook
   if [[ "${SKIP_INSTALL}" = "0" ]] && ! InstallScripts::scriptFunctionEmpty install; then
-    Log::headLine "INSTALL - Installing ${scriptName}"
+    Log::headLine "INSTALL" "Installing ${scriptName}"
     logFile="${logsDir}/${scriptName}-install.log"
     statsFile="${logsDir}/${scriptName}-install.stat"
 
@@ -552,7 +497,7 @@ InstallScripts::command() {
   local testInstallStatus="0"
   if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" ]] &&
     ! InstallScripts::scriptFunctionEmpty testInstall; then
-    Log::headLine "TEST    - Testing ${scriptName} installation"
+    Log::headLine "TEST" "Testing ${scriptName} installation"
     logFile="${logsDir}/${scriptName}-test-install.log"
     statsFile="${logsDir}/${scriptName}-test-install.stat"
     (
@@ -574,7 +519,7 @@ InstallScripts::command() {
   local configStatus="0"
   if [[ "${SKIP_CONFIGURE}" = "0" && "${installStatus}" = "0" ]] &&
     ! InstallScripts::scriptFunctionEmpty configure; then
-    Log::headLine "CONFIG  - Configuring ${scriptName}"
+    Log::headLine "CONFIG" "Configuring ${scriptName}"
     logFile="${logsDir}/${scriptName}-config.log"
     statsFile="${logsDir}/${scriptName}-config.stat"
     (
@@ -597,7 +542,7 @@ InstallScripts::command() {
   local testConfigStatus="0"
   if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" && "${configStatus}" = "0" ]] &&
     ! InstallScripts::scriptFunctionEmpty configure; then
-    Log::headLine "TEST    - Testing ${scriptName} configuration"
+    Log::headLine "TEST" "Testing ${scriptName} configuration"
     logFile="${logsDir}/${scriptName}-test-configuration.log"
     statsFile="${logsDir}/${scriptName}-test-configuration.stat"
     (
@@ -685,7 +630,8 @@ export __VERBOSE_LEVEL_TRACE=3
 # @arg $1 message:String the message to display
 Log::displayDebug() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_DEBUG)); then
-    echo -e "${__DEBUG_COLOR}DEBUG   - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__DEBUG_COLOR}DEBUG   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logDebug "$1"
 }
@@ -694,14 +640,11 @@ Log::displayDebug() {
 # @arg $1 message:String the message to display
 Log::displayError() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_ERROR)); then
-    echo -e "${__ERROR_COLOR}ERROR   - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__ERROR_COLOR}ERROR   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logError "$1"
 }
-
-FIRST_LOG_DATE="$(date '+%s%3N')"
-LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
-LOG_LAST_LOG_DATE_INIT=1
 
 # @description Display message using info color (bg light blue/fg white)
 # @arg $1 message:String the message to display
@@ -709,21 +652,8 @@ LOG_LAST_LOG_DATE_INIT=1
 Log::displayInfo() {
   local type="${2:-INFO}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    local durationMsg=""
-    if ((DISPLAY_DURATION == 1)); then
-      local duration
-      local -i currentLogDate
-      currentLogDate="$(date '+%s%3N')"
-      if ((LOG_LAST_LOG_DATE_INIT == 1)); then
-        LOG_LAST_LOG_DATE_INIT=0
-        duration="Ref"
-      else
-        duration="$(((currentLogDate - FIRST_LOG_DATE) / 1000))s/+$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000))s"
-      fi
-      LOG_LAST_LOG_DATE="${currentLogDate}"
-      durationMsg="$(date '+%H:%M:%S.%3N')(${duration}) - "
-    fi
-    echo -e "${__INFO_COLOR}${type}    - ${durationMsg}${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__INFO_COLOR}${type}    - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logInfo "$1" "${type}"
 }
@@ -732,7 +662,8 @@ Log::displayInfo() {
 # @arg $1 message:String the message to display
 Log::displaySuccess() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    echo -e "${__SUCCESS_COLOR}SUCCESS - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__SUCCESS_COLOR}SUCCESS - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logSuccess "$1"
 }
@@ -741,7 +672,8 @@ Log::displaySuccess() {
 # @arg $1 message:String the message to display
 Log::displayWarning() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
-    echo -e "${__WARNING_COLOR}WARN    - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__WARNING_COLOR}WARN    - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logWarning "$1"
 }
@@ -749,7 +681,8 @@ Log::displayWarning() {
 # @description Display message using error color (red) and exit immediately with error status 1
 # @arg $1 message:String the message to display
 Log::fatal() {
-  echo -e "${__ERROR_COLOR}FATAL   - ${1}${__RESET_COLOR}" >&2
+  Log::computeDuration
+  echo -e "${__ERROR_COLOR}FATAL   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   Log::logFatal "$1"
   exit 1
 }
@@ -934,16 +867,6 @@ Version::checkMinimal() {
     return 0
   }
 
-}
-
-# @description extract software version number
-# @arg $1 command:String the command that will be called with --version parameter
-# @arg $2 argVersion:String  allows to override default --version parameter
-Version::getCommandVersionFromPlainText() {
-  local command="$1"
-  local argVersion="${2:---version}"
-  "${command}" "${argVersion}" 2>&1 |
-    Version::parse # keep only version numbers
 }
 
 # @description ensure COMMAND_BIN_DIR env var is set
@@ -1352,84 +1275,6 @@ Env::pathPrepend() {
   done
 }
 
-# @description intermediate callback that is used by Github::upgradeRelease
-# or Github::installRelease
-# if installCallback is not set, it allows to:
-#   - copy the downloaded file to the right target file
-#   - and set the execution bit
-# else
-#   installCallback is called with newSoftware, targetFile, version arguments
-# fi
-# @warning do not use this function as callback for Github::upgradeRelease or Github::installRelease, as it would result to an infinite loop
-# @arg $1 newSoftware:String the downloaded software file
-# @arg $2 targetFile:String where we want to copy the file
-# @arg $3 version:String the version that has been downloaded
-# @arg $4 installCallback:Function (optional) the callback to call with 3 first arguments
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode * on failure
-# @see Github::upgradeRelease
-# @see Github::installRelease
-# @internal
-Github::defaultInstall() {
-  local newSoftware="$1"
-  local targetFile="$2"
-  local version="$3"
-  local installCallback=$4
-  # shellcheck disable=SC2086
-  ${SUDO:-} mkdir -p "$(dirname "${targetFile}")"
-  if [[ "$(type -t "${installCallback}")" = "function" ]]; then
-    ${installCallback} "${newSoftware}" "${targetFile}" "${version}"
-  else
-    ${SUDO:-} mv "${newSoftware}" "${targetFile}"
-    ${SUDO:-} chmod +x "${targetFile}"
-    hash -r
-    ${SUDO:-} rm -f "${newSoftware}" || true
-  fi
-}
-
-# @description github repository eg: kubernetes-sigs/kind
-# @arg $1 githubUrl:String eg: https://github.com/kubernetes-sigs/kind/releases/download/@latestVersion@/kind-linux-amd64
-# @exitcode 1 if no matching repo found in provided url, 0 otherwise
-# @stdout the repo in the form owner/repo
-Github::extractRepoFromGithubUrl() {
-  local githubUrl="$1"
-  local result
-  result="$(sed -n -E 's#^https://github.com/([^/]+/[^/]+)/.*$#\1#p' <<<"${githubUrl}")"
-  if [[ -z "${result}" ]]; then
-    return 1
-  fi
-  echo "${result}"
-}
-
-# @description Retrieve the latest version number of a github release using Github API using retry
-# repo arg with fchastanet/bash-tools value would match https://github.com/fchastanet/bash-tools
-# @arg $1 repo:String repository in the format fchastanet/bash-tools
-# @arg $2 resultRef:&String reference to a variable that will contain the result of the command
-# @stdout log messages about retry
-Github::getLatestRelease() {
-  local repo="$1"
-  # we need to pass the result through a reference instead of output directly
-  # because retry can output too
-  local -n resultRef=$2
-  resultRef=""
-  local resultFile
-  resultFile="$(mktemp -p "${TMPDIR:-/tmp}" -t githubLatestRelease.XXXX)"
-  # Get latest release from GitHub api
-  if Retry::default curl \
-    -L \
-    -o "${resultFile}" \
-    --fail \
-    --silent \
-    "https://api.github.com/repos/${repo}/releases/latest"; then
-    # shellcheck disable=SC2034
-    resultRef="$(Version::githubApiExtractVersion <"${resultFile}")"
-    return 0
-  fi
-  # display curl result in case of failure
-  cat >&2 "${resultFile}"
-  rm -f "${resultFile}"
-}
-
 # @description check if function is empty
 # @arg $1 function:Function
 # @exitcode 0 if function is considered empty (body with : or true)
@@ -1438,13 +1283,51 @@ InstallScripts::scriptFunctionEmpty() {
   [[ "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} && "$(declare -f "$1" | sed '4q;d')" = "}" ]]
 }
 
+declare -g FIRST_LOG_DATE LOG_LAST_LOG_DATE LOG_LAST_LOG_DATE_INIT LOG_LAST_DURATION_STR
+FIRST_LOG_DATE="$(date '+%s%3N')"
+LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
+LOG_LAST_LOG_DATE_INIT=1
+LOG_LAST_DURATION_STR=""
+
+# @description Display message using info color (bg light blue/fg white)
+# @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+Log::computeDuration() {
+  if ((DISPLAY_DURATION == 1)); then
+    local -i duration=0
+    local -i delta=0
+    local -i currentLogDate
+    currentLogDate="$(date '+%s%3N')"
+    if ((LOG_LAST_LOG_DATE_INIT == 1)); then
+      LOG_LAST_LOG_DATE_INIT=0
+      LOG_LAST_DURATION_STR="Ref"
+    else
+      duration=$(((currentLogDate - FIRST_LOG_DATE) / 1000))
+      delta=$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000))
+      LOG_LAST_DURATION_STR="${duration}s/+${delta}s"
+    fi
+    LOG_LAST_LOG_DATE="${currentLogDate}"
+    # shellcheck disable=SC2034
+    LOG_LAST_DURATION_STR="$(date '+%H:%M:%S.%3N')(${LOG_LAST_DURATION_STR}) - "
+  else
+    # shellcheck disable=SC2034
+    LOG_LAST_DURATION_STR=""
+  fi
+}
+
 # @description Display given text on full line with TEST_COLOR style
 # @arg $1 text:String text to display
 Log::headLine() {
-  local text="$1"
-  local message
-  message="$(UI::textLine "${text}" " ")"
-  echo -e "${__TEST_COLOR}${message}${__RESET_COLOR}"
+  local type="$1"
+  local text="$2"
+  local message="${type}   - ${text}"
+  if [[ -z "${type}" ]]; then
+    message="${text}"
+  else
+    Log::computeDuration
+    message="$(printf '%-7s - %s%s' "${type}" "${LOG_LAST_DURATION_STR}" "${text}")"
+  fi
+  echo -e "${__TEST_COLOR}$(UI::textLine "${message}" " ")${__RESET_COLOR}" >&2
 }
 
 # @description log message to file
@@ -1854,7 +1737,8 @@ Linux::getDistributorId() {
 # @arg $1 message:String the message to display
 Log::displaySkipped() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logSkipped "$1"
 }
@@ -1924,7 +1808,7 @@ Stats::statusLine() {
   if [[ ! -f "${statFile}" ]]; then
     return 0
   fi
-
+  Log::computeDuration
   (
     # shellcheck source=src/Stats/logStats.example
     source "${statFile}" || exit 1
@@ -1934,15 +1818,15 @@ Stats::statusLine() {
     if [[ "${status}" = "0" ]]; then
       if [[ "${skipped}" = "0" ]]; then
         color="${__SUCCESS_COLOR}"
-        statusMsg="SUCCESS - ${msg} successful"
+        statusMsg="SUCCESS - ${LOG_LAST_DURATION_STR}${msg} successful"
       else
         color="${__SKIPPED_COLOR}"
-        statusMsg="SKIPPED - ${msg} skipped"
+        statusMsg="SKIPPED - ${LOG_LAST_DURATION_STR}${msg} skipped"
       fi
     elif [[ "${status}" = "-1" ]]; then
-      statusMsg="ABORTED - ${msg} not executed"
+      statusMsg="ABORTED - ${LOG_LAST_DURATION_STR}${msg} not executed"
     else
-      statusMsg="ERROR   - ${msg} in error"
+      statusMsg="ERROR   - ${LOG_LAST_DURATION_STR}${msg} in error"
     fi
     # overwrite final TEST line
     echo -e "${color}${statusMsg}${__RESET_COLOR}"
@@ -1960,16 +1844,6 @@ UI::textLine() {
   ((remainingWidth = $((fullWith - textSize))))
   echo -n "${text}"
   printf '%*s\n' "${remainingWidth}" '' | tr ' ' "${character}"
-}
-
-# @description extract version number from github api
-# @noargs
-# @stdin json result of github API
-# @exitcode 1 if jq or Version::parse fails
-# @stdout the version parsed
-# @require Linux::requireJqCommand
-Version::githubApiExtractVersion() {
-  jq -r ".tag_name"
 }
 
 # @description check if argument respects this framework variable naming convention
@@ -2126,13 +2000,6 @@ Linux::Wsl::requireWsl() {
   fi
 }
 
-# @description ensure command jq is available
-# @exitcode 1 if jq command not available
-# @stderr diagnostics information is displayed
-Linux::requireJqCommand() {
-  Assert::commandExists jq
-}
-
 # @description delete files older than n days in given path
 # @warning use this function with caution as it will delete all files in given path without any prompt
 # @arg $1 path:String the directory in which files will be deleted or the file to delete
@@ -2206,13 +2073,13 @@ Linux::Wsl::originalWslpath() {
 # FUNCTIONS
 
 facade_main_Dockersh() {
+
 # REQUIRES
 Linux::requireUbuntu
 Env::requireLoad
 UI::requireTheme
 Log::requireLoad
 Linux::Wsl::requireWsl
-Linux::requireJqCommand
 Compiler::Facade::requireCommandBinDir
 
 if Assert::functionExists initFacade; then
@@ -2992,6 +2859,7 @@ helpDescription() {
 dependencies() {
   echo "MandatorySoftwares"
   echo "WslConfig"
+  echo "DockerCompose"
 }
 
 # jscpd:ignore-start
@@ -3035,22 +2903,6 @@ install() {
     containerd.io \
     docker-ce \
     docker-ce-cli
-
-  Log::displayInfo "Installing docker-compose"
-  # shellcheck disable=SC2317
-  dockerComposeVersionCallback() {
-    echo "v$(Version::getCommandVersionFromPlainText "$@")"
-  }
-  export -f dockerComposeVersionCallback
-  # shellcheck disable=SC2154
-  SUDO=sudo Github::upgradeRelease \
-    /usr/local/bin/docker-compose \
-    "https://github.com/docker/compose/releases/download/@latestVersion@/docker-compose-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)" \
-    "--version" \
-    dockerComposeVersionCallback
-
-  sudo rm -f /usr/bin/docker-compose || true
-  sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
 }
 
 testInstall() {
@@ -3065,7 +2917,6 @@ testInstall() {
   fi
 
   Version::checkMinimal "docker" --version "25.0.3" || ((++failures))
-  Version::checkMinimal "docker-compose" --version "2.23.1" || ((++failures))
 
   Log::displayInfo "docker executable path $(command -v docker || true)"
   Log::displayInfo "docker version $(docker --version || true)"
