@@ -28,7 +28,7 @@ breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 # jscpd:ignore-end
 
-plantumlVersion() {
+plantumlVersionCallback() {
   java -jar /opt/java/plantuml.jar -version | head -1 | Version::parse
 }
 
@@ -39,17 +39,13 @@ install() {
 
   Log::displayInfo "install Plantuml"
 
-  SUDO=sudo Github::upgradeRelease \
+  SUDO=sudo SOFT_VERSION_CALLBACK=plantumlVersionCallback Github::upgradeRelease \
     "/opt/java/plantuml.jar" \
-    "https://github.com/plantuml/plantuml/releases/download/v@latestVersion@/plantuml-@latestVersion@.jar" \
-    -version \
-    plantumlVersion \
-    "" \
-    Version::parse
+    "https://github.com/plantuml/plantuml/releases/download/v@latestVersion@/plantuml-@latestVersion@.jar"
 }
 
 testInstall() {
-  Version::checkMinimal "plantumlVersion" -version "1.2023.10" cat || return 1
+  Version::checkMinimal "plantumlVersionCallback" -version "1.2023.10" cat || return 1
 }
 
 configure() { :; }

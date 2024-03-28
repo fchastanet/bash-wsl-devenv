@@ -22,10 +22,17 @@ dependencies() {
 }
 
 listVariables() {
-  echo "AWS_USER_MAIL"
   echo "USER_HOME"
   echo "USERNAME"
   echo "USERGROUP"
+  echo "AWS_AUTHENTICATOR"
+  echo "CAN_TALK_DURING_INSTALLATION"
+  echo "AWS_APP_ID"
+  echo "AWS_PROFILE"
+  echo "AWS_USER_MAIL"
+  echo "AWS_DEFAULT_REGION"
+  echo "AWS_TEST_SECRET_ID"
+  echo "AWS_DEFAULT_DOCKER_REGISTRY_ID"
 }
 
 # jscpd:ignore-start

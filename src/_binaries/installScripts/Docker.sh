@@ -17,6 +17,7 @@ helpDescription() {
 dependencies() {
   echo "MandatorySoftwares"
   echo "WslConfig"
+  echo "DockerCompose"
 }
 
 # jscpd:ignore-start
@@ -60,22 +61,6 @@ install() {
     containerd.io \
     docker-ce \
     docker-ce-cli
-
-  Log::displayInfo "Installing docker-compose"
-  # shellcheck disable=SC2317
-  dockerComposeVersionCallback() {
-    echo "v$(Version::getCommandVersionFromPlainText "$@")"
-  }
-  export -f dockerComposeVersionCallback
-  # shellcheck disable=SC2154
-  SUDO=sudo Github::upgradeRelease \
-    /usr/local/bin/docker-compose \
-    "https://github.com/docker/compose/releases/download/@latestVersion@/docker-compose-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)" \
-    "--version" \
-    dockerComposeVersionCallback
-
-  sudo rm -f /usr/bin/docker-compose || true
-  sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
 }
 
 testInstall() {
@@ -90,7 +75,6 @@ testInstall() {
   fi
 
   Version::checkMinimal "docker" --version "25.0.3" || ((++failures))
-  Version::checkMinimal "docker-compose" --version "2.23.1" || ((++failures))
 
   Log::displayInfo "docker executable path $(command -v docker || true)"
   Log::displayInfo "docker version $(docker --version || true)"

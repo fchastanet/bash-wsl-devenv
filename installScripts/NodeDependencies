@@ -368,7 +368,7 @@ EOF
 # @description load .env file
 # @arg $1 envFile:String the file to load
 Engine::Config::loadConfig() {
-  if [[ "${BASH_DEV_ENV_CONFIG_LOADED:-}" = "1" ]]; then
+  if [[ "${BASH_DEV_ENV_CONFIG_LOADED:-0}" = "1" ]]; then
     return 0
   fi
   local envFile="${BASH_DEV_ENV_ROOT_DIR}/.env"
@@ -477,7 +477,7 @@ InstallScripts::command() {
   }
   local hook
   if [[ "${SKIP_INSTALL}" = "0" ]] && ! InstallScripts::scriptFunctionEmpty install; then
-    Log::headLine "INSTALL - Installing ${scriptName}"
+    Log::headLine "INSTALL" "Installing ${scriptName}"
     logFile="${logsDir}/${scriptName}-install.log"
     statsFile="${logsDir}/${scriptName}-install.stat"
 
@@ -497,7 +497,7 @@ InstallScripts::command() {
   local testInstallStatus="0"
   if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" ]] &&
     ! InstallScripts::scriptFunctionEmpty testInstall; then
-    Log::headLine "TEST    - Testing ${scriptName} installation"
+    Log::headLine "TEST" "Testing ${scriptName} installation"
     logFile="${logsDir}/${scriptName}-test-install.log"
     statsFile="${logsDir}/${scriptName}-test-install.stat"
     (
@@ -519,7 +519,7 @@ InstallScripts::command() {
   local configStatus="0"
   if [[ "${SKIP_CONFIGURE}" = "0" && "${installStatus}" = "0" ]] &&
     ! InstallScripts::scriptFunctionEmpty configure; then
-    Log::headLine "CONFIG  - Configuring ${scriptName}"
+    Log::headLine "CONFIG" "Configuring ${scriptName}"
     logFile="${logsDir}/${scriptName}-config.log"
     statsFile="${logsDir}/${scriptName}-config.stat"
     (
@@ -542,7 +542,7 @@ InstallScripts::command() {
   local testConfigStatus="0"
   if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" && "${configStatus}" = "0" ]] &&
     ! InstallScripts::scriptFunctionEmpty configure; then
-    Log::headLine "TEST    - Testing ${scriptName} configuration"
+    Log::headLine "TEST" "Testing ${scriptName} configuration"
     logFile="${logsDir}/${scriptName}-test-configuration.log"
     statsFile="${logsDir}/${scriptName}-test-configuration.stat"
     (
@@ -596,7 +596,8 @@ export __VERBOSE_LEVEL_TRACE=3
 # @arg $1 message:String the message to display
 Log::displayDebug() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_DEBUG)); then
-    echo -e "${__DEBUG_COLOR}DEBUG   - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__DEBUG_COLOR}DEBUG   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logDebug "$1"
 }
@@ -605,14 +606,11 @@ Log::displayDebug() {
 # @arg $1 message:String the message to display
 Log::displayError() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_ERROR)); then
-    echo -e "${__ERROR_COLOR}ERROR   - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__ERROR_COLOR}ERROR   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logError "$1"
 }
-
-FIRST_LOG_DATE="$(date '+%s%3N')"
-LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
-LOG_LAST_LOG_DATE_INIT=1
 
 # @description Display message using info color (bg light blue/fg white)
 # @arg $1 message:String the message to display
@@ -620,21 +618,8 @@ LOG_LAST_LOG_DATE_INIT=1
 Log::displayInfo() {
   local type="${2:-INFO}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    local durationMsg=""
-    if ((DISPLAY_DURATION == 1)); then
-      local duration
-      local -i currentLogDate
-      currentLogDate="$(date '+%s%3N')"
-      if ((LOG_LAST_LOG_DATE_INIT == 1)); then
-        LOG_LAST_LOG_DATE_INIT=0
-        duration="Ref"
-      else
-        duration="$(((currentLogDate - FIRST_LOG_DATE) / 1000))s/+$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000))s"
-      fi
-      LOG_LAST_LOG_DATE="${currentLogDate}"
-      durationMsg="$(date '+%H:%M:%S.%3N')(${duration}) - "
-    fi
-    echo -e "${__INFO_COLOR}${type}    - ${durationMsg}${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__INFO_COLOR}${type}    - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logInfo "$1" "${type}"
 }
@@ -643,7 +628,8 @@ Log::displayInfo() {
 # @arg $1 message:String the message to display
 Log::displaySkipped() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logSkipped "$1"
 }
@@ -652,7 +638,8 @@ Log::displaySkipped() {
 # @arg $1 message:String the message to display
 Log::displayWarning() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
-    echo -e "${__WARNING_COLOR}WARN    - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__WARNING_COLOR}WARN    - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logWarning "$1"
 }
@@ -660,7 +647,8 @@ Log::displayWarning() {
 # @description Display message using error color (red) and exit immediately with error status 1
 # @arg $1 message:String the message to display
 Log::fatal() {
-  echo -e "${__ERROR_COLOR}FATAL   - ${1}${__RESET_COLOR}" >&2
+  Log::computeDuration
+  echo -e "${__ERROR_COLOR}FATAL   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   Log::logFatal "$1"
   exit 1
 }
@@ -1253,13 +1241,51 @@ InstallScripts::scriptFunctionEmpty() {
   [[ "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} && "$(declare -f "$1" | sed '4q;d')" = "}" ]]
 }
 
+declare -g FIRST_LOG_DATE LOG_LAST_LOG_DATE LOG_LAST_LOG_DATE_INIT LOG_LAST_DURATION_STR
+FIRST_LOG_DATE="$(date '+%s%3N')"
+LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
+LOG_LAST_LOG_DATE_INIT=1
+LOG_LAST_DURATION_STR=""
+
+# @description Display message using info color (bg light blue/fg white)
+# @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+Log::computeDuration() {
+  if ((DISPLAY_DURATION == 1)); then
+    local -i duration=0
+    local -i delta=0
+    local -i currentLogDate
+    currentLogDate="$(date '+%s%3N')"
+    if ((LOG_LAST_LOG_DATE_INIT == 1)); then
+      LOG_LAST_LOG_DATE_INIT=0
+      LOG_LAST_DURATION_STR="Ref"
+    else
+      duration=$(((currentLogDate - FIRST_LOG_DATE) / 1000))
+      delta=$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000))
+      LOG_LAST_DURATION_STR="${duration}s/+${delta}s"
+    fi
+    LOG_LAST_LOG_DATE="${currentLogDate}"
+    # shellcheck disable=SC2034
+    LOG_LAST_DURATION_STR="$(date '+%H:%M:%S.%3N')(${LOG_LAST_DURATION_STR}) - "
+  else
+    # shellcheck disable=SC2034
+    LOG_LAST_DURATION_STR=""
+  fi
+}
+
 # @description Display given text on full line with TEST_COLOR style
 # @arg $1 text:String text to display
 Log::headLine() {
-  local text="$1"
-  local message
-  message="$(UI::textLine "${text}" " ")"
-  echo -e "${__TEST_COLOR}${message}${__RESET_COLOR}"
+  local type="$1"
+  local text="$2"
+  local message="${type}   - ${text}"
+  if [[ -z "${type}" ]]; then
+    message="${text}"
+  else
+    Log::computeDuration
+    message="$(printf '%-7s - %s%s' "${type}" "${LOG_LAST_DURATION_STR}" "${text}")"
+  fi
+  echo -e "${__TEST_COLOR}$(UI::textLine "${message}" " ")${__RESET_COLOR}" >&2
 }
 
 # @description log message to file
@@ -1698,7 +1724,7 @@ Stats::statusLine() {
   if [[ ! -f "${statFile}" ]]; then
     return 0
   fi
-
+  Log::computeDuration
   (
     # shellcheck source=src/Stats/logStats.example
     source "${statFile}" || exit 1
@@ -1708,15 +1734,15 @@ Stats::statusLine() {
     if [[ "${status}" = "0" ]]; then
       if [[ "${skipped}" = "0" ]]; then
         color="${__SUCCESS_COLOR}"
-        statusMsg="SUCCESS - ${msg} successful"
+        statusMsg="SUCCESS - ${LOG_LAST_DURATION_STR}${msg} successful"
       else
         color="${__SKIPPED_COLOR}"
-        statusMsg="SKIPPED - ${msg} skipped"
+        statusMsg="SKIPPED - ${LOG_LAST_DURATION_STR}${msg} skipped"
       fi
     elif [[ "${status}" = "-1" ]]; then
-      statusMsg="ABORTED - ${msg} not executed"
+      statusMsg="ABORTED - ${LOG_LAST_DURATION_STR}${msg} not executed"
     else
-      statusMsg="ERROR   - ${msg} in error"
+      statusMsg="ERROR   - ${LOG_LAST_DURATION_STR}${msg} in error"
     fi
     # overwrite final TEST line
     echo -e "${color}${statusMsg}${__RESET_COLOR}"
@@ -1872,7 +1898,8 @@ Linux::Wsl::originalWslvar() {
 # @arg $1 message:String the message to display
 Log::displaySuccess() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    echo -e "${__SUCCESS_COLOR}SUCCESS - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__SUCCESS_COLOR}SUCCESS - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logSuccess "$1"
 }
@@ -2033,6 +2060,7 @@ Retry::parameterized() {
 # FUNCTIONS
 
 facade_main_NodeDependenciessh() {
+
 # REQUIRES
 Env::requireLoad
 UI::requireTheme

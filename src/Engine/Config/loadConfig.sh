@@ -9,7 +9,7 @@ EOF
 # @description load .env file
 # @arg $1 envFile:String the file to load
 Engine::Config::loadConfig() {
-  if [[ "${BASH_DEV_ENV_CONFIG_LOADED:-}" = "1" ]]; then
+  if [[ "${BASH_DEV_ENV_CONFIG_LOADED:-0}" = "1" ]]; then
     return 0
   fi
   local envFile="${BASH_DEV_ENV_ROOT_DIR}/.env"

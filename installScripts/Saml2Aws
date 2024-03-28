@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Saml2Aws.sh
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/githubReleaseScripts/Saml2Aws.sh
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -368,7 +368,7 @@ EOF
 # @description load .env file
 # @arg $1 envFile:String the file to load
 Engine::Config::loadConfig() {
-  if [[ "${BASH_DEV_ENV_CONFIG_LOADED:-}" = "1" ]]; then
+  if [[ "${BASH_DEV_ENV_CONFIG_LOADED:-0}" = "1" ]]; then
     return 0
   fi
   local envFile="${BASH_DEV_ENV_ROOT_DIR}/.env"
@@ -450,33 +450,36 @@ Framework::createTempFile() {
 # releaseUrl argument : the placeholder @latestVersion@ will be replaced by the latest release version
 # @arg $1 targetFile:String target binary file (eg: /usr/local/bin/kind)
 # @arg $2 releaseUrl:String github release url (eg: https://github.com/kubernetes-sigs/kind/releases/download/@latestVersion@/kind-linux-amd64)
-# @arg $3 argVersion:String parameter to add to existing command to compute current version
-# @arg $4 versionCallback:Function function called to get software version (default: Version::getCommandVersionFromPlainText will call software with argument --version)
+# @arg $3 softVersionArg:String parameter to add to existing command to compute current version
+# @arg $4 softVersionCallback:Function function called to get software version (default: Version::getCommandVersionFromPlainText will call software with argument --version)
 # @arg $5 installCallback:Function function called to install the file retrieved on github (default copy as is and set execution bit)
-# @arg $6 parseVersionCallback:Function function to call to filter the version retrieved (Eg: Version::parse)
+# @arg $6 parseGithubVersionCallback:Function function to call to filter the version retrieved from github (Default: Version::parse)
 # @stdout log messages about retry, install, upgrade
+# @env SOFT_VERSION_CALLBACK pass softVersionCallback by env variable instead of passing it by arg
+# @env PARSE_VERSION_CALLBACK pass parseGithubVersionCallback by env variable instead of passing it by arg
+# @env INSTALL_CALLBACK pass installCallback by env variable instead of passing it by arg
 Github::upgradeRelease() {
   local targetFile="$1"
   local releaseUrl="$2"
-  local argVersion="${3:---version}"
-  local versionCallback="${4:-Version::getCommandVersionFromPlainText}"
+  local softVersionArg="${3:---version}"
+  local softVersionCallback="${4:-${SOFT_VERSION_CALLBACK:-Version::getCommandVersionFromPlainText}}"
   # shellcheck disable=SC2034
-  local installCallback="${5:-}"
-  local parseVersionCallback="${6:-}"
+  local installCallback="${5:-${INSTALL_CALLBACK:-}}"
+  local parseGithubVersionCallback="${6:-${PARSE_VERSION_CALLBACK:-Version::parse}}"
   local latestVersion
   local repo
 
   repo="$(Github::extractRepoFromGithubUrl "${releaseUrl}")"
   Github::getLatestRelease "${repo}" latestVersion ||
     Log::fatal "Repo ${repo} latest version not found"
-  if [[ "$(type -t "${parseVersionCallback}")" = "function" ]]; then
-    latestVersion="$(${parseVersionCallback} <<<"${latestVersion}")"
+  if [[ "$(type -t "${parseGithubVersionCallback}")" = "function" ]]; then
+    latestVersion="$(${parseGithubVersionCallback} <<<"${latestVersion}")"
   fi
   Log::displayInfo "Repo ${repo} latest version found is ${latestVersion}"
 
   local currentVersion="not existing"
   if [[ -f "${targetFile}" ]]; then
-    currentVersion="$(${versionCallback} "${targetFile}" "${argVersion}" 2>&1 || true)"
+    currentVersion="$(${softVersionCallback} "${targetFile}" "${softVersionArg}" 2>&1 || true)"
   fi
   if [[ "${currentVersion}" = "${latestVersion}" ]]; then
     Log::displayInfo "${targetFile} version ${latestVersion} already installed"
@@ -532,7 +535,7 @@ InstallScripts::command() {
   }
   local hook
   if [[ "${SKIP_INSTALL}" = "0" ]] && ! InstallScripts::scriptFunctionEmpty install; then
-    Log::headLine "INSTALL - Installing ${scriptName}"
+    Log::headLine "INSTALL" "Installing ${scriptName}"
     logFile="${logsDir}/${scriptName}-install.log"
     statsFile="${logsDir}/${scriptName}-install.stat"
 
@@ -552,7 +555,7 @@ InstallScripts::command() {
   local testInstallStatus="0"
   if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" ]] &&
     ! InstallScripts::scriptFunctionEmpty testInstall; then
-    Log::headLine "TEST    - Testing ${scriptName} installation"
+    Log::headLine "TEST" "Testing ${scriptName} installation"
     logFile="${logsDir}/${scriptName}-test-install.log"
     statsFile="${logsDir}/${scriptName}-test-install.stat"
     (
@@ -574,7 +577,7 @@ InstallScripts::command() {
   local configStatus="0"
   if [[ "${SKIP_CONFIGURE}" = "0" && "${installStatus}" = "0" ]] &&
     ! InstallScripts::scriptFunctionEmpty configure; then
-    Log::headLine "CONFIG  - Configuring ${scriptName}"
+    Log::headLine "CONFIG" "Configuring ${scriptName}"
     logFile="${logsDir}/${scriptName}-config.log"
     statsFile="${logsDir}/${scriptName}-config.stat"
     (
@@ -597,7 +600,7 @@ InstallScripts::command() {
   local testConfigStatus="0"
   if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" && "${configStatus}" = "0" ]] &&
     ! InstallScripts::scriptFunctionEmpty configure; then
-    Log::headLine "TEST    - Testing ${scriptName} configuration"
+    Log::headLine "TEST" "Testing ${scriptName} configuration"
     logFile="${logsDir}/${scriptName}-test-configuration.log"
     statsFile="${logsDir}/${scriptName}-test-configuration.stat"
     (
@@ -651,7 +654,8 @@ export __VERBOSE_LEVEL_TRACE=3
 # @arg $1 message:String the message to display
 Log::displayDebug() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_DEBUG)); then
-    echo -e "${__DEBUG_COLOR}DEBUG   - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__DEBUG_COLOR}DEBUG   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logDebug "$1"
 }
@@ -660,14 +664,11 @@ Log::displayDebug() {
 # @arg $1 message:String the message to display
 Log::displayError() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_ERROR)); then
-    echo -e "${__ERROR_COLOR}ERROR   - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__ERROR_COLOR}ERROR   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logError "$1"
 }
-
-FIRST_LOG_DATE="$(date '+%s%3N')"
-LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
-LOG_LAST_LOG_DATE_INIT=1
 
 # @description Display message using info color (bg light blue/fg white)
 # @arg $1 message:String the message to display
@@ -675,21 +676,8 @@ LOG_LAST_LOG_DATE_INIT=1
 Log::displayInfo() {
   local type="${2:-INFO}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    local durationMsg=""
-    if ((DISPLAY_DURATION == 1)); then
-      local duration
-      local -i currentLogDate
-      currentLogDate="$(date '+%s%3N')"
-      if ((LOG_LAST_LOG_DATE_INIT == 1)); then
-        LOG_LAST_LOG_DATE_INIT=0
-        duration="Ref"
-      else
-        duration="$(((currentLogDate - FIRST_LOG_DATE) / 1000))s/+$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000))s"
-      fi
-      LOG_LAST_LOG_DATE="${currentLogDate}"
-      durationMsg="$(date '+%H:%M:%S.%3N')(${duration}) - "
-    fi
-    echo -e "${__INFO_COLOR}${type}    - ${durationMsg}${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__INFO_COLOR}${type}    - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logInfo "$1" "${type}"
 }
@@ -698,7 +686,8 @@ Log::displayInfo() {
 # @arg $1 message:String the message to display
 Log::displayWarning() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
-    echo -e "${__WARNING_COLOR}WARN    - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__WARNING_COLOR}WARN    - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logWarning "$1"
 }
@@ -706,7 +695,8 @@ Log::displayWarning() {
 # @description Display message using error color (red) and exit immediately with error status 1
 # @arg $1 message:String the message to display
 Log::fatal() {
-  echo -e "${__ERROR_COLOR}FATAL   - ${1}${__RESET_COLOR}" >&2
+  Log::computeDuration
+  echo -e "${__ERROR_COLOR}FATAL   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   Log::logFatal "$1"
   exit 1
 }
@@ -883,26 +873,6 @@ Version::checkMinimal() {
     return 0
   }
 
-}
-
-# @description extract software version number
-# @arg $1 command:String the command that will be called with --version parameter
-# @arg $2 argVersion:String  allows to override default --version parameter
-Version::getCommandVersionFromPlainText() {
-  local command="$1"
-  local argVersion="${2:---version}"
-  "${command}" "${argVersion}" 2>&1 |
-    Version::parse # keep only version numbers
-}
-
-# @description filter to keep only version number from a string
-# @arg $@ files:String[] the files to filter
-# @exitcode * if one of the filter command fails
-# @stdin you can use stdin as alternative to files argument
-# @stdout the filtered content
-# shellcheck disable=SC2120
-Version::parse() {
-  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
 }
 
 # @description ensure COMMAND_BIN_DIR env var is set
@@ -1397,13 +1367,51 @@ InstallScripts::scriptFunctionEmpty() {
   [[ "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} && "$(declare -f "$1" | sed '4q;d')" = "}" ]]
 }
 
+declare -g FIRST_LOG_DATE LOG_LAST_LOG_DATE LOG_LAST_LOG_DATE_INIT LOG_LAST_DURATION_STR
+FIRST_LOG_DATE="$(date '+%s%3N')"
+LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
+LOG_LAST_LOG_DATE_INIT=1
+LOG_LAST_DURATION_STR=""
+
+# @description Display message using info color (bg light blue/fg white)
+# @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+Log::computeDuration() {
+  if ((DISPLAY_DURATION == 1)); then
+    local -i duration=0
+    local -i delta=0
+    local -i currentLogDate
+    currentLogDate="$(date '+%s%3N')"
+    if ((LOG_LAST_LOG_DATE_INIT == 1)); then
+      LOG_LAST_LOG_DATE_INIT=0
+      LOG_LAST_DURATION_STR="Ref"
+    else
+      duration=$(((currentLogDate - FIRST_LOG_DATE) / 1000))
+      delta=$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000))
+      LOG_LAST_DURATION_STR="${duration}s/+${delta}s"
+    fi
+    LOG_LAST_LOG_DATE="${currentLogDate}"
+    # shellcheck disable=SC2034
+    LOG_LAST_DURATION_STR="$(date '+%H:%M:%S.%3N')(${LOG_LAST_DURATION_STR}) - "
+  else
+    # shellcheck disable=SC2034
+    LOG_LAST_DURATION_STR=""
+  fi
+}
+
 # @description Display given text on full line with TEST_COLOR style
 # @arg $1 text:String text to display
 Log::headLine() {
-  local text="$1"
-  local message
-  message="$(UI::textLine "${text}" " ")"
-  echo -e "${__TEST_COLOR}${message}${__RESET_COLOR}"
+  local type="$1"
+  local text="$2"
+  local message="${type}   - ${text}"
+  if [[ -z "${type}" ]]; then
+    message="${text}"
+  else
+    Log::computeDuration
+    message="$(printf '%-7s - %s%s' "${type}" "${LOG_LAST_DURATION_STR}" "${text}")"
+  fi
+  echo -e "${__TEST_COLOR}$(UI::textLine "${message}" " ")${__RESET_COLOR}" >&2
 }
 
 # @description log message to file
@@ -1549,6 +1557,26 @@ Version::compare() {
     fi
   done
   return 0
+}
+
+# @description extract software version number
+# @arg $1 command:String the command that will be called with --version parameter
+# @arg $2 argVersion:String  allows to override default --version parameter
+Version::getCommandVersionFromPlainText() {
+  local command="$1"
+  local argVersion="${2:---version}"
+  "${command}" "${argVersion}" 2>&1 |
+    Version::parse # keep only version numbers
+}
+
+# @description filter to keep only version number from a string
+# @arg $@ files:String[] the files to filter
+# @exitcode * if one of the filter command fails
+# @stdin you can use stdin as alternative to files argument
+# @stdout the filtered content
+# shellcheck disable=SC2120
+Version::parse() {
+  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
 }
 
 # @description load color theme
@@ -1771,7 +1799,8 @@ Linux::Wsl::cachedWslvar() {
 # @arg $1 message:String the message to display
 Log::displaySkipped() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logSkipped "$1"
 }
@@ -1878,7 +1907,7 @@ Stats::statusLine() {
   if [[ ! -f "${statFile}" ]]; then
     return 0
   fi
-
+  Log::computeDuration
   (
     # shellcheck source=src/Stats/logStats.example
     source "${statFile}" || exit 1
@@ -1888,15 +1917,15 @@ Stats::statusLine() {
     if [[ "${status}" = "0" ]]; then
       if [[ "${skipped}" = "0" ]]; then
         color="${__SUCCESS_COLOR}"
-        statusMsg="SUCCESS - ${msg} successful"
+        statusMsg="SUCCESS - ${LOG_LAST_DURATION_STR}${msg} successful"
       else
         color="${__SKIPPED_COLOR}"
-        statusMsg="SKIPPED - ${msg} skipped"
+        statusMsg="SKIPPED - ${LOG_LAST_DURATION_STR}${msg} skipped"
       fi
     elif [[ "${status}" = "-1" ]]; then
-      statusMsg="ABORTED - ${msg} not executed"
+      statusMsg="ABORTED - ${LOG_LAST_DURATION_STR}${msg} not executed"
     else
-      statusMsg="ERROR   - ${msg} in error"
+      statusMsg="ERROR   - ${LOG_LAST_DURATION_STR}${msg} in error"
     fi
     # overwrite final TEST line
     echo -e "${color}${statusMsg}${__RESET_COLOR}"
@@ -2062,7 +2091,8 @@ Linux::Wsl::originalWslvar() {
 # @arg $1 message:String the message to display
 Log::displaySuccess() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    echo -e "${__SUCCESS_COLOR}SUCCESS - ${1}${__RESET_COLOR}" >&2
+    Log::computeDuration
+    echo -e "${__SUCCESS_COLOR}SUCCESS - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logSuccess "$1"
 }
@@ -2101,7 +2131,9 @@ Linux::Wsl::requireWsl() {
 # @exitcode 1 if jq command not available
 # @stderr diagnostics information is displayed
 Linux::requireJqCommand() {
-  Assert::commandExists jq
+  if [[ "${SKIP_REQUIRE_JQ:-0}" = "0" && "${SKIP_REQUIRES:-0}" = "0" ]]; then
+    Assert::commandExists jq
+  fi
 }
 
 # @description delete files older than n days in given path
@@ -2193,6 +2225,7 @@ Log::logSuccess() {
 # FUNCTIONS
 
 facade_main_Saml2Awssh() {
+
 # REQUIRES
 Env::requireLoad
 UI::requireTheme
@@ -2930,7 +2963,7 @@ installScriptCommand() {
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
     echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Saml2Aws.sh'
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/githubReleaseScripts/Saml2Aws.sh'
     echo
     echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
     echo 'MIT License'
@@ -2968,27 +3001,29 @@ helpLongDescriptionCallback() {
   stringOrNone "$(dependencies)"
 }
 
-scriptName() {
-  echo "Saml2Aws"
+helpDescription() {
+  scriptName
 }
 
-helpDescription() {
+# jscpd:ignore-start
+dependencies() { :; }
+helpVariables() { :; }
+listVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+fortunes() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
+configure() { :; }
+testConfigure() { :; }
+# jscpd:ignore-end
+
+scriptName() {
   echo "Saml2Aws"
 }
 
 dependencies() {
   echo "AwsCli"
-}
-
-listVariables() {
-  echo "AWS_AUTHENTICATOR"
-  echo "CAN_TALK_DURING_INSTALLATION"
-  echo "AWS_APP_ID"
-  echo "AWS_PROFILE"
-  echo "AWS_USER_MAIL"
-  echo "AWS_DEFAULT_REGION"
-  echo "AWS_TEST_SECRET_ID"
-  echo "AWS_DEFAULT_DOCKER_REGISTRY_ID"
 }
 
 fortunes() {
@@ -3000,39 +3035,23 @@ fortunes() {
   fi
 }
 
-# jscpd:ignore-start
-helpVariables() { :; }
-defaultVariables() { :; }
-checkVariables() { :; }
-breakOnConfigFailure() { :; }
-breakOnTestFailure() { :; }
-# jscpd:ignore-end
+# @see https://github.com/fchastanet/my-documents/blob/master/HowTo/Saml2Aws.md
+saml2awsInstallCallback() {
+  sudo tar xzvf "$1" -C /usr/local/bin saml2aws
+  sudo chmod +x /usr/local/bin/saml2aws
+  hash -r
+  sudo rm -f "$1"
+}
 
 install() {
-  # @see https://github.com/fchastanet/my-documents/blob/master/HowTo/Saml2Aws.md
-  # shellcheck disable=SC2317
-  saml2awsInstallCallback() {
-    sudo tar xzvf "$1" -C /usr/local/bin saml2aws
-    sudo chmod +x /usr/local/bin/saml2aws
-    hash -r
-  }
-  export -f saml2awsInstallCallback
-  # shellcheck disable=SC2154
-  SUDO=sudo Github::upgradeRelease \
+  SUDO=sudo INSTALL_CALLBACK=saml2awsInstallCallback Github::upgradeRelease \
     /usr/local/bin/saml2aws \
-    "https://github.com/Versent/saml2aws/releases/download/v@latestVersion@/saml2aws_@latestVersion@_linux_amd64.tar.gz" \
-    "--version" \
-    "Version::getCommandVersionFromPlainText" \
-    saml2awsInstallCallback \
-    "Version::parse"
+    "https://github.com/Versent/saml2aws/releases/download/v@latestVersion@/saml2aws_@latestVersion@_linux_amd64.tar.gz"
 }
 
 testInstall() {
   Version::checkMinimal "saml2aws" --version "2.36.10" || return 1
 }
-
-configure() { :; }
-testConfigure() { :; }
 
 local action=$1
 shift || true

@@ -49,7 +49,7 @@ Profiles::allDepsRecursive() {
       return 1
     fi
 
-    if ! readarray -t newDeps < <("${scriptsDir}/${i}" dependencies); then
+    if ! readarray -t newDeps < <(SKIP_REQUIRES=1 "${scriptsDir}/${i}" dependencies); then
       Log::displayError "Dependency ${i} - ${scriptsDir}/${i} dependencies failure"
       return 3
     fi
