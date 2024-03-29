@@ -563,6 +563,7 @@ InstallScripts::command() {
       source "${hook}" || exit 1
     fi
   }
+  local globalStatsFile="${logsDir}/${scriptName}-global.stat"
   local hook
   if [[ "${SKIP_INSTALL}" = "0" ]] && ! InstallScripts::scriptFunctionEmpty install; then
     Log::headLine "INSTALL" "Installing ${scriptName}"
@@ -572,7 +573,13 @@ InstallScripts::command() {
     # break at first install error
     (
       startDate="$(date +%s)"
-      trap 'Stats::computeStatsTrap "Installation ${scriptName}" "${logFile}" "${statsFile}" "${startDate}"' EXIT INT TERM ABRT
+      # shellcheck disable=SC2317
+      computeStats() {
+        Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
+        Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
+        Stats::statusLine "${statsFile}" "Installation ${scriptName}"
+      }
+      trap 'computeStats' EXIT INT TERM ABRT
 
       local -i failures=0
       sourceHook preInstall || ((++failures))
@@ -590,7 +597,13 @@ InstallScripts::command() {
     statsFile="${logsDir}/${scriptName}-test-install.stat"
     (
       startDate="$(date +%s)"
-      trap 'Stats::computeStatsTrap "Test ${scriptName}" "${logFile}" "${statsFile}" "${startDate}"' EXIT INT TERM ABRT
+      # shellcheck disable=SC2317
+      computeStats() {
+        Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
+        Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
+        Stats::statusLine "${statsFile}" "Test Install ${scriptName}"
+      }
+      trap 'computeStats' EXIT INT TERM ABRT
 
       local -i failures=0
       sourceHook preTestInstall || ((++failures))
@@ -612,7 +625,13 @@ InstallScripts::command() {
     statsFile="${logsDir}/${scriptName}-config.stat"
     (
       startDate="$(date +%s)"
-      trap 'Stats::computeStatsTrap "Configuration ${scriptName}" "${logFile}" "${statsFile}" "${startDate}"' EXIT INT TERM ABRT
+      # shellcheck disable=SC2317
+      computeStats() {
+        Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
+        Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
+        Stats::statusLine "${statsFile}" "Configuration ${scriptName}"
+      }
+      trap 'computeStats' EXIT INT TERM ABRT
 
       local -i failures=0
       sourceHook preConfigure || ((++failures))
@@ -635,7 +654,13 @@ InstallScripts::command() {
     statsFile="${logsDir}/${scriptName}-test-configuration.stat"
     (
       startDate="$(date +%s)"
-      trap 'Stats::computeStatsTrap "Test ${scriptName}" "${logFile}" "${statsFile}" "${startDate}"' EXIT INT TERM ABRT
+      # shellcheck disable=SC2317
+      computeStats() {
+        Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
+        Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
+        Stats::statusLine "${statsFile}" "Test Configuration ${scriptName}"
+      }
+      trap 'computeStats' EXIT INT TERM ABRT
 
       local -i failures=0
       sourceHook preTestConfigure || ((++failures))
@@ -648,6 +673,14 @@ InstallScripts::command() {
       exit "${testConfigStatus}"
     fi
   fi
+}
+
+# @description check if function is empty
+# @arg $1 function:Function
+# @exitcode 0 if function is considered empty (body with : or true)
+InstallScripts::scriptFunctionEmpty() {
+  local pattern="^[ \t]+(:|true)"
+  [[ "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} && "$(declare -f "$1" | sed '4q;d')" = "}" ]]
 }
 
 # @description apt-get install
@@ -1323,14 +1356,6 @@ Install::file() {
   fi
 }
 
-# @description check if function is empty
-# @arg $1 function:Function
-# @exitcode 0 if function is considered empty (body with : or true)
-InstallScripts::scriptFunctionEmpty() {
-  local pattern="^[ \t]+(:|true)"
-  [[ "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} && "$(declare -f "$1" | sed '4q;d')" = "}" ]]
-}
-
 declare -g FIRST_LOG_DATE LOG_LAST_LOG_DATE LOG_LAST_LOG_DATE_INIT LOG_LAST_DURATION_STR
 FIRST_LOG_DATE="$(date '+%s%3N')"
 LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
@@ -1482,21 +1507,50 @@ Retry::default() {
 }
 
 # @description trap function responsible to compute and display stats after each script execution
-# @arg $1 step:String current step (msg)
-# @arg $2 logFile:String
-# @arg $3 statFile:String
-# @arg $4 startDate:String date at which log started
+# @arg $1 logFile:String
+# @arg $2 statFile:String
+# @arg $3 startDate:String date at which log started
 Stats::computeStatsTrap() {
   local status="$?"
-  local step="$1"
-  local logFile="$2"
-  local statFile="$3"
-  local startDate="$4"
+  local logFile="$1"
+  local statFile="$2"
+  local startDate="$3"
   local endDate
   endDate="$(date +%s)"
   Stats::computeFromLog "${logFile}" "${status}" "$((endDate - startDate))" >"${statFile}"
-  Stats::statusLine "${statFile}" "${step}"
   return "${status}"
+}
+
+# @description display message to reflect last installation status
+Stats::statusLine() {
+  local statFile="$1"
+  local msg="$2"
+  if [[ ! -f "${statFile}" ]]; then
+    return 0
+  fi
+  Log::computeDuration
+  (
+    # shellcheck source=src/Stats/logStats.example
+    source "${statFile}" || exit 1
+
+    local color="${__TEST_ERROR_COLOR}"
+    local statusMsg
+    if [[ "${status}" = "0" ]]; then
+      if [[ "${skipped}" = "0" ]]; then
+        color="${__SUCCESS_COLOR}"
+        statusMsg="SUCCESS - ${LOG_LAST_DURATION_STR}${msg} successful"
+      else
+        color="${__SKIPPED_COLOR}"
+        statusMsg="SKIPPED - ${LOG_LAST_DURATION_STR}${msg} skipped"
+      fi
+    elif [[ "${status}" = "-1" ]]; then
+      statusMsg="ABORTED - ${LOG_LAST_DURATION_STR}${msg} not executed"
+    else
+      statusMsg="ERROR   - ${LOG_LAST_DURATION_STR}${msg} in error"
+    fi
+    # overwrite final TEST line
+    echo -e "${color}${statusMsg}${__RESET_COLOR}"
+  )
 }
 
 # @description ensure linux distribution is ubuntu
@@ -1811,38 +1865,6 @@ EOF
     # not executed
     echo "status=-1"
   fi
-}
-
-# @description display message to reflect last installation status
-Stats::statusLine() {
-  local statFile="$1"
-  local msg="$2"
-  if [[ ! -f "${statFile}" ]]; then
-    return 0
-  fi
-  Log::computeDuration
-  (
-    # shellcheck source=src/Stats/logStats.example
-    source "${statFile}" || exit 1
-
-    local color="${__TEST_ERROR_COLOR}"
-    local statusMsg
-    if [[ "${status}" = "0" ]]; then
-      if [[ "${skipped}" = "0" ]]; then
-        color="${__SUCCESS_COLOR}"
-        statusMsg="SUCCESS - ${LOG_LAST_DURATION_STR}${msg} successful"
-      else
-        color="${__SKIPPED_COLOR}"
-        statusMsg="SKIPPED - ${LOG_LAST_DURATION_STR}${msg} skipped"
-      fi
-    elif [[ "${status}" = "-1" ]]; then
-      statusMsg="ABORTED - ${LOG_LAST_DURATION_STR}${msg} not executed"
-    else
-      statusMsg="ERROR   - ${LOG_LAST_DURATION_STR}${msg} in error"
-    fi
-    # overwrite final TEST line
-    echo -e "${color}${statusMsg}${__RESET_COLOR}"
-  )
 }
 
 # @description Display given text and complete the rest of the line with given character
@@ -2835,6 +2857,22 @@ helpLongDescriptionCallback() {
   stringOrNone "$(dependencies)"
 }
 
+isInstallImplemented() {
+  ! InstallScripts::scriptFunctionEmpty install
+}
+
+isTestInstallImplemented() {
+  ! InstallScripts::scriptFunctionEmpty testInstall
+}
+
+isConfigureImplemented() {
+  ! InstallScripts::scriptFunctionEmpty configure
+}
+
+isTestConfigureImplemented() {
+  ! InstallScripts::scriptFunctionEmpty testConfigure
+}
+
 declare -a filesToInstall=(
   bash_completion
   bash_navigation
@@ -2947,23 +2985,35 @@ case ${action} in
   dependencies)
     dependencies "$@"
     ;;
-  breakOnConfigFailure)
-    breakOnConfigFailure "$@"
-    ;;
   breakOnTestFailure)
     breakOnTestFailure "$@"
+    ;;
+  breakOnConfigFailure)
+    breakOnConfigFailure "$@"
     ;;
   install)
     install "$@"
     ;;
-  configure)
-    configure "$@"
+  isInstallImplemented)
+    isInstallImplemented "$@"
     ;;
   testInstall)
     testInstall "$@"
     ;;
+  isTestInstallImplemented)
+    isTestInstallImplemented "$@"
+    ;;
+  configure)
+    configure "$@"
+    ;;
+  isConfigureImplemented)
+    isConfigureImplemented "$@"
+    ;;
   testConfigure)
     testConfigure "$@"
+    ;;
+  isTestConfigureImplemented)
+    isTestConfigureImplemented "$@"
     ;;
   *)
     if Assert::functionExists defaultFacadeAction; then

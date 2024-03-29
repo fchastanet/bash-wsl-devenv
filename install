@@ -803,26 +803,96 @@ Profiles::loadProfile() {
 # @description aggregate number of skip/error/... log messages
 # and export the result in aggregateStatFile
 # @arg $1 statFile:String the current stat file to add to aggregateStatFile
-# @arg $2 aggregateStatFile:String the file in which aggregated
+# @arg $2 appCount:int number of app requested to be installed
+# @arg $@ statFiles:String[] the files in which each step stats hve been aggregated aggregated
 # if it doesn't exist, the file is created with needed variables set to 0
 # stats will be saved
-Stats::aggregateStats() {
-  local statFile="$1"
-  local aggregateStatFile="$2"
+Stats::aggregateGlobalStats() {
+  local aggregateStatFile="$1"
+  local appCount="$2"
+  shift 2 || true
+  local -a statFiles=("$@")
 
   (
     if [[ ! -f "${aggregateStatFile}" ]]; then
-      (
-        echo "count=0"
-        echo "appCount=0"
-        echo "error=0"
-        echo "warning=0"
-        echo "skipped=0"
-        echo "help=0"
-        echo "success=0"
-        echo "duration=0"
-        echo "statusSuccess=0"
-      ) >"${aggregateStatFile}"
+      Stats::aggregateStatsInitialContent "${appCount}" >"${aggregateStatFile}"
+    fi
+    # shellcheck source=src/Stats/aggregateStats.example
+    source "${aggregateStatFile}"
+
+    local -i globalError=0
+    local -i globalWarning=0
+    local -i globalSkipped=0
+    local -i globalHelp=0
+    local -i globalSuccess=0
+    local -i globalStatus=0
+    ((globalDuration=duration)) || true
+    for statFile in "${statFiles[@]}"; do
+      if [[ ! -f "${statFile}" ]]; then
+        continue
+      fi
+      # shellcheck source=src/Stats/logStats.example
+      source "${statFile}"
+
+      # all statuses need to be 0 for global status to be O
+      globalError=$((globalError || error))
+      globalWarning=$((globalWarning || warning))
+      globalSkipped=$((globalSkipped || skipped))
+      globalHelp=$((globalHelp || help))
+      globalSuccess=$((globalSuccess || success))
+      globalStatus=$((globalStatus || status))
+      globalDuration=$((globalDuration + duration))
+    done
+    # shellcheck source=src/Stats/aggregateStats.example
+    source "${aggregateStatFile}"
+    ((count++)) || true
+    if ((globalStatus == 0)); then
+      ((statusSuccess++)) || true
+    fi
+    if ((globalError > 0)); then
+      ((error++)) || true
+    fi
+    if ((globalWarning > 0)); then
+      ((warning++)) || true
+    fi
+    if ((globalSkipped > 0)); then
+      ((skipped++)) || true
+    fi
+    if ((globalHelp > 0)); then
+      ((help++)) || true
+    fi
+    if ((globalSuccess > 0)); then
+      ((success++)) || true
+    fi
+    (
+      echo "count=${count}"
+      echo "appCount=${appCount}"
+      echo "error=${error}"
+      echo "warning=${warning}"
+      echo "skipped=${skipped}"
+      echo "help=${help}"
+      echo "success=${success}"
+      echo "duration=${globalDuration}"
+      echo "statusSuccess=${statusSuccess}"
+    ) >"${aggregateStatFile}"
+  )
+}
+
+# @description aggregate number of skip/error/... log messages
+# and export the result in aggregateStatFile
+# @arg $1 aggregateStatFile:String the file in which aggregated
+# @arg $2 appCount:int number of app requested to be installed
+# @arg $3 statFile:String the current stat file to add to aggregateStatFile
+# if it doesn't exist, the file is created with needed variables set to 0
+# stats will be saved
+Stats::aggregateStats() {
+  local aggregateStatFile="$1"
+  local appCount="$2"
+  local statFile="$3"
+
+  (
+    if [[ ! -f "${aggregateStatFile}" ]]; then
+      Stats::aggregateStatsInitialContent "${appCount}" >"${aggregateStatFile}"
     fi
 
     # shellcheck source=src/Stats/logStats.example
@@ -840,7 +910,6 @@ Stats::aggregateStats() {
     source "${aggregateStatFile}"
     if [[ -f "${statFile}" ]]; then
       ((count++)) || true
-      ((appCount++)) || true
       if ((newStatus == 0)); then
         ((statusSuccess++)) || true
       fi
@@ -1514,6 +1583,20 @@ Log::logWarning() {
   if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_WARNING)); then
     Log::logMessage "${2:-WARNING}" "$1"
   fi
+}
+
+# @description default aggregateStats file Content
+Stats::aggregateStatsInitialContent() {
+  local appCount="$1"
+  echo "count=0"
+  echo "appCount=${appCount}"
+  echo "error=0"
+  echo "warning=0"
+  echo "skipped=0"
+  echo "help=0"
+  echo "success=0"
+  echo "duration=0"
+  echo "statusSuccess=0"
 }
 
 # @description Display given text and complete the rest of the line with given character
@@ -3808,7 +3891,7 @@ configure Home environnement (git config, kube, motd, ssh, dns, ...) and check c
 installCommand parse "${BASH_FRAMEWORK_ARGV[@]}"
 
 # shellcheck disable=SC2317
-declare summaryDisplayed="0"
+declare -g summaryDisplayed="0"
 declare -g installResultCode=0
 summary() {
   local startDate="$1"
@@ -3821,6 +3904,8 @@ summary() {
 
   UI::drawLine '-'
   Log::headLine "" "Summary"
+  Stats::aggregateStatsSummary "software installation(s)" "${LOGS_DIR:-#}/global.stat"
+  Log::headLine "" "Details"
   if [[ "${SKIP_INSTALL}" = "0" ]]; then
     Stats::aggregateStatsSummary "installation(s)" "${LOGS_DIR:-#}/install.stat"
   fi
@@ -3889,26 +3974,62 @@ executeScripts() {
     fi
     local -i configIndex=1
     local -i configCount=${#CONFIG_LIST[@]}
+
+    # compute number of config for each step
+    local -i installConfigCount=0
+    local -i installTestConfigCount=0
+    local -i configConfigCount=0
+    local -i configTestConfigCount=0
+    for configName in "${CONFIG_LIST[@]}"; do
+      if [[ "${SKIP_INSTALL}" = "0" ]] &&
+        SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isInstallImplemented; then
+        ((++installConfigCount))
+      fi
+      if [[ "${SKIP_CONFIGURE}" = "0" ]] &&
+        SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isConfigureImplemented; then
+        ((++configConfigCount))
+      fi
+      if [[ "${SKIP_TEST}" = "0" ]]; then
+        if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isTestInstallImplemented; then
+          ((++installTestConfigCount))
+        fi
+        if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isTestConfigureImplemented; then
+          ((++configTestConfigCount))
+        fi
+      fi
+    done
     # shellcheck disable=SC2317
     for configName in "${CONFIG_LIST[@]}"; do
       installStatus="0"
       (
         aggregateStat() {
-          if [[ "${SKIP_INSTALL}" = "0" ]]; then
-            Stats::aggregateStats "${LOGS_DIR:-#}/${configName}-install.stat" "${LOGS_DIR:-#}/install.stat"
+          local -a statFiles=()
+          if [[ "${SKIP_INSTALL}" = "0" ]] &&
+              SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isInstallImplemented; then
+            Stats::aggregateStats "${LOGS_DIR:-#}/install.stat" "${installConfigCount}" "${LOGS_DIR:-#}/${configName}-install.stat"
+            statFiles+=("${LOGS_DIR:-#}/${configName}-install.stat")
           fi
-          if [[ "${SKIP_CONFIGURE}" = "0" ]]; then
-            Stats::aggregateStats "${LOGS_DIR:-#}/${configName}-config.stat" "${LOGS_DIR:-#}/config.stat"
+          if [[ "${SKIP_CONFIGURE}" = "0" ]] &&
+              SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isConfigureImplemented; then
+            Stats::aggregateStats "${LOGS_DIR:-#}/config.stat" "${configConfigCount}" "${LOGS_DIR:-#}/${configName}-config.stat"
+            statFiles+=("${LOGS_DIR:-#}/${configName}-config.stat")
           fi
           if [[ "${SKIP_TEST}" = "0" ]]; then
-            Stats::aggregateStats "${LOGS_DIR:-#}/${configName}-test-install.stat" "${LOGS_DIR:-#}/test-install.stat"
-            Stats::aggregateStats "${LOGS_DIR:-#}/${configName}-test-configuration.stat" "${LOGS_DIR:-#}/test-configuration.stat"
+            if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isTestInstallImplemented; then
+              Stats::aggregateStats "${LOGS_DIR:-#}/test-install.stat" "${installTestConfigCount}" "${LOGS_DIR:-#}/${configName}-test-install.stat"
+              statFiles+=("${LOGS_DIR:-#}/${configName}-test-install.stat")
+            fi
+            if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isTestConfigureImplemented; then
+              Stats::aggregateStats "${LOGS_DIR:-#}/test-configuration.stat" "${configTestConfigCount}" "${LOGS_DIR:-#}/${configName}-test-configuration.stat"
+              statFiles+=("${LOGS_DIR:-#}/${configName}-test-configuration.stat")
+            fi
           fi
+          Stats::aggregateGlobalStats "${LOGS_DIR:-#}/global.stat" "${configCount}" "${statFiles[@]}"
         }
         trap 'aggregateStat' EXIT INT TERM ABRT
 
         rm -f \
-          "${LOGS_DIR:-#}/${configName}"-{install,config,test-install,test-configuration}.stat \
+          "${LOGS_DIR:-#}/${configName}"-{install,config,test-install,test-configuration,global}.stat \
           &>/dev/null || true
 
         UI::drawLineWithMsg "Installing ${configName} (${configIndex}/${configCount})" '#'
@@ -3934,7 +4055,7 @@ run() {
   # Start install process
   Log::rotate "${LOGS_DIR}/automatic-upgrade"
   rm -f \
-    "${LOGS_DIR:-#}/"{install,config,test-install,test-configuration}.stat \
+    "${LOGS_DIR:-#}/"{install,config,test-install,test-configuration,global}.stat \
     &>/dev/null || true
 
   UI::drawLine '-'
