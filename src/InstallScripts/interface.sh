@@ -5,16 +5,27 @@
 InstallScripts::interface() {
   echo scriptName
   echo helpDescription
+  
   echo helpVariables
   echo listVariables
   echo defaultVariables
   echo checkVariables
+  
   echo fortunes
   echo dependencies
-  echo breakOnConfigFailure
+  
   echo breakOnTestFailure
+  echo breakOnConfigFailure
+  
   echo install
-  echo configure
+  echo isInstallImplemented
+  
   echo testInstall
+  echo isTestInstallImplemented
+  
+  echo configure
+  echo isConfigureImplemented
+  
   echo testConfigure
+  echo isTestConfigureImplemented
 }

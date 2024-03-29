@@ -43,3 +43,19 @@ helpLongDescriptionCallback() {
   echo -e "${__HELP_TITLE}List of dependencies:${__HELP_NORMAL}"
   stringOrNone "$(dependencies)"
 }
+
+isInstallImplemented() {
+  ! InstallScripts::scriptFunctionEmpty install
+}
+
+isTestInstallImplemented() {
+  ! InstallScripts::scriptFunctionEmpty testInstall
+}
+
+isConfigureImplemented() {
+  ! InstallScripts::scriptFunctionEmpty configure
+}
+
+isTestConfigureImplemented() {
+  ! InstallScripts::scriptFunctionEmpty testConfigure
+}

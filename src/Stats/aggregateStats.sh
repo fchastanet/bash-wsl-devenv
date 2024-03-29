@@ -2,27 +2,19 @@
 
 # @description aggregate number of skip/error/... log messages
 # and export the result in aggregateStatFile
-# @arg $1 statFile:String the current stat file to add to aggregateStatFile
-# @arg $2 aggregateStatFile:String the file in which aggregated
+# @arg $1 aggregateStatFile:String the file in which aggregated
+# @arg $2 appCount:int number of app requested to be installed
+# @arg $3 statFile:String the current stat file to add to aggregateStatFile
 # if it doesn't exist, the file is created with needed variables set to 0
 # stats will be saved
 Stats::aggregateStats() {
-  local statFile="$1"
-  local aggregateStatFile="$2"
+  local aggregateStatFile="$1"
+  local appCount="$2"
+  local statFile="$3"
 
   (
     if [[ ! -f "${aggregateStatFile}" ]]; then
-      (
-        echo "count=0"
-        echo "appCount=0"
-        echo "error=0"
-        echo "warning=0"
-        echo "skipped=0"
-        echo "help=0"
-        echo "success=0"
-        echo "duration=0"
-        echo "statusSuccess=0"
-      ) >"${aggregateStatFile}"
+      Stats::aggregateStatsInitialContent "${appCount}" >"${aggregateStatFile}"
     fi
 
     # shellcheck source=src/Stats/logStats.example
@@ -40,7 +32,6 @@ Stats::aggregateStats() {
     source "${aggregateStatFile}"
     if [[ -f "${statFile}" ]]; then
       ((count++)) || true
-      ((appCount++)) || true
       if ((newStatus == 0)); then
         ((statusSuccess++)) || true
       fi

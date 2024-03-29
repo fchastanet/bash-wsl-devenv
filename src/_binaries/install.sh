@@ -29,7 +29,7 @@ trap 'err_report $LINENO' ERR
 .INCLUDE "$(dynamicTemplateDir _includes/install.options.tpl)"
 
 # shellcheck disable=SC2317
-declare summaryDisplayed="0"
+declare -g summaryDisplayed="0"
 declare -g installResultCode=0
 summary() {
   local startDate="$1"
@@ -42,6 +42,8 @@ summary() {
 
   UI::drawLine '-'
   Log::headLine "" "Summary"
+  Stats::aggregateStatsSummary "software installation(s)" "${LOGS_DIR:-#}/global.stat"
+  Log::headLine "" "Details"
   if [[ "${SKIP_INSTALL}" = "0" ]]; then
     Stats::aggregateStatsSummary "installation(s)" "${LOGS_DIR:-#}/install.stat"
   fi
@@ -90,26 +92,62 @@ executeScripts() {
     .INCLUDE "$(dynamicTemplateDir _includes/sudoerFileManagement.tpl)"
     local -i configIndex=1
     local -i configCount=${#CONFIG_LIST[@]}
+    
+    # compute number of config for each step
+    local -i installConfigCount=0
+    local -i installTestConfigCount=0
+    local -i configConfigCount=0
+    local -i configTestConfigCount=0
+    for configName in "${CONFIG_LIST[@]}"; do
+      if [[ "${SKIP_INSTALL}" = "0" ]] && 
+        SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isInstallImplemented; then
+        ((++installConfigCount))
+      fi
+      if [[ "${SKIP_CONFIGURE}" = "0" ]] && 
+        SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isConfigureImplemented; then
+        ((++configConfigCount))
+      fi
+      if [[ "${SKIP_TEST}" = "0" ]]; then
+        if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isTestInstallImplemented; then
+          ((++installTestConfigCount))
+        fi
+        if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isTestConfigureImplemented; then
+          ((++configTestConfigCount))
+        fi
+      fi
+    done
     # shellcheck disable=SC2317
     for configName in "${CONFIG_LIST[@]}"; do
       installStatus="0"
       (
         aggregateStat() {
-          if [[ "${SKIP_INSTALL}" = "0" ]]; then
-            Stats::aggregateStats "${LOGS_DIR:-#}/${configName}-install.stat" "${LOGS_DIR:-#}/install.stat"
+          local -a statFiles=()
+          if [[ "${SKIP_INSTALL}" = "0" ]] && 
+              SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isInstallImplemented; then
+            Stats::aggregateStats "${LOGS_DIR:-#}/install.stat" "${installConfigCount}" "${LOGS_DIR:-#}/${configName}-install.stat"
+            statFiles+=("${LOGS_DIR:-#}/${configName}-install.stat")
           fi
-          if [[ "${SKIP_CONFIGURE}" = "0" ]]; then
-            Stats::aggregateStats "${LOGS_DIR:-#}/${configName}-config.stat" "${LOGS_DIR:-#}/config.stat"
+          if [[ "${SKIP_CONFIGURE}" = "0" ]] && 
+              SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isConfigureImplemented; then
+            Stats::aggregateStats "${LOGS_DIR:-#}/config.stat" "${configConfigCount}" "${LOGS_DIR:-#}/${configName}-config.stat"
+            statFiles+=("${LOGS_DIR:-#}/${configName}-config.stat")
           fi
           if [[ "${SKIP_TEST}" = "0" ]]; then
-            Stats::aggregateStats "${LOGS_DIR:-#}/${configName}-test-install.stat" "${LOGS_DIR:-#}/test-install.stat"
-            Stats::aggregateStats "${LOGS_DIR:-#}/${configName}-test-configuration.stat" "${LOGS_DIR:-#}/test-configuration.stat"
+            if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isTestInstallImplemented; then
+              Stats::aggregateStats "${LOGS_DIR:-#}/test-install.stat" "${installTestConfigCount}" "${LOGS_DIR:-#}/${configName}-test-install.stat"
+              statFiles+=("${LOGS_DIR:-#}/${configName}-test-install.stat")
+            fi
+            if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isTestConfigureImplemented; then
+              Stats::aggregateStats "${LOGS_DIR:-#}/test-configuration.stat" "${configTestConfigCount}" "${LOGS_DIR:-#}/${configName}-test-configuration.stat"
+              statFiles+=("${LOGS_DIR:-#}/${configName}-test-configuration.stat")
+            fi
           fi
+          Stats::aggregateGlobalStats "${LOGS_DIR:-#}/global.stat" "${configCount}" "${statFiles[@]}"
         }
         trap 'aggregateStat' EXIT INT TERM ABRT
 
         rm -f \
-          "${LOGS_DIR:-#}/${configName}"-{install,config,test-install,test-configuration}.stat \
+          "${LOGS_DIR:-#}/${configName}"-{install,config,test-install,test-configuration,global}.stat \
           &>/dev/null || true
 
         UI::drawLineWithMsg "Installing ${configName} (${configIndex}/${configCount})" '#'
@@ -135,7 +173,7 @@ run() {
   # Start install process
   Log::rotate "${LOGS_DIR}/automatic-upgrade"
   rm -f \
-    "${LOGS_DIR:-#}/"{install,config,test-install,test-configuration}.stat \
+    "${LOGS_DIR:-#}/"{install,config,test-install,test-configuration,global}.stat \
     &>/dev/null || true
 
   UI::drawLine '-'
