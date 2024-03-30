@@ -38,8 +38,6 @@ Engine::Config::loadConfig() {
   #Linux::Wsl::initEnv
   Engine::Config::loadWslVariables
 
-  Engine::Config::installBashDevEnv
-
   Log::requireLoad
 
   export PATH="${PATH}:${USER_HOME}/.local/bin"

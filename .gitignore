@@ -15,12 +15,6 @@ yarn.lock
 .env
 .env.distro
 
-/profile.*.sh
-!/profile.default.sh
-!/profile.default.wsl.sh
-!/profile.default.virtualBox.sh
-!/profile.dnsFix.sh
-
 pages/docs
 pages/README.md
 
@@ -32,3 +26,6 @@ vendor
 TODO.local.md
 
 tmp
+
+/downloadedDistros/
+!/downloadedDistros/.gitkeep
