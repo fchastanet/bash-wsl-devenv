@@ -89,10 +89,10 @@ mountDistroFolder() {
 exportDistro() {
   Log::displayInfo "Exporting wsl distribution"
   wsl.exe --terminate "${DISTRO_NAME}"
-  wsl.exe --export "${DISTRO_NAME}" "/tmp/${DISTRO_NAME}.tar"
+  wsl.exe --export "${DISTRO_NAME}" "${DISTRO_IMAGE_TARGET_DIR:-/tmp}/${DISTRO_NAME}.tar"
 
   Log::displayInfo "Compressing wsl distribution to ${DISTRO_FILE}"
-  gzip -9 "/tmp/${DISTRO_NAME}.tar"
+  gzip -9 "${DISTRO_IMAGE_TARGET_DIR:-/tmp}/${DISTRO_NAME}.tar"
 }
 
 isDistroSystemdRunning() {
@@ -122,10 +122,10 @@ run() {
   fi
   # The path where bash-dev-env project will be copied into target distro
   DISTRO_BASH_DEV_ENV_TARGET_DIR="${BASH_DEV_ENV_ROOT_DIR}"
-  DISTRO_FILE="/tmp/${DISTRO_NAME}.tar.gz"
+  DISTRO_FILE="${DISTRO_IMAGE_TARGET_DIR:-/tmp}/${DISTRO_NAME}.tar.gz"
   DISTRO_IMAGE_NAME="${DISTRO_URL##*/}"
-  DISTRO_IMAGE_TARGET_DIR="/tmp/${DISTRO_IMAGE_NAME}"
-  DISTRO_IMAGE_TARGET_ZIP="/tmp/${DISTRO_IMAGE_NAME}.zip"
+  DISTRO_IMAGE_TARGET_DIR="${DISTRO_IMAGE_TARGET_DIR:-/tmp}/${DISTRO_IMAGE_NAME}"
+  DISTRO_IMAGE_TARGET_ZIP="${DISTRO_IMAGE_TARGET_DIR:-/tmp}/${DISTRO_IMAGE_NAME}.zip"
   # shellcheck disable=SC1003
   BASE_MNT_C="$(mount | grep 'path=C:\\' | awk -F ' ' '{print $3}')"
 
@@ -179,7 +179,7 @@ run() {
     systemdActivated=1
   fi
   Log::displayInfo 'pre-configure /etc/wsl.conf in order to activate systemd'
-  cp "${CONF_DIR}/etc/wsl.conf" "/mnt/wsl/${DISTRO_NAME}/etc/wsl.conf"
+  cp "${CONF_DIR}/WslConfig/etc/wsl.conf" "/mnt/wsl/${DISTRO_NAME}/etc/wsl.conf"
 
   # no need to restart the distro if systemd already active
   if [[ "${systemdActivated}" = "0" ]]; then
@@ -211,7 +211,7 @@ run() {
       .INCLUDE "$(dynamicTemplateDir _includes/sudoerFileManagement.tpl)"
 
       Log::displayInfo "Installing ..."
-      REMOTE_USER=${USERNAME} REMOTE_PWD="${DISTRO_BASH_DEV_ENV_TARGET_DIR}" runWslCmd ./install -p "${DISTRO_INSTALL_PROFILE}"
+      REMOTE_USER=${USERNAME} REMOTE_PWD="${DISTRO_BASH_DEV_ENV_TARGET_DIR}" runWslCmd ./install -p "${DISTRO_INSTALL_PROFILE}" "${DISTRO_INSTALL_OPTIONS[@]}"
     )
   fi
 

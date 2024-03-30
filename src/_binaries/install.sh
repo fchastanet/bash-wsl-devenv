@@ -3,8 +3,6 @@
 # FACADE
 # BASH_DEV_ENV_ROOT_DIR_RELATIVE_TO_BIN_DIR=
 
-.INCLUDE "$(dynamicTemplateDir "_includes/install.options.tpl")"
-
 # variables
 CONFIG_LIST=()
 # shellcheck disable=SC2034
