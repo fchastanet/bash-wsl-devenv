@@ -23,7 +23,7 @@ repos:
           (?x)^(
             conf\/localAppData\/Packages\/Microsoft.WindowsTerminal_8wekyb3d8bbwe\/LocalState\/originalSettings.json |
             conf\/.vscode\/settings.json |
-            conf\/ShellBash\/.vscode\/argv.json
+            src\/_binaries\/ShellBash/conf\/.vscode\/argv.json
           )$
 
   - repo: https://github.com/pre-commit/mirrors-prettier

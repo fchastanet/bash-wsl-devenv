@@ -26,7 +26,7 @@ InstallScripts::command() {
     local hookName="$1"
     hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh")"
     if [[ -x "${hook}" ]]; then
-      # shellcheck source=conf/SimpleTest/preInstall.sh
+      # shellcheck source=src/_binaries/SimpleTest/conf/preInstall.sh
       source "${hook}" || exit 1
     fi
   }

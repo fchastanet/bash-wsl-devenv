@@ -16,9 +16,6 @@ Conf::dynamicConfDir() {
   elif [[ -d "${embedDir}" ]]; then
     echo "${embedDir}"
     return 0
-  elif [[ -d "${CONF_DIR}/${dir}" ]]; then
-    echo "${CONF_DIR}/${dir}"
-    return 0
   fi
   Log::displayWarning "Conf::dynamicConfDir - ${dir} does not exist in any config dirs declared"
   return 1
