@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Docker.sh
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/Docker/Docker.sh
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -349,12 +349,8 @@ AWS_DEFAULT_DOCKER_REGISTRY_ID=""
 # hostname of the distro
 DISTRO_HOSTNAME="wslHost"
 
-# conf files that will be used to configure the different tools
-CONF_DIR="${BASH_DEV_ENV_ROOT_DIR}/conf"
-
-# conf files that will be used to configure the different tools
-# some tools configuration will use CONF_DIR as template and
-# copy files into this directory
+# overridden conf directory that will be used to override
+# the default configuration that are embedded in binaries
 CONF_OVERRIDE_DIR="${BASH_DEV_ENV_ROOT_DIR}/conf.override"
 
 # where to install bash-tools, ...
@@ -365,7 +361,7 @@ PROJECTS_DIR="${USER_HOME}/projects"
 BACKUP_DIR="${BASH_DEV_ENV_ROOT_DIR}/backup"
 # backup files/dirs before installing new file (usually 1, but 0 if using distro)
 BACKUP_BEFORE_INSTALL=1
-# logs CONF_DIR
+# logs directory
 LOGS_DIR="${BASH_DEV_ENV_ROOT_DIR}/logs"
 # installScripts dir
 INSTALL_SCRIPTS_DIR="${BASH_DEV_ENV_ROOT_DIR}/installScripts"
@@ -626,7 +622,7 @@ InstallScripts::command() {
     local hookName="$1"
     hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh")"
     if [[ -x "${hook}" ]]; then
-      # shellcheck source=conf/SimpleTest/preInstall.sh
+      # shellcheck source=src/_binaries/SimpleTest/conf/preInstall.sh
       source "${hook}" || exit 1
     fi
   }
@@ -1193,9 +1189,6 @@ Conf::dynamicConfFile() {
   elif [[ -f "${embedFile}" ]]; then
     echo "${embedFile}"
     return 0
-  elif [[ -f "${CONF_DIR}/${file}" ]]; then
-    echo "${CONF_DIR}/${file}"
-    return 0
   fi
   if [[ "${IGNORE_ERROR:-0}" = "0" ]]; then
     Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
@@ -1281,7 +1274,6 @@ Engine::Config::checkEnv() {
     ((errorCount++))
   fi
 
-  checkVarAndDir CONF_DIR r || true
   checkVarAndDir CONF_OVERRIDE_DIR r || true
   checkVarAndDir PROJECTS_DIR r || true
   checkVarAndDir BACKUP_DIR rw || true
@@ -2140,7 +2132,7 @@ Linux::Wsl::originalWslpath() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/docker_conf_dir" "H4sIAAAAAAAAA+3VQUvDMBwF8J77KSKCO6VJ2qYFZV5UEDwM1Lt0a8qKXTqatdvHN9tQpDjLcOuQvd8l0IW12/vn1WPO0XErlnK9iljy7+snR4QRF5HgQgb2ehzy0CHy+I/mOLVZJBUhztIUv+7r+vyf8pg3TsyUpqqhSjdHmYa98xciDgXy70M7/6TIE6OMlx5wEvbKPxY2/yDC+e/H7vzTcvKuKs9M/3yPrvx9LlrnX4Y8cAg/wO/rdOb5X16wca7ZegZcN8/IpJzNEp0S2pDtAFB7ZV4aRa5umR0SpuuiuCGLqdIuIZtpaW2kabnUtNSKGlU1+UQNB61vqmaEZoSagZvl7qn/gDPXPv/zqszyQp2k/31hX/xy2/8++r8Xu/Pvr/9t9tv8/SCIYr7p/5Cj//vQ2f8/9r5azctqQe5Hd08Pz2+Po5fX4aDW+eqaMVbV+mt27IKSBwAAAAAAAAAAAAAA6NUH81CkkgAoAAA="
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/docker_conf_dir" "H4sIAAAAAAAAA+3XTWuDMBwGcM9+iozBeopJ1ChsdJdtMNihsO0+bI1UZmMx1fbjL+1eGLLOjbWW0ed3CVipts/fR/WYs3fciqVcryKW/PP6zhFhxH1fRjH37fY4FIFD5P5PzXFqs0gqQpylKb7dr+vzf8pj3jgxU5qqhird7GUafpq/iAQXMnC4EHYAkH8f2vknRZ4YZbx0h5Pwq/xjYfMPIh4i/z5szz8tJ8+q8sz0z8foyt/nonX9y5Db/uc7+H2djjz/0xM2zjVbz4Dr5hmZlLNZolNCG/I6ANRumZdGkbNLZoeE6booLshiqrRLyGZaWjvStFxqWmpFjaqafKKGg9Y3VTNCM0LNwM1y99B/wJFrX//zqszyQh2k/31hb/zytf999H8vtuffX//b7N+e/4PAvgBs+j/k6P8+dPb/l72vVvOyWpDr0dXdzf3T7ejhcTiodb46Z4xVtf6YHbug5AEAAAAAAAAAAAAAAHr1AqjIb/YAKAAA"
 
 declare -gx embed_dir_docker_conf_dir="${TMPDIR:-/tmp}/docker_conf_dir"
 
@@ -2185,7 +2177,7 @@ fi
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/Docker" as docker_conf_dir
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/Docker/conf" as docker_conf_dir
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -2884,7 +2876,7 @@ installScriptCommand() {
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
     echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/Docker.sh'
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/Docker/Docker.sh'
     echo
     echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
     echo 'MIT License'
@@ -2948,7 +2940,7 @@ helpDescription() {
 
 dependencies() {
   echo "MandatorySoftwares"
-  echo "WslConfig"
+  echo "WslDefaultConfig"
   echo "DockerCompose"
 }
 

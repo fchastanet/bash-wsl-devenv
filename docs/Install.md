@@ -55,7 +55,7 @@ Profile `profile.default.sh` is recommended for installing wsl environment.
 
 Profile `profile.default.virtualBox.sh` actually does a full install of all the
 dependencies. Note that some dependencies will only be installed on wsl though
-(eg: WslProfile, DockerWslConfig, ...).
+(eg: WslProfile, DockerDefaultConfig, ...).
 
 You can create your own profiles, files have to be named `profile.{name}.sh`
 

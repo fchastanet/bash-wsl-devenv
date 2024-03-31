@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/install.sh
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/_tools/install.sh
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -294,12 +294,8 @@ AWS_DEFAULT_DOCKER_REGISTRY_ID=""
 # hostname of the distro
 DISTRO_HOSTNAME="wslHost"
 
-# conf files that will be used to configure the different tools
-CONF_DIR="${BASH_DEV_ENV_ROOT_DIR}/conf"
-
-# conf files that will be used to configure the different tools
-# some tools configuration will use CONF_DIR as template and
-# copy files into this directory
+# overridden conf directory that will be used to override
+# the default configuration that are embedded in binaries
 CONF_OVERRIDE_DIR="${BASH_DEV_ENV_ROOT_DIR}/conf.override"
 
 # where to install bash-tools, ...
@@ -310,7 +306,7 @@ PROJECTS_DIR="${USER_HOME}/projects"
 BACKUP_DIR="${BASH_DEV_ENV_ROOT_DIR}/backup"
 # backup files/dirs before installing new file (usually 1, but 0 if using distro)
 BACKUP_BEFORE_INSTALL=1
-# logs CONF_DIR
+# logs directory
 LOGS_DIR="${BASH_DEV_ENV_ROOT_DIR}/logs"
 # installScripts dir
 INSTALL_SCRIPTS_DIR="${BASH_DEV_ENV_ROOT_DIR}/installScripts"
@@ -1230,7 +1226,6 @@ Engine::Config::checkEnv() {
     ((errorCount++))
   fi
 
-  checkVarAndDir CONF_DIR r || true
   checkVarAndDir CONF_OVERRIDE_DIR r || true
   checkVarAndDir PROJECTS_DIR r || true
   checkVarAndDir BACKUP_DIR rw || true
@@ -2832,7 +2827,7 @@ configure Home environnement (git config, kube, motd, ssh, dns, ...) and check c
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
     echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/install.sh'
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/_tools/install.sh'
     echo
     echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
     echo 'MIT License'
@@ -2906,7 +2901,7 @@ executeScript() {
 
 executeScripts() {
   (
-    # sudoersFile is initialized in _binaries/installScripts/_installScript.tpl
+    # sudoersFile is initialized in _includes/_installScript.tpl
     # @description create sudoer file and add traps to remove it at the end
     # @arg $1 sudoerFile:String the file path to create
     # @env USERNAME

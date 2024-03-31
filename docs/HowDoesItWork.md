@@ -61,7 +61,7 @@ This function is responsible for:
 
   - USERID => computed from USERNAME provided by .env file
   - USERGROUP_ID => computed from USERGROUP provided by .env file
-  - ROOT_DIR => `<full path to this project directory>`
+  - BASH_DEV_ENV_ROOT_DIR => `<full path to this project directory>`
   - HOSTIP
   - IPCONFIG => heavy computation of the right command to use for ipconfig
     depending environment
@@ -69,11 +69,11 @@ This function is responsible for:
 - following variables (with default values that could be overridden by .env
   file)
 
-  - CONF_DIR => defaults to ${ROOT_DIR}/conf
-  - LOGS_DIR => defaults to ${ROOT_DIR}/logs
+  - CONF_OVERRIDE_DIR => defaults to ${BASH_DEV_ENV_ROOT_DIR}/conf_override
+  - LOGS_DIR => defaults to ${BASH_DEV_ENV_ROOT_DIR}/logs
   - PROJECTS_DIR => defaults to ${USER_HOME}/projects
-  - BACKUP_DIR => defaults to ${ROOT_DIR}/backup
-  - INSTALL_SCRIPTS_DIR => defaults to ${ROOT_DIR}/scripts
+  - BACKUP_DIR => defaults to ${BASH_DEV_ENV_ROOT_DIR}/backup
+  - INSTALL_SCRIPTS_DIR => defaults to ${BASH_DEV_ENV_ROOT_DIR}/scripts
 
 - setting sudoer without password temporarily
 

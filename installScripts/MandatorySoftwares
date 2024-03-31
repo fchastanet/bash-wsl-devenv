@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/MandatorySoftwares.sh
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/MandatorySoftwares/MandatorySoftwares.sh
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -409,12 +409,8 @@ AWS_DEFAULT_DOCKER_REGISTRY_ID=""
 # hostname of the distro
 DISTRO_HOSTNAME="wslHost"
 
-# conf files that will be used to configure the different tools
-CONF_DIR="${BASH_DEV_ENV_ROOT_DIR}/conf"
-
-# conf files that will be used to configure the different tools
-# some tools configuration will use CONF_DIR as template and
-# copy files into this directory
+# overridden conf directory that will be used to override
+# the default configuration that are embedded in binaries
 CONF_OVERRIDE_DIR="${BASH_DEV_ENV_ROOT_DIR}/conf.override"
 
 # where to install bash-tools, ...
@@ -425,7 +421,7 @@ PROJECTS_DIR="${USER_HOME}/projects"
 BACKUP_DIR="${BASH_DEV_ENV_ROOT_DIR}/backup"
 # backup files/dirs before installing new file (usually 1, but 0 if using distro)
 BACKUP_BEFORE_INSTALL=1
-# logs CONF_DIR
+# logs directory
 LOGS_DIR="${BASH_DEV_ENV_ROOT_DIR}/logs"
 # installScripts dir
 INSTALL_SCRIPTS_DIR="${BASH_DEV_ENV_ROOT_DIR}/installScripts"
@@ -781,7 +777,7 @@ InstallScripts::command() {
     local hookName="$1"
     hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh")"
     if [[ -x "${hook}" ]]; then
-      # shellcheck source=conf/SimpleTest/preInstall.sh
+      # shellcheck source=src/_binaries/SimpleTest/conf/preInstall.sh
       source "${hook}" || exit 1
     fi
   }
@@ -1271,9 +1267,6 @@ Conf::dynamicConfFile() {
   elif [[ -f "${embedFile}" ]]; then
     echo "${embedFile}"
     return 0
-  elif [[ -f "${CONF_DIR}/${file}" ]]; then
-    echo "${CONF_DIR}/${file}"
-    return 0
   fi
   if [[ "${IGNORE_ERROR:-0}" = "0" ]]; then
     Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
@@ -1359,7 +1352,6 @@ Engine::Config::checkEnv() {
     ((errorCount++))
   fi
 
-  checkVarAndDir CONF_DIR r || true
   checkVarAndDir CONF_OVERRIDE_DIR r || true
   checkVarAndDir PROJECTS_DIR r || true
   checkVarAndDir BACKUP_DIR rw || true
@@ -2217,7 +2209,7 @@ Linux::Wsl::originalWslpath() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2W72viMBiA+7l/xXt6sB9gk7RNC4Kg7AZ+mLeBO/a52mgLtR1JVWTb/75Ue7OTeXqcejvufUTSvEmM+rzkjUWMo0M1PudFy3xOq+1PDOZ6lHnMZr6r477LmAH8+F/NMKYqDySAMVfJL+ftGv9HsYjIh0fOgd/x77jMoEw/UvR/Clb+hzJLrfBYabC/f9vnjq/9Mwf9n4Z3/geBihqhmDVEOmtMH8cyCMUB9igEe6671T/3vKV/yqnvcEf75zb1DKAH2Hsn/7n/OlQToHTehKKfBwMQaS5joWCUScgjAdUMgXK2afa71zc3LTKI02UKmXed+26LTJUkSTYMEqL0SLPSf+uuB5YPq+5bbBxMhKquqwbiAdFKirZJJmlOhuQhTsNsrohaqFxMHHsjvjmtX04jDwMx2T64CtxlcyH7kUgSMmMWJaZZhx+rnw9iJuQCfAiDhYIgB9t+nJiU6hYuiQ+X+iWzLAdoX932ep3v39rm37a+xiJW1elRSsC+579t29zzeXH+F9Px/D8Bm/6DJA6UUAe9DOztn+n7Py/qvy7/Hvo/Bdv9V8OWiv5gj13+ncr933Ns7d9zmY/1/xTUv6zLtq5p91GsIE71f5IkQkKZDWYZ6aThVZaO4vFUivMLeDIBzvUbYBhC7etT97Z3/UJGwyjQs1ORv0uhGjw/gxT5VKbAlossUn6sXtuu6dCF+WIud4QP9mudfRA8+0SVFEEQBEEQBEEQBEEQBEEQBEE+D6+ju1jAACgAAA=="
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2W7WviMBjA+7l/xXN6sBewSfoKgqDsBn6Yt4E79rm20RZqO5KoyLb/fVF7s5N5epx6O+75iaR5kpjW30OfWMQ4OlQTeN6iZYFHq+1PDOb61La9gNqujgcuYwZ4x781w5hIFQoAYyazX87bNf6PYhGuoiPnwL7+mc9sx2UGZfqSov9TsPIfiSK34mOlwf7+7cBzAu2fOej/NLzzPwhl0oj5tMHzaWPyOBJhzA+wx0Kw77pb/Xu+v/RPPRo4nqP9ezb1DaAH2Hsn/7n/OlQToHTehEVfhQPguRIplzAsBKiEQzVDoJxtmv3u9c1NiwzSfJlC5l3nvtsiEylIVkRhRqQeaVb6b931wPJi1X2LjcIxl9V11UA6IFrJom2Sca5IRB7SPC5mksi5VHzs2BvxzWn9chp5GPDx9sFV4K6YcdFPeJaRKbMoMc06/Fg9PvApF3MIIA7nEkIFtv04NinVLVySAC71RxSFAmhf3fZ6ne/f2ubftr7GIlbV6VFKwG+f/xgLXB/f/6dg03+YpaHk8qCHgb39M2Yzb1H/dflH/ydhu/9q2JLJH+yxy79TOf/7jq39+y4LsP6fgvqXddnWNe0+SSWkuf5PsowLKLPBLCOdPL4q8mE6mgh+fgFPJsC5/gJEMdS+PnVve9cvZBgloZ6dc/UuhWrw/AyCq4nIgS0XWaT8Wb22XdOhC/PFXO4IH+zXOvsgePaJKimCIAiCIAiCIAiCIAiCIAiCfB5eAWAUyUYAKAAA"
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -2262,7 +2254,7 @@ fi
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/MandatorySoftwares" as conf_dir
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/MandatorySoftwares/conf" as conf_dir
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -2961,7 +2953,7 @@ installScriptCommand() {
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
     echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/MandatorySoftwares.sh'
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/MandatorySoftwares/MandatorySoftwares.sh'
     echo
     echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
     echo 'MIT License'

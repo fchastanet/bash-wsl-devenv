@@ -16,9 +16,6 @@ Conf::dynamicConfFile() {
   elif [[ -f "${embedFile}" ]]; then
     echo "${embedFile}"
     return 0
-  elif [[ -f "${CONF_DIR}/${file}" ]]; then
-    echo "${CONF_DIR}/${file}"
-    return 0
   fi
   if [[ "${IGNORE_ERROR:-0}" = "0" ]]; then
     Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"

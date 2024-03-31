@@ -8,20 +8,20 @@ fi
 CONFIG_LIST+=(
   "ConformanceTest"
   "MandatorySoftwares"
-  "WslConfig"
+  "WslDefaultConfig"
   "Upgrade"
 )
 
 # optional packages
 CONFIG_LIST+=(
   "Docker"
-  "DefaultMotd"
-  "DefaultAwsConfig"
+  "MotdDefaultConfig"
+  "AwsDefaultConfig"
   "DefaultKubeConfig"
   "Saml2Aws"
   "ShellBash"
   "BashTools"
-  "PreCommitConfig"
+  "PreCommitDefaultConfig"
   "CodeCheckers"
   "Oq"
   "PlantUml"

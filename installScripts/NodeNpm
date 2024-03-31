@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/NodeNpm.sh
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/NodeNpm/NodeNpm.sh
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -349,12 +349,8 @@ AWS_DEFAULT_DOCKER_REGISTRY_ID=""
 # hostname of the distro
 DISTRO_HOSTNAME="wslHost"
 
-# conf files that will be used to configure the different tools
-CONF_DIR="${BASH_DEV_ENV_ROOT_DIR}/conf"
-
-# conf files that will be used to configure the different tools
-# some tools configuration will use CONF_DIR as template and
-# copy files into this directory
+# overridden conf directory that will be used to override
+# the default configuration that are embedded in binaries
 CONF_OVERRIDE_DIR="${BASH_DEV_ENV_ROOT_DIR}/conf.override"
 
 # where to install bash-tools, ...
@@ -365,7 +361,7 @@ PROJECTS_DIR="${USER_HOME}/projects"
 BACKUP_DIR="${BASH_DEV_ENV_ROOT_DIR}/backup"
 # backup files/dirs before installing new file (usually 1, but 0 if using distro)
 BACKUP_BEFORE_INSTALL=1
-# logs CONF_DIR
+# logs directory
 LOGS_DIR="${BASH_DEV_ENV_ROOT_DIR}/logs"
 # installScripts dir
 INSTALL_SCRIPTS_DIR="${BASH_DEV_ENV_ROOT_DIR}/installScripts"
@@ -620,7 +616,7 @@ InstallScripts::command() {
     local hookName="$1"
     hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh")"
     if [[ -x "${hook}" ]]; then
-      # shellcheck source=conf/SimpleTest/preInstall.sh
+      # shellcheck source=src/_binaries/SimpleTest/conf/preInstall.sh
       source "${hook}" || exit 1
     fi
   }
@@ -1127,9 +1123,6 @@ Conf::dynamicConfFile() {
   elif [[ -f "${embedFile}" ]]; then
     echo "${embedFile}"
     return 0
-  elif [[ -f "${CONF_DIR}/${file}" ]]; then
-    echo "${CONF_DIR}/${file}"
-    return 0
   fi
   if [[ "${IGNORE_ERROR:-0}" = "0" ]]; then
     Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
@@ -1215,7 +1208,6 @@ Engine::Config::checkEnv() {
     ((errorCount++))
   fi
 
-  checkVarAndDir CONF_DIR r || true
   checkVarAndDir CONF_OVERRIDE_DIR r || true
   checkVarAndDir PROJECTS_DIR r || true
   checkVarAndDir BACKUP_DIR rw || true
@@ -2141,7 +2133,7 @@ Linux::getDistributorId() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/node_npm_dir" "H4sIAAAAAAAAA+3UTU+DMBwG8J75FBV3WkJpy1tCwsHDzDyoi/FgsiwLZChLEAjgNNn47oIb8SVRNG5T4/M70ED/pYWnwHSyc7zmWFbTCsfiL9sWEabNhV0fpayvO6YQhFq7Xxohd0Xp55SS+yL+sK6r/49iOgv8ItJm4UILk8VOdsNn85dCSClNwoVwDBv578Pb/LM8vZ7HIZttcSd86fsXdZ0wbEMi/314P/9kmvllxIro23N05S9NY52/NLhs/v/CMqVFKN/C83X65/kfHujBPNGbPaAo4UOW5iU9m44uBscnV57aWw7PTweVnqjKeEzd3nJ0dDmsXOp5tK/Wp21l1dzEVft0MqGrFW2qmsGvuzej1Xaatmo9BUuyW+0mTgM/flrRc/lPvyIAAAAAAAAAAAAAAAAAAIBf7xEffDYDACgAAA=="
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/node_npm_dir" "H4sIAAAAAAAAA+3VTWuDMBwG8Jz9FJnrqeBLolEoeNihoztsK2OHQSlFqZsFp6KuG7R+98W1shfYLKx2G3t+B4PmHxN9AtEN0jlTcoWoW+YK823bIMx2TM6FazqWfO7azCZUdL80Qh6K0s8pJY9F/GVdW/8fpRt64BeRNg+XWpgsO9kNO+fPGOfcJiZjruUg/0P4mH+Wp7eLONTne9wJu+bPHHllso5ZjsWR/yF8nn8yy/wy0ovo23O05c9ta5M/t+QZwGX+wuaCUHMP39fqn+d/fGQEi8So94CihE9Zmpf0Yja+Gp6e3XhqbzW6PB9WRqIqkwkd9Fbjk+tRNaCeR/uqvG0qq/olA7VPp1O6XtO6qh78vns7Wm2maao2U+hJdq/dxWngxy8rei3/6V8EAAAAAAAAAAAAAAAAAADw6z0DtnGuCQAoAAA="
 
 declare -gx embed_dir_node_npm_dir="${TMPDIR:-/tmp}/node_npm_dir"
 
@@ -2186,7 +2178,7 @@ fi
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/NodeNpm" as node_npm_dir
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/NodeNpm/conf" as node_npm_dir
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -2885,7 +2877,7 @@ installScriptCommand() {
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
     echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/NodeNpm.sh'
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/NodeNpm/NodeNpm.sh'
     echo
     echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
     echo 'MIT License'
@@ -2977,7 +2969,7 @@ install() {
 testInstall() {
   local -i failures=0
   Assert::fileExists "${USER_HOME}/.bash-dev-env/profile.d/n_path.sh" || return 1
-  # shellcheck source=/conf/NodeNpm/.bash-dev-env/profile.d/n_path.sh
+  # shellcheck source=src/_binaries/NodeNpm/conf/.bash-dev-env/profile.d/n_path.sh
   HOME="${USER_HOME}" source "${USER_HOME}/.bash-dev-env/profile.d/n_path.sh"
   Version::checkMinimal "node" "-v" "20.6.1" || ((++failures))
   Version::checkMinimal "npm" "-v" "10.3.0" || ((++failures))

@@ -5,11 +5,11 @@ if [[ -z "${CONFIG_LIST+xxx}" ]]; then
 fi
 
 CONFIG_LIST=(
-  DefaultMotd
+  MotdDefaultConfig
   Xvsb
   AwsCli
   Saml2Aws
-  DefaultAwsConfig
+  AwsDefaultConfig
   Font
   Fasd
   Fd
@@ -22,8 +22,8 @@ CONFIG_LIST=(
   Python
   PreCommit
   Tig
-  GitConfig
-  PreCommitConfig
+  GitDefaultConfig
+  PreCommitDefaultConfig
   BashTools
   Hadolint
   Go

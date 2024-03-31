@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/BashTools.sh
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/BashTools/BashTools.sh
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -378,12 +378,8 @@ AWS_DEFAULT_DOCKER_REGISTRY_ID=""
 # hostname of the distro
 DISTRO_HOSTNAME="wslHost"
 
-# conf files that will be used to configure the different tools
-CONF_DIR="${BASH_DEV_ENV_ROOT_DIR}/conf"
-
-# conf files that will be used to configure the different tools
-# some tools configuration will use CONF_DIR as template and
-# copy files into this directory
+# overridden conf directory that will be used to override
+# the default configuration that are embedded in binaries
 CONF_OVERRIDE_DIR="${BASH_DEV_ENV_ROOT_DIR}/conf.override"
 
 # where to install bash-tools, ...
@@ -394,7 +390,7 @@ PROJECTS_DIR="${USER_HOME}/projects"
 BACKUP_DIR="${BASH_DEV_ENV_ROOT_DIR}/backup"
 # backup files/dirs before installing new file (usually 1, but 0 if using distro)
 BACKUP_BEFORE_INSTALL=1
-# logs CONF_DIR
+# logs directory
 LOGS_DIR="${BASH_DEV_ENV_ROOT_DIR}/logs"
 # installScripts dir
 INSTALL_SCRIPTS_DIR="${BASH_DEV_ENV_ROOT_DIR}/installScripts"
@@ -655,7 +651,7 @@ InstallScripts::command() {
     local hookName="$1"
     hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh")"
     if [[ -x "${hook}" ]]; then
-      # shellcheck source=conf/SimpleTest/preInstall.sh
+      # shellcheck source=src/_binaries/SimpleTest/conf/preInstall.sh
       source "${hook}" || exit 1
     fi
   }
@@ -1091,9 +1087,6 @@ Conf::dynamicConfFile() {
   elif [[ -f "${embedFile}" ]]; then
     echo "${embedFile}"
     return 0
-  elif [[ -f "${CONF_DIR}/${file}" ]]; then
-    echo "${CONF_DIR}/${file}"
-    return 0
   fi
   if [[ "${IGNORE_ERROR:-0}" = "0" ]]; then
     Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
@@ -1179,7 +1172,6 @@ Engine::Config::checkEnv() {
     ((errorCount++))
   fi
 
-  checkVarAndDir CONF_DIR r || true
   checkVarAndDir CONF_OVERRIDE_DIR r || true
   checkVarAndDir PROJECTS_DIR r || true
   checkVarAndDir BACKUP_DIR rw || true
@@ -2136,7 +2128,7 @@ Retry::parameterized() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/bash_tools_dir" "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"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/bash_tools_dir" "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"
 
 declare -gx embed_dir_bash_tools_dir="${TMPDIR:-/tmp}/bash_tools_dir"
 
@@ -2182,7 +2174,7 @@ fi
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/BashTools" as bash_tools_dir
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/BashTools/conf" as bash_tools_dir
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -2881,7 +2873,7 @@ installScriptCommand() {
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
     echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/installScripts/BashTools.sh'
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/BashTools/BashTools.sh'
     echo
     echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
     echo 'MIT License'
@@ -2954,7 +2946,7 @@ fortunes() {
 }
 
 dependencies() {
-  echo "PreCommitConfig"
+  echo "PreCommitDefaultConfig"
 }
 
 helpVariables() { :; }

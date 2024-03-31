@@ -210,7 +210,7 @@ dependencies:
       updating softwares
   - Dns (use with caution, beta version, use it if dns not working anymore on
     wsl)
-  - DockerWslConfig (mainly configure /etc/wsl.conf)
+  - DockerWslDefaultConfig (mainly configure /etc/wsl.conf)
   - Font install fonts that allows to displays special icons in zsh/bash prompts
   - **Note** VsCode is not needed in wsl, it has to be installed on windows and
     then accessible via `code` command from wsl prompt.
