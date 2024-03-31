@@ -530,20 +530,6 @@ WSLCONFIG_SWAP=0
 #POWERSHELL_BIN=/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
 #IPCONFIG_BIN=/mnt/c/Windows/system32/ipconfig.exe
 #WSL_EXE_BIN=/mnt/c/Windows/system32/wsl.exe
-
-# -----------------------------------------
-# Distro
-# Only necessary when using the script distro
-# to create or update a wsl distribution
-
-# The name of the distro displayed in `wsl -l -v` command
-DISTRO_NAME="UbuntuTest"
-# where to download the distribution
-DISTRO_URL="https://aka.ms/wslubuntu2004"
-# Profile to use with install command
-DISTRO_INSTALL_PROFILE="default"
-# The path where bash-dev-env project will be copied into target distro
-DISTRO_BASH_DEV_ENV_TARGET_DIR="${BASH_DEV_ENV_ROOT_DIR}"
 EOF
 )"
 
@@ -578,8 +564,6 @@ Engine::Config::loadConfig() {
 
   #Linux::Wsl::initEnv
   Engine::Config::loadWslVariables
-
-  Engine::Config::installBashDevEnv
 
   Log::requireLoad
 
@@ -692,10 +676,10 @@ Install::file() {
   fi
 
   if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
-    Log::displaySuccess "Installed file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
+    Log::displaySuccess "Installed file '${targetFile}' from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}'"
     ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
   else
-    Log::displayError "unable to copy file from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
+    Log::displayError "unable to copy file '${targetFile}' from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}'"
     ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
     return 3
   fi
@@ -1275,28 +1259,6 @@ Engine::Config::createEnvFileFromTemplate() {
     Log::displayError "a default env file has been created, please edit ${envFile}"
     return 1
   fi
-}
-
-# @description install or update "${USER_HOME}/.bash-dev-env" file
-# @env WINDOWS_PROFILE_DIR
-# @env BASH_DEV_ENV_ROOT_DIR
-# @env USER_HOME
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/home/.bash-dev-env" as bashDevEnv
-Engine::Config::installBashDevEnv() {
-  # shellcheck disable=SC2317
-  bashDevEnvConfig() {
-    sed -E -i \
-      -e "s#BASH_DEV_ENV_ROOT_DIR=.*\$#BASH_DEV_ENV_ROOT_DIR=${BASH_DEV_ENV_ROOT_DIR}#g" \
-      -e "s#WINDOWS_PROFILE_DIR=.*\$#WINDOWS_PROFILE_DIR=${WINDOWS_PROFILE_DIR}#g" \
-      "${USER_HOME}/.bash-dev-env"
-    sudo ln -sf "${USER_HOME}/.bash-dev-env" /root/.bash-dev-env
-  }
-  local fileToInstall
-  # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "home/.bash-dev-env" "${embed_file_updateEnv}")" || return 1
-  OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${fileToInstall}" "${USER_HOME}/.bash-dev-env" \
-    "${USERNAME}" "${USERGROUP}" bashDevEnvConfig
 }
 
 # @description deduce wsl host ip
@@ -2215,7 +2177,7 @@ fi
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/wsl.conf" as wslConf
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/WslConfig/etc/wsl.conf" as wslConf
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 

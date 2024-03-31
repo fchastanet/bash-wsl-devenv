@@ -3,8 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/home/.bash-dev-env" as bashDevEnv
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/cron.d/bash-dev-env-upgrade" as upgradeCronTab
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/MandatorySoftwares" as conf_dir
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
@@ -25,7 +24,24 @@ checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 
+removeSystemdService() {
+  local service="$?"
+  Log::displayInfo "remove unneeded systemd service : ${service}"
+  if systemctl list-units --full -all | grep -Fq "${service}"; then
+    sudo systemctl disable "${service}"
+  fi
+}
+
 install() {
+  # remove unneeded systemd service
+  # sshd is not needed and cause port 22 usage conflict
+  removeSystemdService ssh.service
+  sudo systemctl daemon-reload
+  sudo systemctl reset-failed
+
+  Linux::Apt::remove \
+    openssh-server
+
   Linux::Apt::update
   # configure language support
   Linux::Apt::install \
@@ -50,9 +66,6 @@ install() {
     # add add-apt-repository
     software-properties-common
     unzip
-    vim
-    vim-gui-common
-    vim-runtime
     wget
   )
   Linux::Apt::install "${PACKAGES[@]}"
@@ -75,6 +88,10 @@ testInstall() {
 }
 
 configureUpdateCron() {
+  local configDir
+  # shellcheck disable=SC2154
+  configDir="$(Conf::getOverriddenDir "${embed_dir_conf_dir}" "${CONF_OVERRIDE_DIR}/MandatorySoftwares")"
+
   Log::displayInfo "Install upgrade cron"
   if [[ -z "${PROFILE}" ]]; then
     Log::displayHelp "Please provide a profile to the install command in order to activate automatic upgrade"
@@ -91,21 +108,24 @@ configureUpdateCron() {
         -p "${PROFILE}"
         --skip-configure --skip-test
       )
-      sudo sed -i -E -e "s#@COMMAND@#(cd '${BASH_DEV_ENV_ROOT_DIR}' \&\& ${cmd[*]} \&>'${BASH_DEV_ENV_ROOT_DIR}/logs/upgrade-job.log')#" "/etc/cron.d/bash-dev-env-upgrade"
+      sudo sed -i -E -e "s#@COMMAND@#(cd '${BASH_DEV_ENV_ROOT_DIR}' \&\& ${cmd[*]} \&>'${BASH_DEV_ENV_ROOT_DIR}/logs/upgrade-job.log')#" \
+        "/etc/cron.d/bash-dev-env-upgrade"
       SUDO=sudo Install::setUserRightsCallback "$@"
     }
 
-    local file
-    # shellcheck disable=SC2154
-    file="$(Conf::dynamicConfFile "/etc/cron.d/bash-dev-env-upgrade" "${embed_file_upgradeCronTab}")" || return 1
     SUDO=sudo OVERWRITE_CONFIG_FILES=1 BACKUP_BEFORE_INSTALL=0 Install::file \
-      "${file}" "/etc/cron.d/bash-dev-env-upgrade" root root updateCronUpgrade
+      "${configDir}/etc/cron.d/bash-dev-env-upgrade" "/etc/cron.d/bash-dev-env-upgrade" \
+      root root updateCronUpgrade
     sudo chmod +x "/etc/cron.d/bash-dev-env-upgrade"
   fi
+
+  OVERWRITE_CONFIG_FILES=1 Install::dir \
+    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "aliases.d"
 }
 
 configure() {
   Engine::Config::installBashDevEnv
+  SUDO=sudo USER_HOME=/root Engine::Config::installBashDevEnv
   configureUpdateCron
   # remove parallel nagware
   mkdir -p "${USER_HOME}/.parallel"
@@ -115,17 +135,18 @@ configure() {
 testConfigure() {
   local -i failures=0
 
-  Assert::fileExists "${USER_HOME}/.bash-dev-env" || ((++failures))
-  SUDO=sudo Assert::fileExists "/root/.bash-dev-env" "root" "root" || ((++failures))
-  Log::displayInfo "checking BASH_DEV_ENV_ROOT_DIR variable replaced in ${USER_HOME}/.bash-dev-env"
-  if ! grep -q -P "BASH_DEV_ENV_ROOT_DIR=${BASH_DEV_ENV_ROOT_DIR}" "${USER_HOME}/.bash-dev-env"; then
-    Log::displayError "Variable 'BASH_DEV_ENV_ROOT_DIR' has not been replaced in file ${USER_HOME}/.bash-dev-env"
+  local initFile="${USER_HOME}/.bash-dev-env/profile.d/00_init.sh"
+  Assert::fileExists "${initFile}" || ((++failures))
+  SUDO=sudo Assert::fileExists "/root/.bash-dev-env/profile.d/00_init.sh" root root || ((++failures))
+  Log::displayInfo "checking BASH_DEV_ENV_ROOT_DIR variable replaced in ${initFile}"
+  if ! grep -q -P "BASH_DEV_ENV_ROOT_DIR='${BASH_DEV_ENV_ROOT_DIR}'" "${initFile}"; then
+    Log::displayError "Variable 'BASH_DEV_ENV_ROOT_DIR' has not been replaced in file ${initFile}"
     ((++failures))
   fi
 
-  Log::displayInfo "checking WINDOWS_PROFILE_DIR replaced in ${USER_HOME}/.bash-dev-env"
-  if ! grep -q -P "WINDOWS_PROFILE_DIR=${WINDOWS_PROFILE_DIR}" "${USER_HOME}/.bash-dev-env"; then
-    Log::displayError "Variable 'WINDOWS_PROFILE_DIR' has not been replaced in file ${USER_HOME}/.bash-dev-env"
+  Log::displayInfo "checking WINDOWS_PROFILE_DIR replaced in ${initFile}"
+  if ! grep -q -P "WINDOWS_PROFILE_DIR='${WINDOWS_PROFILE_DIR}'" "${initFile}"; then
+    Log::displayError "Variable 'WINDOWS_PROFILE_DIR' has not been replaced in file ${initFile}"
     ((++failures))
   fi
 

@@ -1,0 +1,11 @@
+{
+  "files.exclude": {
+    "fchastanet": true,
+    "projects": true,
+    "**/.git": true,
+    "**/node_modules": true,
+    "**/history": true,
+    ".vscode-server/data/User/History": true,
+    ".docker/buildx/refs": true
+  }
+}

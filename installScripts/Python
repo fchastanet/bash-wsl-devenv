@@ -261,56 +261,65 @@ Assert::functionExists() {
   declare -F "$1" >/dev/null
 }
 
-# @description convert base64 encoded back to target file
-# if target file is executable prepend dir of target
-# file to PATH to make binary available everywhere
-# it is advised to include in the path of the target file
-# the md5sum of the binFile
+# @description convert base64 encoded back to target dir
+# it is advised to include the md5sum of the binFile in the path of the target dir
 #
-# @arg $1 targetFile:String the file to write
-# @arg $2 binFileBase64:String the base64 encoded file
-# @arg $3 fileMode:String the chmod to set on the file
-# @set PATH String prepend target embedded file binary directory to PATH variable if binary executable
-Compiler::Embed::extractFileFromBase64() {
-  local targetFile="$1"
-  local binFileBase64="$2"
-  local fileMode="${3:-+x}"
+# @arg $1 targetDir:string the directory in which tar archive will be untarred
+# @arg $2 base64:string the base64 encoded tar czf archive
+# @stderr diagnostics information is displayed
+# @require Linux::requireTarCommand
+Compiler::Embed::extractDirFromBase64() {
+  local targetDir="$1"
+  local base64="$2"
 
-  if [[ ! -f "${targetFile}" ]]; then
-    mkdir -p "$(dirname "${targetFile}")"
-    base64 -d >"${targetFile}" <<<"${binFileBase64}"
-    chmod "${fileMode}" "${targetFile}"
-  fi
-
-  if [[ -x "${targetFile}" ]]; then
-    Env::pathPrepend "$(dirname "${targetFile}")"
+  if [[ ! -d "${targetDir}" ]]; then
+    mkdir -p "${targetDir}"
+    (
+      cd "${targetDir}" || exit 1
+      base64 -d <<<"${base64}" | tar -xzf - 2>/dev/null || {
+        Log::displayError "untar failure, invalid base64 string"
+        exit 1
+      }
+    ) || return 1
   fi
 }
 
-# @description select right file to load depending if file exists in this order:
-# - from conf.override
-# - from embedded file if provided
-# - from conf dir
-# @arg $1 file:String
-# @arg $2 embedFile:String eventual embedded file
-# @exitcode 1 if file does not exist at all
-Conf::dynamicConfFile() {
-  local file="${1/#\//}" # remove first slash if any
-  local embedFile="${2:-}"
-  if [[ -f "${CONF_OVERRIDE_DIR}/${file}" ]]; then
-    echo "${CONF_OVERRIDE_DIR}/${file}"
-    return 0
-  elif [[ -f "${embedFile}" ]]; then
-    echo "${embedFile}"
-    return 0
-  elif [[ -f "${CONF_DIR}/${file}" ]]; then
-    echo "${CONF_DIR}/${file}"
-    return 0
-  fi
-  if [[ "${IGNORE_ERROR:-0}" = "0" ]]; then
-    Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
+# @description generate temp directory where default
+# and overridden directories have been merged
+#   - if overridden dir exists, create a new temp folder
+#     - copy all files from default folder
+#     - overwrite with files from overridden folder
+#     - (Later) delete files listed in .remove$$ file
+#     - return the path of this temp folder
+#   - else just return the default folder path
+# Then it is easier to pick overridden or default files/folders
+#
+# @arg $1 defaultDir:String usually the embed directory
+# @arg $2 overriddenDirPath:String the path to the directory
+#   that could be overridden
+# @exitcode 1 if default dir does not exist
+# @exitcode 2 if error during copy
+Conf::getOverriddenDir() {
+  local defaultDir="$1"
+  local overriddenDirPath="$2"
+
+  if [[ ! -d "${defaultDir}" ]]; then
+    Log::displayError "Directory ${defaultDir} does not exists"
     return 1
   fi
+  if [[ ! -d "${overriddenDirPath}" || -z "$(ls -A "${overriddenDirPath}")" ]]; then
+    Log::displayInfo "Conf::getOverriddenDir - directory ${overriddenDirPath} does not exist, keep default one ${defaultDir}"
+    echo "${defaultDir}"
+    return 0
+  fi
+  local tempDir
+  tempDir="$(mktemp -d)"
+  (
+    shopt -s dotglob
+    cp -R "${defaultDir}/." "${tempDir}"
+    cp -R "${overriddenDirPath}/." "${tempDir}"
+  ) || return 2
+  echo "${tempDir}"
 }
 
 envFileTemplate="$(
@@ -430,20 +439,6 @@ WSLCONFIG_SWAP=0
 #POWERSHELL_BIN=/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
 #IPCONFIG_BIN=/mnt/c/Windows/system32/ipconfig.exe
 #WSL_EXE_BIN=/mnt/c/Windows/system32/wsl.exe
-
-# -----------------------------------------
-# Distro
-# Only necessary when using the script distro
-# to create or update a wsl distribution
-
-# The name of the distro displayed in `wsl -l -v` command
-DISTRO_NAME="UbuntuTest"
-# where to download the distribution
-DISTRO_URL="https://aka.ms/wslubuntu2004"
-# Profile to use with install command
-DISTRO_INSTALL_PROFILE="default"
-# The path where bash-dev-env project will be copied into target distro
-DISTRO_BASH_DEV_ENV_TARGET_DIR="${BASH_DEV_ENV_ROOT_DIR}"
 EOF
 )"
 
@@ -478,8 +473,6 @@ Engine::Config::loadConfig() {
 
   #Linux::Wsl::initEnv
   Engine::Config::loadWslVariables
-
-  Engine::Config::installBashDevEnv
 
   Log::requireLoad
 
@@ -592,28 +585,13 @@ Install::file() {
   fi
 
   if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
-    Log::displaySuccess "Installed file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
+    Log::displaySuccess "Installed file '${targetFile}' from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}'"
     ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
   else
-    Log::displayError "unable to copy file from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
+    Log::displayError "unable to copy file '${targetFile}' from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}'"
     ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
     return 3
   fi
-}
-
-# @description install callback
-#   set file with root ownership and execution bit
-# @arg $1 fromFile:String
-# @arg $2 targetFile:String
-# @exitcode 1 on any failure
-# @env SUDO String allows to use custom sudo prefix command
-# @see Install::file
-Install::setRootExecutableCallback() {
-  # shellcheck disable=SC2034
-  local fromFile="$1"
-  local targetFile="$2"
-  ${SUDO:-} chown root:root "${targetFile}"
-  ${SUDO:-} chmod +x "${targetFile}"
 }
 
 # @description the command launch different actions(install, configure, test)
@@ -1147,6 +1125,32 @@ Bash::handlePipelineFailure() {
   return "${handlePipelineFailure_resultingStatusCode}"
 }
 
+# @description select right file to load depending if file exists in this order:
+# - from conf.override
+# - from embedded file if provided
+# - from conf dir
+# @arg $1 file:String
+# @arg $2 embedFile:String eventual embedded file
+# @exitcode 1 if file does not exist at all
+Conf::dynamicConfFile() {
+  local file="${1/#\//}" # remove first slash if any
+  local embedFile="${2:-}"
+  if [[ -f "${CONF_OVERRIDE_DIR}/${file}" ]]; then
+    echo "${CONF_OVERRIDE_DIR}/${file}"
+    return 0
+  elif [[ -f "${embedFile}" ]]; then
+    echo "${embedFile}"
+    return 0
+  elif [[ -f "${CONF_DIR}/${file}" ]]; then
+    echo "${CONF_DIR}/${file}"
+    return 0
+  fi
+  if [[ "${IGNORE_ERROR:-0}" = "0" ]]; then
+    Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
+    return 1
+  fi
+}
+
 # @description check validity of .env variables
 # @env CHECK_ENV int 0 to avoid checking environment
 # @noargs
@@ -1261,28 +1265,6 @@ Engine::Config::createEnvFileFromTemplate() {
     Log::displayError "a default env file has been created, please edit ${envFile}"
     return 1
   fi
-}
-
-# @description install or update "${USER_HOME}/.bash-dev-env" file
-# @env WINDOWS_PROFILE_DIR
-# @env BASH_DEV_ENV_ROOT_DIR
-# @env USER_HOME
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/home/.bash-dev-env" as bashDevEnv
-Engine::Config::installBashDevEnv() {
-  # shellcheck disable=SC2317
-  bashDevEnvConfig() {
-    sed -E -i \
-      -e "s#BASH_DEV_ENV_ROOT_DIR=.*\$#BASH_DEV_ENV_ROOT_DIR=${BASH_DEV_ENV_ROOT_DIR}#g" \
-      -e "s#WINDOWS_PROFILE_DIR=.*\$#WINDOWS_PROFILE_DIR=${WINDOWS_PROFILE_DIR}#g" \
-      "${USER_HOME}/.bash-dev-env"
-    sudo ln -sf "${USER_HOME}/.bash-dev-env" /root/.bash-dev-env
-  }
-  local fileToInstall
-  # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "home/.bash-dev-env" "${embed_file_updateEnv}")" || return 1
-  OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${fileToInstall}" "${USER_HOME}/.bash-dev-env" \
-    "${USERNAME}" "${USERGROUP}" bashDevEnvConfig
 }
 
 # @description deduce wsl host ip
@@ -1736,6 +1718,13 @@ Version::parse() {
   sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
 }
 
+# @description ensure command tar is available
+# @exitcode 1 if tar command not available
+# @stderr diagnostics information is displayed
+Linux::requireTarCommand() {
+  Assert::commandExists tar
+}
+
 # @description ensure linux distribution is ubuntu
 # @exitcode 1 if linux distribution is not ubuntu
 Linux::requireUbuntu() {
@@ -2163,13 +2152,14 @@ Linux::Wsl::originalWslpath() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/ecddd4431d7bd3512d37b3bde436a9e4/python_path" "IyEvYmluL2Jhc2gKCltbIDoke1BBVEh9OiA9PSAqIjoke0hPTUV9Ly5sb2NhbC9iaW46IiogXV0gfHwgUEFUSD0iJHtIT01FfS8ubG9jYWwvYmluOiR7UEFUSH0iCmV4cG9ydCBQQVRICg==" "755"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/python_conf_dir" "H4sIAAAAAAAAA+3TT0vDMBgG8Jz7KWL1NFiaN1laKPTgQdhF9OBtDOlcRwelLW2ditt3t/EPiMxNcZ1Mn98ltH1oG543wmOdk63AGLtSYOT79Q2jgS/JV8Zoau8HA1KMm+5/jbHbuokrztldnW3MbXt+oIQnJnGd9qfJop/ki06m4av9KyKltGKSKNAG/e/Dx/7LqpjNs0RMdzgJ3zr/1OZI+1qj/334vP/yoUmL/LqMm1TU6U++sa1/Muqlf6WlUvb8+4Yk43JXm9zkn/d/fORN5rlnZ8BxRiMenjxenl4NVyGPIt5z28vhxfnZyhNZcRNnNhu6PT4e8+WS22Dkrkm8vsN1kvuyqJrnoPPbOwUAAAAAAAAAAAAAAAAAAPi7ngBENItjACgAAA=="
 
-declare -gx embed_file_python_path="${PERSISTENT_TMPDIR:-/tmp}/ecddd4431d7bd3512d37b3bde436a9e4/python_path"
+declare -gx embed_dir_python_conf_dir="${TMPDIR:-/tmp}/python_conf_dir"
 
 facade_main_Pythonsh() {
 
 # REQUIRES
+Linux::requireTarCommand
 Linux::requireUbuntu
 Env::requireLoad
 UI::requireTheme
@@ -2207,7 +2197,7 @@ fi
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/Python/etc/profile.d/python_path.sh" as python_path
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/Python" as python_conf_dir
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -3009,15 +2999,12 @@ install() {
   # Installing virtualenv
   PIP_REQUIRE_VIRTUALENV=false python -m pip install virtualenv
 
-  # Configure bin path
-  Log::displayInfo "Install /etc/profile.d/python_path.sh"
-  local fileToInstall
+  Log::displayInfo "Install ${USER_HOME}/.bash-dev-env/profile.d/python_path.sh"
+  local configDir
   # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "etc/profile.d/python_path.sh" "${embed_file_python_path}")" || return 1
-  SUDO=sudo OVERWRITE_CONFIG_FILES=1 BACKUP_BEFORE_INSTALL=0 Install::file \
-    "${fileToInstall}" "/etc/profile.d/python_path.sh" \
-    "root" "root" \
-    Install::setRootExecutableCallback || return 1
+  configDir="$(Conf::getOverriddenDir "${embed_dir_python_conf_dir}" "${CONF_OVERRIDE_DIR}/Python")"
+  OVERWRITE_CONFIG_FILES=1 BACKUP_BEFORE_INSTALL=0 Install::file \
+    "${configDir}/.bash-dev-env/profile.d/python_path.sh" "${USER_HOME}/.bash-dev-env/profile.d/python_path.sh"
 
   # Upgrade of pip packages will be done on subsequent calls during upgrade cron
   upgradePipPackages
@@ -3033,7 +3020,7 @@ testInstall() {
   # since virtualenv is not loaded python 3.9 is not yet available
   Version::checkMinimal "python" "--version" "3.8.10" || ((++failures))
   Version::checkMinimal "virtualenv" "--version" "20.25.1" || ((++failures))
-  Assert::fileExists "/etc/profile.d/python_path.sh" root root || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/profile.d/python_path.sh" || ((++failures))
   return "${failures}"
 }
 
@@ -3071,7 +3058,7 @@ upgradePipPackages() {
 testConfigure() {
   local -i failures=0
   # shellcheck source=/dev/null
-  source "${USER_HOME}/.virtualenvs/python3.9/bin/activate"
+  source "${USER_HOME}/.virtualenvs/python3.9/bin/activate" || ((++failures))
   Version::checkMinimal "python" "--version" "3.9.18" || ((++failures))
   Version::checkMinimal "pip" "--version" "24.0" || ((++failures))
   [[ "${VIRTUAL_ENV}" = "${USER_HOME}/.virtualenvs/python3.9" ]] || {

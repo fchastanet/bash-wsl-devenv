@@ -6,10 +6,6 @@
 # see /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
 # for examples
 
-if [[ "${ETC_PROFILE_D_UPDATE_ENV_LOADED-0}" != "1" ]]; then
-  source ${HOME}/.bash-dev-env
-fi
-
 # If running interactively
 if [[ "$-" =~ .*i.* ]]; then
   # make less more friendly for non-text input files, see lesspipe(1)
@@ -53,93 +49,55 @@ if [[ "$-" =~ .*i.* ]]; then
     PS1="\[\e]0;${debian_chroot:+(${debian_chroot})}\u@\h: \w\a\]${PS1}"
   fi
 
-  # fasd
-  if command -v fasd &>/dev/null; then
-    fasd_cache="${HOME}/.fasd-init-bash"
-    if [[ "$(command -v fasd)" -nt "${fasd_cache}" || ! -s "${fasd_cache}" ]]; then
-      fasd --init posix-alias bash-hook bash-ccomp bash-ccomp-install >|"${fasd_cache}"
+  if [[ -d "${HOME}/.bash-dev-env/aliases.d" ]]; then
+    for i in "${HOME}/.bash-dev-env/aliases.d"/*.sh; do
+      if [[ -f "${i}" ]]; then
+        # shellcheck source=conf/MandatorySoftwares/.bash-dev-env/aliases.d/bash-dev-env.sh
+        source "${i}"
+      fi
+    done
+    unset i
+  fi
+
+  # enable programmable completion features (you don't need to enable
+  # this, if it's already enabled in /etc/bash.bashrc and /etc/profile
+  # sources /etc/bash.bashrc).
+  if ! shopt -oq posix; then
+    completion_loaded=0
+    if [[ -f /usr/share/bash-completion/bash_completion ]]; then
+      source /usr/share/bash-completion/bash_completion
+      completion_loaded=1
+    elif [[ -f /etc/bash_completion ]]; then
+      # sudo apt install bash-completion
+      source /etc/bash_completion
+      completion_loaded=1
     fi
-    # shellcheck source=/dev/null
-    source "${fasd_cache}"
-    unset fasd_cache
-  fi
-
-  # kubeps1
-  if [[ -f /opt/kubeps1/kube-ps1.sh ]]; then
-    source /opt/kubeps1/kube-ps1.sh
-    PS1='[\u@\h \W $(kube_ps1)]\$ '
-  fi
-
-  # shellcheck source=conf/bash_profile/.aliases
-  [[ -f "${HOME}/.aliases" ]] && source "${HOME}/.aliases"
-
-  # load bash_completion
-  # shellcheck source=conf/bash_profile/.bash_completion
-  [[ -f "${HOME}/.bash_completion" ]] && source "${HOME}/.bash_completion"
-
-  # awsume
-  if command -v awsume &>/dev/null; then
-    #AWSume alias to source the AWSume script
-    alias awsume="source awsume"
-
-    #Auto-Complete function for AWSume
-    _awsume() {
-      local cur opts
-      COMPREPLY=()
-      cur="${COMP_WORDS[COMP_CWORD]}"
-      opts=$(awsume-autocomplete)
-      # shellcheck disable=SC2086,SC2207
-      COMPREPLY=($(compgen -W "${opts}" -- ${cur}))
-      return 0
-    }
-    complete -F _awsume awsume
-  fi
-
-  # start cron service
-  if [[ -f "${HOME}/.cron_activated" ]]; then
-    service anacron start
-  fi
-
-  if [[ -f "${HOME}/.bash_prompt" ]]; then
-    # shellcheck source=conf/bash_profile/.bash_prompt
-    source "${HOME}/.bash_prompt"
-  fi
-  # shellcheck source=conf/bash_profile/.bash_navigation
-  [[ -f "${HOME}/.bash_navigation" ]] && source "${HOME}/.bash_navigation"
-
-  # deactivate motd if needed
-  if [[ "${SHOW_MOTD}" = "1" ]]; then
-    if [[ -f "${HOME}/.hushlogin" ]]; then
-      rm -f "${HOME}/.hushlogin" &>/dev/null || true
-      echo "You just activated Motd, Motd will be shown next time"
+    if [[ "${completion_loaded}" = "1" && -d "${HOME}/.bash-dev-env/completions.d" ]]; then
+      for i in "${HOME}/.bash-dev-env/completions.d"/*.sh; do
+        if [[ -f "${i}" ]]; then
+          # shellcheck source=conf/ShellBash/.bash-dev-env/completions.d/makeTargets.sh
+          source "${i}"
+        fi
+      done
+      unset i
     fi
-  else
-    if [[ ! -f "${HOME}/.hushlogin" ]]; then
-      echo "You just deactivated Motd, Motd will be hidden next time"
-    fi
-    touch "${HOME}/.hushlogin"
+    unset completion_loaded
   fi
 
-  # display fortune
-  if [[ -f /etc/fortune-help-commands.dat && "${SHOW_FORTUNES}" = "1" ]]; then
-    randomAnimal="$(find /usr/share/cowsay/cows -type f | shuf -n 1 | sed -E -e 's#^.+/([^/.]+)\.cow$#\1#')"
-    fortune /etc/fortune-help-commands | cowsay -f "${randomAnimal}" | lolcat -s 600
-  fi
-
-  # fzf
-  if [[ -f /opt/fzf/shell/key-bindings.bash ]]; then
-    source /opt/fzf/shell/key-bindings.bash
-  fi
-  if [[ -f /opt/fzf/shell/completion.bash ]]; then
-    source /opt/fzf/shell/completion.bash
+  if [[ -d "${HOME}/.bash-dev-env/interactive.d" ]]; then
+    for i in "${HOME}/.bash-dev-env/interactive.d"/*.sh; do
+      if [[ -f "${i}" ]]; then
+        # shellcheck source=conf/ShellBash/.bash-dev-env/interactive.d/bash_navigation.sh
+        source "${i}"
+      fi
+    done
+    unset i
   fi
 
 fi
 
-###############################################################################"
-# Env variables PATH & NODE & ...
-###############################################################################"
-# check ${HOME}/.bash-dev-env
-
-# be sure it ends without any error code
-true
+# shellcheck disable=SC2046
+eval $(ssh-agent)
+if [[ -f "${HOME}/.ssh/id_rsa" ]]; then
+  ssh-add "${HOME}/.ssh/id_rsa"
+fi

@@ -29,6 +29,7 @@ extglob
 fgrep
 fmask
 getopt
+globstar
 HISTFILE
 HOSTIP
 HUP

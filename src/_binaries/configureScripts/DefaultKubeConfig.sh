@@ -15,6 +15,7 @@ helpDescription() {
 }
 
 dependencies() {
+  echo "ShellBash"
   echo "Kubectx"
   echo "Kubeps1"
 }

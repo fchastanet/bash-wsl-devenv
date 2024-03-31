@@ -3,10 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/update-motd.d/00-wsl-header" as motd00
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/update-motd.d/01-wsl-sysinfo" as motd01
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/update-motd.d/03-wsl-automatic-upgrade" as motd03
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/cron.daily/motd" as dailyMotd
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/DefaultMotd" as motd_dir
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
@@ -42,34 +39,18 @@ testInstall() { :; }
 # jscpd:ignore-end
 
 configure() {
-  local fileToInstall
+  local configDir
   # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "etc/update-motd.d/00-wsl-header" "${embed_file_motd00}")" || return 1
-  SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${fileToInstall}" "/etc/update-motd.d/00-wsl-header" \
-    "root" "root" \
-    Install::setRootExecutableCallback || return 1
+  configDir="$(
+    Conf::getOverriddenDir \
+      "${embed_dir_motd_dir}" \
+      "${CONF_OVERRIDE_DIR}/DefaultMotd"
+  )"
 
-  # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "etc/update-motd.d/01-wsl-sysinfo" "${embed_file_motd01}")" || return 1
+  SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::dir \
+    "${configDir}/etc" "/etc" "update-motd.d"
   SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${fileToInstall}" "/etc/update-motd.d/01-wsl-sysinfo" \
-    "root" "root" \
-    Install::setRootExecutableCallback || return 1
-
-  # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "etc/update-motd.d/03-wsl-automatic-upgrade" "${embed_file_motd03}")" || return 1
-  SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${fileToInstall}" "/etc/update-motd.d/03-wsl-automatic-upgrade" \
-    "root" "root" \
-    Install::setRootExecutableCallback || return 1
-
-  # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "etc/cron.daily/motd" "${embed_file_dailyMotd}")" || return 1
-  BACKUP_BEFORE_INSTALL=0 SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${fileToInstall}" "/etc/cron.daily/motd" \
-    "root" "root" \
-    Install::setRootExecutableCallback || return 1
+    "${configDir}/etc/cron.daily/motd" "/etc/cron.daily/motd"
 
   # disable some parts
   sudo chmod 600 /etc/update-motd.d/00-header
@@ -85,13 +66,13 @@ configure() {
 
 testConfigure() {
   local -i failures=0
-  Assert::fileExecutable "/etc/update-motd.d/00-wsl-header" "root" "root" || ((++failures))
-  Assert::fileExecutable "/etc/update-motd.d/01-wsl-sysinfo" "root" "root" || ((++failures))
-  Assert::fileExecutable "/etc/update-motd.d/03-wsl-automatic-upgrade" "root" "root" || ((++failures))
-  Assert::fileNotExecutable "/etc/update-motd.d/10-help-text" "root" "root" || ((++failures))
-  Assert::fileNotExecutable "/etc/update-motd.d/00-header" "root" "root" || ((++failures))
+  Assert::fileExecutable "/etc/update-motd.d/00-wsl-header" || ((++failures))
+  Assert::fileExecutable "/etc/update-motd.d/01-wsl-sysinfo" || ((++failures))
+  Assert::fileExecutable "/etc/update-motd.d/03-wsl-automatic-upgrade" || ((++failures))
+  Assert::fileNotExecutable "/etc/update-motd.d/10-help-text" || ((++failures))
+  Assert::fileNotExecutable "/etc/update-motd.d/00-header" || ((++failures))
 
-  Assert::fileExecutable "/etc/cron.daily/motd" "root" "root" || ((++failures))
+  Assert::fileExecutable "/etc/cron.daily/motd" || ((++failures))
 
   if ! sudo update-motd >/dev/null; then
     Log::displayWarning "motd not working"

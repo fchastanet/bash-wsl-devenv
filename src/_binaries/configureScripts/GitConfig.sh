@@ -3,16 +3,8 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/GitConfig/.gitconfig" as gitconfig
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/GitConfig/.gitignore" as gitignore
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/GitConfig/.tigrc" as tigrc
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/GitConfig/.config/git" as dot_config_dir
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/GitConfig" as gitconfig_dir
 
-declare -a filesToInstall=(
-  gitconfig
-  gitignore
-  tigrc
-)
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
 scriptName() {
@@ -24,11 +16,12 @@ helpDescription() {
 }
 
 dependencies() {
+  echo "ShellBash"
   echo "Tig"
 }
 
 fortunes() {
-  fortunes+=("GitConfig - default main branch is set to $(git config --global --get init.defaultBranch) set in your ~/.gitconfig")
+  fortunes+=("GitConfig - default main branch is set to $(git config --global --get init.defaultBranch), you can change it in your ~/.gitconfig")
 }
 
 # jscpd:ignore-start
@@ -43,7 +36,24 @@ testInstall() { :; }
 # jscpd:ignore-end
 
 configure() {
-  OVERWRITE_CONFIG_FILES=0 Conf::installFromEmbed "GitConfig" "${filesToInstall[@]}" || return 1
+  local configDir
+  # shellcheck disable=SC2154
+  configDir="$(
+    Conf::getOverriddenDir \
+      "${embed_dir_gitconfig_dir}" \
+      "${CONF_OVERRIDE_DIR}/GitConfig"
+  )"
+
+  OVERWRITE_CONFIG_FILES=0 Install::file \
+    "${configDir}/.gitconfig" "${USER_HOME}/.gitconfig"
+  OVERWRITE_CONFIG_FILES=0 Install::file \
+    "${configDir}/.tigrc" "${USER_HOME}/.tigrc"
+  OVERWRITE_CONFIG_FILES=0 Install::dir \
+    "${configDir}/.config" "${USER_HOME}/.config" "tig"
+  OVERWRITE_CONFIG_FILES=0 Install::dir \
+    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "GitConfig"
+  OVERWRITE_CONFIG_FILES=1 Install::dir \
+    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "aliases.d"
 
   # updateGitConfig
   if [[ -n "${GIT_USERNAME}" ]]; then
@@ -52,27 +62,9 @@ configure() {
   if [[ -n "${GIT_USER_MAIL}" ]]; then
     git config --global user.email "${GIT_USER_MAIL}"
   fi
-  git config --global init.defaultBranch master
-  git config --global core.excludesFile "${USER_HOME}/.gitignore"
-
-  local baseDirToInstall dirToInstall
-  # shellcheck disable=SC2154
-  baseDirToInstall="$(Conf::dynamicConfDir "GitConfig/.config" "${dot_config_dir}")" || return 1
-  dirToInstall="${baseDirToInstall}"
-  if [[ ! -d "${baseDirToInstall}/git" ]]; then
-    dirToInstall="${dot_config_dir}"
-  fi
-  OVERWRITE_CONFIG_FILES=0 Install::dir \
-    "${dirToInstall}" "${USER_HOME}/.config" "git" || return 1
-
-  dirToInstall="${baseDirToInstall}"
-  if [[ ! -d "${baseDirToInstall}/tig" ]]; then
-    dirToInstall="${dot_config_dir}"
-  fi
-  OVERWRITE_CONFIG_FILES=0 Install::dir \
-    "${dirToInstall}" "${USER_HOME}/.config" "tig" || return 1
 
   if [[ -f "${BASE_MNT_C}/Program Files (x86)/Meld/Meld.exe" ]]; then
+    Log::displayInfo "Configuring meld as default diff tool"
     git config --global diff.tool meld
     git config --global alias.dt 'difftool -d'
     sudo ln -sf "${BASE_MNT_C}/Program Files (x86)/Meld/Meld.exe" /usr/local/bin/meld
@@ -87,8 +79,11 @@ configure() {
 testConfigure() {
   local -i failures=0
   Assert::fileExists "${USER_HOME}/.gitconfig" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.config/git/ignore" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/GitConfig/.gitconfig" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/GitConfig/gitignore" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/git.sh" || ((++failures))
   Assert::fileExists "${USER_HOME}/.config/tig/config" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.tigrc" || ((++failures))
 
   # git config
   local gitUserName

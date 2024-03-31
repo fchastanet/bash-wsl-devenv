@@ -3,7 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/home/.aws/config" as aws_config
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/DefaultAwsConfig" as aws_config_dir
 # EMBED "${FRAMEWORK_ROOT_DIR}/src/UI/talk.ps1" as talkScript
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
@@ -47,6 +47,9 @@ testInstall() { :; }
 # jscpd:ignore-end
 
 configure() {
+  local configDir
+  # shellcheck disable=SC2154
+  configDir="$(Conf::getOverriddenDir "${embed_dir_aws_config_dir}" "${CONF_OVERRIDE_DIR}/AwsConfig")"
   # install default configuration
   # shellcheck disable=SC2317
   configureAwsConfig() {
@@ -55,17 +58,11 @@ configure() {
       "${USER_HOME}/.aws/config"
     Install::setUserRightsCallback "$@"
   }
-  local fileToInstall
-  # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "home/.aws/config" "${embed_file_aws_config}")" || return 1
-  Install::file "${fileToInstall}" "${USER_HOME}/.aws/config" "${USERNAME}" "${USERGROUP}" configureAwsConfig
-
-  if Assert::wsl; then
-    # export display needed
-    # @see https://github.com/Versent/saml2aws/issues/561
-    DISPLAY="$(ip route show default | awk '/default/ {print $3}'):0.0"
-    export DISPLAY
-  fi
+  OVERWRITE_CONFIG_FILES=0 Install::file \
+    "${configDir}/.aws/config" "${USER_HOME}/.aws/config" \
+    "${USERNAME}" "${USERGROUP}" configureAwsConfig
+  OVERWRITE_CONFIG_FILES=1 Install::dir \
+    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "aliases.d"
 
   # use saml2aws to configure with the right parameters
   if [[ -n "${AWS_APP_ID}" && -n "${AWS_PROFILE}" && -n "${AWS_USER_MAIL}" ]]; then
@@ -87,7 +84,9 @@ configure() {
 testConfigure() {
   local -i failures=0
 
-  Assert::fileExists "${USER_HOME}/.aws/config" "${USERNAME}" "${USERGROUP}" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.aws/config" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/awsCli.sh" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/saml2aws.sh" || ((++failures))
 
   if grep -q -E -e "azure_default_username=.+$" "${USER_HOME}/.aws/config"; then
     # case where .aws/config has been overridden in conf_override folder

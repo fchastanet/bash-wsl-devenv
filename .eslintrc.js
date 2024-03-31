@@ -35,7 +35,7 @@ module.exports = {
   },
   overrides: [
     {
-      files: ['.vscode/*.json'],
+      files: ['**/.vscode/*.json'],
       rules: {
         'json/*': ['error', {allowComments: true}],
       },

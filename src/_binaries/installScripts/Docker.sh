@@ -3,6 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/Docker" as docker_conf_dir
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
@@ -105,11 +106,23 @@ configure() {
   mkdir -p "${USER_HOME}/.docker/cli-plugins"
   rm -f "${USER_HOME}/.docker/cli-plugins/docker-compose" || true
   sudo ln -sf /usr/local/bin/docker-compose "${USER_HOME}/.docker/cli-plugins/docker-compose"
+
+  local configDir
+  # shellcheck disable=SC2154
+  configDir="$(
+    Conf::getOverriddenDir \
+      "${embed_dir_docker_conf_dir}" \
+      "${CONF_OVERRIDE_DIR}/Docker"
+  )"
+  OVERWRITE_CONFIG_FILES=1 Install::dir \
+    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "aliases.d" || return 1
+  OVERWRITE_CONFIG_FILES=1 Install::dir \
+    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "profile.d" || return 1
 }
 
 testConfigure() {
   local -i failures=0
-
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/docker.sh"
   Log::displayInfo "check if docker-compose binary is working"
   if ! docker-compose version &>/dev/null; then
     Log::displayError "docker-compose failure"
@@ -128,8 +141,11 @@ testConfigure() {
     ((++failures))
   fi
 
+  asUserToAvoidWslRestart() {
+    sudo -u "${USERNAME}" -i "$@"
+  }
   Log::displayInfo "check if docker dns is working"
-  sudo -u "${USERNAME}" -i docker run busybox ping google.com -c 1 &>/dev/null || {
+  asUserToAvoidWslRestart docker run busybox ping google.com -c 1 &>/dev/null || {
     ((++failures))
     Log::displayError "google.com is not reachable from docker, dns issue ?"
     ping google.com -c 1 &>/dev/null || {
@@ -139,11 +155,11 @@ testConfigure() {
   }
 
   Log::displayInfo "check if docker container can be launched"
-  if ! sudo -u "${USERNAME}" -i docker run --rm hello-world | grep -q "Hello from Docker!"; then
-    ((++failures))
+  if ! asUserToAvoidWslRestart docker run --rm hello-world | grep -q "Hello from Docker!"; then
     Log::displayError "docker container cannot be launched"
+    ((++failures))
   fi
-  sudo -u "${USERNAME}" -i docker image rm hello-world || true
+  asUserToAvoidWslRestart docker image rm hello-world || true
 
   return "${failures}"
 }

@@ -25,8 +25,8 @@ Stats::aggregateGlobalStats() {
     local -i globalSkipped=0
     local -i globalHelp=0
     local -i globalSuccess=0
-    local -i globalStatus=0 
-    ((globalDuration=duration)) || true
+    local -i globalStatus=0
+    ((globalDuration = duration)) || true
     for statFile in "${statFiles[@]}"; do
       if [[ ! -f "${statFile}" ]]; then
         continue
@@ -41,7 +41,7 @@ Stats::aggregateGlobalStats() {
       globalHelp=$((globalHelp || help))
       globalSuccess=$((globalSuccess || success))
       globalStatus=$((globalStatus || status))
-      globalDuration=$((globalDuration + duration))      
+      globalDuration=$((globalDuration + duration))
     done
     # shellcheck source=src/Stats/aggregateStats.example
     source "${aggregateStatFile}"

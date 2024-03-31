@@ -3,7 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/.bash-tools" as bash_tools_conf
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/BashTools" as bash_tools_dir
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
@@ -21,7 +21,7 @@ fortunes() {
     fortunes+=("BashTools - dbImport -- tool to import database from aws or Mizar")
     fortunes+=("BashTools - dbQueryAllDatabases -- tool to execute a query on multiple databases")
   else
-    fortunes+=("installBashTools -- to initialize bash tools (cli, dbImport, dbQueryAllDatabases, ...)")
+    fortunes+=("Run 'installAndConfigure BashTools' -- to initialize bash tools (cli, dbImport, dbQueryAllDatabases, ...)")
   fi
 }
 
@@ -47,15 +47,22 @@ testInstall() {
 }
 
 configure() {
-  local dirToInstall
+  local configDir
   # shellcheck disable=SC2154
-  dirToInstall="$(Conf::dynamicConfDir ".bash-tools" "${embed_dir_bash_tools_conf}")" || return 1
+  configDir="$(
+    Conf::getOverriddenDir \
+      "${embed_dir_bash_tools_dir}" \
+      "${CONF_OVERRIDE_DIR}/BashTools"
+  )"
   OVERWRITE_CONFIG_FILES=1 Install::dir \
-    "${dirToInstall}" "${USER_HOME}/.bash-tools" || return 1
+    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "aliases.d" || return 1
+  OVERWRITE_CONFIG_FILES=0 Install::dir \
+    "${configDir}" "${USER_HOME}" ".bash-tools" || return 1
 }
 testConfigure() {
   local -i failures=0
   Assert::dirExists "${USER_HOME}/.bash-tools" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/bash-tools-dev.sh" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bash-tools/cliProfiles/default.sh" || ((++failures))
   return "${failures}"
 }

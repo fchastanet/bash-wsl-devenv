@@ -63,9 +63,9 @@ testInstall() {
   Version::checkMinimal "shfmt" --version "3.7.0" || ((++failures))
 
   # composer dependencies
-  # shellcheck source=conf/Composer/etc/profile.d/composer_path.sh
-  source /etc/profile.d/composer_path.sh || {
-    Log::displayError "Composer script failed to install /etc/profile.d/composer_path.sh"
+  # shellcheck source=conf/Composer/.bash-dev-env/profile.d/composer_path.sh
+  source "${USER_HOME}/.bash-dev-env/profile.d/composer_path.sh" || {
+    Log::displayError "Composer script failed to install '${USER_HOME}/.bash-dev-env/profile.d/composer_path.sh'"
     ((++failures))
   }
   Version::checkMinimal "phpcs" --version "3.9.0" || ((++failures))

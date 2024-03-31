@@ -42,7 +42,6 @@ install() {
   pip install --user pre-commit
   # update precommit repo
   pre-commit gc
-  pre-commit autoupdate
 }
 
 testInstall() {

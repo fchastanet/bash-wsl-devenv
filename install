@@ -810,7 +810,7 @@ Stats::aggregateGlobalStats() {
     local -i globalHelp=0
     local -i globalSuccess=0
     local -i globalStatus=0
-    ((globalDuration=duration)) || true
+    ((globalDuration = duration)) || true
     for statFile in "${statFiles[@]}"; do
       if [[ ! -f "${statFile}" ]]; then
         continue
@@ -2961,12 +2961,12 @@ executeScripts() {
         aggregateStat() {
           local -a statFiles=()
           if [[ "${SKIP_INSTALL}" = "0" ]] &&
-              SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isInstallImplemented; then
+            SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isInstallImplemented; then
             Stats::aggregateStats "${LOGS_DIR:-#}/install.stat" "${installConfigCount}" "${LOGS_DIR:-#}/${configName}-install.stat"
             statFiles+=("${LOGS_DIR:-#}/${configName}-install.stat")
           fi
           if [[ "${SKIP_CONFIGURE}" = "0" ]] &&
-              SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isConfigureImplemented; then
+            SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isConfigureImplemented; then
             Stats::aggregateStats "${LOGS_DIR:-#}/config.stat" "${configConfigCount}" "${LOGS_DIR:-#}/${configName}-config.stat"
             statFiles+=("${LOGS_DIR:-#}/${configName}-config.stat")
           fi

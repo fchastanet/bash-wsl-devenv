@@ -284,72 +284,42 @@ Compiler::Embed::extractDirFromBase64() {
   fi
 }
 
-# @description convert base64 encoded back to target file
-# if target file is executable prepend dir of target
-# file to PATH to make binary available everywhere
-# it is advised to include in the path of the target file
-# the md5sum of the binFile
+# @description generate temp directory where default
+# and overridden directories have been merged
+#   - if overridden dir exists, create a new temp folder
+#     - copy all files from default folder
+#     - overwrite with files from overridden folder
+#     - (Later) delete files listed in .remove$$ file
+#     - return the path of this temp folder
+#   - else just return the default folder path
+# Then it is easier to pick overridden or default files/folders
 #
-# @arg $1 targetFile:String the file to write
-# @arg $2 binFileBase64:String the base64 encoded file
-# @arg $3 fileMode:String the chmod to set on the file
-# @set PATH String prepend target embedded file binary directory to PATH variable if binary executable
-Compiler::Embed::extractFileFromBase64() {
-  local targetFile="$1"
-  local binFileBase64="$2"
-  local fileMode="${3:-+x}"
+# @arg $1 defaultDir:String usually the embed directory
+# @arg $2 overriddenDirPath:String the path to the directory
+#   that could be overridden
+# @exitcode 1 if default dir does not exist
+# @exitcode 2 if error during copy
+Conf::getOverriddenDir() {
+  local defaultDir="$1"
+  local overriddenDirPath="$2"
 
-  if [[ ! -f "${targetFile}" ]]; then
-    mkdir -p "$(dirname "${targetFile}")"
-    base64 -d >"${targetFile}" <<<"${binFileBase64}"
-    chmod "${fileMode}" "${targetFile}"
+  if [[ ! -d "${defaultDir}" ]]; then
+    Log::displayError "Directory ${defaultDir} does not exists"
+    return 1
   fi
-
-  if [[ -x "${targetFile}" ]]; then
-    Env::pathPrepend "$(dirname "${targetFile}")"
-  fi
-}
-
-# @description select right dir to load depending if dir exists in this order:
-# - from conf.override
-# - from embedded dir if provided
-# - from conf dir
-# @arg $1 dir:String
-# @arg $2 embedDir:String eventual embedded dir
-# @exitcode 1 if dir does not exist at all
-Conf::dynamicConfDir() {
-  local dir="${1/#\//}" # remove first slash if any
-  local embedDir="${2:-}"
-  if [[ -d "${CONF_OVERRIDE_DIR}/${dir}" ]]; then
-    echo "${CONF_OVERRIDE_DIR}/${dir}"
-    return 0
-  elif [[ -d "${embedDir}" ]]; then
-    echo "${embedDir}"
-    return 0
-  elif [[ -d "${CONF_DIR}/${dir}" ]]; then
-    echo "${CONF_DIR}/${dir}"
+  if [[ ! -d "${overriddenDirPath}" || -z "$(ls -A "${overriddenDirPath}")" ]]; then
+    Log::displayInfo "Conf::getOverriddenDir - directory ${overriddenDirPath} does not exist, keep default one ${defaultDir}"
+    echo "${defaultDir}"
     return 0
   fi
-  Log::displayWarning "Conf::dynamicConfDir - ${dir} does not exist in any config dirs declared"
-  return 1
-}
-
-# @description install file from embedded variable
-# @arg $1 prefixDir:String file prefix directory
-# @arg $@ list of files to install
-# @exitcode 1 if embedded file not found or copy error
-Conf::installFromEmbed() {
-  local prefixDir="$1"
-  shift || true
-  local -a files=("$@")
-  for file in "${files[@]}"; do
-    local fileToInstall
-    local embedFileVar="embed_file_${file}"
-    # shellcheck disable=SC2154
-    fileToInstall="$(Conf::dynamicConfFile "${prefixDir}/.${file}" "${!embedFileVar}")" || return 1
-    Install::file \
-      "${fileToInstall}" "${USER_HOME}/.${file}" || return 1
-  done
+  local tempDir
+  tempDir="$(mktemp -d)"
+  (
+    shopt -s dotglob
+    cp -R "${defaultDir}/." "${tempDir}"
+    cp -R "${overriddenDirPath}/." "${tempDir}"
+  ) || return 2
+  echo "${tempDir}"
 }
 
 envFileTemplate="$(
@@ -469,20 +439,6 @@ WSLCONFIG_SWAP=0
 #POWERSHELL_BIN=/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
 #IPCONFIG_BIN=/mnt/c/Windows/system32/ipconfig.exe
 #WSL_EXE_BIN=/mnt/c/Windows/system32/wsl.exe
-
-# -----------------------------------------
-# Distro
-# Only necessary when using the script distro
-# to create or update a wsl distribution
-
-# The name of the distro displayed in `wsl -l -v` command
-DISTRO_NAME="UbuntuTest"
-# where to download the distribution
-DISTRO_URL="https://aka.ms/wslubuntu2004"
-# Profile to use with install command
-DISTRO_INSTALL_PROFILE="default"
-# The path where bash-dev-env project will be copied into target distro
-DISTRO_BASH_DEV_ENV_TARGET_DIR="${BASH_DEV_ENV_ROOT_DIR}"
 EOF
 )"
 
@@ -517,8 +473,6 @@ Engine::Config::loadConfig() {
 
   #Linux::Wsl::initEnv
   Engine::Config::loadWslVariables
-
-  Engine::Config::installBashDevEnv
 
   Log::requireLoad
 
@@ -581,6 +535,7 @@ Framework::createTempFile() {
 # @env SUDO String allows to use custom sudo prefix command
 # @env BACKUP_BEFORE_INSTALL Boolean (default:1) backup directory before installing the dir
 # @exitcode 1 if source directory is not readable
+# @exitcode 2 if source directory backup failed
 # @exitcode 0 if copy successful or OVERWRITE_CONFIG_FILES=0 or
 # @exitcode 0 with warning message if OVERWRITE_CONFIG_FILES=0 and target directory exists
 # @exitcode 0 with warning message if CHANGE_WINDOWS_FILES=0 and target directory in C drive
@@ -610,26 +565,113 @@ Install::dir() {
   fi
 
   if [[ "${BACKUP_BEFORE_INSTALL:-1}" = "1" ]]; then
-    Backup::dir "${toDir}" "${dirName}"
+    Backup::dir "${toDir}" "${dirName}" || return 2
   fi
 
   local destDir="${toDir}/${dirName}"
-  Log::displayDebug "Install directory '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${dirName}' to '${destDir}'"
+  local shortDir="${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${dirName}"
+  Log::displayDebug "Installing directory '${destDir}' from '${shortDir}'"
   (
     ${SUDO:-} mkdir -p "${destDir}"
     cd "${fromDir}/${dirName}" || exit 1
     shopt -s dotglob # * will match hidden files too
-    ${SUDO:-} cp -R -- * "${destDir}" ||
-      Log::fatal "unable to copy directory '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${dirName}' to '${destDir}'"
-    ${SUDO:-} chown -R "${userName}":"${userGroup}" "${destDir}"
+    if [[ -z "$(ls -A .)" ]]; then
+      Log::displaySkipped "directory '${shortDir}' is empty, no copy needed"
+      return 0
+    fi
+    if ! ${SUDO:-} cp -R -- * "${destDir}"; then
+      Log::displayError "unable to copy directory '${shortDir}' to '${destDir}'"
+      exit 1
+    fi
+    if ! ${SUDO:-} chown -R "${userName}":"${userGroup}" "${destDir}"; then
+      Log::displayError "unable to change directory '${destDir}' owners"
+      exit 1
+    fi
     # chown all parent directory with same user
     local fullDir="${fromDir}"
     for parentFolder in ${dirName////$'\n'}; do
       fullDir="${fullDir}/${parentFolder}"
-      ${SUDO:-} chown "${userName}":"${userGroup}" "${fullDir}"
+      if ! ${SUDO:-} chown "${userName}":"${userGroup}" "${fullDir}"; then
+        Log::displayError "unable to change parent directory '${fullDir}' owners"
+        exit 1
+      fi
     done
-  )
-  Log::displaySuccess "Installed directory '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${dirName}' to '${destDir}')"
+  ) || return 1
+  Log::displaySuccess "Installed directory '${destDir}' from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${dirName}')"
+}
+
+# @description installs file to given directory
+#
+# callbacks parameters `${fromFile} ${targetFile} $@`
+# @arg $1 fromFile - original file to copy
+# @arg $2 targetFile - target file
+# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
+# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
+# @arg $5 successCallback:Function the callback to call when file is installed successfully, by default setUserRights callback is called
+# @arg $6 failureCallback:Function the callback to call when file installation has failed, by default unableToCopyCallback callback is called
+# @arg $@ callbacksParams:String[] additional parameters passed to callbacks
+# @exitcode 1 if fromFile is not readable
+# @exitcode 2 if backup file failure
+# @exitcode 3 if copy failure
+# @exitcode 0 on success or if OVERWRITE_CONFIG_FILES=0
+# @exitcode 0 on success or if CHANGE_WINDOWS_FILES=0 and target file is a windows file
+# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
+# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target file is in windows file system, overwrite it
+# @env USERNAME (default: root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @env BASE_MNT_C String windows C drive base PATH
+# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_BEFORE_INSTALL Boolean (default: 1) backup file before installing the file
+Install::file() {
+  local fromFile="$1"
+  local targetFile="$2"
+  local userName="${3:-${USERNAME:-root}}"
+  local userGroup="${4:-${USERGROUP:-root}}"
+  local successCallback=${5:-Install::setUserRightsCallback}
+  local failureCallback=${6:-Install::unableToCopyCallback}
+  shift 6 || true
+
+  if [[ ! -f "${fromFile}" || ! -r "${fromFile}" ]]; then
+    Log::displayError "cannot read source file '${fromFile}'"
+    return 1
+  fi
+
+  # skip if OVERWRITE_CONFIG_FILES is 0 and target file exists
+  if [[ "${OVERWRITE_CONFIG_FILES}" = "0" && -f "${targetFile}" ]]; then
+    Log::displayWarning "File '${targetFile}' exists - Skip install (because OVERWRITE_CONFIG_FILES=0 in .env file)"
+    return 0
+  fi
+
+  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
+  if [[ "${CHANGE_WINDOWS_FILES}" = "0" && "${targetFile}" =~ ^${BASE_MNT_C} ]]; then
+    Log::displayWarning "File '${targetFile}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
+    return 0
+  fi
+
+  local targetDir
+  targetDir="$(dirname "${targetFile}")"
+  if [[ ! -d "${targetDir}" ]]; then
+    ${SUDO:-} mkdir -p "${targetDir}"
+    ${SUDO:-} chown "${userName}":"${userGroup}" "${targetDir}"
+  fi
+  local fromDir
+  fromDir="$(dirname "${fromFile}")"
+  local fromFilename
+  fromFilename="$(basename "${fromFile}")"
+
+  if [[ "${BACKUP_BEFORE_INSTALL:-1}" = "1" ]]; then
+    Backup::file "${targetFile}" || return 2
+  fi
+
+  if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
+    Log::displaySuccess "Installed file '${targetFile}' from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}'"
+    ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
+  else
+    Log::displayError "unable to copy file '${targetFile}' from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}'"
+    ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
+    return 3
+  fi
 }
 
 # @description the command launch different actions(install, configure, test)
@@ -1091,6 +1133,32 @@ Backup::dir() {
   fi
 }
 
+# @description Backup given file in the same directory or in BACKUP_DIR directory
+# backup file name is composed by following fields separated by -:
+#   - if BACKUP_DIR is not empty then escaped dirname separated by @
+#   - filename(without path)
+#   - date with format %Y%m%d_%H:%M:%S (Eg: 20240326_14:45:08)
+# @arg $1 file:String the file to backup
+# @stderr messages about backup file location
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_DIR if not set backup the file in the same directory as original file
+# @exitcode 1 on copy failure
+Backup::file() {
+  local file="$1"
+  local backupFile dirname escapedDirname
+  if [[ -f "${file}" ]]; then
+    dirname="$(dirname "${file}")"
+    escapedDirname="$(sed -e 's#^/##; s#/#@#g' <<<"${dirname}")"
+    if [[ -z "${BACKUP_DIR:-}" ]]; then
+      backupFile="${dirname}/$(basename "${file}")-$(date +"%Y%m%d_%H:%M:%S")"
+    else
+      backupFile="${BACKUP_DIR}/${escapedDirname}@$(basename "${file}")-$(date +"%Y%m%d_%H:%M:%S")"
+    fi
+    Log::displayInfo "Backup file '${file}' to ${backupFile}"
+    ${SUDO:-} cp "${file}" "${backupFile}"
+  fi
+}
+
 # @description select right file to load depending if file exists in this order:
 # - from conf.override
 # - from embedded file if provided
@@ -1231,28 +1299,6 @@ Engine::Config::createEnvFileFromTemplate() {
     Log::displayError "a default env file has been created, please edit ${envFile}"
     return 1
   fi
-}
-
-# @description install or update "${USER_HOME}/.bash-dev-env" file
-# @env WINDOWS_PROFILE_DIR
-# @env BASH_DEV_ENV_ROOT_DIR
-# @env USER_HOME
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/home/.bash-dev-env" as bashDevEnv
-Engine::Config::installBashDevEnv() {
-  # shellcheck disable=SC2317
-  bashDevEnvConfig() {
-    sed -E -i \
-      -e "s#BASH_DEV_ENV_ROOT_DIR=.*\$#BASH_DEV_ENV_ROOT_DIR=${BASH_DEV_ENV_ROOT_DIR}#g" \
-      -e "s#WINDOWS_PROFILE_DIR=.*\$#WINDOWS_PROFILE_DIR=${WINDOWS_PROFILE_DIR}#g" \
-      "${USER_HOME}/.bash-dev-env"
-    sudo ln -sf "${USER_HOME}/.bash-dev-env" /root/.bash-dev-env
-  }
-  local fileToInstall
-  # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "home/.bash-dev-env" "${embed_file_updateEnv}")" || return 1
-  OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${fileToInstall}" "${USER_HOME}/.bash-dev-env" \
-    "${USERNAME}" "${USERGROUP}" bashDevEnvConfig
 }
 
 # @description deduce wsl host ip
@@ -1419,78 +1465,40 @@ Env::pathPrepend() {
   done
 }
 
-# @description installs file to given directory
-#
-# callbacks parameters `${fromFile} ${targetFile} $@`
-# @arg $1 fromFile - original file to copy
-# @arg $2 targetFile - target file
+# @description install callback
+#   set file with root ownership and execution bit
+# @arg $1 fromFile:String
+# @arg $2 targetFile:String
 # @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
 # @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
-# @arg $5 successCallback:Function the callback to call when file is installed successfully, by default setUserRights callback is called
-# @arg $6 failureCallback:Function the callback to call when file installation has failed, by default unableToCopyCallback callback is called
-# @arg $@ callbacksParams:String[] additional parameters passed to callbacks
-# @exitcode 1 if fromFile is not readable
-# @exitcode 2 if backup file failure
-# @exitcode 3 if copy failure
-# @exitcode 0 on success or if OVERWRITE_CONFIG_FILES=0
-# @exitcode 0 on success or if CHANGE_WINDOWS_FILES=0 and target file is a windows file
-# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
-# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target file is in windows file system, overwrite it
 # @env USERNAME (default: root) the user name that will be used to set target files ownership
 # @env USERGROUP (default: root) the group name that will be used to set target files ownership
-# @env BASE_MNT_C String windows C drive base PATH
-# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
 # @env SUDO String allows to use custom sudo prefix command
-# @env BACKUP_BEFORE_INSTALL Boolean (default: 1) backup file before installing the file
-Install::file() {
+# @exitcode 1 on any failure
+# @see Install::file
+Install::setUserRightsCallback() {
+  # shellcheck disable=SC2034 # $1 not used
   local fromFile="$1"
   local targetFile="$2"
   local userName="${3:-${USERNAME:-root}}"
   local userGroup="${4:-${USERGROUP:-root}}"
-  local successCallback=${5:-Install::setUserRightsCallback}
-  local failureCallback=${6:-Install::unableToCopyCallback}
-  shift 6 || true
 
-  if [[ ! -f "${fromFile}" || ! -r "${fromFile}" ]]; then
-    Log::displayError "cannot read source file '${fromFile}'"
-    return 1
-  fi
+  ${SUDO:-} chown "${userName}":"${userGroup}" "${targetFile}"
+}
 
-  # skip if OVERWRITE_CONFIG_FILES is 0 and target file exists
-  if [[ "${OVERWRITE_CONFIG_FILES}" = "0" && -f "${targetFile}" ]]; then
-    Log::displayWarning "File '${targetFile}' exists - Skip install (because OVERWRITE_CONFIG_FILES=0 in .env file)"
-    return 0
-  fi
-
-  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
-  if [[ "${CHANGE_WINDOWS_FILES}" = "0" && "${targetFile}" =~ ^${BASE_MNT_C} ]]; then
-    Log::displayWarning "File '${targetFile}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
-    return 0
-  fi
-
-  local targetDir
-  targetDir="$(dirname "${targetFile}")"
-  if [[ ! -d "${targetDir}" ]]; then
-    ${SUDO:-} mkdir -p "${targetDir}"
-    ${SUDO:-} chown "${userName}":"${userGroup}" "${targetDir}"
-  fi
-  local fromDir
-  fromDir="$(dirname "${fromFile}")"
-  local fromFilename
-  fromFilename="$(basename "${fromFile}")"
-
-  if [[ "${BACKUP_BEFORE_INSTALL:-1}" = "1" ]]; then
-    Backup::file "${targetFile}" || return 2
-  fi
-
-  if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
-    Log::displaySuccess "Installed file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
-    ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
-  else
-    Log::displayError "unable to copy file from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
-    ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
-    return 3
-  fi
+# @description install callback
+#   default callback used called when file copy has failed
+# @arg $1 fromFile:String
+# @arg $2 targetFile:String
+# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @exitcode 1 always fail
+# @stderr diagnostics information is displayed
+# @see Install::file
+Install::unableToCopyCallback() {
+  local fromDir="$1"
+  local fileName="$2"
+  local targetFile="$3"
+  Log::fatal "unable to copy file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fileName}' to '${targetFile}'"
 }
 
 declare -g FIRST_LOG_DATE LOG_LAST_LOG_DATE LOG_LAST_LOG_DATE_INIT LOG_LAST_DURATION_STR
@@ -1523,6 +1531,16 @@ Log::computeDuration() {
     # shellcheck disable=SC2034
     LOG_LAST_DURATION_STR=""
   fi
+}
+
+# @description Display message using skip color (yellow)
+# @arg $1 message:String the message to display
+Log::displaySkipped() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    Log::computeDuration
+    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logSkipped "$1"
 }
 
 # @description Display message using success color (bg green/fg white)
@@ -1825,68 +1843,6 @@ Assert::wsl() {
   [[ "$(uname -o)" = "GNU/Linux" ]]
 }
 
-# @description Backup given file in the same directory or in BACKUP_DIR directory
-# backup file name is composed by following fields separated by -:
-#   - if BACKUP_DIR is not empty then escaped dirname separated by @
-#   - filename(without path)
-#   - date with format %Y%m%d_%H:%M:%S (Eg: 20240326_14:45:08)
-# @arg $1 file:String the file to backup
-# @stderr messages about backup file location
-# @env SUDO String allows to use custom sudo prefix command
-# @env BACKUP_DIR if not set backup the file in the same directory as original file
-# @exitcode 1 on copy failure
-Backup::file() {
-  local file="$1"
-  local backupFile dirname escapedDirname
-  if [[ -f "${file}" ]]; then
-    dirname="$(dirname "${file}")"
-    escapedDirname="$(sed -e 's#^/##; s#/#@#g' <<<"${dirname}")"
-    if [[ -z "${BACKUP_DIR:-}" ]]; then
-      backupFile="${dirname}/$(basename "${file}")-$(date +"%Y%m%d_%H:%M:%S")"
-    else
-      backupFile="${BACKUP_DIR}/${escapedDirname}@$(basename "${file}")-$(date +"%Y%m%d_%H:%M:%S")"
-    fi
-    Log::displayInfo "Backup file '${file}' to ${backupFile}"
-    ${SUDO:-} cp "${file}" "${backupFile}"
-  fi
-}
-
-# @description install callback
-#   set file with root ownership and execution bit
-# @arg $1 fromFile:String
-# @arg $2 targetFile:String
-# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
-# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
-# @env USERNAME (default: root) the user name that will be used to set target files ownership
-# @env USERGROUP (default: root) the group name that will be used to set target files ownership
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode 1 on any failure
-# @see Install::file
-Install::setUserRightsCallback() {
-  # shellcheck disable=SC2034 # $1 not used
-  local fromFile="$1"
-  local targetFile="$2"
-  local userName="${3:-${USERNAME:-root}}"
-  local userGroup="${4:-${USERGROUP:-root}}"
-
-  ${SUDO:-} chown "${userName}":"${userGroup}" "${targetFile}"
-}
-
-# @description install callback
-#   default callback used called when file copy has failed
-# @arg $1 fromFile:String
-# @arg $2 targetFile:String
-# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
-# @exitcode 1 always fail
-# @stderr diagnostics information is displayed
-# @see Install::file
-Install::unableToCopyCallback() {
-  local fromDir="$1"
-  local fileName="$2"
-  local targetFile="$3"
-  Log::fatal "unable to copy file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fileName}' to '${targetFile}'"
-}
-
 # @description apt-get install
 # @arg $@ softwares:String[] list of softwares to install
 # @feature Retry::default
@@ -1939,14 +1895,12 @@ Linux::Wsl::cachedWslvar() {
   Cache::getPropertyValue "${tempEnvFile}" "$1" Linux::Wsl::originalWslvar "$@"
 }
 
-# @description Display message using skip color (yellow)
+# @description log message to file
 # @arg $1 message:String the message to display
-Log::displaySkipped() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    Log::computeDuration
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+Log::logSkipped() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SKIPPED}" "$1"
   fi
-  Log::logSkipped "$1"
 }
 
 # @description log message to file
@@ -2098,14 +2052,6 @@ Linux::Wsl::originalWslvar() {
   wslvar "$@" | sed -z '$ s/[\r\n]$//'
 }
 
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logSkipped() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SKIPPED}" "$1"
-  fi
-}
-
 # @description Retry a command 5 times with a delay of 15 seconds between each attempt
 # @arg $@ command:String[] the command to run
 # @exitcode 0 on success
@@ -2253,18 +2199,9 @@ Retry::parameterized() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/c2c39795a4e5435d4c835a2db3a2ad8d/gitconfig" "W2NvcmVdCiAgZW9sID0gbGYKICBhdXRvY3JsZiA9IGlucHV0CgpbZ2NdCgpbaW5jbHVkZV0KICBwYXRoID0gfi8uYmFzaC10b29scy8uZ2l0Y29uZmlnCgojIEBzZWUgaHR0cHM6Ly93d3cuZHVyZG4uY29tL2Jsb2cvMjAxMi8xMS8yMi9tdXN0LWhhdmUtZ2l0LWFsaWFzZXMtYWR2YW5jZWQtZXhhbXBsZXMvClthbGlhc10KICAjIExpc3QgYWxsIGdpdCBhbGlhc2VzCiAgYWxpYXMgPSAiIWdpdCBjb25maWcgLWwgfCBncmVwIGFsaWFzIHwgY3V0IC1jIDctIgoKICBjbSA9IGNvbW1pdCAtbQogIGNvID0gY2hlY2tvdXQKICBjb2IgPSBjaGVja291dCAtYgogIHN0ID0gc3RhdHVzCiAgYnIgPSBicmFuY2gKICBicmQgPSBicmFuY2ggLWQKICBickQgPSBicmFuY2ggLUQKICBtYXN0ZXIgPSAhZ2l0IGNoZWNrb3V0IG1hc3RlciAmJiBnaXQgcHVsbCBvcmlnaW4KICBwbG8gPSBwdWxsIG9yaWdpbgogIHVuZG9MYXN0Tm90UHVzaGVkQ29tbWl0ID0gcmVzZXQgLS1zb2Z0IEhFQUR+CgogICMgUmVtb3ZlIHRoZSBmaWxlIGZyb20gcmVwb3NpdG9yeSBidXQga2VlcGluZyBpdCBhcyB1bnN0YWdlZAogIHJtLWtlZXAgPSBybSAtLWNhY2hlZAoKICAjIExpc3QgY29tbWl0cyBpbiBzaG9ydCBmb3JtLCB3aXRoIGNvbG9ycyBhbmQgYnJhbmNoL3RhZyBhbm5vdGF0aW9ucwogIGxzID0gbG9nIC0tcHJldHR5PWZvcm1hdDoiJUMoeWVsbG93KSVoJUNyZWQlZFxcICVDcmVzZXQlcyVDYmx1ZVxcIFslY25dIiAtLWRlY29yYXRlCgogICMgTGlzdCBjb21taXRzIHNob3dpbmcgY2hhbmdlZCBmaWxlcwogIGxsID0gbG9nIC0tcHJldHR5PWZvcm1hdDoiJUMoeWVsbG93KSVoJUNyZWQlZFxcICVDcmVzZXQlcyVDYmx1ZVxcIFslY25dIiAtLWRlY29yYXRlIC0tbnVtc3RhdAoKICAjIExpc3Qgb25lLWxpbmUgY29tbWl0cyBzaG93aW5nIHJlbGF0aXZlIGRhdGVzOgogIGxkID0gbG9nIC0tcHJldHR5PWZvcm1hdDoiJUMoeWVsbG93KSVoXFwgJWFkJUNyZWQlZFxcICVDcmVzZXQlcyVDYmx1ZVxcIFslY25dIiAtLWRlY29yYXRlIC0tZGF0ZT1yZWxhdGl2ZQoKICAjIGdldCBhbGwgbW9kaWZpY2F0aW9ucyBmb3JtIHRoZSBnaXZlbiBicmFuY2ggbG9zaW5nIGFsbCBjb21taXRzIGhpc3RvcnkKICAjIGNhbiBiZSB1c2VmdWwgdG8gcmVjcmVhdGUgYSBicmFuY2ggZnJvbSBzY3JhdGNoCiAgbWVyZ2Utbm8taGlzdG9yeSA9ICEgImYoKSB7IGdpdCBjaGVja291dCAkMSAtLSAuIDsgfTsgZiIKCiAgIyBnZXQgYWxsIG1lcmdlcyBpbnRvIGN1cnJlbnQgYnJhbmNoIGNvbXBhcmluZyB0byBtYXN0ZXIKICBsb2ctbWVyZ2VzLWludG8tY3VycmVudC1icmFuY2ggPSBsb2cgbWFzdGVyLi5IRUFEIC0tYW5jZXN0cnktcGF0aCAtLW1lcmdlcyAgLS1vbmVsaW5lCgogICMgZ2V0IGZpcnN0IGNvbW1pdCBvZiBhIGJyYW5jaCBjb21wYXJpbmcgdG8gbWFzdGVyCiAgbG9nLWdldC1maXJzdC1jb21taXQtb2YtY3VycmVudC1icmFuY2ggPSAhZ2l0IGxvZyBtYXN0ZXIuLkhFQUQgLS1vbmVsaW5lIHwgdGFpbCAtMQoKICAjIGdldCBsaXN0IG9mIGJyYW5jaGVzIGNvbnRhaW5pbmcgYSBmaWxlCiAgbGlzdC1icmFuY2hlcy1jb250YWluaW5nLWZpbGUgPSAiIWYoKSB7IGdpdCBsb2cgLS1hbGwgLS1zb3VyY2UgLS0gJDEgfCBncmVwIC1vICdyZWZzLy4qJyB8IHNvcnQgLXUgOyB9OyBmIgoKICAjIGdldCBsb2dzIHNpbmNlIG15IGxhc3QgY29tbWl0CiAgbGcgPSAiIW1lPSQoZ2l0IGNvbmZpZyAtLWdldCB1c2VyLm5hbWUpOyBcCiAgICAgIGdpdCBsb2cgLS1zaW5jZSAkKGdpdCBsb2cgLS1wcmV0dHk9Zm9ybWF0OiclY3QnIC0tYXV0aG9yIFwiJG1lXCIgLTEpIgogICMgZ2V0IG15IGxhc3QgY29tbWl0cwogIG15LWxvZ3MgPSAiIW1lPSQoZ2l0IGNvbmZpZyAtLWdldCB1c2VyLm5hbWUpOyBcCiAgICAgIGdpdCBsb2cgLS1hdXRob3I9XCIkbWVcIiIKCiAgcmVtb3ZlLWxvY2FsLWJyYW5jaGVzLWdvbmUgPSAhIGdpdCBmZXRjaCAtcCAmJiBnaXQgYnJhbmNoIC12diB8IGF3ayAnLzogZ29uZV0ve3ByaW50ICQxfScgfCB4YXJncyBnaXQgYnJhbmNoIC1ECgogIGxpc3QtbG9jYWwtYnJhbmNoZXMtdmVyYm9zZSA9ICFnaXQgcmVtb3RlIHBydW5lIG9yaWdpbiAmJiBnaXQgYnJhbmNoIC12dgogIGxpc3QtbG9jYWwtYnJhbmNoZXMtbm90LXB1c2hlZCA9ICFnaXQgbG9nIC0tYnJhbmNoZXMgLS1ub3QgLS1yZW1vdGVzIC0tbm8td2FsayAtLWRlY29yYXRlIC0tb25lbGluZQogIHBydW5lLWdvbmUtYnJhbmNoZXMgPSAhZ2l0IHJlbW90ZSBwcnVuZSBvcmlnaW4gJiYgZ2l0IGJyYW5jaCAtdnYgfCBjdXQgLWMgMy0gfCBncmVwICc6IGdvbmVdJyB8IGF3ayAne3ByaW50ICQxfScgfCB4YXJncyAtciBnaXQgYnJhbmNoIC1kCiAgcHJ1bmUtZ29uZS1icmFuY2hlcy1mb3JjZSA9ICFnaXQgcmVtb3RlIHBydW5lIG9yaWdpbiAmJiBnaXQgYnJhbmNoIC12diB8IGN1dCAtYyAzLSB8IGdyZXAgJzogZ29uZV0nIHwgYXdrICd7cHJpbnQgJDF9JyB8IHhhcmdzIC1yIGdpdCBicmFuY2ggLUQKCgpbcHVzaF0KICBkZWZhdWx0ID0gY3VycmVudAoKW3B1bGxdCiAgZmYgPSBvbmx5Cg==" "644"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/gitconfig_dir" "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"
 
-declare -gx embed_file_gitconfig="${PERSISTENT_TMPDIR:-/tmp}/c2c39795a4e5435d4c835a2db3a2ad8d/gitconfig"
-Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/e2ab1bfc7ecc8f1ccda445791ae8aeff/gitignore" "Lmhpc3RvcnkK" "644"
-
-declare -gx embed_file_gitignore="${PERSISTENT_TMPDIR:-/tmp}/e2ab1bfc7ecc8f1ccda445791ae8aeff/gitignore"
-Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/a3b7df2daf5dcb1fdcada647ce6576dd/tigrc" "IyB2aW06IHNldCBleHBhbmR0YWIgc3c9NCB0YWJzdG9wPTQ6CiMgKmNvbG9yKiAnYXJlYScgJ2ZnY29sb3InICdiZ2NvbG9yJyAnW2F0dHJpYnV0ZXNdJwoKIyBnZW5lcmFsCmNvbG9yICAgZGVmYXVsdCAgICAgICAgICAgICAgICAgMTUgICAgICAyMzUKY29sb3IgICBjdXJzb3IgICAgICAgICAgICAgICAgICAxNSAgICAgIDI0MQpjb2xvciAgIHRpdGxlLWZvY3VzICAgICAgICAgICAgIDI0MiAgICAgMjIxCmNvbG9yICAgdGl0bGUtYmx1ciAgICAgICAgICAgICAgMjQyICAgICAyMjEKY29sb3IgICBkZWxpbWl0ZXIgICAgICAgICAgICAgICAyMTMgICAgIGRlZmF1bHQKY29sb3IgICBhdXRob3IgICAgICAgICAgICAgICAgICAxNTYgICAgIGRlZmF1bHQKY29sb3IgICBkYXRlICAgICAgICAgICAgICAgICAgICA4MSAgICAgIGRlZmF1bHQKY29sb3IgICBsaW5lLW51bWJlciAgICAgICAgICAgICAyMjEgICAgIGRlZmF1bHQKY29sb3IgICBtb2RlICAgICAgICAgICAgICAgICAgICAyNTUgICAgIGRlZmF1bHQKCiMgbWFpbgpjb2xvciAgIG1haW4tdGFnICAgICAgICAgICAgICAgIDIxMyAgICAgZGVmYXVsdCAgICAgYm9sZApjb2xvciAgIG1haW4tbG9jYWwtdGFnICAgICAgICAgIDIxMyAgICAgZGVmYXVsdApjb2xvciAgIG1haW4tcmVtb3RlICAgICAgICAgICAgIDIyMSAgICAgZGVmYXVsdApjb2xvciAgIG1haW4tcmVwbGFjZSAgICAgICAgICAgIDgxICAgICAgZGVmYXVsdApjb2xvciAgIG1haW4tdHJhY2tlZCAgICAgICAgICAgIDIyMSAgICAgZGVmYXVsdCAgICAgYm9sZApjb2xvciAgIG1haW4tcmVmICAgICAgICAgICAgICAgIDgxICAgICAgZGVmYXVsdApjb2xvciAgIG1haW4taGVhZCAgICAgICAgICAgICAgIDIxMyAgICAgZGVmYXVsdCAgICAgYm9sZApjb2xvciAgIGdyYXBoLWNvbW1pdCAgICAgICAgICAgIDIyNiAgICAgZGVmYXVsdAoKIyBzdGF0dXMKI2NvbG9yICBzdGF0LWhlYWQgICAgICAgODEgICAgICBkZWZhdWx0CgojIERpZmYgICBjb2xvcnMKY29sb3IgICBkaWZmX2FkZCAgICAgICAgICAgICAgICAxMCAgICAgIGRlZmF1bHQKY29sb3IgICBkaWZmX2FkZDIgICAgICAgICAgICAgICAxMCAgICAgIGRlZmF1bHQKY29sb3IgICBkaWZmX2RlbCAgICAgICAgICAgICAgICAxOTYgICAgIGRlZmF1bHQKY29sb3IgICBkaWZmX2RlbDIgICAgICAgICAgICAgICAxOTYgICAgIGRlZmF1bHQKY29sb3IgICBkaWZmLWhlYWRlciAgICAgICAgICAgICAyMjEgICAgIGRlZmF1bHQKY29sb3IgICBkaWZmLWluZGV4ICAgICAgICAgICAgICA4MSAgICAgIGRlZmF1bHQKY29sb3IgICBkaWZmLWNodW5rICAgICAgICAgICAgICAyMTMgICAgIGRlZmF1bHQKY29sb3IgICBkaWZmX29sZG1vZGUgICAgICAgICAgICAyMjEgICAgIGRlZmF1bHQKY29sb3IgICBkaWZmX25ld21vZGUgICAgICAgICAgICAyMjEgICAgIGRlZmF1bHQKY29sb3IgICAnZGVsZXRlZCBmaWxlIG1vZGUnICAgICAyMjEgICAgIGRlZmF1bHQKY29sb3IgICAnY29weSBmcm9tJyAgICAgICAgICAgICAyMjMgICAgIGRlZmF1bHQKY29sb3IgICAnY29weSB0bycgICAgICAgICAgICAgICAyMjEgICAgIGRlZmF1bHQKY29sb3IgICAncmVuYW1lIGZyb20nICAgICAgICAgICAyMjEgICAgIGRlZmF1bHQKY29sb3IgICAncmVuYW1lIHRvJyAgICAgICAgICAgICAyMjEgICAgIGRlZmF1bHQKY29sb3IgICBkaWZmX3NpbWlsYXJpdHkgICAgICAgICAyMjEgICAgIGRlZmF1bHQKY29sb3IgICAnZGlzc2ltaWxhcml0eScgICAgICAgICAyMjEgICAgIGRlZmF1bHQKY29sb3IgICAnZGlmZl90cmVlJyAgICAgICAgICAgICA4MSAgICAgIGRlZmF1bHQKY29sb3IgICBkaWZmLXN0YXQgICAgICAgICAgICAgICA4MSAgICAgIGRlZmF1bHQKY29sb3IgICAiUmVwb3J0ZWQtYnk6IiAgICAgICAgICAxNTYgICAgIGRlZmF1bHQKCmNvbG9yICAgJ0F1dGhvcjonICAgICAgICAgICAgICAgMTU2ICAgICBkZWZhdWx0CmNvbG9yICAgJ0NvbW1pdDonICAgICAgICAgICAgICAgMjEzICAgICBkZWZhdWx0CmNvbG9yICAgJ0F1dGhvckRhdGU6JyAgICAgICAgICAgMjIxICAgICBkZWZhdWx0CmNvbG9yICAgJ0NvbW1pdERhdGU6JyAgICAgICAgICAgMjIxICAgICBkZWZhdWx0CmNvbG9yICAgJ0RhdGU6JyAgICAgICAgICAgICAgICAgODEgICAgICBkZWZhdWx0CmNvbG9yICAgcHBfcmVmcyAgICAgICAgICAgICAgICAgMjEzICAgICBkZWZhdWx0CmNvbG9yICAgcGFsZXR0ZS0wICAgICAgICAgICAgICAgMjI2ICAgICBkZWZhdWx0CmNvbG9yICAgcGFsZXR0ZS0xICAgICAgICAgICAgICAgMjEzICAgICBkZWZhdWx0CmNvbG9yICAgcGFsZXR0ZS0yICAgICAgICAgICAgICAgMTE4ICAgICBkZWZhdWx0CmNvbG9yICAgcGFsZXR0ZS0zICAgICAgICAgICAgICAgNTEgICAgICBkZWZhdWx0CmNvbG9yICAgcGFsZXR0ZS00ICAgICAgICAgICAgICAgMTk2ICAgICBkZWZhdWx0CmNvbG9yICAgcGFsZXR0ZS01ICAgICAgICAgICAgICAgMjE5ICAgICBkZWZhdWx0CmNvbG9yICAgcGFsZXR0ZS02ICAgICAgICAgICAgICAgMTkwICAgICBkZWZhdWx0CgojIHN0YXR1cwpjb2xvciAgIHN0YXR1cy5oZWFkZXIgICAgICAgICAgIDIyMSAgICAgZGVmYXVsdApjb2xvciAgIHN0YXR1cy5zZWN0aW9uICAgICAgICAgIDgxICAgICAgZGVmYXVsdApjb2xvciAgIHN0YXRfc3RhZ2VkICAgICAgICAgICAgIDIxMyAgICAgZGVmYXVsdApjb2xvciAgIHN0YXRfdW5zdGFnZWQgICAgICAgICAgIDIxMyAgICAgZGVmYXVsdApjb2xvciAgIHN0YXRfdW50cmFja2VkICAgICAgICAgIDIxMyAgICAgZGVmYXVsdAoKIyByYXcgY29tbWl0IGhlYWRlcgpjb2xvciAgIGNvbW1pdCAgICAgICAgICAgICAgICAgIDE1NiAgICAgZGVmYXVsdApjb2xvciAgIGNvbW1pdHRlciAgICAgICAgICAgICAgIDIxMyAgICAgZGVmYXVsdAoKIyBjb21taXQgbWVzc2FnZQpjb2xvciAgICdTaWduZWQtb2ZmLWJ5JyAgICAgICAgIDIyMSAgICAgZGVmYXVsdApjb2xvciAgICdBY2tlZC1ieScgICAgICAgICAgICAgIDIyMSAgICAgZGVmYXVsdApjb2xvciAgICdUZXN0ZWQtYnknICAgICAgICAgICAgIDIyMSAgICAgZGVmYXVsdApjb2xvciAgICdSZXZpZXdlZC1ieScgICAgICAgICAgIDIyMSAgICAgZGVmYXVsdAoKIyB0cmVlCmNvbG9yICAgdHJlZS5kaXJlY3RvcnkgICAgICAgICAyMjEgICAgIGRlZmF1bHQKCiMgTElORShQQUxFVFRFXzAsICIiLCBDT0xPUl9NQUdFTlRBLCBDT0xPUl9ERUZBVUxULCAwKSwgXAojICAgTElORShQQUxFVFRFXzEsICIiLCBDT0xPUl9ZRUxMT1csIENPTE9SX0RFRkFVTFQsIDApLCBcCiMgICBMSU5FKFBBTEVUVEVfMiwgIiIsIENPTE9SX0NZQU4sIENPTE9SX0RFRkFVTFQsIDApLCBcCiMgICBMSU5FKFBBTEVUVEVfMywgIiIsIENPTE9SX0dSRUVOLCBDT0xPUl9ERUZBVUxULCAwKSwgXAojICAgTElORShQQUxFVFRFXzQsICIiLCBDT0xPUl9ERUZBVUxULCBDT0xPUl9ERUZBVUxULCAwKSwgXAojICAgTElORShQQUxFVFRFXzUsICIiLCBDT0xPUl9XSElURSwgQ09MT1JfREVGQVVMVCwgMCksIFwKIyAgIExJTkUoUEFMRVRURV82LCAiIiwgQ09MT1JfUkVELCApCg==" "644"
-
-declare -gx embed_file_tigrc="${PERSISTENT_TMPDIR:-/tmp}/a3b7df2daf5dcb1fdcada647ce6576dd/tigrc"
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/dot_config_dir" "H4sIAAAAAAAAA+3RwWrDMAwGYJ/zFIadZ8uu4zxPSERm6sTBTlP69k3LCrt0O4VS9n8XgSSwzK+02B1tmrq+VdPU9LM+COM8kbfWWbP1G0dOyHr/04Q4laXNUopzib/u/TV/U0qHYUqZ93zjFrB37mn+pjnc8zf2QNZaQYY8eSFpz6Me/nn+H3ItXepZxtS1UX6FsqR8kXM8DWGqtPpu6KpP3ZHzZ5fGORVWaeWcQ8/qMsbns3YbKp7WSo88tDFMy7aWeU55KdWrvw4AAAAAAAAAAAAAAAAAAAAA8Pau2xv4nAAoAAA="
-
-declare -gx embed_dir_dot_config_dir="${TMPDIR:-/tmp}/dot_config_dir"
+declare -gx embed_dir_gitconfig_dir="${TMPDIR:-/tmp}/gitconfig_dir"
 
 facade_main_GitConfigsh() {
 
@@ -2309,16 +2246,7 @@ fi
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/GitConfig/.gitconfig" as gitconfig
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/GitConfig/.gitignore" as gitignore
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/GitConfig/.tigrc" as tigrc
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/GitConfig/.config/git" as dot_config_dir
-
-declare -a filesToInstall=(
-  gitconfig
-  gitignore
-  tigrc
-)
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/GitConfig" as gitconfig_dir
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -3080,11 +3008,12 @@ helpDescription() {
 }
 
 dependencies() {
+  echo "ShellBash"
   echo "Tig"
 }
 
 fortunes() {
-  fortunes+=("GitConfig - default main branch is set to $(git config --global --get init.defaultBranch) set in your ~/.gitconfig")
+  fortunes+=("GitConfig - default main branch is set to $(git config --global --get init.defaultBranch), you can change it in your ~/.gitconfig")
 }
 
 # jscpd:ignore-start
@@ -3099,7 +3028,24 @@ testInstall() { :; }
 # jscpd:ignore-end
 
 configure() {
-  OVERWRITE_CONFIG_FILES=0 Conf::installFromEmbed "GitConfig" "${filesToInstall[@]}" || return 1
+  local configDir
+  # shellcheck disable=SC2154
+  configDir="$(
+    Conf::getOverriddenDir \
+      "${embed_dir_gitconfig_dir}" \
+      "${CONF_OVERRIDE_DIR}/GitConfig"
+  )"
+
+  OVERWRITE_CONFIG_FILES=0 Install::file \
+    "${configDir}/.gitconfig" "${USER_HOME}/.gitconfig"
+  OVERWRITE_CONFIG_FILES=0 Install::file \
+    "${configDir}/.tigrc" "${USER_HOME}/.tigrc"
+  OVERWRITE_CONFIG_FILES=0 Install::dir \
+    "${configDir}/.config" "${USER_HOME}/.config" "tig"
+  OVERWRITE_CONFIG_FILES=0 Install::dir \
+    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "GitConfig"
+  OVERWRITE_CONFIG_FILES=1 Install::dir \
+    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "aliases.d"
 
   # updateGitConfig
   if [[ -n "${GIT_USERNAME}" ]]; then
@@ -3108,27 +3054,9 @@ configure() {
   if [[ -n "${GIT_USER_MAIL}" ]]; then
     git config --global user.email "${GIT_USER_MAIL}"
   fi
-  git config --global init.defaultBranch master
-  git config --global core.excludesFile "${USER_HOME}/.gitignore"
-
-  local baseDirToInstall dirToInstall
-  # shellcheck disable=SC2154
-  baseDirToInstall="$(Conf::dynamicConfDir "GitConfig/.config" "${dot_config_dir}")" || return 1
-  dirToInstall="${baseDirToInstall}"
-  if [[ ! -d "${baseDirToInstall}/git" ]]; then
-    dirToInstall="${dot_config_dir}"
-  fi
-  OVERWRITE_CONFIG_FILES=0 Install::dir \
-    "${dirToInstall}" "${USER_HOME}/.config" "git" || return 1
-
-  dirToInstall="${baseDirToInstall}"
-  if [[ ! -d "${baseDirToInstall}/tig" ]]; then
-    dirToInstall="${dot_config_dir}"
-  fi
-  OVERWRITE_CONFIG_FILES=0 Install::dir \
-    "${dirToInstall}" "${USER_HOME}/.config" "tig" || return 1
 
   if [[ -f "${BASE_MNT_C}/Program Files (x86)/Meld/Meld.exe" ]]; then
+    Log::displayInfo "Configuring meld as default diff tool"
     git config --global diff.tool meld
     git config --global alias.dt 'difftool -d'
     sudo ln -sf "${BASE_MNT_C}/Program Files (x86)/Meld/Meld.exe" /usr/local/bin/meld
@@ -3143,8 +3071,11 @@ configure() {
 testConfigure() {
   local -i failures=0
   Assert::fileExists "${USER_HOME}/.gitconfig" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.config/git/ignore" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/GitConfig/.gitconfig" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/GitConfig/gitignore" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/git.sh" || ((++failures))
   Assert::fileExists "${USER_HOME}/.config/tig/config" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.tigrc" || ((++failures))
 
   # git config
   local gitUserName
