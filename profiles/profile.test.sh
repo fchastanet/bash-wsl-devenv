@@ -5,5 +5,36 @@ if [[ -z "${CONFIG_LIST+xxx}" ]]; then
 fi
 
 CONFIG_LIST=(
-  "CodeCheckers"
+  DefaultMotd
+  Xvsb
+  AwsCli
+  Saml2Aws
+  DefaultAwsConfig
+  Font
+  Fasd
+  Fd
+  Bat
+  Fzf
+  Kubectx
+  Kubeps1
+  ShellBash
+  DefaultKubeConfig
+  Python
+  PreCommit
+  Tig
+  GitConfig
+  PreCommitConfig
+  BashTools
+  Hadolint
+  Go
+  NodeNpm
+  NodeDependencies
+  Php
+  Composer
+  CodeCheckers
+  Oq
+  Java
+  PlantUml
+  Clean
+  Export
 )

@@ -3,7 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/Python/etc/profile.d/python_path.sh" as python_path
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/Python" as python_conf_dir
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
@@ -56,15 +56,12 @@ install() {
   # Installing virtualenv
   PIP_REQUIRE_VIRTUALENV=false python -m pip install virtualenv
 
-  # Configure bin path
-  Log::displayInfo "Install /etc/profile.d/python_path.sh"
-  local fileToInstall
+  Log::displayInfo "Install ${USER_HOME}/.bash-dev-env/profile.d/python_path.sh"
+  local configDir
   # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "etc/profile.d/python_path.sh" "${embed_file_python_path}")" || return 1
-  SUDO=sudo OVERWRITE_CONFIG_FILES=1 BACKUP_BEFORE_INSTALL=0 Install::file \
-    "${fileToInstall}" "/etc/profile.d/python_path.sh" \
-    "root" "root" \
-    Install::setRootExecutableCallback || return 1
+  configDir="$(Conf::getOverriddenDir "${embed_dir_python_conf_dir}" "${CONF_OVERRIDE_DIR}/Python")"
+  OVERWRITE_CONFIG_FILES=1 BACKUP_BEFORE_INSTALL=0 Install::file \
+    "${configDir}/.bash-dev-env/profile.d/python_path.sh" "${USER_HOME}/.bash-dev-env/profile.d/python_path.sh"
 
   # Upgrade of pip packages will be done on subsequent calls during upgrade cron
   upgradePipPackages
@@ -80,7 +77,7 @@ testInstall() {
   # since virtualenv is not loaded python 3.9 is not yet available
   Version::checkMinimal "python" "--version" "3.8.10" || ((++failures))
   Version::checkMinimal "virtualenv" "--version" "20.25.1" || ((++failures))
-  Assert::fileExists "/etc/profile.d/python_path.sh" root root || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/profile.d/python_path.sh" || ((++failures))
   return "${failures}"
 }
 
@@ -118,7 +115,7 @@ upgradePipPackages() {
 testConfigure() {
   local -i failures=0
   # shellcheck source=/dev/null
-  source "${USER_HOME}/.virtualenvs/python3.9/bin/activate"
+  source "${USER_HOME}/.virtualenvs/python3.9/bin/activate" || ((++failures))
   Version::checkMinimal "python" "--version" "3.9.18" || ((++failures))
   Version::checkMinimal "pip" "--version" "24.0" || ((++failures))
   [[ "${VIRTUAL_ENV}" = "${USER_HOME}/.virtualenvs/python3.9" ]] || {

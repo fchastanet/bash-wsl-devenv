@@ -1,6 +1,0 @@
-# vscode local history plugin
-/.history/
-docker-compose.override.yml
-docker-compose.override.yaml
-.env
-/megalinter-reports

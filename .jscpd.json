@@ -22,6 +22,7 @@
     "**/.idea/**",
     "**/report/**",
     "**/*.svg",
-    "src/_binaries/installScripts/**"
+    "src/_binaries/installScripts/**",
+    "**/DISCLAIMER.md"
   ]
 }

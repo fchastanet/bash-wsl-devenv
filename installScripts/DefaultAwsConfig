@@ -261,17 +261,27 @@ Assert::functionExists() {
   declare -F "$1" >/dev/null
 }
 
-# @description determine if the script is executed under WSL
-# cspell:disable
-# @example text
-#   uname GitBash windows (with wsl) => MINGW64_NT-10.0 ZOXFL-6619QN2 2.10.0(0.325/5/3) 2018-06-13 23:34 x86_64 Msys
-#   uname GitBash windows (wo wsl)   => MINGW64_NT-10.0 frsa02-j5cbkc2 2.9.0(0.318/5/3) 2018-01-12 23:37 x86_64 Msys
-#   uname wsl => Linux ZOXFL-6619QN2 4.4.0-17134-Microsoft #112-Microsoft Thu Jun 07 22:57:00 PST 2018 x86_64 x86_64 x86_64 GNU/Linux
-# cspell:enable
+# @description convert base64 encoded back to target dir
+# it is advised to include the md5sum of the binFile in the path of the target dir
 #
-# @exitcode 1 on error
-Assert::wsl() {
-  [[ "$(uname -o)" = "GNU/Linux" ]]
+# @arg $1 targetDir:string the directory in which tar archive will be untarred
+# @arg $2 base64:string the base64 encoded tar czf archive
+# @stderr diagnostics information is displayed
+# @require Linux::requireTarCommand
+Compiler::Embed::extractDirFromBase64() {
+  local targetDir="$1"
+  local base64="$2"
+
+  if [[ ! -d "${targetDir}" ]]; then
+    mkdir -p "${targetDir}"
+    (
+      cd "${targetDir}" || exit 1
+      base64 -d <<<"${base64}" | tar -xzf - 2>/dev/null || {
+        Log::displayError "untar failure, invalid base64 string"
+        exit 1
+      }
+    ) || return 1
+  fi
 }
 
 # @description convert base64 encoded back to target file
@@ -300,30 +310,42 @@ Compiler::Embed::extractFileFromBase64() {
   fi
 }
 
-# @description select right file to load depending if file exists in this order:
-# - from conf.override
-# - from embedded file if provided
-# - from conf dir
-# @arg $1 file:String
-# @arg $2 embedFile:String eventual embedded file
-# @exitcode 1 if file does not exist at all
-Conf::dynamicConfFile() {
-  local file="${1/#\//}" # remove first slash if any
-  local embedFile="${2:-}"
-  if [[ -f "${CONF_OVERRIDE_DIR}/${file}" ]]; then
-    echo "${CONF_OVERRIDE_DIR}/${file}"
-    return 0
-  elif [[ -f "${embedFile}" ]]; then
-    echo "${embedFile}"
-    return 0
-  elif [[ -f "${CONF_DIR}/${file}" ]]; then
-    echo "${CONF_DIR}/${file}"
-    return 0
-  fi
-  if [[ "${IGNORE_ERROR:-0}" = "0" ]]; then
-    Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
+# @description generate temp directory where default
+# and overridden directories have been merged
+#   - if overridden dir exists, create a new temp folder
+#     - copy all files from default folder
+#     - overwrite with files from overridden folder
+#     - (Later) delete files listed in .remove$$ file
+#     - return the path of this temp folder
+#   - else just return the default folder path
+# Then it is easier to pick overridden or default files/folders
+#
+# @arg $1 defaultDir:String usually the embed directory
+# @arg $2 overriddenDirPath:String the path to the directory
+#   that could be overridden
+# @exitcode 1 if default dir does not exist
+# @exitcode 2 if error during copy
+Conf::getOverriddenDir() {
+  local defaultDir="$1"
+  local overriddenDirPath="$2"
+
+  if [[ ! -d "${defaultDir}" ]]; then
+    Log::displayError "Directory ${defaultDir} does not exists"
     return 1
   fi
+  if [[ ! -d "${overriddenDirPath}" || -z "$(ls -A "${overriddenDirPath}")" ]]; then
+    Log::displayInfo "Conf::getOverriddenDir - directory ${overriddenDirPath} does not exist, keep default one ${defaultDir}"
+    echo "${defaultDir}"
+    return 0
+  fi
+  local tempDir
+  tempDir="$(mktemp -d)"
+  (
+    shopt -s dotglob
+    cp -R "${defaultDir}/." "${tempDir}"
+    cp -R "${overriddenDirPath}/." "${tempDir}"
+  ) || return 2
+  echo "${tempDir}"
 }
 
 envFileTemplate="$(
@@ -443,20 +465,6 @@ WSLCONFIG_SWAP=0
 #POWERSHELL_BIN=/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
 #IPCONFIG_BIN=/mnt/c/Windows/system32/ipconfig.exe
 #WSL_EXE_BIN=/mnt/c/Windows/system32/wsl.exe
-
-# -----------------------------------------
-# Distro
-# Only necessary when using the script distro
-# to create or update a wsl distribution
-
-# The name of the distro displayed in `wsl -l -v` command
-DISTRO_NAME="UbuntuTest"
-# where to download the distribution
-DISTRO_URL="https://aka.ms/wslubuntu2004"
-# Profile to use with install command
-DISTRO_INSTALL_PROFILE="default"
-# The path where bash-dev-env project will be copied into target distro
-DISTRO_BASH_DEV_ENV_TARGET_DIR="${BASH_DEV_ENV_ROOT_DIR}"
 EOF
 )"
 
@@ -491,8 +499,6 @@ Engine::Config::loadConfig() {
 
   #Linux::Wsl::initEnv
   Engine::Config::loadWslVariables
-
-  Engine::Config::installBashDevEnv
 
   Log::requireLoad
 
@@ -538,6 +544,86 @@ Env::requireLoad() {
 # @arg $1 templateName:String template name to use(optional)
 Framework::createTempFile() {
   mktemp -p "${TMPDIR:-/tmp}" -t "${1:-}.XXXXXXXXXXXX"
+}
+
+# @description install dir to given directory but backup it before
+# @arg $1 fromDir:String the source base directory
+# @arg $2 toDir:String the target base directory
+# @arg $3 dirName:String the directory relative to fromDir arg that will be copied
+# @arg $4 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
+# @arg $5 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
+# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
+# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target directory is in windows file system, overwrite it
+# @env USERNAME (default: root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @env BASE_MNT_C String windows C drive base PATH
+# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_BEFORE_INSTALL Boolean (default:1) backup directory before installing the dir
+# @exitcode 1 if source directory is not readable
+# @exitcode 2 if source directory backup failed
+# @exitcode 0 if copy successful or OVERWRITE_CONFIG_FILES=0 or
+# @exitcode 0 with warning message if OVERWRITE_CONFIG_FILES=0 and target directory exists
+# @exitcode 0 with warning message if CHANGE_WINDOWS_FILES=0 and target directory in C drive
+# @stderr diagnostics information is displayed, skipped information if OVERWRITE_CONFIG_FILES or CHANGE_WINDOWS_FILES are set to 1
+Install::dir() {
+  local fromDir="$1"
+  local toDir="$2"
+  local dirName="$3"
+  local userName="${4:-${USERNAME:-root}}"
+  local userGroup="${5:-${USERGROUP:-root}}"
+
+  if [[ ! -d "${fromDir}/${dirName}" || ! -r "${fromDir}/${dirName}" ]]; then
+    Log::displayError "cannot read source directory '${fromDir}/${dirName}'"
+    return 1
+  fi
+
+  # skip if OVERWRITE_CONFIG_FILES=0 and target dir exists
+  if [[ "${OVERWRITE_CONFIG_FILES:-0}" = "0" && -d "${toDir}/${dirName}" ]]; then
+    Log::displayWarning "Directory '${toDir}/${FILENAME}' exists - Skip install "
+    return 0
+  fi
+
+  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
+  if [[ "${CHANGE_WINDOWS_FILES:-0}" = "0" && "${toDir}" =~ ^${BASE_MNT_C} ]]; then
+    Log::displayWarning "Directory '${fromDir}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
+    return 0
+  fi
+
+  if [[ "${BACKUP_BEFORE_INSTALL:-1}" = "1" ]]; then
+    Backup::dir "${toDir}" "${dirName}" || return 2
+  fi
+
+  local destDir="${toDir}/${dirName}"
+  local shortDir="${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${dirName}"
+  Log::displayDebug "Installing directory '${destDir}' from '${shortDir}'"
+  (
+    ${SUDO:-} mkdir -p "${destDir}"
+    cd "${fromDir}/${dirName}" || exit 1
+    shopt -s dotglob # * will match hidden files too
+    if [[ -z "$(ls -A .)" ]]; then
+      Log::displaySkipped "directory '${shortDir}' is empty, no copy needed"
+      return 0
+    fi
+    if ! ${SUDO:-} cp -R -- * "${destDir}"; then
+      Log::displayError "unable to copy directory '${shortDir}' to '${destDir}'"
+      exit 1
+    fi
+    if ! ${SUDO:-} chown -R "${userName}":"${userGroup}" "${destDir}"; then
+      Log::displayError "unable to change directory '${destDir}' owners"
+      exit 1
+    fi
+    # chown all parent directory with same user
+    local fullDir="${fromDir}"
+    for parentFolder in ${dirName////$'\n'}; do
+      fullDir="${fullDir}/${parentFolder}"
+      if ! ${SUDO:-} chown "${userName}":"${userGroup}" "${fullDir}"; then
+        Log::displayError "unable to change parent directory '${fullDir}' owners"
+        exit 1
+      fi
+    done
+  ) || return 1
+  Log::displaySuccess "Installed directory '${destDir}' from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${dirName}')"
 }
 
 # @description installs file to given directory
@@ -605,10 +691,10 @@ Install::file() {
   fi
 
   if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
-    Log::displaySuccess "Installed file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
+    Log::displaySuccess "Installed file '${targetFile}' from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}'"
     ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
   else
-    Log::displayError "unable to copy file from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
+    Log::displayError "unable to copy file '${targetFile}' from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}'"
     ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
     return 3
   fi
@@ -1104,6 +1190,61 @@ Assert::tty() {
   [[ -t 1 || -t 2 ]]
 }
 
+# @description determine if the script is executed under WSL
+# cspell:disable
+# @example text
+#   uname GitBash windows (with wsl) => MINGW64_NT-10.0 ZOXFL-6619QN2 2.10.0(0.325/5/3) 2018-06-13 23:34 x86_64 Msys
+#   uname GitBash windows (wo wsl)   => MINGW64_NT-10.0 frsa02-j5cbkc2 2.9.0(0.318/5/3) 2018-01-12 23:37 x86_64 Msys
+#   uname wsl => Linux ZOXFL-6619QN2 4.4.0-17134-Microsoft #112-Microsoft Thu Jun 07 22:57:00 PST 2018 x86_64 x86_64 x86_64 GNU/Linux
+# cspell:enable
+#
+# @exitcode 1 on error
+Assert::wsl() {
+  [[ "$(uname -o)" = "GNU/Linux" ]]
+}
+
+# @description Backup given directory in the base directory or in BACKUP_DIR directory
+# backup directory name is composed by following fields separated by _:
+#   - if BACKUP_DIR is not empty then escaped full dirname separated by @
+#   - date with format %Y%m%d_%H:%M:%S (Eg: 20240326_14:45:08)
+#   - .tgz extension
+#
+# @arg $1 string the base directory
+# @arg $2 string the directory to backup from base directory
+#
+# @env BACKUP_DIR String variable referencing backup directory
+# @env FRAMEWORK_ROOT_DIR String  used to remove this project directory from displayed backup path
+# @env SUDO String allows to use custom sudo prefix command
+#
+# @exitcode 1 if directory to backup does not exist, 0 if everything is OK
+# @exitcode 2 on backup failure
+#
+# @stderr message about where the directory is backed up
+# @require Linux::requireTarCommand
+Backup::dir() {
+  local escapedDirname backupFile
+  local fromDir="$1"
+  local dirname="$2"
+
+  if [[ ! -d "${fromDir}/${dirname}" ]]; then
+    Log::displayError "Backup::dir - directory '${fromDir}/${dirname}' doesn't exist"
+    return 1
+  fi
+  if [[ -z "${BACKUP_DIR:-}" ]]; then
+    escapedDirname="$(sed -e 's#^/##; s#/#@#g' <<<"${dirname}")"
+    backupFile="${fromDir}/${escapedDirname}-$(date +"%Y%m%d_%H:%M:%S").tgz"
+  else
+    escapedDirname="$(sed -e 's#^/##; s#/#@#g' <<<"${fromDir}/${dirname}")"
+    backupFile="${BACKUP_DIR}/${escapedDirname}-$(date +"%Y%m%d_%H:%M:%S").tgz"
+  fi
+
+  Log::displayInfo "Backup directory '${fromDir}/${dirname}' to ${backupFile}"
+  if ! ${SUDO:-} tar --same-owner -czf "${backupFile}" "${fromDir}/${dirname}" 2>/dev/null; then
+    Log::displayError "cannot backup '${fromDir}/${dirname}'"
+    return 2
+  fi
+}
+
 # @description Backup given file in the same directory or in BACKUP_DIR directory
 # backup file name is composed by following fields separated by -:
 #   - if BACKUP_DIR is not empty then escaped dirname separated by @
@@ -1127,6 +1268,32 @@ Backup::file() {
     fi
     Log::displayInfo "Backup file '${file}' to ${backupFile}"
     ${SUDO:-} cp "${file}" "${backupFile}"
+  fi
+}
+
+# @description select right file to load depending if file exists in this order:
+# - from conf.override
+# - from embedded file if provided
+# - from conf dir
+# @arg $1 file:String
+# @arg $2 embedFile:String eventual embedded file
+# @exitcode 1 if file does not exist at all
+Conf::dynamicConfFile() {
+  local file="${1/#\//}" # remove first slash if any
+  local embedFile="${2:-}"
+  if [[ -f "${CONF_OVERRIDE_DIR}/${file}" ]]; then
+    echo "${CONF_OVERRIDE_DIR}/${file}"
+    return 0
+  elif [[ -f "${embedFile}" ]]; then
+    echo "${embedFile}"
+    return 0
+  elif [[ -f "${CONF_DIR}/${file}" ]]; then
+    echo "${CONF_DIR}/${file}"
+    return 0
+  fi
+  if [[ "${IGNORE_ERROR:-0}" = "0" ]]; then
+    Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
+    return 1
   fi
 }
 
@@ -1244,28 +1411,6 @@ Engine::Config::createEnvFileFromTemplate() {
     Log::displayError "a default env file has been created, please edit ${envFile}"
     return 1
   fi
-}
-
-# @description install or update "${USER_HOME}/.bash-dev-env" file
-# @env WINDOWS_PROFILE_DIR
-# @env BASH_DEV_ENV_ROOT_DIR
-# @env USER_HOME
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/home/.bash-dev-env" as bashDevEnv
-Engine::Config::installBashDevEnv() {
-  # shellcheck disable=SC2317
-  bashDevEnvConfig() {
-    sed -E -i \
-      -e "s#BASH_DEV_ENV_ROOT_DIR=.*\$#BASH_DEV_ENV_ROOT_DIR=${BASH_DEV_ENV_ROOT_DIR}#g" \
-      -e "s#WINDOWS_PROFILE_DIR=.*\$#WINDOWS_PROFILE_DIR=${WINDOWS_PROFILE_DIR}#g" \
-      "${USER_HOME}/.bash-dev-env"
-    sudo ln -sf "${USER_HOME}/.bash-dev-env" /root/.bash-dev-env
-  }
-  local fileToInstall
-  # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "home/.bash-dev-env" "${embed_file_updateEnv}")" || return 1
-  OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${fileToInstall}" "${USER_HOME}/.bash-dev-env" \
-    "${USERNAME}" "${USERGROUP}" bashDevEnvConfig
 }
 
 # @description deduce wsl host ip
@@ -1660,6 +1805,13 @@ Stats::statusLine() {
   )
 }
 
+# @description ensure command tar is available
+# @exitcode 1 if tar command not available
+# @stderr diagnostics information is displayed
+Linux::requireTarCommand() {
+  Assert::commandExists tar
+}
+
 # @description load color theme
 # @noargs
 # @env BASH_FRAMEWORK_THEME String theme to use
@@ -1685,6 +1837,28 @@ Array::contains() {
     [[ "${element}" = "$1" ]] && return 0
   done
   return 1
+}
+
+# @description check if command specified exists or return 1
+# with error and message if not
+#
+# @arg $1 commandName:String on which existence must be checked
+# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
+#
+# @exitcode 1 if the command specified does not exist
+# @stderr diagnostic information + help if second argument is provided
+Assert::commandExists() {
+  local commandName="$1"
+  local helpIfNotExists="$2"
+
+  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
+    Log::displayError "${commandName} is not installed, please install it"
+    if [[ -n "${helpIfNotExists}" ]]; then
+      Log::displayInfo "${helpIfNotExists}"
+    fi
+    return 1
+  }
+  return 0
 }
 
 # @description check if param is valid email address
@@ -2024,9 +2198,9 @@ Linux::getDistributorId() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/d1e03d7a30fbf5088744b417b94d29f0/aws_config" "W2RlZmF1bHRdCnJlZ2lvbiA9IGV1LXdlc3QtMQo=" "644"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/aws_config_dir" "H4sIAAAAAAAAA+2X72vTQBjH8zp/xeMm7tU1ySWXA6XCWDsZG1a6iYhIuTbXNixNSi5pGbr/3Sddo3ZQW5ipqM/nTe7Hk8vB9/mVlmM1jotIIaqnJ4X787PG8oLQ9YQMechxXQbctUA0fzXLKk2hcgBraZJf2u3a/0tpOS21NM06wX76CylDIYSH657LZUj6H4K1/qMsHceThr5RCRwGwXb9ffFDf47x72E2kBa4Dd1ng/9c/0+RHqsyKT7buZ7EWQpt0CVbalMwz/7TlyMaB+N/qMyURXrBdLpopBDsW/8597mUoop/KQLK/4fgsf4qiZXRphX9Rk/Yu/8LPdeXVf33Q1eQ/odgu/5GzRKOvUHLTJ/4jV3680DU/T8PKzsceD7V/0Nw/MwZxqlT+YBtx2MYZbOZSiNgC6gdAF68dtA9nLRMkldQTHVqA6z8BHCXJdkkTtsn361Xc2BzOHr+5fTD9eBdv3d+cdV9ydadxv0RMIYuZrDbYFGZqwIH7cDnrosbUWzUMNHsVt+NpipOT+xxTH1Ic2yPf9TyLImfHv274z/gYV3//XCV/4WPbQDF/wHYiP9jwMjN8kjnUGRVIFdzHCmzBD3KgcE8jxeq0BBlo1u0qv4ZTJHfPcocu5PGw/t17qjsq/MnunhYYnNlzBJvghlh/V+yziad7vnp+6ubQb/75qL3FnPJ1/ou67zDSqPzVM00oDlO65OYKSLc3zyl0zu77PZXh13f9D8OLjr3lHAIgiAIgiAIgiAIgiAIgvhH+AYZyZtBACgAAA=="
 
-declare -gx embed_file_aws_config="${PERSISTENT_TMPDIR:-/tmp}/d1e03d7a30fbf5088744b417b94d29f0/aws_config"
+declare -gx embed_dir_aws_config_dir="${TMPDIR:-/tmp}/aws_config_dir"
 Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/8537ff72412594780cf9f312e8925b1e/talkScript" "cGFyYW0oCiAgICBbUGFyYW1ldGVyKE1hbmRhdG9yeT0kdHJ1ZSwgUG9zaXRpb249MCldCiAgICBbc3RyaW5nXQogICAgJG1zZyA9ICcnCikKCkFkZC1UeXBlIC1Bc3NlbWJseU5hbWUgU3lzdGVtLnNwZWVjaAokc3BlYWsgPSBOZXctT2JqZWN0IFN5c3RlbS5TcGVlY2guU3ludGhlc2lzLlNwZWVjaFN5bnRoZXNpemVyCiRzcGVhay5TcGVhaygkbXNnKQo=" "644"
 
 declare -gx embed_file_talkScript="${PERSISTENT_TMPDIR:-/tmp}/8537ff72412594780cf9f312e8925b1e/talkScript"
@@ -2034,6 +2208,7 @@ declare -gx embed_file_talkScript="${PERSISTENT_TMPDIR:-/tmp}/8537ff72412594780c
 facade_main_DefaultAwsConfigsh() {
 
 # REQUIRES
+Linux::requireTarCommand
 Env::requireLoad
 UI::requireTheme
 Linux::Wsl::requireWsl
@@ -2071,7 +2246,7 @@ fi
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/home/.aws/config" as aws_config
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/DefaultAwsConfig" as aws_config_dir
 # EMBED "${FRAMEWORK_ROOT_DIR}/src/UI/talk.ps1" as talkScript
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
@@ -2864,6 +3039,9 @@ testInstall() { :; }
 # jscpd:ignore-end
 
 configure() {
+  local configDir
+  # shellcheck disable=SC2154
+  configDir="$(Conf::getOverriddenDir "${embed_dir_aws_config_dir}" "${CONF_OVERRIDE_DIR}/AwsConfig")"
   # install default configuration
   # shellcheck disable=SC2317
   configureAwsConfig() {
@@ -2872,17 +3050,11 @@ configure() {
       "${USER_HOME}/.aws/config"
     Install::setUserRightsCallback "$@"
   }
-  local fileToInstall
-  # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "home/.aws/config" "${embed_file_aws_config}")" || return 1
-  Install::file "${fileToInstall}" "${USER_HOME}/.aws/config" "${USERNAME}" "${USERGROUP}" configureAwsConfig
-
-  if Assert::wsl; then
-    # export display needed
-    # @see https://github.com/Versent/saml2aws/issues/561
-    DISPLAY="$(ip route show default | awk '/default/ {print $3}'):0.0"
-    export DISPLAY
-  fi
+  OVERWRITE_CONFIG_FILES=0 Install::file \
+    "${configDir}/.aws/config" "${USER_HOME}/.aws/config" \
+    "${USERNAME}" "${USERGROUP}" configureAwsConfig
+  OVERWRITE_CONFIG_FILES=1 Install::dir \
+    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "aliases.d"
 
   # use saml2aws to configure with the right parameters
   if [[ -n "${AWS_APP_ID}" && -n "${AWS_PROFILE}" && -n "${AWS_USER_MAIL}" ]]; then
@@ -2904,7 +3076,9 @@ configure() {
 testConfigure() {
   local -i failures=0
 
-  Assert::fileExists "${USER_HOME}/.aws/config" "${USERNAME}" "${USERGROUP}" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.aws/config" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/awsCli.sh" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/saml2aws.sh" || ((++failures))
 
   if grep -q -E -e "azure_default_username=.+$" "${USER_HOME}/.aws/config"; then
     # case where .aws/config has been overridden in conf_override folder

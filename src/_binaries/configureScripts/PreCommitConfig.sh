@@ -3,7 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/PreCommit/.pre-commit-config.yaml" as preCommitConfig
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/PreCommit/.pre-commit-config-test.yaml" as preCommitConfigTest
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
@@ -39,27 +39,33 @@ testInstall() { :; }
 configure() {
   if [[ ! -f "${USER_HOME}/.virtualenvs/python3.9/bin/activate" ]]; then
     Log::displayError "VirtualEnv has not been installed correctly"
+    return 1
   fi
   # Load virtualenv
   # shellcheck source=/dev/null
   source "${USER_HOME}/.virtualenvs/python3.9/bin/activate"
-  if [[ ! -d "${USER_HOME}/.config/git/pre-commit-template" ]]; then
-    pre-commit init-templatedir -t pre-commit "${USER_HOME}/.config/git/pre-commit-template"
+  if [[ ! -d "${USER_HOME}/.bash-dev-env/GitConfig/pre-commit-template" ]]; then
+    if ! pre-commit init-templatedir -t pre-commit -t pre-push \
+      "${USER_HOME}/.bash-dev-env/GitConfig/pre-commit-template"; then
+      Log::displayError "Error during precommit template creation"
+      return 1
+    fi
   fi
 
-  git config --global init.templatedir "${USER_HOME}/.config/git/pre-commit-template"
-
-  # copy original pre-commit hook using pre-commit command
-  pre-commit init-templatedir "${USER_HOME}/.config/git/pre-commit-template"
+  if ! git config --global init.templatedir \
+    "${USER_HOME}/.bash-dev-env/GitConfig/pre-commit-template"; then
+    Log::displayError "Error during git precommit template initialization"
+    return 1
+  fi
 }
 
 testConfigure() {
   local -i failures=0
 
-  Assert::dirExists "${USER_HOME}/.config/git/pre-commit-template" || ((++failures))
+  Assert::dirExists "${USER_HOME}/.bash-dev-env/GitConfig/pre-commit-template" || ((++failures))
 
   Log::displayInfo "check if git init.templatedir correctly set"
-  if [[ "$(git config --global --get init.templatedir)" != "${USER_HOME}/.config/git/pre-commit-template" ]]; then
+  if [[ "$(git config --global --get init.templatedir)" != "${USER_HOME}/.bash-dev-env/GitConfig/pre-commit-template" ]]; then
     Log::displayError "git init.templatedir has not been correctly set"
     ((++failures))
   fi
@@ -88,7 +94,9 @@ testConfigure() {
 
   Log::displayInfo "check that git clone sets hooks automatically"
   # shellcheck disable=SC2317
-  gitClone() { git clone https://github.com/fchastanet/repo-test.git "$1"; }
+  gitClone() {
+    git clone https://github.com/fchastanet/repo-test.git "$1"
+  }
   checkGitHooksCreatedOn gitClone || ((++failures))
 
   Log::displayInfo "check that committing, runs pre-commit hook"
@@ -100,7 +108,7 @@ testConfigure() {
     git init
     git checkout -b fix/1867
     # shellcheck disable=SC2154
-    cp "${embed_file_preCommitConfig}" .pre-commit-config.yaml
+    cp "${embed_file_preCommitConfigTest}" .pre-commit-config.yaml
     echo "test" >test.js
     echo "test" >test.php
     git add test.*

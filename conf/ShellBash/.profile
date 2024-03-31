@@ -11,46 +11,50 @@
 # for your user-only and all graphical-session processes.
 # It gets loaded upon login in your graphical UI.
 
-# execute bash logout when bash window is closed
-exitSession() {
-  #shellcheck source=/conf/bash_profile/.bash_logout
-  source "${HOME}/.bash_logout"
-}
-trap exitSession HUP
+# Gets evaluated in specific occasion only
+# For slow-evaluation environment variable and code for your user-only and console-session processes.
+# bashism are welcome. It gets loaded on:
+# - console login (Ctrl-Alt F1),
+# - ssh logins to this machine,
+# - tmux new pane or windows (default settings), (not screen !)
+# - explicit calls of bash -l,
+# - any bash instance in a graphical console client
+#   (terminator/gnome-terminal...) only if you tick option
+#   "run command as login shell".
 
-# enable programmable completion features (you don't need to enable
-# this, if it's already enabled in /etc/bash.bashrc and /etc/profile
-# sources /etc/bash.bashrc).
-if ! shopt -oq posix; then
-  if [[ -f /usr/share/bash-completion/bash_completion ]]; then
-    source /usr/share/bash-completion/bash_completion
-  elif [[ -f /etc/bash_completion ]]; then
-    # sudo apt install bash-completion
-    source /etc/bash_completion
-  fi
-fi
-
-#shellcheck source=/conf/bash_profile/.bash_prompt
-[[ -f "${HOME}/.bash_prompt" ]] && source "${HOME}/.bash_prompt"
-
-#shellcheck source=/conf/bash_profile/.bash_completion
-[[ -f "${HOME}/.bash_completion" ]] && source "${HOME}/.bash_completion"
-
-#shellcheck source=/dev/null
-[[ -f "${HOME}/.bin/tmuxinator.bash" ]] && source "${HOME}/.bin/tmuxinator.bash"
-
-# kubeps1
-if [[ -f /opt/kubeps1/kube-ps1.sh ]]; then
+# load bash-tools variables
+if [[ -f "${HOME}/.bash-tools/.env" ]]; then
   #shellcheck source=/dev/null
-  source /opt/kubeps1/kube-ps1.sh
-  PS1='[\u@\h \W $(kube_ps1)]\$ '
+  source "${HOME}/.bash-tools/.env"
 fi
 
-# if running bash
-if [[ -n "${BASH_VERSION}" ]]; then
-  # include .bashrc if it exists
-  if [[ -f "${HOME}/.bashrc" ]]; then
-    #shellcheck source=/dev/null
-    source "${HOME}/.bashrc"
-  fi
+# load bash-dev-env variables
+if [[ -f "${HOME}/fchastanet/bash-dev-env/.env" ]]; then
+  #shellcheck source=.env.template
+  source "${HOME}/fchastanet/bash-dev-env/.env"
+fi
+
+# execute bash logout when bash window is closed
+if [[ -f "${HOME}/.bash_logout" ]]; then
+  exitSession() {
+    #shellcheck source=conf/ShellBash/.bash_logout
+    source "${HOME}/.bash_logout"
+  }
+  trap exitSession HUP
+fi
+
+if [[ -d "${HOME}/.bash-dev-env/profile.d" ]]; then
+  for i in "${HOME}/.bash-dev-env/profile.d"/*.sh; do
+    if [[ -f "${i}" ]]; then
+      # shellcheck source=conf/NodeNpm/.bash-dev-env/profile.d/n_path.sh
+      source "${i}"
+    fi
+  done
+  unset i
+fi
+
+# include .bashrc if it exists and if running bash
+if [[ -n "${BASH_VERSION}" && -f "${HOME}/.bashrc" ]]; then
+  #shellcheck source=conf/ShellBash/.bashrc
+  source "${HOME}/.bashrc"
 fi

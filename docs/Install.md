@@ -23,7 +23,7 @@ files of your distribution:
   variable for easier future update
 - update `/etc/update-manager/release-upgrades` following UPGRADE_UBUNTU_VERSION
   .env variable chosen
-- add `/etc/cron.weekly/upgrade`
+- add `/etc/cron.d/bash-dev-env-upgrade`
 - update `/etc/passwd` using chsh to change default shell following
   PREFERRED_SHELL .env variable chosen
 - add files in `/etc/update-motd.d`

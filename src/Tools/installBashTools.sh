@@ -6,10 +6,9 @@ Tools::installBashTools() {
   function installBashTools() {
     (
       cd "${USER_HOME}/fchastanet/bash-tools" || return 1
-      ./install.sh
+      ./install
     )
   }
-
   Git::cloneOrPullIfNoChanges \
     "${USER_HOME}/fchastanet/bash-tools" \
     "https://github.com/fchastanet/bash-tools.git" \

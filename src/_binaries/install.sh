@@ -90,18 +90,18 @@ executeScripts() {
     .INCLUDE "$(dynamicTemplateDir _includes/sudoerFileManagement.tpl)"
     local -i configIndex=1
     local -i configCount=${#CONFIG_LIST[@]}
-    
+
     # compute number of config for each step
     local -i installConfigCount=0
     local -i installTestConfigCount=0
     local -i configConfigCount=0
     local -i configTestConfigCount=0
     for configName in "${CONFIG_LIST[@]}"; do
-      if [[ "${SKIP_INSTALL}" = "0" ]] && 
+      if [[ "${SKIP_INSTALL}" = "0" ]] &&
         SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isInstallImplemented; then
         ((++installConfigCount))
       fi
-      if [[ "${SKIP_CONFIGURE}" = "0" ]] && 
+      if [[ "${SKIP_CONFIGURE}" = "0" ]] &&
         SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isConfigureImplemented; then
         ((++configConfigCount))
       fi
@@ -120,13 +120,13 @@ executeScripts() {
       (
         aggregateStat() {
           local -a statFiles=()
-          if [[ "${SKIP_INSTALL}" = "0" ]] && 
-              SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isInstallImplemented; then
+          if [[ "${SKIP_INSTALL}" = "0" ]] &&
+            SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isInstallImplemented; then
             Stats::aggregateStats "${LOGS_DIR:-#}/install.stat" "${installConfigCount}" "${LOGS_DIR:-#}/${configName}-install.stat"
             statFiles+=("${LOGS_DIR:-#}/${configName}-install.stat")
           fi
-          if [[ "${SKIP_CONFIGURE}" = "0" ]] && 
-              SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isConfigureImplemented; then
+          if [[ "${SKIP_CONFIGURE}" = "0" ]] &&
+            SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isConfigureImplemented; then
             Stats::aggregateStats "${LOGS_DIR:-#}/config.stat" "${configConfigCount}" "${LOGS_DIR:-#}/${configName}-config.stat"
             statFiles+=("${LOGS_DIR:-#}/${configName}-config.stat")
           fi

@@ -3,7 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/etc/wsl.conf" as wslConf
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/WslConfig/etc/wsl.conf" as wslConf
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 

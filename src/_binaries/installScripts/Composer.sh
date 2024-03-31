@@ -3,7 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/Composer/etc/profile.d/composer_path.sh" as composer_path
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/Composer" as composer_dir
 
 .INCLUDE "$(dynamicTemplateDir "_binaries/installScripts/_installScript.tpl")"
 
@@ -64,20 +64,18 @@ configure() {
     /usr/local/.composer \
     "${USER_HOME}/.config"
 
-  Log::displayInfo "Install /etc/profile.d/composer_path.sh"
-  local fileToInstall
+  Log::displayInfo "Install ~/.bash-dev-env/profile.d/composer_path.sh"
+  local configDir
   # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "etc/profile.d/composer_path.sh" "${embed_file_composer_path}")" || return 1
-  SUDO=sudo OVERWRITE_CONFIG_FILES=1 BACKUP_BEFORE_INSTALL=0 Install::file \
-    "${fileToInstall}" "/etc/profile.d/composer_path.sh" \
-    "root" "root" \
-    Install::setRootExecutableCallback || return 1
+  configDir="$(Conf::getOverriddenDir "${embed_dir_composer_dir}" "${CONF_OVERRIDE_DIR}/Composer")"
+  OVERWRITE_CONFIG_FILES=1 Install::file \
+    "${configDir}/.bash-dev-env/profile.d/composer_path.sh" "${USER_HOME}/.bash-dev-env/profile.d/composer_path.sh"
 }
 
 testConfigure() {
   local -i failures=0
   Assert::dirExists "/usr/local/.composer" || ((++failures))
   Assert::dirExists "${USER_HOME}/.config" || ((++failures))
-  Assert::fileExists /etc/profile.d/composer_path.sh root root || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/profile.d/composer_path.sh" || ((++failures))
   exit "${failures}"
 }

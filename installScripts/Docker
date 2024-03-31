@@ -224,11 +224,102 @@ Array::wrap2() {
   ) | sed -E -e 's/[[:blank:]]+$//'
 }
 
+# @description asserts that first argument is file that exists with specified ownership
+# @arg $1 file:String
+# @arg $2 user:String expected owner user name of the file (default: USERNAME or id -un command)
+# @arg $3 group:String expected owner group name of the file (default: USERGROUP or id -gn command)
+# @env USERNAME String if arg $2 is not provided
+# @env USERGROUP String if arg $3 is not provided
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode 1 if missing file
+# @exitcode 2 if incorrect user ownership
+# @exitcode 3 if incorrect group ownership
+# @stderr diagnostics information is displayed
+Assert::fileExists() {
+  local file="$1"
+  local user="${2:-${USERNAME}}"
+  local group="${3:-${USERGROUP}}"
+  Log::displayInfo "Check ${file} exists with user ${user}:${group}"
+  if ! ${SUDO:-} test -f "${file}" &>/dev/null; then
+    Log::displayError "missing file ${file}"
+    return 1
+  fi
+  if [[ "${user}" != "$(${SUDO:-} stat -c '%U' "${file}")" ]]; then
+    Log::displayError "incorrect user ownership on file ${file}"
+    return 2
+  fi
+  if [[ "${group}" != "$(${SUDO:-} stat -c '%G' "${file}")" ]]; then
+    Log::displayError "incorrect group ownership on file ${file}"
+    return 3
+  fi
+}
+
 # @description checks if function name provided exists
 # @arg $1 functionName:String
 # @exitcode 1 if function name doesn't exist
 Assert::functionExists() {
   declare -F "$1" >/dev/null
+}
+
+# @description convert base64 encoded back to target dir
+# it is advised to include the md5sum of the binFile in the path of the target dir
+#
+# @arg $1 targetDir:string the directory in which tar archive will be untarred
+# @arg $2 base64:string the base64 encoded tar czf archive
+# @stderr diagnostics information is displayed
+# @require Linux::requireTarCommand
+Compiler::Embed::extractDirFromBase64() {
+  local targetDir="$1"
+  local base64="$2"
+
+  if [[ ! -d "${targetDir}" ]]; then
+    mkdir -p "${targetDir}"
+    (
+      cd "${targetDir}" || exit 1
+      base64 -d <<<"${base64}" | tar -xzf - 2>/dev/null || {
+        Log::displayError "untar failure, invalid base64 string"
+        exit 1
+      }
+    ) || return 1
+  fi
+}
+
+# @description generate temp directory where default
+# and overridden directories have been merged
+#   - if overridden dir exists, create a new temp folder
+#     - copy all files from default folder
+#     - overwrite with files from overridden folder
+#     - (Later) delete files listed in .remove$$ file
+#     - return the path of this temp folder
+#   - else just return the default folder path
+# Then it is easier to pick overridden or default files/folders
+#
+# @arg $1 defaultDir:String usually the embed directory
+# @arg $2 overriddenDirPath:String the path to the directory
+#   that could be overridden
+# @exitcode 1 if default dir does not exist
+# @exitcode 2 if error during copy
+Conf::getOverriddenDir() {
+  local defaultDir="$1"
+  local overriddenDirPath="$2"
+
+  if [[ ! -d "${defaultDir}" ]]; then
+    Log::displayError "Directory ${defaultDir} does not exists"
+    return 1
+  fi
+  if [[ ! -d "${overriddenDirPath}" || -z "$(ls -A "${overriddenDirPath}")" ]]; then
+    Log::displayInfo "Conf::getOverriddenDir - directory ${overriddenDirPath} does not exist, keep default one ${defaultDir}"
+    echo "${defaultDir}"
+    return 0
+  fi
+  local tempDir
+  tempDir="$(mktemp -d)"
+  (
+    shopt -s dotglob
+    cp -R "${defaultDir}/." "${tempDir}"
+    cp -R "${overriddenDirPath}/." "${tempDir}"
+  ) || return 2
+  echo "${tempDir}"
 }
 
 envFileTemplate="$(
@@ -348,20 +439,6 @@ WSLCONFIG_SWAP=0
 #POWERSHELL_BIN=/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
 #IPCONFIG_BIN=/mnt/c/Windows/system32/ipconfig.exe
 #WSL_EXE_BIN=/mnt/c/Windows/system32/wsl.exe
-
-# -----------------------------------------
-# Distro
-# Only necessary when using the script distro
-# to create or update a wsl distribution
-
-# The name of the distro displayed in `wsl -l -v` command
-DISTRO_NAME="UbuntuTest"
-# where to download the distribution
-DISTRO_URL="https://aka.ms/wslubuntu2004"
-# Profile to use with install command
-DISTRO_INSTALL_PROFILE="default"
-# The path where bash-dev-env project will be copied into target distro
-DISTRO_BASH_DEV_ENV_TARGET_DIR="${BASH_DEV_ENV_ROOT_DIR}"
 EOF
 )"
 
@@ -396,8 +473,6 @@ Engine::Config::loadConfig() {
 
   #Linux::Wsl::initEnv
   Engine::Config::loadWslVariables
-
-  Engine::Config::installBashDevEnv
 
   Log::requireLoad
 
@@ -443,6 +518,86 @@ Env::requireLoad() {
 # @arg $1 templateName:String template name to use(optional)
 Framework::createTempFile() {
   mktemp -p "${TMPDIR:-/tmp}" -t "${1:-}.XXXXXXXXXXXX"
+}
+
+# @description install dir to given directory but backup it before
+# @arg $1 fromDir:String the source base directory
+# @arg $2 toDir:String the target base directory
+# @arg $3 dirName:String the directory relative to fromDir arg that will be copied
+# @arg $4 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
+# @arg $5 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
+# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
+# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target directory is in windows file system, overwrite it
+# @env USERNAME (default: root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @env BASE_MNT_C String windows C drive base PATH
+# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_BEFORE_INSTALL Boolean (default:1) backup directory before installing the dir
+# @exitcode 1 if source directory is not readable
+# @exitcode 2 if source directory backup failed
+# @exitcode 0 if copy successful or OVERWRITE_CONFIG_FILES=0 or
+# @exitcode 0 with warning message if OVERWRITE_CONFIG_FILES=0 and target directory exists
+# @exitcode 0 with warning message if CHANGE_WINDOWS_FILES=0 and target directory in C drive
+# @stderr diagnostics information is displayed, skipped information if OVERWRITE_CONFIG_FILES or CHANGE_WINDOWS_FILES are set to 1
+Install::dir() {
+  local fromDir="$1"
+  local toDir="$2"
+  local dirName="$3"
+  local userName="${4:-${USERNAME:-root}}"
+  local userGroup="${5:-${USERGROUP:-root}}"
+
+  if [[ ! -d "${fromDir}/${dirName}" || ! -r "${fromDir}/${dirName}" ]]; then
+    Log::displayError "cannot read source directory '${fromDir}/${dirName}'"
+    return 1
+  fi
+
+  # skip if OVERWRITE_CONFIG_FILES=0 and target dir exists
+  if [[ "${OVERWRITE_CONFIG_FILES:-0}" = "0" && -d "${toDir}/${dirName}" ]]; then
+    Log::displayWarning "Directory '${toDir}/${FILENAME}' exists - Skip install "
+    return 0
+  fi
+
+  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
+  if [[ "${CHANGE_WINDOWS_FILES:-0}" = "0" && "${toDir}" =~ ^${BASE_MNT_C} ]]; then
+    Log::displayWarning "Directory '${fromDir}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
+    return 0
+  fi
+
+  if [[ "${BACKUP_BEFORE_INSTALL:-1}" = "1" ]]; then
+    Backup::dir "${toDir}" "${dirName}" || return 2
+  fi
+
+  local destDir="${toDir}/${dirName}"
+  local shortDir="${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${dirName}"
+  Log::displayDebug "Installing directory '${destDir}' from '${shortDir}'"
+  (
+    ${SUDO:-} mkdir -p "${destDir}"
+    cd "${fromDir}/${dirName}" || exit 1
+    shopt -s dotglob # * will match hidden files too
+    if [[ -z "$(ls -A .)" ]]; then
+      Log::displaySkipped "directory '${shortDir}' is empty, no copy needed"
+      return 0
+    fi
+    if ! ${SUDO:-} cp -R -- * "${destDir}"; then
+      Log::displayError "unable to copy directory '${shortDir}' to '${destDir}'"
+      exit 1
+    fi
+    if ! ${SUDO:-} chown -R "${userName}":"${userGroup}" "${destDir}"; then
+      Log::displayError "unable to change directory '${destDir}' owners"
+      exit 1
+    fi
+    # chown all parent directory with same user
+    local fullDir="${fromDir}"
+    for parentFolder in ${dirName////$'\n'}; do
+      fullDir="${fullDir}/${parentFolder}"
+      if ! ${SUDO:-} chown "${userName}":"${userGroup}" "${fullDir}"; then
+        Log::displayError "unable to change parent directory '${fullDir}' owners"
+        exit 1
+      fi
+    done
+  ) || return 1
+  Log::displaySuccess "Installed directory '${destDir}' from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${dirName}')"
 }
 
 # @description the command launch different actions(install, configure, test)
@@ -950,6 +1105,48 @@ Assert::tty() {
   [[ -t 1 || -t 2 ]]
 }
 
+# @description Backup given directory in the base directory or in BACKUP_DIR directory
+# backup directory name is composed by following fields separated by _:
+#   - if BACKUP_DIR is not empty then escaped full dirname separated by @
+#   - date with format %Y%m%d_%H:%M:%S (Eg: 20240326_14:45:08)
+#   - .tgz extension
+#
+# @arg $1 string the base directory
+# @arg $2 string the directory to backup from base directory
+#
+# @env BACKUP_DIR String variable referencing backup directory
+# @env FRAMEWORK_ROOT_DIR String  used to remove this project directory from displayed backup path
+# @env SUDO String allows to use custom sudo prefix command
+#
+# @exitcode 1 if directory to backup does not exist, 0 if everything is OK
+# @exitcode 2 on backup failure
+#
+# @stderr message about where the directory is backed up
+# @require Linux::requireTarCommand
+Backup::dir() {
+  local escapedDirname backupFile
+  local fromDir="$1"
+  local dirname="$2"
+
+  if [[ ! -d "${fromDir}/${dirname}" ]]; then
+    Log::displayError "Backup::dir - directory '${fromDir}/${dirname}' doesn't exist"
+    return 1
+  fi
+  if [[ -z "${BACKUP_DIR:-}" ]]; then
+    escapedDirname="$(sed -e 's#^/##; s#/#@#g' <<<"${dirname}")"
+    backupFile="${fromDir}/${escapedDirname}-$(date +"%Y%m%d_%H:%M:%S").tgz"
+  else
+    escapedDirname="$(sed -e 's#^/##; s#/#@#g' <<<"${fromDir}/${dirname}")"
+    backupFile="${BACKUP_DIR}/${escapedDirname}-$(date +"%Y%m%d_%H:%M:%S").tgz"
+  fi
+
+  Log::displayInfo "Backup directory '${fromDir}/${dirname}' to ${backupFile}"
+  if ! ${SUDO:-} tar --same-owner -czf "${backupFile}" "${fromDir}/${dirname}" 2>/dev/null; then
+    Log::displayError "cannot backup '${fromDir}/${dirname}'"
+    return 2
+  fi
+}
+
 # @description ignore exit code 141 from simple command pipes
 # @example use with:
 #   local resultingStatus=0
@@ -1120,28 +1317,6 @@ Engine::Config::createEnvFileFromTemplate() {
     Log::displayError "a default env file has been created, please edit ${envFile}"
     return 1
   fi
-}
-
-# @description install or update "${USER_HOME}/.bash-dev-env" file
-# @env WINDOWS_PROFILE_DIR
-# @env BASH_DEV_ENV_ROOT_DIR
-# @env USER_HOME
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/home/.bash-dev-env" as bashDevEnv
-Engine::Config::installBashDevEnv() {
-  # shellcheck disable=SC2317
-  bashDevEnvConfig() {
-    sed -E -i \
-      -e "s#BASH_DEV_ENV_ROOT_DIR=.*\$#BASH_DEV_ENV_ROOT_DIR=${BASH_DEV_ENV_ROOT_DIR}#g" \
-      -e "s#WINDOWS_PROFILE_DIR=.*\$#WINDOWS_PROFILE_DIR=${WINDOWS_PROFILE_DIR}#g" \
-      "${USER_HOME}/.bash-dev-env"
-    sudo ln -sf "${USER_HOME}/.bash-dev-env" /root/.bash-dev-env
-  }
-  local fileToInstall
-  # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "home/.bash-dev-env" "${embed_file_updateEnv}")" || return 1
-  OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${fileToInstall}" "${USER_HOME}/.bash-dev-env" \
-    "${USERNAME}" "${USERGROUP}" bashDevEnvConfig
 }
 
 # @description deduce wsl host ip
@@ -1338,6 +1513,16 @@ Log::computeDuration() {
     # shellcheck disable=SC2034
     LOG_LAST_DURATION_STR=""
   fi
+}
+
+# @description Display message using skip color (yellow)
+# @arg $1 message:String the message to display
+Log::displaySkipped() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    Log::computeDuration
+    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logSkipped "$1"
 }
 
 # @description Display given text on full line with TEST_COLOR style
@@ -1576,6 +1761,13 @@ Version::parse() {
   sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
 }
 
+# @description ensure command tar is available
+# @exitcode 1 if tar command not available
+# @stderr diagnostics information is displayed
+Linux::requireTarCommand() {
+  Assert::commandExists tar
+}
+
 # @description ensure linux distribution is ubuntu
 # @exitcode 1 if linux distribution is not ubuntu
 Linux::requireUbuntu() {
@@ -1674,80 +1866,6 @@ Assert::wsl() {
   [[ "$(uname -o)" = "GNU/Linux" ]]
 }
 
-# @description installs file to given directory
-#
-# callbacks parameters `${fromFile} ${targetFile} $@`
-# @arg $1 fromFile - original file to copy
-# @arg $2 targetFile - target file
-# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
-# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
-# @arg $5 successCallback:Function the callback to call when file is installed successfully, by default setUserRights callback is called
-# @arg $6 failureCallback:Function the callback to call when file installation has failed, by default unableToCopyCallback callback is called
-# @arg $@ callbacksParams:String[] additional parameters passed to callbacks
-# @exitcode 1 if fromFile is not readable
-# @exitcode 2 if backup file failure
-# @exitcode 3 if copy failure
-# @exitcode 0 on success or if OVERWRITE_CONFIG_FILES=0
-# @exitcode 0 on success or if CHANGE_WINDOWS_FILES=0 and target file is a windows file
-# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
-# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target file is in windows file system, overwrite it
-# @env USERNAME (default: root) the user name that will be used to set target files ownership
-# @env USERGROUP (default: root) the group name that will be used to set target files ownership
-# @env BASE_MNT_C String windows C drive base PATH
-# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
-# @env SUDO String allows to use custom sudo prefix command
-# @env BACKUP_BEFORE_INSTALL Boolean (default: 1) backup file before installing the file
-Install::file() {
-  local fromFile="$1"
-  local targetFile="$2"
-  local userName="${3:-${USERNAME:-root}}"
-  local userGroup="${4:-${USERGROUP:-root}}"
-  local successCallback=${5:-Install::setUserRightsCallback}
-  local failureCallback=${6:-Install::unableToCopyCallback}
-  shift 6 || true
-
-  if [[ ! -f "${fromFile}" || ! -r "${fromFile}" ]]; then
-    Log::displayError "cannot read source file '${fromFile}'"
-    return 1
-  fi
-
-  # skip if OVERWRITE_CONFIG_FILES is 0 and target file exists
-  if [[ "${OVERWRITE_CONFIG_FILES}" = "0" && -f "${targetFile}" ]]; then
-    Log::displayWarning "File '${targetFile}' exists - Skip install (because OVERWRITE_CONFIG_FILES=0 in .env file)"
-    return 0
-  fi
-
-  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
-  if [[ "${CHANGE_WINDOWS_FILES}" = "0" && "${targetFile}" =~ ^${BASE_MNT_C} ]]; then
-    Log::displayWarning "File '${targetFile}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
-    return 0
-  fi
-
-  local targetDir
-  targetDir="$(dirname "${targetFile}")"
-  if [[ ! -d "${targetDir}" ]]; then
-    ${SUDO:-} mkdir -p "${targetDir}"
-    ${SUDO:-} chown "${userName}":"${userGroup}" "${targetDir}"
-  fi
-  local fromDir
-  fromDir="$(dirname "${fromFile}")"
-  local fromFilename
-  fromFilename="$(basename "${fromFile}")"
-
-  if [[ "${BACKUP_BEFORE_INSTALL:-1}" = "1" ]]; then
-    Backup::file "${targetFile}" || return 2
-  fi
-
-  if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
-    Log::displaySuccess "Installed file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
-    ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
-  else
-    Log::displayError "unable to copy file from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}' to '${targetFile}'"
-    ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
-    return 3
-  fi
-}
-
 # @description retrieve path from wslvar and then use wslpath to resolve it
 # using cache (cache is refreshed every day)
 # @arg $1 var:String the var to retrieve using wslvar
@@ -1787,14 +1905,12 @@ Linux::getDistributorId() {
   lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
 }
 
-# @description Display message using skip color (yellow)
+# @description log message to file
 # @arg $1 message:String the message to display
-Log::displaySkipped() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    Log::computeDuration
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+Log::logSkipped() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SKIPPED}" "$1"
   fi
-  Log::logSkipped "$1"
 }
 
 # @description extract stats form log
@@ -1880,32 +1996,6 @@ Assert::validVariableName() {
   echo "$1" | LC_ALL=POSIX grep -E -q '(^[a-z][A-Za-z_0-9:]+$)|(^[A-Z_][A-Z_0-9:]+$)'
 }
 
-# @description Backup given file in the same directory or in BACKUP_DIR directory
-# backup file name is composed by following fields separated by -:
-#   - if BACKUP_DIR is not empty then escaped dirname separated by @
-#   - filename(without path)
-#   - date with format %Y%m%d_%H:%M:%S (Eg: 20240326_14:45:08)
-# @arg $1 file:String the file to backup
-# @stderr messages about backup file location
-# @env SUDO String allows to use custom sudo prefix command
-# @env BACKUP_DIR if not set backup the file in the same directory as original file
-# @exitcode 1 on copy failure
-Backup::file() {
-  local file="$1"
-  local backupFile dirname escapedDirname
-  if [[ -f "${file}" ]]; then
-    dirname="$(dirname "${file}")"
-    escapedDirname="$(sed -e 's#^/##; s#/#@#g' <<<"${dirname}")"
-    if [[ -z "${BACKUP_DIR:-}" ]]; then
-      backupFile="${dirname}/$(basename "${file}")-$(date +"%Y%m%d_%H:%M:%S")"
-    else
-      backupFile="${BACKUP_DIR}/${escapedDirname}@$(basename "${file}")-$(date +"%Y%m%d_%H:%M:%S")"
-    fi
-    Log::displayInfo "Backup file '${file}' to ${backupFile}"
-    ${SUDO:-} cp "${file}" "${backupFile}"
-  fi
-}
-
 # @description get property value from file
 # if not present compute it using propertyNotFoundCallback (if provided) and store it in property file
 # @arg $1 propertyFile:String the file in which the property will be searched
@@ -1939,42 +2029,6 @@ Cache::getPropertyValue() {
   return 1
 }
 
-# @description install callback
-#   set file with root ownership and execution bit
-# @arg $1 fromFile:String
-# @arg $2 targetFile:String
-# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
-# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
-# @env USERNAME (default: root) the user name that will be used to set target files ownership
-# @env USERGROUP (default: root) the group name that will be used to set target files ownership
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode 1 on any failure
-# @see Install::file
-Install::setUserRightsCallback() {
-  # shellcheck disable=SC2034 # $1 not used
-  local fromFile="$1"
-  local targetFile="$2"
-  local userName="${3:-${USERNAME:-root}}"
-  local userGroup="${4:-${USERGROUP:-root}}"
-
-  ${SUDO:-} chown "${userName}":"${userGroup}" "${targetFile}"
-}
-
-# @description install callback
-#   default callback used called when file copy has failed
-# @arg $1 fromFile:String
-# @arg $2 targetFile:String
-# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
-# @exitcode 1 always fail
-# @stderr diagnostics information is displayed
-# @see Install::file
-Install::unableToCopyCallback() {
-  local fromDir="$1"
-  local fileName="$2"
-  local targetFile="$3"
-  Log::fatal "unable to copy file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fileName}' to '${targetFile}'"
-}
-
 # @description retrieve wslpath using cache (cache is refreshed every day)
 # @arg $@ args:String[] arguments to pass to wslpath
 # @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
@@ -1998,14 +2052,6 @@ Linux::Wsl::cachedWslpath() {
 # @require Linux::Wsl::requireWsl
 Linux::Wsl::originalWslvar() {
   wslvar "$@" | sed -z '$ s/[\r\n]$//'
-}
-
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logSkipped() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SKIPPED}" "$1"
-  fi
 }
 
 # @description ensure linux runs under wsl
@@ -2094,9 +2140,14 @@ Linux::Wsl::originalWslpath() {
 
 # FUNCTIONS
 
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/docker_conf_dir" "H4sIAAAAAAAAA+3VQUvDMBwF8J77KSKCO6VJ2qYFZV5UEDwM1Lt0a8qKXTqatdvHN9tQpDjLcOuQvd8l0IW12/vn1WPO0XErlnK9iljy7+snR4QRF5HgQgb2ehzy0CHy+I/mOLVZJBUhztIUv+7r+vyf8pg3TsyUpqqhSjdHmYa98xciDgXy70M7/6TIE6OMlx5wEvbKPxY2/yDC+e/H7vzTcvKuKs9M/3yPrvx9LlrnX4Y8cAg/wO/rdOb5X16wca7ZegZcN8/IpJzNEp0S2pDtAFB7ZV4aRa5umR0SpuuiuCGLqdIuIZtpaW2kabnUtNSKGlU1+UQNB61vqmaEZoSagZvl7qn/gDPXPv/zqszyQp2k/31hX/xy2/8++r8Xu/Pvr/9t9tv8/SCIYr7p/5Cj//vQ2f8/9r5azctqQe5Hd08Pz2+Po5fX4aDW+eqaMVbV+mt27IKSBwAAAAAAAAAAAAAA6NUH81CkkgAoAAA="
+
+declare -gx embed_dir_docker_conf_dir="${TMPDIR:-/tmp}/docker_conf_dir"
+
 facade_main_Dockersh() {
 
 # REQUIRES
+Linux::requireTarCommand
 Linux::requireUbuntu
 Env::requireLoad
 UI::requireTheme
@@ -2134,6 +2185,7 @@ fi
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/conf/Docker" as docker_conf_dir
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -2985,11 +3037,23 @@ configure() {
   mkdir -p "${USER_HOME}/.docker/cli-plugins"
   rm -f "${USER_HOME}/.docker/cli-plugins/docker-compose" || true
   sudo ln -sf /usr/local/bin/docker-compose "${USER_HOME}/.docker/cli-plugins/docker-compose"
+
+  local configDir
+  # shellcheck disable=SC2154
+  configDir="$(
+    Conf::getOverriddenDir \
+      "${embed_dir_docker_conf_dir}" \
+      "${CONF_OVERRIDE_DIR}/Docker"
+  )"
+  OVERWRITE_CONFIG_FILES=1 Install::dir \
+    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "aliases.d" || return 1
+  OVERWRITE_CONFIG_FILES=1 Install::dir \
+    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "profile.d" || return 1
 }
 
 testConfigure() {
   local -i failures=0
-
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/docker.sh"
   Log::displayInfo "check if docker-compose binary is working"
   if ! docker-compose version &>/dev/null; then
     Log::displayError "docker-compose failure"
@@ -3008,8 +3072,11 @@ testConfigure() {
     ((++failures))
   fi
 
+  asUserToAvoidWslRestart() {
+    sudo -u "${USERNAME}" -i "$@"
+  }
   Log::displayInfo "check if docker dns is working"
-  sudo -u "${USERNAME}" -i docker run busybox ping google.com -c 1 &>/dev/null || {
+  asUserToAvoidWslRestart docker run busybox ping google.com -c 1 &>/dev/null || {
     ((++failures))
     Log::displayError "google.com is not reachable from docker, dns issue ?"
     ping google.com -c 1 &>/dev/null || {
@@ -3019,11 +3086,11 @@ testConfigure() {
   }
 
   Log::displayInfo "check if docker container can be launched"
-  if ! sudo -u "${USERNAME}" -i docker run --rm hello-world | grep -q "Hello from Docker!"; then
-    ((++failures))
+  if ! asUserToAvoidWslRestart docker run --rm hello-world | grep -q "Hello from Docker!"; then
     Log::displayError "docker container cannot be launched"
+    ((++failures))
   fi
-  sudo -u "${USERNAME}" -i docker image rm hello-world || true
+  asUserToAvoidWslRestart docker image rm hello-world || true
 
   return "${failures}"
 }
