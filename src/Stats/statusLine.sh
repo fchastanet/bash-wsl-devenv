@@ -2,8 +2,9 @@
 
 # @description display message to reflect last installation status
 Stats::statusLine() {
-  local statFile="$1"
-  local msg="$2"
+  local status="$1"
+  local statFile="$2"
+  local msg="$3"
   if [[ ! -f "${statFile}" ]]; then
     return 0
   fi
