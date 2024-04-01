@@ -3,7 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/ShellBash/conf" as shell_bash_dir
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/ShellBash/conf" as conf_dir
 
 .INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
 
@@ -54,16 +54,6 @@ testInstall() {
   Assert::fileExists /etc/profile.d/bash_completion.sh root root || return 1
 }
 
-declare -a filesToInstall=(
-  ".bash_logout"
-  ".bashrc"
-  ".profile"
-  ".dir_colors"
-  ".inputrc"
-  ".vimrc"
-  ".Xresources"
-)
-
 configure() {
   if [[ "${PREFERRED_SHELL}" = "ShellBash" ]]; then
     CURRENT_USER_SHELL="$(grep "^${USERNAME}:" /etc/passwd | awk -F ":" '{print $7}')"
@@ -80,30 +70,31 @@ configure() {
   Retry::default curl -o "${USER_HOME}/.bash-dev-env/interactive.d/git-prompt.sh" \
     https://raw.githubusercontent.com/git/git/master/contrib/completion/git-prompt.sh || return 1
 
-  local configDir
   # shellcheck disable=SC2154
-  configDir="$(
-    Conf::getOverriddenDir \
-      "${embed_dir_shell_bash_dir}" \
-      "${CONF_OVERRIDE_DIR}/ShellBash"
-  )"
-  local file
-  for file in "${filesToInstall[@]}"; do
-    OVERWRITE_CONFIG_FILES=1 Install::file \
-      "${configDir}/home/${file}" "${USER_HOME}/${file}"
-  done
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-dev-env"
+  
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".vscode"
+  
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    "home" \
+    "${USER_HOME}"
 
-  OVERWRITE_CONFIG_FILES=0 Install::dir \
-    "${configDir}" "${USER_HOME}" ".vscode"
-  OVERWRITE_CONFIG_FILES=1 Install::dir \
-    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "aliases.d"
-  OVERWRITE_CONFIG_FILES=1 Install::dir \
-    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "profile.d"
-  OVERWRITE_CONFIG_FILES=1 Install::dir \
-    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "completions.d"
+  local configDir  
+  # shellcheck disable=SC2154
+  configDir="$(Conf::getOverriddenDir "${embed_dir_conf_dir}" "${CONF_OVERRIDE_DIR}/$(scriptName)")"
 
   SUDO=sudo OVERWRITE_CONFIG_FILES=0 Install::file \
     "${configDir}/home/.vimrc" "/root/.vimrc" root root
+  SUDO=sudo OVERWRITE_CONFIG_FILES=0 Install::file \
+    "${configDir}/home/.inputrc" "/root/.inputrc" root root
 
   # disable bell
   sudo sed -i -e 's/;set bell-style none/set bell-style none/g' /etc/inputrc
@@ -113,20 +104,35 @@ configure() {
 testConfigure() {
   local -i failures=0
   Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/git-prompt.sh" || ((++failures))
-  local file
-  for file in "${filesToInstall[@]}"; do
-    Assert::fileExists "${USER_HOME}/${file}" || ((++failures))
-  done
+  
+  Assert::fileExists "${USER_HOME}/.bash_logout" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bashrc" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.dir_colors" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.inputrc" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.profile" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.vimrc" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.Xresources" || ((++failures))
+
   SUDO=sudo Assert::fileExists /root/.vimrc root root || ((++failures))
+  SUDO=sudo Assert::fileExists /root/.inputrc root root || ((++failures))
 
   Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/colors.sh" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/filesDirectory.sh" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/miscellaneous.sh" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/ssh.sh" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/xserver.sh" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/DISCLAIMER.md" || ((++failures))
 
   Assert::fileExists "${USER_HOME}/.bash-dev-env/completions.d/makeTargets.sh" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/completions.d/DISCLAIMER.md" || ((++failures))
 
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/bash_navigation.sh" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/bash_prompt.sh" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/DISCLAIMER.md" || ((++failures))
+
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/profile.d/DISCLAIMER.md" || ((++failures))
+
+  Assert::fileExists "${USER_HOME}/.vscode/argv.json" || ((++failures))
   Assert::fileExists "${USER_HOME}/.vscode/settings.json" || ((++failures))
 
   # check font in windows terminal configuration

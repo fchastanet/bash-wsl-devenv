@@ -53,19 +53,18 @@ install() {
     "/usr/local/bin/fzf" \
     "https://github.com/junegunn/fzf/releases/download/@latestVersion@/fzf-@latestVersion@-linux_amd64.tar.gz"
   
-  local configDir
   # shellcheck disable=SC2154
-  configDir="$(Conf::getOverriddenDir "${embed_dir_conf_dir}" "${CONF_OVERRIDE_DIR}/$(scriptName)")"
-  # shellcheck disable=SC2154
-  OVERWRITE_CONFIG_FILES=1 \
-  PRETTY_ROOT_DIR="$(dirname "${embed_dir_conf_dir}")" \
-  Install::structure \
-    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env"
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-dev-env"
 }
 
 testInstall() {
-  Version::checkMinimal "fzf" --version "0.44.1" || return 1
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/fzf.sh"
+  local -i failures=0
+  Version::checkMinimal "fzf" --version "0.44.1" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/fzf.sh" || ((++failures))
+  return "${failures}"
 }
 
 configure() { :; }

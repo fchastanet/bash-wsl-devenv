@@ -284,6 +284,21 @@ Compiler::Embed::extractDirFromBase64() {
   fi
 }
 
+Conf::copyStructure() {
+  local embedDir="$1"
+  local overrideDir="$2"
+  local subDir="$3"
+  local targetDir="${4:-${USER_HOME}/${subDir}}"
+
+  local configDir
+  # shellcheck disable=SC2154
+  configDir="$(Conf::getOverriddenDir "${embedDir}" "${overrideDir}")"
+  # shellcheck disable=SC2154
+  OVERWRITE_CONFIG_FILES=${OVERWRITE_CONFIG_FILES:-1} \
+  PRETTY_ROOT_DIR="$(dirname "${embedDir}")" \
+  Install::structure "${configDir}/${subDir}" "${targetDir}"
+}
+
 # @description generate temp directory where default
 # and overridden directories have been merged
 #   - if overridden dir exists, create a new temp folder
@@ -516,86 +531,6 @@ Framework::createTempFile() {
   mktemp -p "${TMPDIR:-/tmp}" -t "${1:-}.XXXXXXXXXXXX"
 }
 
-# @description install dir to given directory but backup it before
-# @arg $1 fromDir:String the source base directory
-# @arg $2 toDir:String the target base directory
-# @arg $3 dirName:String the directory relative to fromDir arg that will be copied
-# @arg $4 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
-# @arg $5 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
-# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
-# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target directory is in windows file system, overwrite it
-# @env USERNAME (default: root) the user name that will be used to set target files ownership
-# @env USERGROUP (default: root) the group name that will be used to set target files ownership
-# @env BASE_MNT_C String windows C drive base PATH
-# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
-# @env SUDO String allows to use custom sudo prefix command
-# @env BACKUP_BEFORE_INSTALL Boolean (default:1) backup directory before installing the dir
-# @exitcode 1 if source directory is not readable
-# @exitcode 2 if source directory backup failed
-# @exitcode 0 if copy successful or OVERWRITE_CONFIG_FILES=0 or
-# @exitcode 0 with warning message if OVERWRITE_CONFIG_FILES=0 and target directory exists
-# @exitcode 0 with warning message if CHANGE_WINDOWS_FILES=0 and target directory in C drive
-# @stderr diagnostics information is displayed, skipped information if OVERWRITE_CONFIG_FILES or CHANGE_WINDOWS_FILES are set to 1
-Install::dir() {
-  local fromDir="$1"
-  local toDir="$2"
-  local dirName="$3"
-  local userName="${4:-${USERNAME:-root}}"
-  local userGroup="${5:-${USERGROUP:-root}}"
-
-  if [[ ! -d "${fromDir}/${dirName}" || ! -r "${fromDir}/${dirName}" ]]; then
-    Log::displayError "cannot read source directory '${fromDir}/${dirName}'"
-    return 1
-  fi
-
-  # skip if OVERWRITE_CONFIG_FILES=0 and target dir exists
-  if [[ "${OVERWRITE_CONFIG_FILES:-0}" = "0" && -d "${toDir}/${dirName}" ]]; then
-    Log::displayWarning "Directory '${toDir}/${FILENAME}' exists - Skip install "
-    return 0
-  fi
-
-  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
-  if [[ "${CHANGE_WINDOWS_FILES:-0}" = "0" && "${toDir}" =~ ^${BASE_MNT_C} ]]; then
-    Log::displayWarning "Directory '${fromDir}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
-    return 0
-  fi
-
-  if [[ "${BACKUP_BEFORE_INSTALL:-1}" = "1" ]]; then
-    Backup::dir "${toDir}" "${dirName}" || return 2
-  fi
-
-  local destDir="${toDir}/${dirName}"
-  local shortDir="${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${dirName}"
-  Log::displayDebug "Installing directory '${destDir}' from '${shortDir}'"
-  (
-    ${SUDO:-} mkdir -p "${destDir}"
-    cd "${fromDir}/${dirName}" || exit 1
-    shopt -s dotglob # * will match hidden files too
-    if [[ -z "$(ls -A .)" ]]; then
-      Log::displaySkipped "directory '${shortDir}' is empty, no copy needed"
-      return 0
-    fi
-    if ! ${SUDO:-} cp -R -- * "${destDir}"; then
-      Log::displayError "unable to copy directory '${shortDir}' to '${destDir}'"
-      exit 1
-    fi
-    if ! ${SUDO:-} chown -R "${userName}":"${userGroup}" "${destDir}"; then
-      Log::displayError "unable to change directory '${destDir}' owners"
-      exit 1
-    fi
-    # chown all parent directory with same user
-    local fullDir="${fromDir}"
-    for parentFolder in ${dirName////$'\n'}; do
-      fullDir="${fullDir}/${parentFolder}"
-      if ! ${SUDO:-} chown "${userName}":"${userGroup}" "${fullDir}"; then
-        Log::displayError "unable to change parent directory '${fullDir}' owners"
-        exit 1
-      fi
-    done
-  ) || return 1
-  Log::displaySuccess "Installed directory '${destDir}' from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${dirName}')"
-}
-
 # @description installs file to given directory
 #
 # callbacks parameters `${fromFile} ${targetFile} $@`
@@ -656,16 +591,26 @@ Install::file() {
   local fromFilename
   fromFilename="$(basename "${fromFile}")"
 
-  if [[ "${BACKUP_BEFORE_INSTALL:-1}" = "1" ]]; then
+  local prettyFromDir
+  # shellcheck disable=SC2295
+  prettyFromDir="${fromDir#${PRETTY_ROOT_DIR:-${FRAMEWORK_ROOT_DIR}}/}"
+  if diff -q "${fromFile}" "${targetFile}" &>/dev/null; then
+    Log::displayStatus "No changes detected. No need to update '${targetFile}' from '${prettyFromDir}/${fromFilename}'"
+    return 0
+  fi
+
+  if [[ "${BACKUP_BEFORE_INSTALL:-1}" = "1" ]] ; then
     Backup::file "${targetFile}" || return 2
   fi
 
   if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
-    Log::displaySuccess "Installed file '${targetFile}' from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}'"
-    ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
+    # shellcheck disable=SC2295
+    Log::displaySuccess "Installed file '${targetFile}' from '${prettyFromDir}/${fromFilename}'"
+    ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${prettyFromDir}" "${fromFilename}"
   else
-    Log::displayError "unable to copy file '${targetFile}' from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fromFilename}'"
-    ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${fromDir#"${FRAMEWORK_ROOT_DIR}/"}" "${fromFilename}"
+    # shellcheck disable=SC2295
+    Log::displayError "unable to copy file '${targetFile}' from '${fromDir#${FRAMEWORK_ROOT_DIR}/}/${fromFilename}'"
+    ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${prettyFromDir}" "${fromFilename}"
     return 3
   fi
 }
@@ -694,7 +639,8 @@ InstallScripts::command() {
   local installStatus="0"
   sourceHook() {
     local hookName="$1"
-    hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh")"
+    # shellcheck disable=SC2154
+    hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh" "${embed_dir_hooks_dir}/${hookName}.sh")"
     if [[ -x "${hook}" ]]; then
       # shellcheck source=src/_binaries/SimpleTest/conf/preInstall.sh
       source "${hook}" || exit 1
@@ -1115,48 +1061,6 @@ Assert::tty() {
   [[ -t 1 || -t 2 ]]
 }
 
-# @description Backup given directory in the base directory or in BACKUP_DIR directory
-# backup directory name is composed by following fields separated by _:
-#   - if BACKUP_DIR is not empty then escaped full dirname separated by @
-#   - date with format %Y%m%d_%H:%M:%S (Eg: 20240326_14:45:08)
-#   - .tgz extension
-#
-# @arg $1 string the base directory
-# @arg $2 string the directory to backup from base directory
-#
-# @env BACKUP_DIR String variable referencing backup directory
-# @env FRAMEWORK_ROOT_DIR String  used to remove this project directory from displayed backup path
-# @env SUDO String allows to use custom sudo prefix command
-#
-# @exitcode 1 if directory to backup does not exist, 0 if everything is OK
-# @exitcode 2 on backup failure
-#
-# @stderr message about where the directory is backed up
-# @require Linux::requireTarCommand
-Backup::dir() {
-  local escapedDirname backupFile
-  local fromDir="$1"
-  local dirname="$2"
-
-  if [[ ! -d "${fromDir}/${dirname}" ]]; then
-    Log::displayError "Backup::dir - directory '${fromDir}/${dirname}' doesn't exist"
-    return 1
-  fi
-  if [[ -z "${BACKUP_DIR:-}" ]]; then
-    escapedDirname="$(sed -e 's#^/##; s#/#@#g' <<<"${dirname}")"
-    backupFile="${fromDir}/${escapedDirname}-$(date +"%Y%m%d_%H:%M:%S").tgz"
-  else
-    escapedDirname="$(sed -e 's#^/##; s#/#@#g' <<<"${fromDir}/${dirname}")"
-    backupFile="${BACKUP_DIR}/${escapedDirname}-$(date +"%Y%m%d_%H:%M:%S").tgz"
-  fi
-
-  Log::displayInfo "Backup directory '${fromDir}/${dirname}' to ${backupFile}"
-  if ! ${SUDO:-} tar --same-owner -czf "${backupFile}" "${fromDir}/${dirname}" 2>/dev/null; then
-    Log::displayError "cannot backup '${fromDir}/${dirname}'"
-    return 2
-  fi
-}
-
 # @description Backup given file in the same directory or in BACKUP_DIR directory
 # backup file name is composed by following fields separated by -:
 #   - if BACKUP_DIR is not empty then escaped dirname separated by @
@@ -1539,6 +1443,101 @@ Install::setUserRightsCallback() {
   ${SUDO:-} chown "${userName}":"${userGroup}" "${targetFile}"
 }
 
+# @description install dir to given directory but backup it before
+# @arg $1 fromDir:String the source base directory
+# @arg $2 toDir:String the target base directory
+# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing files
+# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target directory is in windows file system, overwrite it
+# @env USERNAME (default: ${USERNAME} if SUDO empty else root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: ${USERGROUP} if SUDO empty else root) the group name that will be used to set target files ownership
+# @env BASE_MNT_C String windows C drive base PATH
+# @env PRETTY_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_BEFORE_INSTALL Boolean (default:1) backup directory before installing the dir
+# @exitcode 1 if source directory is not readable
+# @exitcode 2 if error during structure replication
+# @exitcode 2 if error during file copy
+# @exitcode 0 if copy successful
+# @exitcode 0 with warning message if CHANGE_WINDOWS_FILES=0 and target directory in C drive
+# @stderr diagnostics information is displayed, skipped information if OVERWRITE_CONFIG_FILES or CHANGE_WINDOWS_FILES are set to 1
+Install::structure() {
+  local fromDir="$1"
+  local toDir="$2"
+  local userName="root"
+  local userGroup="root"
+  if [[ -z "${SUDO:-}" ]]; then
+    userName="${USERNAME:-root}"
+    userGroup="${USERGROUP:-root}"
+  fi
+
+  if [[ ! -d "${fromDir}" || ! -r "${fromDir}" ]]; then
+    Log::displayError "Install::structure - cannot read source directory '${fromDir}'"
+    return 1
+  fi
+
+  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
+  if [[ "${CHANGE_WINDOWS_FILES:-0}" = "0" && "${toDir}" =~ ^${BASE_MNT_C} ]]; then
+    Log::displayWarning "Install::structure - Directory '${fromDir}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
+    return 0
+  fi
+
+  # first replicate directory structure
+  # shellcheck disable=SC2317
+  createStructure() {
+    local dir="$1"
+    if ! ${SUDO:-} mkdir -p "${dir}"; then
+      Log::displayError "Install::structure - impossible to create directory '${dir}'"
+      exit 1
+    fi
+
+    if ! ${SUDO:-} chown "${userName}":"${userGroup}" "${dir}"; then
+      Log::displayError "Install::structure - impossible to update directory owner '${dir}' with ${userName}:${userGroup}"
+      exit 1
+    fi
+  }
+  local dir
+
+  (
+    local dir
+    shopt -s lastpipe
+    # -links 2 allows to exclude empty directories
+    # %P get file without initial directory
+    ${SUDO:-} find "${fromDir}" -depth -type d -links 2 -printf "%P\0" |
+      while read -rd '' dir; do
+        if ! createStructure "${toDir}/${dir}"; then
+          # error already reported by createStructure
+          exit 1
+        fi
+      done || {
+        if [[ "${PIPESTATUS[0]}" != "0" ]]; then
+          Log::displayError "Install::structure - replicated directory structure - find directories on '${fromDir}' resulted in an error"
+          exit 2
+        fi
+      }
+  ) || return 2
+
+  # for each file, copy it
+  (
+    local file
+    shopt -s lastpipe
+    ${SUDO:-} find "${fromDir}" -depth -type f -printf "%P\0" |
+      while read -rd '' file; do
+          if ! Install::file "${fromDir}/${file}" "${toDir}/${file}"; then
+            # error already reported by Install::file
+            exit 1
+          fi
+      done || {
+        if [[ "${PIPESTATUS[0]}" != "0" ]]; then
+          Log::displayError "Install::structure - replicated file structure - find files on '${fromDir}' resulted in an error"
+          exit 2
+        fi
+      }
+  ) || return 3
+
+  # shellcheck disable=SC2295
+  Log::displaySuccess "Installed directory '${toDir#${PRETTY_ROOT_DIR}/}' from '${fromDir#${PRETTY_ROOT_DIR}/}'"
+}
+
 # @description install callback
 #   default callback used called when file copy has failed
 # @arg $1 fromFile:String
@@ -1629,14 +1628,15 @@ Log::computeDuration() {
   fi
 }
 
-# @description Display message using skip color (yellow)
+# @description Display message using info color (blue) but warning level
 # @arg $1 message:String the message to display
-Log::displaySkipped() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+Log::displayStatus() {
+  local type="${2:-STATUS}"
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
     Log::computeDuration
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__INFO_COLOR}${type}  - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
-  Log::logSkipped "$1"
+  Log::logStatus "$1" "${type}"
 }
 
 # @description Display message using success color (bg green/fg white)
@@ -2050,11 +2050,21 @@ Linux::getDistributorId() {
   lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
 }
 
+# @description Display message using skip color (yellow)
+# @arg $1 message:String the message to display
+Log::displaySkipped() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    Log::computeDuration
+    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logSkipped "$1"
+}
+
 # @description log message to file
 # @arg $1 message:String the message to display
-Log::logSkipped() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SKIPPED}" "$1"
+Log::logStatus() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_WARNING)); then
+    Log::logMessage "${2:-STATUS}" "$1"
   fi
 }
 
@@ -2158,11 +2168,19 @@ Linux::Wsl::originalWslvar() {
   wslvar "$@" | sed -z '$ s/[\r\n]$//'
 }
 
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logSkipped() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SKIPPED}" "$1"
+  fi
+}
+
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/shell_bash_dir" "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"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "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"
 
-declare -gx embed_dir_shell_bash_dir="${TMPDIR:-/tmp}/shell_bash_dir"
+declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
 facade_main_ShellBashsh() {
 
@@ -2205,7 +2223,7 @@ fi
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/ShellBash/conf" as shell_bash_dir
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/ShellBash/conf" as conf_dir
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -3005,16 +3023,6 @@ testInstall() {
   Assert::fileExists /etc/profile.d/bash_completion.sh root root || return 1
 }
 
-declare -a filesToInstall=(
-  ".bash_logout"
-  ".bashrc"
-  ".profile"
-  ".dir_colors"
-  ".inputrc"
-  ".vimrc"
-  ".Xresources"
-)
-
 configure() {
   if [[ "${PREFERRED_SHELL}" = "ShellBash" ]]; then
     CURRENT_USER_SHELL="$(grep "^${USERNAME}:" /etc/passwd | awk -F ":" '{print $7}')"
@@ -3031,30 +3039,31 @@ configure() {
   Retry::default curl -o "${USER_HOME}/.bash-dev-env/interactive.d/git-prompt.sh" \
     https://raw.githubusercontent.com/git/git/master/contrib/completion/git-prompt.sh || return 1
 
+  # shellcheck disable=SC2154
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-dev-env"
+
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".vscode"
+
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    "home" \
+    "${USER_HOME}"
+
   local configDir
   # shellcheck disable=SC2154
-  configDir="$(
-    Conf::getOverriddenDir \
-      "${embed_dir_shell_bash_dir}" \
-      "${CONF_OVERRIDE_DIR}/ShellBash"
-  )"
-  local file
-  for file in "${filesToInstall[@]}"; do
-    OVERWRITE_CONFIG_FILES=1 Install::file \
-      "${configDir}/home/${file}" "${USER_HOME}/${file}"
-  done
-
-  OVERWRITE_CONFIG_FILES=0 Install::dir \
-    "${configDir}" "${USER_HOME}" ".vscode"
-  OVERWRITE_CONFIG_FILES=1 Install::dir \
-    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "aliases.d"
-  OVERWRITE_CONFIG_FILES=1 Install::dir \
-    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "profile.d"
-  OVERWRITE_CONFIG_FILES=1 Install::dir \
-    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "completions.d"
+  configDir="$(Conf::getOverriddenDir "${embed_dir_conf_dir}" "${CONF_OVERRIDE_DIR}/$(scriptName)")"
 
   SUDO=sudo OVERWRITE_CONFIG_FILES=0 Install::file \
     "${configDir}/home/.vimrc" "/root/.vimrc" root root
+  SUDO=sudo OVERWRITE_CONFIG_FILES=0 Install::file \
+    "${configDir}/home/.inputrc" "/root/.inputrc" root root
 
   # disable bell
   sudo sed -i -e 's/;set bell-style none/set bell-style none/g' /etc/inputrc
@@ -3064,20 +3073,35 @@ configure() {
 testConfigure() {
   local -i failures=0
   Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/git-prompt.sh" || ((++failures))
-  local file
-  for file in "${filesToInstall[@]}"; do
-    Assert::fileExists "${USER_HOME}/${file}" || ((++failures))
-  done
+
+  Assert::fileExists "${USER_HOME}/.bash_logout" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bashrc" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.dir_colors" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.inputrc" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.profile" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.vimrc" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.Xresources" || ((++failures))
+
   SUDO=sudo Assert::fileExists /root/.vimrc root root || ((++failures))
+  SUDO=sudo Assert::fileExists /root/.inputrc root root || ((++failures))
 
   Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/colors.sh" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/filesDirectory.sh" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/miscellaneous.sh" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/ssh.sh" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/xserver.sh" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/DISCLAIMER.md" || ((++failures))
 
   Assert::fileExists "${USER_HOME}/.bash-dev-env/completions.d/makeTargets.sh" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/completions.d/DISCLAIMER.md" || ((++failures))
 
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/bash_navigation.sh" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/bash_prompt.sh" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/DISCLAIMER.md" || ((++failures))
+
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/profile.d/DISCLAIMER.md" || ((++failures))
+
+  Assert::fileExists "${USER_HOME}/.vscode/argv.json" || ((++failures))
   Assert::fileExists "${USER_HOME}/.vscode/settings.json" || ((++failures))
 
   # check font in windows terminal configuration

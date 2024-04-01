@@ -3,7 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/MotdDefaultConfig/conf" as motd_dir
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/MotdDefaultConfig/conf" as conf_dir
 
 .INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
 
@@ -39,18 +39,18 @@ testInstall() { :; }
 # jscpd:ignore-end
 
 configure() {
-  local configDir
   # shellcheck disable=SC2154
-  configDir="$(
-    Conf::getOverriddenDir \
-      "${embed_dir_motd_dir}" \
-      "${CONF_OVERRIDE_DIR}/MotdDefaultConfig"
-  )"
-
-  SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::dir \
-    "${configDir}/etc" "/etc" "update-motd.d"
-  SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${configDir}/etc/cron.daily/motd" "/etc/cron.daily/motd"
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-dev-env"
+  
+  # shellcheck disable=SC2154
+  SUDO=sudo Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    "etc" \
+    "/etc"
 
   # disable some parts
   sudo chmod 600 /etc/update-motd.d/00-header
@@ -73,6 +73,8 @@ testConfigure() {
   Assert::fileNotExecutable "/etc/update-motd.d/00-header" || ((++failures))
 
   Assert::fileExecutable "/etc/cron.daily/motd" || ((++failures))
+
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/profile.d/motd.sh" || ((++failures))
 
   if ! sudo update-motd >/dev/null; then
     Log::displayWarning "motd not working"

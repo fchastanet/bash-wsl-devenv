@@ -3,7 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/BashTools/conf" as bash_tools_dir
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/BashTools/conf" as conf_dir
 
 .INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
 
@@ -47,17 +47,16 @@ testInstall() {
 }
 
 configure() {
-  local configDir
   # shellcheck disable=SC2154
-  configDir="$(
-    Conf::getOverriddenDir \
-      "${embed_dir_bash_tools_dir}" \
-      "${CONF_OVERRIDE_DIR}/BashTools"
-  )"
-  OVERWRITE_CONFIG_FILES=1 Install::dir \
-    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "aliases.d" || return 1
-  OVERWRITE_CONFIG_FILES=0 Install::dir \
-    "${configDir}" "${USER_HOME}" ".bash-tools" || return 1
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-dev-env"
+  
+  OVERWRITE_CONFIG_FILES=1 Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-tools"
 }
 testConfigure() {
   local -i failures=0

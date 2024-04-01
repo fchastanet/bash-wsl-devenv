@@ -3,7 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/AwsDefaultConfig/conf" as aws_config_dir
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/AwsDefaultConfig/conf" as conf_dir
 # EMBED "${FRAMEWORK_ROOT_DIR}/src/UI/talk.ps1" as talkScript
 
 .INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
@@ -49,7 +49,7 @@ testInstall() { :; }
 configure() {
   local configDir
   # shellcheck disable=SC2154
-  configDir="$(Conf::getOverriddenDir "${embed_dir_aws_config_dir}" "${CONF_OVERRIDE_DIR}/AwsConfig")"
+  configDir="$(Conf::getOverriddenDir "${embed_dir_conf_dir}" "${CONF_OVERRIDE_DIR}/AwsConfig")"
   # install default configuration
   # shellcheck disable=SC2317
   configureAwsConfig() {
@@ -61,9 +61,12 @@ configure() {
   OVERWRITE_CONFIG_FILES=0 Install::file \
     "${configDir}/.aws/config" "${USER_HOME}/.aws/config" \
     "${USERNAME}" "${USERGROUP}" configureAwsConfig
-  OVERWRITE_CONFIG_FILES=1 Install::dir \
-    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "aliases.d"
-
+  # shellcheck disable=SC2154
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-dev-env"
+  
   # use saml2aws to configure with the right parameters
   if [[ -n "${AWS_APP_ID}" && -n "${AWS_PROFILE}" && -n "${AWS_USER_MAIL}" ]]; then
     Log::displayInfo "Please wait saml2aws configuration finishing ..."

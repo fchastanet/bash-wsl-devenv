@@ -119,8 +119,11 @@ configureUpdateCron() {
     sudo chmod +x "/etc/cron.d/bash-dev-env-upgrade"
   fi
 
-  OVERWRITE_CONFIG_FILES=1 Install::dir \
-    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "aliases.d"
+  # shellcheck disable=SC2154
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-dev-env"
 }
 
 configure() {

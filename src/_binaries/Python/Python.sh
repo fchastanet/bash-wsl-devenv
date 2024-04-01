@@ -3,7 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/Python/conf" as python_conf_dir
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/Python/conf" as conf_dir
 
 .INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
 
@@ -56,12 +56,11 @@ install() {
   # Installing virtualenv
   PIP_REQUIRE_VIRTUALENV=false python -m pip install virtualenv
 
-  Log::displayInfo "Install ${USER_HOME}/.bash-dev-env/profile.d/python_path.sh"
-  local configDir
   # shellcheck disable=SC2154
-  configDir="$(Conf::getOverriddenDir "${embed_dir_python_conf_dir}" "${CONF_OVERRIDE_DIR}/Python")"
-  OVERWRITE_CONFIG_FILES=1 BACKUP_BEFORE_INSTALL=0 Install::file \
-    "${configDir}/.bash-dev-env/profile.d/python_path.sh" "${USER_HOME}/.bash-dev-env/profile.d/python_path.sh"
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-dev-env"
 
   # Upgrade of pip packages will be done on subsequent calls during upgrade cron
   upgradePipPackages

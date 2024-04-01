@@ -3,7 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/Composer/conf" as composer_dir
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/Composer/conf" as conf_dir
 
 .INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
 
@@ -64,12 +64,11 @@ configure() {
     /usr/local/.composer \
     "${USER_HOME}/.config"
 
-  Log::displayInfo "Install ~/.bash-dev-env/profile.d/composer_path.sh"
-  local configDir
   # shellcheck disable=SC2154
-  configDir="$(Conf::getOverriddenDir "${embed_dir_composer_dir}" "${CONF_OVERRIDE_DIR}/Composer")"
-  OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${configDir}/.bash-dev-env/profile.d/composer_path.sh" "${USER_HOME}/.bash-dev-env/profile.d/composer_path.sh"
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-dev-env"
 }
 
 testConfigure() {

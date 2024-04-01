@@ -3,7 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/Docker/conf" as docker_conf_dir
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/Docker/conf" as conf_dir
 
 .INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
 
@@ -107,22 +107,17 @@ configure() {
   rm -f "${USER_HOME}/.docker/cli-plugins/docker-compose" || true
   sudo ln -sf /usr/local/bin/docker-compose "${USER_HOME}/.docker/cli-plugins/docker-compose"
 
-  local configDir
   # shellcheck disable=SC2154
-  configDir="$(
-    Conf::getOverriddenDir \
-      "${embed_dir_docker_conf_dir}" \
-      "${CONF_OVERRIDE_DIR}/Docker"
-  )"
-  OVERWRITE_CONFIG_FILES=1 Install::dir \
-    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "aliases.d" || return 1
-  OVERWRITE_CONFIG_FILES=1 Install::dir \
-    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "profile.d" || return 1
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-dev-env"
 }
 
 testConfigure() {
   local -i failures=0
   Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/docker.sh"
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/profile.d/docker.sh"
   Log::displayInfo "check if docker-compose binary is working"
   if ! docker-compose version &>/dev/null; then
     Log::displayError "docker-compose failure"
