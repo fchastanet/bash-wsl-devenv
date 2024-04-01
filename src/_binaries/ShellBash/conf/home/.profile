@@ -48,16 +48,19 @@ if [[ -f "${HOME}/.bash_logout" ]]; then
   trap exitSession HUP
 fi
 
-if [[ -d "${HOME}/.bash-dev-env/profile.d" ]]; then
-  while IFS= read -r file ; do
-    if [[ -f "${file}" ]]; then
-      # shellcheck source=src/_binaries/NodeNpm/conf/.bash-dev-env/profile.d/n_path.sh
-      source "${file}"
-    fi
-  done < <(find "${HOME}/.bash-dev-env/profile.d" -name '*.sh' -printf '%P\n' 2>/dev/null | sort -n)
-  unset file
-
-fi
+loadConfigFiles() {
+  local dir="$1"
+  if [[ -d "${dir}" ]]; then
+    local file
+    while IFS= read -r file ; do
+      if [[ -f "${file}" ]]; then
+        # shellcheck source=src/_binaries/NodeNpm/conf/.bash-dev-env/profile.d/n_path.sh
+        source "${file}"
+      fi
+    done < <(find "${dir}" -name '*.sh' -printf '%p\n' 2>/dev/null | sort -n)
+  fi
+}
+loadConfigFiles "${HOME}/.bash-dev-env/profile.d"
 
 # include .bashrc if it exists and if running bash
 if [[ -n "${BASH_VERSION}" && -f "${HOME}/.bashrc" ]]; then
