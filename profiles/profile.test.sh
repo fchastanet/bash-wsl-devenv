@@ -6,5 +6,5 @@ fi
 
 CONFIG_LIST=(
   Fzf
-  KubeDefaultConfig
+  Export
 )
