@@ -46,7 +46,7 @@ InstallScripts::command() {
         local rc=$?
         Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
         Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
-        Stats::statusLine "${statsFile}" "Installation ${scriptName}"
+        Stats::statusLine "${rc}" "${statsFile}" "Installation ${scriptName}"
         exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
@@ -72,7 +72,7 @@ InstallScripts::command() {
         local rc=$?
         Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
         Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
-        Stats::statusLine "${statsFile}" "Test Install ${scriptName}"
+        Stats::statusLine "${rc}" "${statsFile}" "Test Install ${scriptName}"
         exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
@@ -102,7 +102,7 @@ InstallScripts::command() {
         local rc=$?
         Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
         Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
-        Stats::statusLine "${statsFile}" "Configuration ${scriptName}"
+        Stats::statusLine "${rc}" "${statsFile}" "Configuration ${scriptName}"
         exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
@@ -133,7 +133,7 @@ InstallScripts::command() {
         local rc=$?
         Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
         Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
-        Stats::statusLine "${statsFile}" "Test Configuration ${scriptName}"
+        Stats::statusLine "${rc}" "${statsFile}" "Test Configuration ${scriptName}"
         exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT

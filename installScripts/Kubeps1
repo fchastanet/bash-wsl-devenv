@@ -545,7 +545,7 @@ InstallScripts::command() {
         local rc=$?
         Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
         Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
-        Stats::statusLine "${statsFile}" "Installation ${scriptName}"
+        Stats::statusLine "${rc}" "${statsFile}" "Installation ${scriptName}"
         exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
@@ -571,7 +571,7 @@ InstallScripts::command() {
         local rc=$?
         Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
         Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
-        Stats::statusLine "${statsFile}" "Test Install ${scriptName}"
+        Stats::statusLine "${rc}" "${statsFile}" "Test Install ${scriptName}"
         exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
@@ -601,7 +601,7 @@ InstallScripts::command() {
         local rc=$?
         Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
         Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
-        Stats::statusLine "${statsFile}" "Configuration ${scriptName}"
+        Stats::statusLine "${rc}" "${statsFile}" "Configuration ${scriptName}"
         exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
@@ -632,7 +632,7 @@ InstallScripts::command() {
         local rc=$?
         Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
         Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
-        Stats::statusLine "${statsFile}" "Test Configuration ${scriptName}"
+        Stats::statusLine "${rc}" "${statsFile}" "Test Configuration ${scriptName}"
         exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
@@ -1380,8 +1380,9 @@ Stats::computeStatsTrap() {
 
 # @description display message to reflect last installation status
 Stats::statusLine() {
-  local statFile="$1"
-  local msg="$2"
+  local status="$1"
+  local statFile="$2"
+  local msg="$3"
   if [[ ! -f "${statFile}" ]]; then
     return 0
   fi
