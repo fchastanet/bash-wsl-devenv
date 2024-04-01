@@ -54,17 +54,21 @@ if [[ "$-" =~ .*i.* ]]; then
   if [[ "${TERM}" =~ xterm*|rxvt* ]]; then
     PS1="\[\e]0;${debian_chroot:+(${debian_chroot})}\u@\h: \w\a\]${PS1}"
   fi
+  loadConfigFiles() {
+    local dir="$1"
+    if [[ -d "${dir}" ]]; then
+      local file
+      while IFS= read -r file ; do
+        if [[ -f "${file}" ]]; then
+          # shellcheck source=src/_binaries/MandatorySoftwares/conf/.bash-dev-env/aliases.d/bash-dev-env.sh
+          source "${file}"
+        fi
+      done < <(find "${dir}" -name '*.sh' -printf '%p\n' 2>/dev/null | sort -n)
+    fi
+  }
 
-  if [[ -d "${HOME}/.bash-dev-env/aliases.d" ]]; then
-    while IFS= read -r file ; do
-      if [[ -f "${file}" ]]; then
-        # shellcheck source=src/_binaries/MandatorySoftwares/conf/.bash-dev-env/aliases.d/bash-dev-env.sh
-        source "${file}"
-      fi
-    done < <(find "${HOME}/.bash-dev-env/aliases.d" -name '*.sh' -printf '%P\n' 2>/dev/null | sort -n)
-    unset file
-  fi
-
+  loadConfigFiles "${HOME}/.bash-dev-env/aliases.d"
+  
   # enable programmable completion features (you don't need to enable
   # this, if it's already enabled in /etc/bash.bashrc and /etc/profile
   # sources /etc/bash.bashrc).
@@ -78,28 +82,13 @@ if [[ "$-" =~ .*i.* ]]; then
       source /etc/bash_completion
       completion_loaded=1
     fi
-    if [[ "${completion_loaded}" = "1" && -d "${HOME}/.bash-dev-env/completions.d" ]]; then
-      while IFS= read -r file ; do
-        if [[ -f "${file}" ]]; then
-          # shellcheck source=src/_binaries/ShellBash/conf/.bash-dev-env/completions.d/makeTargets.sh
-          source "${file}"
-        fi
-      done < <(find "${HOME}/.bash-dev-env/completions.d" -name '*.sh' -printf '%P\n' 2>/dev/null | sort -n)
-      unset file
+    if [[ "${completion_loaded}" = "1" ]]; then
+      loadConfigFiles "${HOME}/.bash-dev-env/completions.d"
     fi
     unset completion_loaded
   fi
 
-  if [[ -d "${HOME}/.bash-dev-env/interactive.d" ]]; then
-    while IFS= read -r file ; do
-      if [[ -f "${file}" ]]; then
-        # shellcheck source=src/_binaries/ShellBash/conf/.bash-dev-env/interactive.d/bash_navigation.sh
-        source "${file}"
-      fi
-    done < <(find "${HOME}/.bash-dev-env/interactive.d" -name '*.sh' -printf '%P\n' 2>/dev/null | sort -n)
-    unset file
-  fi
-
+  loadConfigFiles "${HOME}/.bash-dev-env/interactive.d"
 fi
 
 # shellcheck disable=SC2046
