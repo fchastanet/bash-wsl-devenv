@@ -111,6 +111,7 @@ exportDistro() {
   wsl.exe --terminate "${DISTRO_NAME}"
   Log::displayInfo "Exporting wsl distribution to ${distroFile}"
   wsl.exe --export "${DISTRO_NAME}" - | gzip -9 >"${distroFile}"
+  Log::displaySuccess "Wsl distribution has been exported to ${distroFile}"
 }
 
 isDistroSystemdRunning() {
@@ -248,8 +249,10 @@ run() {
     fi
     Log::displaySkipped "Not implemented yet"
   else
-    Log::displaySkipped "export option was not selected"
+    Log::displaySkipped "upload option was not selected"
   fi
+
+  Log::displaySuccess "Process successful"
 }
 
 if [[ "${BASH_FRAMEWORK_QUIET_MODE:-0}" = "1" ]]; then
