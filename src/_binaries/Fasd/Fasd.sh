@@ -3,6 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/Fasd/conf" as conf_dir
 
 .INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
 
@@ -37,10 +38,19 @@ install() {
   Linux::Apt::addRepository ppa:aacebedo/fasd
   Linux::Apt::install \
     fasd
+  
+  # shellcheck disable=SC2154
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-dev-env"
 }
 
 testInstall() {
-  Assert::commandExists fasd || return 1
+  local -i failures=0
+  Assert::commandExists fasd || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/bash-tools-dev.sh" || ((++failures))
+  return "${failures}"
 }
 
 configure() { :; }

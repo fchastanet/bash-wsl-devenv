@@ -3,7 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/GitDefaultConfig/conf" as gitconfig_dir
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/GitDefaultConfig/conf" as conf_dir
 
 .INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
 
@@ -36,24 +36,17 @@ testInstall() { :; }
 # jscpd:ignore-end
 
 configure() {
-  local configDir
   # shellcheck disable=SC2154
-  configDir="$(
-    Conf::getOverriddenDir \
-      "${embed_dir_gitconfig_dir}" \
-      "${CONF_OVERRIDE_DIR}/GitDefaultConfig"
-  )"
-
-  OVERWRITE_CONFIG_FILES=0 Install::file \
-    "${configDir}/.gitconfig" "${USER_HOME}/.gitconfig"
-  OVERWRITE_CONFIG_FILES=0 Install::file \
-    "${configDir}/.tigrc" "${USER_HOME}/.tigrc"
-  OVERWRITE_CONFIG_FILES=0 Install::dir \
-    "${configDir}/.config" "${USER_HOME}/.config" "tig"
-  OVERWRITE_CONFIG_FILES=0 Install::dir \
-    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "GitDefaultConfig"
-  OVERWRITE_CONFIG_FILES=1 Install::dir \
-    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "aliases.d"
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-dev-env"
+  
+  OVERWRITE_CONFIG_FILES=0 Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    "home" \
+    "${USER_HOME}"
 
   # updateGitDefaultConfig
   if [[ -n "${GIT_USERNAME}" ]]; then

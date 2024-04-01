@@ -34,14 +34,19 @@ install() {
 
   curl -fLo "${USER_HOME}/.vim/autoload/plug.vim" --create-dirs \
     https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+  
+  sudo mkdir -p /root/.vim/autoload
+  sudo cp "${USER_HOME}/.vim/autoload/plug.vim" /root/.vim/autoload/plug.vim
 }
 
 testInstall() {
-  Assert::commandExists vi
-  Assert::commandExists vim
-  Assert::fileExists "${USER_HOME}/.vim/autoload/plug.vim"
+  local failures=0
+  Assert::commandExists vi || ((++failures))
+  Assert::commandExists vim || ((++failures))
+  Assert::fileExists "${USER_HOME}/.vim/autoload/plug.vim" || ((++failures))
+  SUDO=sudo Assert::fileExists "/root/.vim/autoload/plug.vim" root root || ((++failures))
+  return "${failures}"
 }
 
 configure() { :; }
-
 testConfigure() { :; }

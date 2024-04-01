@@ -313,42 +313,19 @@ Compiler::Embed::extractDirFromBase64() {
   fi
 }
 
-# @description generate temp directory where default
-# and overridden directories have been merged
-#   - if overridden dir exists, create a new temp folder
-#     - copy all files from default folder
-#     - overwrite with files from overridden folder
-#     - (Later) delete files listed in .remove$$ file
-#     - return the path of this temp folder
-#   - else just return the default folder path
-# Then it is easier to pick overridden or default files/folders
-#
-# @arg $1 defaultDir:String usually the embed directory
-# @arg $2 overriddenDirPath:String the path to the directory
-#   that could be overridden
-# @exitcode 1 if default dir does not exist
-# @exitcode 2 if error during copy
-Conf::getOverriddenDir() {
-  local defaultDir="$1"
-  local overriddenDirPath="$2"
+Conf::copyStructure() {
+  local embedDir="$1"
+  local overrideDir="$2"
+  local subDir="$3"
+  local targetDir="${4:-${USER_HOME}/${subDir}}"
 
-  if [[ ! -d "${defaultDir}" ]]; then
-    Log::displayError "Directory ${defaultDir} does not exists"
-    return 1
-  fi
-  if [[ ! -d "${overriddenDirPath}" || -z "$(ls -A "${overriddenDirPath}")" ]]; then
-    Log::displayInfo "Conf::getOverriddenDir - directory ${overriddenDirPath} does not exist, keep default one ${defaultDir}"
-    echo "${defaultDir}"
-    return 0
-  fi
-  local tempDir
-  tempDir="$(mktemp -d)"
-  (
-    shopt -s dotglob
-    cp -R "${defaultDir}/." "${tempDir}"
-    cp -R "${overriddenDirPath}/." "${tempDir}"
-  ) || return 2
-  echo "${tempDir}"
+  local configDir
+  # shellcheck disable=SC2154
+  configDir="$(Conf::getOverriddenDir "${embedDir}" "${overrideDir}")"
+  # shellcheck disable=SC2154
+  OVERWRITE_CONFIG_FILES=${OVERWRITE_CONFIG_FILES:-1} \
+  PRETTY_ROOT_DIR="$(dirname "${embedDir}")" \
+  Install::structure "${configDir}/${subDir}" "${targetDir}"
 }
 
 envFileTemplate="$(
@@ -545,86 +522,6 @@ Framework::createTempFile() {
   mktemp -p "${TMPDIR:-/tmp}" -t "${1:-}.XXXXXXXXXXXX"
 }
 
-# @description install dir to given directory but backup it before
-# @arg $1 fromDir:String the source base directory
-# @arg $2 toDir:String the target base directory
-# @arg $3 dirName:String the directory relative to fromDir arg that will be copied
-# @arg $4 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
-# @arg $5 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
-# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
-# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target directory is in windows file system, overwrite it
-# @env USERNAME (default: root) the user name that will be used to set target files ownership
-# @env USERGROUP (default: root) the group name that will be used to set target files ownership
-# @env BASE_MNT_C String windows C drive base PATH
-# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
-# @env SUDO String allows to use custom sudo prefix command
-# @env BACKUP_BEFORE_INSTALL Boolean (default:1) backup directory before installing the dir
-# @exitcode 1 if source directory is not readable
-# @exitcode 2 if source directory backup failed
-# @exitcode 0 if copy successful or OVERWRITE_CONFIG_FILES=0 or
-# @exitcode 0 with warning message if OVERWRITE_CONFIG_FILES=0 and target directory exists
-# @exitcode 0 with warning message if CHANGE_WINDOWS_FILES=0 and target directory in C drive
-# @stderr diagnostics information is displayed, skipped information if OVERWRITE_CONFIG_FILES or CHANGE_WINDOWS_FILES are set to 1
-Install::dir() {
-  local fromDir="$1"
-  local toDir="$2"
-  local dirName="$3"
-  local userName="${4:-${USERNAME:-root}}"
-  local userGroup="${5:-${USERGROUP:-root}}"
-
-  if [[ ! -d "${fromDir}/${dirName}" || ! -r "${fromDir}/${dirName}" ]]; then
-    Log::displayError "cannot read source directory '${fromDir}/${dirName}'"
-    return 1
-  fi
-
-  # skip if OVERWRITE_CONFIG_FILES=0 and target dir exists
-  if [[ "${OVERWRITE_CONFIG_FILES:-0}" = "0" && -d "${toDir}/${dirName}" ]]; then
-    Log::displayWarning "Directory '${toDir}/${FILENAME}' exists - Skip install "
-    return 0
-  fi
-
-  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
-  if [[ "${CHANGE_WINDOWS_FILES:-0}" = "0" && "${toDir}" =~ ^${BASE_MNT_C} ]]; then
-    Log::displayWarning "Directory '${fromDir}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
-    return 0
-  fi
-
-  if [[ "${BACKUP_BEFORE_INSTALL:-1}" = "1" ]]; then
-    Backup::dir "${toDir}" "${dirName}" || return 2
-  fi
-
-  local destDir="${toDir}/${dirName}"
-  local shortDir="${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${dirName}"
-  Log::displayDebug "Installing directory '${destDir}' from '${shortDir}'"
-  (
-    ${SUDO:-} mkdir -p "${destDir}"
-    cd "${fromDir}/${dirName}" || exit 1
-    shopt -s dotglob # * will match hidden files too
-    if [[ -z "$(ls -A .)" ]]; then
-      Log::displaySkipped "directory '${shortDir}' is empty, no copy needed"
-      return 0
-    fi
-    if ! ${SUDO:-} cp -R -- * "${destDir}"; then
-      Log::displayError "unable to copy directory '${shortDir}' to '${destDir}'"
-      exit 1
-    fi
-    if ! ${SUDO:-} chown -R "${userName}":"${userGroup}" "${destDir}"; then
-      Log::displayError "unable to change directory '${destDir}' owners"
-      exit 1
-    fi
-    # chown all parent directory with same user
-    local fullDir="${fromDir}"
-    for parentFolder in ${dirName////$'\n'}; do
-      fullDir="${fullDir}/${parentFolder}"
-      if ! ${SUDO:-} chown "${userName}":"${userGroup}" "${fullDir}"; then
-        Log::displayError "unable to change parent directory '${fullDir}' owners"
-        exit 1
-      fi
-    done
-  ) || return 1
-  Log::displaySuccess "Installed directory '${destDir}' from '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${dirName}')"
-}
-
 # @description the command launch different actions(install, configure, test)
 # depending on the options selected
 # @see src/_includes/install.skip.options.tpl
@@ -649,7 +546,8 @@ InstallScripts::command() {
   local installStatus="0"
   sourceHook() {
     local hookName="$1"
-    hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh")"
+    # shellcheck disable=SC2154
+    hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh" "${embed_dir_hooks_dir}/${hookName}.sh")"
     if [[ -x "${hook}" ]]; then
       # shellcheck source=src/_binaries/SimpleTest/conf/preInstall.sh
       source "${hook}" || exit 1
@@ -1029,48 +927,6 @@ Assert::tty() {
   [[ -t 1 || -t 2 ]]
 }
 
-# @description Backup given directory in the base directory or in BACKUP_DIR directory
-# backup directory name is composed by following fields separated by _:
-#   - if BACKUP_DIR is not empty then escaped full dirname separated by @
-#   - date with format %Y%m%d_%H:%M:%S (Eg: 20240326_14:45:08)
-#   - .tgz extension
-#
-# @arg $1 string the base directory
-# @arg $2 string the directory to backup from base directory
-#
-# @env BACKUP_DIR String variable referencing backup directory
-# @env FRAMEWORK_ROOT_DIR String  used to remove this project directory from displayed backup path
-# @env SUDO String allows to use custom sudo prefix command
-#
-# @exitcode 1 if directory to backup does not exist, 0 if everything is OK
-# @exitcode 2 on backup failure
-#
-# @stderr message about where the directory is backed up
-# @require Linux::requireTarCommand
-Backup::dir() {
-  local escapedDirname backupFile
-  local fromDir="$1"
-  local dirname="$2"
-
-  if [[ ! -d "${fromDir}/${dirname}" ]]; then
-    Log::displayError "Backup::dir - directory '${fromDir}/${dirname}' doesn't exist"
-    return 1
-  fi
-  if [[ -z "${BACKUP_DIR:-}" ]]; then
-    escapedDirname="$(sed -e 's#^/##; s#/#@#g' <<<"${dirname}")"
-    backupFile="${fromDir}/${escapedDirname}-$(date +"%Y%m%d_%H:%M:%S").tgz"
-  else
-    escapedDirname="$(sed -e 's#^/##; s#/#@#g' <<<"${fromDir}/${dirname}")"
-    backupFile="${BACKUP_DIR}/${escapedDirname}-$(date +"%Y%m%d_%H:%M:%S").tgz"
-  fi
-
-  Log::displayInfo "Backup directory '${fromDir}/${dirname}' to ${backupFile}"
-  if ! ${SUDO:-} tar --same-owner -czf "${backupFile}" "${fromDir}/${dirname}" 2>/dev/null; then
-    Log::displayError "cannot backup '${fromDir}/${dirname}'"
-    return 2
-  fi
-}
-
 # @description select right file to load depending if file exists in this order:
 # - from conf.override
 # - from embedded file if provided
@@ -1092,6 +948,44 @@ Conf::dynamicConfFile() {
     Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
     return 1
   fi
+}
+
+# @description generate temp directory where default
+# and overridden directories have been merged
+#   - if overridden dir exists, create a new temp folder
+#     - copy all files from default folder
+#     - overwrite with files from overridden folder
+#     - (Later) delete files listed in .remove$$ file
+#     - return the path of this temp folder
+#   - else just return the default folder path
+# Then it is easier to pick overridden or default files/folders
+#
+# @arg $1 defaultDir:String usually the embed directory
+# @arg $2 overriddenDirPath:String the path to the directory
+#   that could be overridden
+# @exitcode 1 if default dir does not exist
+# @exitcode 2 if error during copy
+Conf::getOverriddenDir() {
+  local defaultDir="$1"
+  local overriddenDirPath="$2"
+
+  if [[ ! -d "${defaultDir}" ]]; then
+    Log::displayError "Directory ${defaultDir} does not exists"
+    return 1
+  fi
+  if [[ ! -d "${overriddenDirPath}" || -z "$(ls -A "${overriddenDirPath}")" ]]; then
+    Log::displayInfo "Conf::getOverriddenDir - directory ${overriddenDirPath} does not exist, keep default one ${defaultDir}"
+    echo "${defaultDir}"
+    return 0
+  fi
+  local tempDir
+  tempDir="$(mktemp -d)"
+  (
+    shopt -s dotglob
+    cp -R "${defaultDir}/." "${tempDir}"
+    cp -R "${overriddenDirPath}/." "${tempDir}"
+  ) || return 2
+  echo "${tempDir}"
 }
 
 # @description check validity of .env variables
@@ -1415,6 +1309,101 @@ Git::cloneOrPullIfNoChanges() {
   fi
 }
 
+# @description install dir to given directory but backup it before
+# @arg $1 fromDir:String the source base directory
+# @arg $2 toDir:String the target base directory
+# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing files
+# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target directory is in windows file system, overwrite it
+# @env USERNAME (default: ${USERNAME} if SUDO empty else root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: ${USERGROUP} if SUDO empty else root) the group name that will be used to set target files ownership
+# @env BASE_MNT_C String windows C drive base PATH
+# @env PRETTY_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_BEFORE_INSTALL Boolean (default:1) backup directory before installing the dir
+# @exitcode 1 if source directory is not readable
+# @exitcode 2 if error during structure replication
+# @exitcode 2 if error during file copy
+# @exitcode 0 if copy successful
+# @exitcode 0 with warning message if CHANGE_WINDOWS_FILES=0 and target directory in C drive
+# @stderr diagnostics information is displayed, skipped information if OVERWRITE_CONFIG_FILES or CHANGE_WINDOWS_FILES are set to 1
+Install::structure() {
+  local fromDir="$1"
+  local toDir="$2"
+  local userName="root"
+  local userGroup="root"
+  if [[ -z "${SUDO:-}" ]]; then
+    userName="${USERNAME:-root}"
+    userGroup="${USERGROUP:-root}"
+  fi
+
+  if [[ ! -d "${fromDir}" || ! -r "${fromDir}" ]]; then
+    Log::displayError "Install::structure - cannot read source directory '${fromDir}'"
+    return 1
+  fi
+
+  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
+  if [[ "${CHANGE_WINDOWS_FILES:-0}" = "0" && "${toDir}" =~ ^${BASE_MNT_C} ]]; then
+    Log::displayWarning "Install::structure - Directory '${fromDir}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
+    return 0
+  fi
+
+  # first replicate directory structure
+  # shellcheck disable=SC2317
+  createStructure() {
+    local dir="$1"
+    if ! ${SUDO:-} mkdir -p "${dir}"; then
+      Log::displayError "Install::structure - impossible to create directory '${dir}'"
+      exit 1
+    fi
+
+    if ! ${SUDO:-} chown "${userName}":"${userGroup}" "${dir}"; then
+      Log::displayError "Install::structure - impossible to update directory owner '${dir}' with ${userName}:${userGroup}"
+      exit 1
+    fi
+  }
+  local dir
+
+  (
+    local dir
+    shopt -s lastpipe
+    # -links 2 allows to exclude empty directories
+    # %P get file without initial directory
+    ${SUDO:-} find "${fromDir}" -depth -type d -links 2 -printf "%P\0" |
+      while read -rd '' dir; do
+        if ! createStructure "${toDir}/${dir}"; then
+          # error already reported by createStructure
+          exit 1
+        fi
+      done || {
+        if [[ "${PIPESTATUS[0]}" != "0" ]]; then
+          Log::displayError "Install::structure - replicated directory structure - find directories on '${fromDir}' resulted in an error"
+          exit 2
+        fi
+      }
+  ) || return 2
+
+  # for each file, copy it
+  (
+    local file
+    shopt -s lastpipe
+    ${SUDO:-} find "${fromDir}" -depth -type f -printf "%P\0" |
+      while read -rd '' file; do
+          if ! Install::file "${fromDir}/${file}" "${toDir}/${file}"; then
+            # error already reported by Install::file
+            exit 1
+          fi
+      done || {
+        if [[ "${PIPESTATUS[0]}" != "0" ]]; then
+          Log::displayError "Install::structure - replicated file structure - find files on '${fromDir}' resulted in an error"
+          exit 2
+        fi
+      }
+  ) || return 3
+
+  # shellcheck disable=SC2295
+  Log::displaySuccess "Installed directory '${toDir#${PRETTY_ROOT_DIR}/}' from '${fromDir#${PRETTY_ROOT_DIR}/}'"
+}
+
 declare -g FIRST_LOG_DATE LOG_LAST_LOG_DATE LOG_LAST_LOG_DATE_INIT LOG_LAST_DURATION_STR
 FIRST_LOG_DATE="$(date '+%s%3N')"
 LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
@@ -1445,26 +1434,6 @@ Log::computeDuration() {
     # shellcheck disable=SC2034
     LOG_LAST_DURATION_STR=""
   fi
-}
-
-# @description Display message using skip color (yellow)
-# @arg $1 message:String the message to display
-Log::displaySkipped() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    Log::computeDuration
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logSkipped "$1"
-}
-
-# @description Display message using success color (bg green/fg white)
-# @arg $1 message:String the message to display
-Log::displaySuccess() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    Log::computeDuration
-    echo -e "${__SUCCESS_COLOR}SUCCESS - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logSuccess "$1"
 }
 
 # @description Display given text on full line with TEST_COLOR style
@@ -1765,6 +1734,90 @@ Git::pullIfNoChanges() {
   )
 }
 
+# @description installs file to given directory
+#
+# callbacks parameters `${fromFile} ${targetFile} $@`
+# @arg $1 fromFile - original file to copy
+# @arg $2 targetFile - target file
+# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
+# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
+# @arg $5 successCallback:Function the callback to call when file is installed successfully, by default setUserRights callback is called
+# @arg $6 failureCallback:Function the callback to call when file installation has failed, by default unableToCopyCallback callback is called
+# @arg $@ callbacksParams:String[] additional parameters passed to callbacks
+# @exitcode 1 if fromFile is not readable
+# @exitcode 2 if backup file failure
+# @exitcode 3 if copy failure
+# @exitcode 0 on success or if OVERWRITE_CONFIG_FILES=0
+# @exitcode 0 on success or if CHANGE_WINDOWS_FILES=0 and target file is a windows file
+# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
+# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target file is in windows file system, overwrite it
+# @env USERNAME (default: root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @env BASE_MNT_C String windows C drive base PATH
+# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_BEFORE_INSTALL Boolean (default: 1) backup file before installing the file
+Install::file() {
+  local fromFile="$1"
+  local targetFile="$2"
+  local userName="${3:-${USERNAME:-root}}"
+  local userGroup="${4:-${USERGROUP:-root}}"
+  local successCallback=${5:-Install::setUserRightsCallback}
+  local failureCallback=${6:-Install::unableToCopyCallback}
+  shift 6 || true
+
+  if [[ ! -f "${fromFile}" || ! -r "${fromFile}" ]]; then
+    Log::displayError "cannot read source file '${fromFile}'"
+    return 1
+  fi
+
+  # skip if OVERWRITE_CONFIG_FILES is 0 and target file exists
+  if [[ "${OVERWRITE_CONFIG_FILES}" = "0" && -f "${targetFile}" ]]; then
+    Log::displayWarning "File '${targetFile}' exists - Skip install (because OVERWRITE_CONFIG_FILES=0 in .env file)"
+    return 0
+  fi
+
+  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
+  if [[ "${CHANGE_WINDOWS_FILES}" = "0" && "${targetFile}" =~ ^${BASE_MNT_C} ]]; then
+    Log::displayWarning "File '${targetFile}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
+    return 0
+  fi
+
+  local targetDir
+  targetDir="$(dirname "${targetFile}")"
+  if [[ ! -d "${targetDir}" ]]; then
+    ${SUDO:-} mkdir -p "${targetDir}"
+    ${SUDO:-} chown "${userName}":"${userGroup}" "${targetDir}"
+  fi
+  local fromDir
+  fromDir="$(dirname "${fromFile}")"
+  local fromFilename
+  fromFilename="$(basename "${fromFile}")"
+
+  local prettyFromDir
+  # shellcheck disable=SC2295
+  prettyFromDir="${fromDir#${PRETTY_ROOT_DIR:-${FRAMEWORK_ROOT_DIR}}/}"
+  if diff -q "${fromFile}" "${targetFile}" &>/dev/null; then
+    Log::displayStatus "No changes detected. No need to update '${targetFile}' from '${prettyFromDir}/${fromFilename}'"
+    return 0
+  fi
+
+  if [[ "${BACKUP_BEFORE_INSTALL:-1}" = "1" ]] ; then
+    Backup::file "${targetFile}" || return 2
+  fi
+
+  if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
+    # shellcheck disable=SC2295
+    Log::displaySuccess "Installed file '${targetFile}' from '${prettyFromDir}/${fromFilename}'"
+    ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${prettyFromDir}" "${fromFilename}"
+  else
+    # shellcheck disable=SC2295
+    Log::displayError "unable to copy file '${targetFile}' from '${fromDir#${FRAMEWORK_ROOT_DIR}/}/${fromFilename}'"
+    ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${prettyFromDir}" "${fromFilename}"
+    return 3
+  fi
+}
+
 # @description apt-get install
 # @arg $@ softwares:String[] list of softwares to install
 # @feature Retry::default
@@ -1817,20 +1870,24 @@ Linux::Wsl::cachedWslvar() {
   Cache::getPropertyValue "${tempEnvFile}" "$1" Linux::Wsl::originalWslvar "$@"
 }
 
-# @description log message to file
+# @description Display message using skip color (yellow)
 # @arg $1 message:String the message to display
-Log::logSkipped() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SKIPPED}" "$1"
+Log::displaySkipped() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    Log::computeDuration
+    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
+  Log::logSkipped "$1"
 }
 
-# @description log message to file
+# @description Display message using success color (bg green/fg white)
 # @arg $1 message:String the message to display
-Log::logSuccess() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SUCCESS}" "$1"
+Log::displaySuccess() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    Log::computeDuration
+    echo -e "${__SUCCESS_COLOR}SUCCESS - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
+  Log::logSuccess "$1"
 }
 
 # @description extract stats form log
@@ -1916,6 +1973,32 @@ Assert::validVariableName() {
   echo "$1" | LC_ALL=POSIX grep -E -q '(^[a-z][A-Za-z_0-9:]+$)|(^[A-Z_][A-Z_0-9:]+$)'
 }
 
+# @description Backup given file in the same directory or in BACKUP_DIR directory
+# backup file name is composed by following fields separated by -:
+#   - if BACKUP_DIR is not empty then escaped dirname separated by @
+#   - filename(without path)
+#   - date with format %Y%m%d_%H:%M:%S (Eg: 20240326_14:45:08)
+# @arg $1 file:String the file to backup
+# @stderr messages about backup file location
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_DIR if not set backup the file in the same directory as original file
+# @exitcode 1 on copy failure
+Backup::file() {
+  local file="$1"
+  local backupFile dirname escapedDirname
+  if [[ -f "${file}" ]]; then
+    dirname="$(dirname "${file}")"
+    escapedDirname="$(sed -e 's#^/##; s#/#@#g' <<<"${dirname}")"
+    if [[ -z "${BACKUP_DIR:-}" ]]; then
+      backupFile="${dirname}/$(basename "${file}")-$(date +"%Y%m%d_%H:%M:%S")"
+    else
+      backupFile="${BACKUP_DIR}/${escapedDirname}@$(basename "${file}")-$(date +"%Y%m%d_%H:%M:%S")"
+    fi
+    Log::displayInfo "Backup file '${file}' to ${backupFile}"
+    ${SUDO:-} cp "${file}" "${backupFile}"
+  fi
+}
+
 # @description get property value from file
 # if not present compute it using propertyNotFoundCallback (if provided) and store it in property file
 # @arg $1 propertyFile:String the file in which the property will be searched
@@ -1949,6 +2032,42 @@ Cache::getPropertyValue() {
   return 1
 }
 
+# @description install callback
+#   set file with root ownership and execution bit
+# @arg $1 fromFile:String
+# @arg $2 targetFile:String
+# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
+# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
+# @env USERNAME (default: root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode 1 on any failure
+# @see Install::file
+Install::setUserRightsCallback() {
+  # shellcheck disable=SC2034 # $1 not used
+  local fromFile="$1"
+  local targetFile="$2"
+  local userName="${3:-${USERNAME:-root}}"
+  local userGroup="${4:-${USERGROUP:-root}}"
+
+  ${SUDO:-} chown "${userName}":"${userGroup}" "${targetFile}"
+}
+
+# @description install callback
+#   default callback used called when file copy has failed
+# @arg $1 fromFile:String
+# @arg $2 targetFile:String
+# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @exitcode 1 always fail
+# @stderr diagnostics information is displayed
+# @see Install::file
+Install::unableToCopyCallback() {
+  local fromDir="$1"
+  local fileName="$2"
+  local targetFile="$3"
+  Log::fatal "unable to copy file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fileName}' to '${targetFile}'"
+}
+
 # @description retrieve wslpath using cache (cache is refreshed every day)
 # @arg $@ args:String[] arguments to pass to wslpath
 # @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
@@ -1972,6 +2091,33 @@ Linux::Wsl::cachedWslpath() {
 # @require Linux::Wsl::requireWsl
 Linux::Wsl::originalWslvar() {
   wslvar "$@" | sed -z '$ s/[\r\n]$//'
+}
+
+# @description Display message using info color (blue) but warning level
+# @arg $1 message:String the message to display
+Log::displayStatus() {
+  local type="${2:-STATUS}"
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
+    Log::computeDuration
+    echo -e "${__INFO_COLOR}${type}  - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logStatus "$1" "${type}"
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logSkipped() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SKIPPED}" "$1"
+  fi
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logSuccess() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SUCCESS}" "$1"
+  fi
 }
 
 # @description Retry a command 5 times with a delay of 15 seconds between each attempt
@@ -2089,6 +2235,14 @@ Linux::getDistributorId() {
   lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
 }
 
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logStatus() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_WARNING)); then
+    Log::logMessage "${2:-STATUS}" "$1"
+  fi
+}
+
 # @description Retry a command several times depending on parameters
 # @arg $1 maxRetries:int    $1 max retries
 # @arg $2 delay:int between attempt
@@ -2128,9 +2282,9 @@ Retry::parameterized() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/bash_tools_dir" "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"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "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"
 
-declare -gx embed_dir_bash_tools_dir="${TMPDIR:-/tmp}/bash_tools_dir"
+declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
 facade_main_BashToolssh() {
 
@@ -2174,7 +2328,7 @@ fi
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/BashTools/conf" as bash_tools_dir
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/BashTools/conf" as conf_dir
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -2967,17 +3121,16 @@ testInstall() {
 }
 
 configure() {
-  local configDir
   # shellcheck disable=SC2154
-  configDir="$(
-    Conf::getOverriddenDir \
-      "${embed_dir_bash_tools_dir}" \
-      "${CONF_OVERRIDE_DIR}/BashTools"
-  )"
-  OVERWRITE_CONFIG_FILES=1 Install::dir \
-    "${configDir}/.bash-dev-env" "${USER_HOME}/.bash-dev-env" "aliases.d" || return 1
-  OVERWRITE_CONFIG_FILES=0 Install::dir \
-    "${configDir}" "${USER_HOME}" ".bash-tools" || return 1
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-dev-env"
+
+  OVERWRITE_CONFIG_FILES=1 Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-tools"
 }
 testConfigure() {
   local -i failures=0
