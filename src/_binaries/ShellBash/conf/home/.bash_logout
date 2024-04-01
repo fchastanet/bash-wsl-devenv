@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+###############################################################################
+# AVOID EDITING THIS FILE 
+# PREFER to add files in dedicated sections of ~/.bash-dev-env
+# CHECK ~/.bash-dev-env/README.md
+###############################################################################
 
 # clean history at exit by removing useless commands
 

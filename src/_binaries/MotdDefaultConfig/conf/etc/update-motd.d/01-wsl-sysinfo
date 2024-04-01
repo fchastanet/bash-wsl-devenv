@@ -1,4 +1,8 @@
 #!/bin/bash
+###############################################################################
+# DO NOT EDIT, THIS FILE CAN BE UPDATED WITHOUT NOTICE
+###############################################################################
+
 # pam_motd does not carry the environment
 if [[ -f /etc/default/locale ]]; then
   source /etc/default/locale

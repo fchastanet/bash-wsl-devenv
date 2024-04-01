@@ -2438,7 +2438,7 @@ Log::logStatus() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+3TTU+DMBgHcM79FI/Mgx6AllF6MB5NPOy247IDjuIasVvGixnqdxd8i1niWOI2Y/z/LiVtnxb4t37gHBxvKSm7VijJv7YfHBHFPAxlrKKuX0VCOiQP/2qOUxVlsiJyHop867y+8T/KD/ybpJh7qa49beuDnIad8xci7J65ECqMkf8xbOZvbKlXyaw0tfbTPZ2GnfPnKg5V1OYfSTFE/sewPf+syfxi/tM9+vIfKvl+/3k8fL3/Mg4jh/g+PrDPP89/cBLcGBt0Z4CxAY11SdWS2tzpTq+pHUqNvS0osSllVdOsaba4X+a6NAvLTEaTCbmnj+Prq9Ho2aVLcj9Xc2k6vaByri0j0nWStxPPunU9rxs+d5nOv12g2Vrf9JVnZqP+ra7rpicqFtVqpllm2G//fAAAAAAAAAAAAAAAAAAAgD15AT3oLI0AKAAA"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+3Uy0rDQBQG4KzzFMfUhYK5OkkW4qI2kQZKKzTFRekibSZ2MKaluUijvrsZiiIFm4JpRTzfZsLcMpP/EEUVDk6r2KbJW902ta/tB0EnlmYYpmUT3m8T3RTAPPzRBCFPs2AFIDyn8c55deN/lKIq0yCdyyEtZJoUB6mGvfPXdYM/a7puGxbmfwzb+bMko6tglrGCKmFD1bB3/pptGTap8iemfon5H8Pu/KMyUtL5T99Rl79tkE3+pIrf4vmbFqn+/1oTF6zzz/NvnahTlqi8BsRWs8QWOAPoD3xwHc+/AL/rDeHW67nQaffhxoXRndP2XQfuPb87GPl8qtdxGz9GdY4hzSBfQlXO8EjXUN04ZMlDCkESQpSX5Rpmi6dlTDO2SEQWwXgM0unLsOv2em8SXIP0+ZEkmEyuIJvTRASgRRBXE8/4vrLMh88lkcbfblDuXF/WLY/Y1vrNOt4Nr5Au8tWMihETf7umEEIIIYQQQgghhBBCCCGEEEIIHd8734gjLgAoAAA="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 

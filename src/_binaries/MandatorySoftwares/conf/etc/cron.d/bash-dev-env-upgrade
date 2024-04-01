@@ -1,3 +1,6 @@
+###############################################################################
+# DO NOT EDIT, THIS FILE CAN BE UPDATED WITHOUT NOTICE
+###############################################################################
 # /etc/cron.d/upgrade: crontab entries for the bash-dev-env upgrade
 
 SHELL=/bin/bash

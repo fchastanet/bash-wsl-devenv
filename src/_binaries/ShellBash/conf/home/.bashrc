@@ -1,4 +1,10 @@
 #!/bin/bash
+###############################################################################
+# AVOID EDITING THIS FILE 
+# PREFER to add files in dedicated sections of ~/.bash-dev-env
+# CHECK ~/.bash-dev-env/README.md
+###############################################################################
+
 # ~/.bashrc: executed by bash(1) for non-login shells.
 # Gets evaluated in all occasion
 # For fast-evaluation environment variable and code for your user-only

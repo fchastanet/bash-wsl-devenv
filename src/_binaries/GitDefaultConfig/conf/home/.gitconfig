@@ -8,9 +8,6 @@
   excludesFile = ~/.bash-dev-env/GitDefaultConfig/gitignore
   # Don't consider trailing space change as a cause for merge conflicts
   whitespace = -trailing-space
-[include]
-  # this .gitconfig is auto-generated
-  path = ~/.bash-dev-env/GitDefaultConfig/.gitconfig
 [init]
   defaultBranch = master
   templatedir = ~/.bash-dev-env/GitDefaultConfig/pre-commit-template

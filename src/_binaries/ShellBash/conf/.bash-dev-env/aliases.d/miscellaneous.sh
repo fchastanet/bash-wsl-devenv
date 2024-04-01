@@ -1,4 +1,7 @@
 #!/bin/bash
+###############################################################################
+# DO NOT EDIT, THIS FILE CAN BE UPDATED WITHOUT NOTICE
+###############################################################################
 
 # Add an "alert" alias for long running commands.  Use like so:
 #   sleep 10; alert

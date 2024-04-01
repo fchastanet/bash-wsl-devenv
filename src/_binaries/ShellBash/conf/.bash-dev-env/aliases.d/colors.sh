@@ -1,4 +1,7 @@
 #!/bin/bash
+###############################################################################
+# DO NOT EDIT, THIS FILE CAN BE UPDATED WITHOUT NOTICE
+###############################################################################
 
 # enable color support of ls and also add handy aliases
 if [[ -x /usr/bin/dircolors && -r "${HOME}/.dir_colors" ]]; then

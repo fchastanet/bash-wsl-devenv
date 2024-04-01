@@ -1,4 +1,7 @@
 #!/bin/bash
+###############################################################################
+# DO NOT EDIT, THIS FILE CAN BE UPDATED WITHOUT NOTICE
+###############################################################################
 
 # in order to log in to asw ecr - private docker registry
 if command -v aws &>/dev/null; then
