@@ -126,8 +126,8 @@ testConfigure() {
   Assert::fileExists "${USER_HOME}/.bash-dev-env/completions.d/makeTargets.sh" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bash-dev-env/completions.d/DISCLAIMER.md" || ((++failures))
 
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/00_bash_prompt.sh" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/bash_navigation.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/bash_prompt.sh" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/DISCLAIMER.md" || ((++failures))
 
   Assert::fileExists "${USER_HOME}/.bash-dev-env/profile.d/DISCLAIMER.md" || ((++failures))

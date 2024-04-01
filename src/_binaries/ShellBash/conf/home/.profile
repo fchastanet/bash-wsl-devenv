@@ -42,24 +42,25 @@ fi
 # execute bash logout when bash window is closed
 if [[ -f "${HOME}/.bash_logout" ]]; then
   exitSession() {
-    #shellcheck source=conf/ShellBash/.bash_logout
+    #shellcheck source=src/_binaries/ShellBash/conf/home/.bash_logout
     source "${HOME}/.bash_logout"
   }
   trap exitSession HUP
 fi
 
 if [[ -d "${HOME}/.bash-dev-env/profile.d" ]]; then
-  for i in "${HOME}/.bash-dev-env/profile.d"/*.sh; do
-    if [[ -f "${i}" ]]; then
-      # shellcheck source=conf/NodeNpm/.bash-dev-env/profile.d/n_path.sh
-      source "${i}"
+  while IFS= read -r file ; do
+    if [[ -f "${file}" ]]; then
+      # shellcheck source=src/_binaries/NodeNpm/conf/.bash-dev-env/profile.d/n_path.sh
+      source "${file}"
     fi
-  done
-  unset i
+  done < <(find "${HOME}/.bash-dev-env/profile.d" -name '*.sh' -printf '%P\n' 2>/dev/null | sort -n)
+  unset file
+
 fi
 
 # include .bashrc if it exists and if running bash
 if [[ -n "${BASH_VERSION}" && -f "${HOME}/.bashrc" ]]; then
-  #shellcheck source=conf/ShellBash/.bashrc
+  #shellcheck source=src/_binaries/ShellBash/conf/home/.bashrc
   source "${HOME}/.bashrc"
 fi

@@ -10,7 +10,8 @@ export LANG
 display_date_ago() {
   (
     tempHistory=$(mktemp -p /tmp -d)
-    trap 'rm -Rf ${tempHistory}' EXIT INT TERM ABRT
+    # shellcheck disable=SC2154
+    trap 'rc=$?; rm -Rf "${tempHistory}" || true; exit "${rc}"' EXIT INT TERM ABRT
     cd "${tempHistory}" || exit 1
     git init -q
     git -c user.email=0 -c user.name=0 commit -q -m 0 --allow-empty --date="$1"

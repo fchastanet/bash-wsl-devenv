@@ -87,12 +87,14 @@ export TMPDIR
 # temp dir cleaning
 # shellcheck disable=SC2317
 cleanOnExit() {
+  local rc=$?
   if [[ "${KEEP_TEMP_FILES:-0}" = "1" ]]; then
     Log::displayInfo "KEEP_TEMP_FILES=1 temp files kept here '${TMPDIR}'"
   elif [[ -n "${TMPDIR+xxx}" ]]; then
     Log::displayDebug "KEEP_TEMP_FILES=0 removing temp files '${TMPDIR}'"
     rm -Rf "${TMPDIR:-/tmp/fake}" >/dev/null 2>&1
   fi
+  exit "${rc}"
 }
 trap cleanOnExit EXIT HUP QUIT ABRT TERM
 
@@ -565,9 +567,11 @@ InstallScripts::command() {
       startDate="$(date +%s)"
       # shellcheck disable=SC2317
       computeStats() {
+        local rc=$?
         Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
         Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
         Stats::statusLine "${statsFile}" "Installation ${scriptName}"
+        exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
 
@@ -589,9 +593,11 @@ InstallScripts::command() {
       startDate="$(date +%s)"
       # shellcheck disable=SC2317
       computeStats() {
+        local rc=$?
         Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
         Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
         Stats::statusLine "${statsFile}" "Test Install ${scriptName}"
+        exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
 
@@ -617,9 +623,11 @@ InstallScripts::command() {
       startDate="$(date +%s)"
       # shellcheck disable=SC2317
       computeStats() {
+        local rc=$?
         Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
         Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
         Stats::statusLine "${statsFile}" "Configuration ${scriptName}"
+        exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
 
@@ -646,9 +654,11 @@ InstallScripts::command() {
       startDate="$(date +%s)"
       # shellcheck disable=SC2317
       computeStats() {
+        local rc=$?
         Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
         Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
         Stats::statusLine "${statsFile}" "Test Configuration ${scriptName}"
+        exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
 
@@ -2331,9 +2341,11 @@ if [[ -f "${sudoerFile}" ]]; then
   true
 else
   cleanSudoer() {
+    local rc=$?
     if [[ -f "${sudoerFile}" ]]; then
       ${SUDO:-sudo} rm -f "${sudoerFile}" || true
     fi
+    exit "${rc}"
   }
   trap cleanSudoer EXIT HUP QUIT ABRT TERM
 
@@ -3127,7 +3139,8 @@ install() {
   else
     # install composer last version
     (
-      trap 'rm -f composer-setup.php || true' EXIT
+      # shellcheck disable=SC2154
+      trap 'rc=$?; rm -f composer-setup.php || true; exit "${rc}"' EXIT
       cd /tmp || exit 1
       EXPECTED_CHECKSUM="$(php -r 'copy("https://composer.github.io/installer.sig", "php://stdout");')"
       php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"

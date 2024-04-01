@@ -12,7 +12,8 @@ history -n
 
 # do not store some simple commands
 tempHistory=$(mktemp -p /tmp)
-trap 'rm -f ${tempHistory}' EXIT
+# shellcheck disable=SC2154
+trap 'rc=$?; rm -f ${tempHistory} || true; exit "${rc}"' EXIT
 history | sort -k2 -k1nr | uniq -f1 | sort -n | cut -c8- | grep -v -E "^ls|^ll|^pwd |^ |^exit|^mc$|^su$|^df|^clear|^ps|^history|^env|^#|^vi|^exit" >"${tempHistory}"
 
 # clear history
