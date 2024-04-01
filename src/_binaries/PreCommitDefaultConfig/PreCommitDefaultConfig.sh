@@ -75,7 +75,8 @@ testConfigure() {
     (
       local tempDir
       tempDir="$(mktemp -d)"
-      trap 'rm -Rf "${tempDir}" &>/dev/null || true' EXIT INT TERM ABRT
+      # shellcheck disable=SC2154
+      trap 'rc=$?; rm -Rf "${tempDir}" &>/dev/null || true; exit "${rc}"' EXIT INT TERM ABRT
       ${callback} "${tempDir}"
       if [[ ! -f "${tempDir}/.git/hooks/pre-commit" ]]; then
         Log::displayError "pre-commit hook has not been installed during ${callback}"
@@ -103,7 +104,8 @@ testConfigure() {
   (
     local tempDir
     tempDir="$(mktemp -d)"
-    trap 'rm -Rf "${tempDir}" &>/dev/null || true' EXIT INT TERM ABRT
+    # shellcheck disable=SC2154
+    trap 'rc=$?; rm -Rf "${tempDir}" &>/dev/null || true; exit "${rc}"' EXIT INT TERM ABRT
     cd "${tempDir}"
     git init
     git checkout -b fix/1867

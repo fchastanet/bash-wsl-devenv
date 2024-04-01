@@ -16,7 +16,8 @@ alias l='ls -CF'
 
 # directory size
 function folderSize() {
-  sudo find "${1:-.}" -maxdepth 1 -mindepth 1 -print0 | xargs -0 -P 10 -L 1 sudo du -hs
+  sudo find "${1:-.}" -maxdepth 1 -mindepth 1 -print0 | 
+    xargs -0 -P 10 -L 1 sudo du -hsx
 }
 alias folder-size='folderSize'
 alias folder-size-sorter="folderSize | sort -h"

@@ -8,9 +8,11 @@ if [[ -f "${sudoerFile}" ]]; then
   true
 else
   cleanSudoer() {
+    local rc=$?
     if [[ -f "${sudoerFile}" ]]; then
       ${SUDO:-sudo} rm -f "${sudoerFile}" || true
     fi
+    exit "${rc}"
   }
   trap cleanSudoer EXIT HUP QUIT ABRT TERM
 

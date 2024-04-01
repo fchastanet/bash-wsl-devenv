@@ -56,13 +56,13 @@ if [[ "$-" =~ .*i.* ]]; then
   fi
 
   if [[ -d "${HOME}/.bash-dev-env/aliases.d" ]]; then
-    for i in "${HOME}/.bash-dev-env/aliases.d"/*.sh; do
-      if [[ -f "${i}" ]]; then
-        # shellcheck source=conf/MandatorySoftwares/.bash-dev-env/aliases.d/bash-dev-env.sh
-        source "${i}"
+    while IFS= read -r file ; do
+      if [[ -f "${file}" ]]; then
+        # shellcheck source=src/_binaries/MandatorySoftwares/conf/.bash-dev-env/aliases.d/bash-dev-env.sh
+        source "${file}"
       fi
-    done
-    unset i
+    done < <(find "${HOME}/.bash-dev-env/aliases.d" -name '*.sh' -printf '%P\n' 2>/dev/null | sort -n)
+    unset file
   fi
 
   # enable programmable completion features (you don't need to enable
@@ -79,25 +79,25 @@ if [[ "$-" =~ .*i.* ]]; then
       completion_loaded=1
     fi
     if [[ "${completion_loaded}" = "1" && -d "${HOME}/.bash-dev-env/completions.d" ]]; then
-      for i in "${HOME}/.bash-dev-env/completions.d"/*.sh; do
-        if [[ -f "${i}" ]]; then
-          # shellcheck source=conf/ShellBash/.bash-dev-env/completions.d/makeTargets.sh
-          source "${i}"
+      while IFS= read -r file ; do
+        if [[ -f "${file}" ]]; then
+          # shellcheck source=src/_binaries/ShellBash/conf/.bash-dev-env/completions.d/makeTargets.sh
+          source "${file}"
         fi
-      done
-      unset i
+      done < <(find "${HOME}/.bash-dev-env/completions.d" -name '*.sh' -printf '%P\n' 2>/dev/null | sort -n)
+      unset file
     fi
     unset completion_loaded
   fi
 
   if [[ -d "${HOME}/.bash-dev-env/interactive.d" ]]; then
-    for i in "${HOME}/.bash-dev-env/interactive.d"/*.sh; do
-      if [[ -f "${i}" ]]; then
-        # shellcheck source=conf/ShellBash/.bash-dev-env/interactive.d/bash_navigation.sh
-        source "${i}"
+    while IFS= read -r file ; do
+      if [[ -f "${file}" ]]; then
+        # shellcheck source=src/_binaries/ShellBash/conf/.bash-dev-env/interactive.d/bash_navigation.sh
+        source "${file}"
       fi
-    done
-    unset i
+    done < <(find "${HOME}/.bash-dev-env/interactive.d" -name '*.sh' -printf '%P\n' 2>/dev/null | sort -n)
+    unset file
   fi
 
 fi

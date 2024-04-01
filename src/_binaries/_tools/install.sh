@@ -30,9 +30,10 @@ trap 'err_report $LINENO' ERR
 declare -g summaryDisplayed="0"
 declare -g installResultCode=0
 summary() {
+  local rc=$?
   local startDate="$1"
   if [[ "${summaryDisplayed}" = "1" ]]; then
-    return 0
+    return "${rc}"
   fi
   UI::drawLine '-'
   Log::headLine "" "Important messages recapitulative"
@@ -63,6 +64,7 @@ summary() {
   else
     Log::displayError "Installation error, check logs /var/log/automatic-upgrade"
   fi
+  exit "${rc}"
 }
 trap 'summary "${INSTALL_START}"' EXIT INT TERM ABRT
 
@@ -119,6 +121,7 @@ executeScripts() {
       installStatus="0"
       (
         aggregateStat() {
+          local rc=$?
           local -a statFiles=()
           if [[ "${SKIP_INSTALL}" = "0" ]] &&
             SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isInstallImplemented; then
@@ -141,6 +144,7 @@ executeScripts() {
             fi
           fi
           Stats::aggregateGlobalStats "${LOGS_DIR:-#}/global.stat" "${configCount}" "${statFiles[@]}"
+          exit "${rc}"
         }
         trap 'aggregateStat' EXIT INT TERM ABRT
 
