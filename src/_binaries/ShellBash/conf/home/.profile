@@ -1,4 +1,9 @@
 #!/bin/bash
+###############################################################################
+# AVOID EDITING THIS FILE 
+# PREFER to add files in dedicated sections of ~/.bash-dev-env
+# CHECK ~/.bash-dev-env/README.md
+###############################################################################
 
 # ~/.profile: executed by the command interpreter for login shells.
 # This file is not read by bash(1), if ~/.bash_profile or ~/.bash_login

@@ -1,4 +1,7 @@
 #!/bin/bash
+###############################################################################
+# DO NOT EDIT, THIS FILE CAN BE UPDATED WITHOUT NOTICE
+###############################################################################
 
 # directory navigation (check .inputrc for keyboard shortcuts)
 alias ..='cd ..'

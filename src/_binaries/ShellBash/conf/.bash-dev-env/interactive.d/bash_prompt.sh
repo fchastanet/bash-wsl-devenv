@@ -1,4 +1,7 @@
 #!/bin/bash
+###############################################################################
+# DO NOT EDIT, THIS FILE CAN BE UPDATED WITHOUT NOTICE
+###############################################################################
 
 # ensure last command exit code is caught
 if [[ ! ${PROMPT_COMMAND} =~ ^LAST_EXIT_CODE=.* ]]; then

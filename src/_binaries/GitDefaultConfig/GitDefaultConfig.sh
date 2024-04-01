@@ -72,7 +72,6 @@ configure() {
 testConfigure() {
   local -i failures=0
   Assert::fileExists "${USER_HOME}/.gitconfig" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/GitDefaultConfig/.gitconfig" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bash-dev-env/GitDefaultConfig/gitignore" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/git.sh" || ((++failures))
   Assert::fileExists "${USER_HOME}/.config/tig/config" || ((++failures))

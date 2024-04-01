@@ -1,4 +1,7 @@
 #!/bin/bash
+###############################################################################
+# DO NOT EDIT, THIS FILE CAN BE UPDATED WITHOUT NOTICE
+###############################################################################
 
 # deactivate motd if needed
 if [[ "${SHOW_MOTD}" = "1" ]]; then

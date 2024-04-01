@@ -2284,7 +2284,7 @@ Log::logStatus() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+3VTWuDMBwG8Jz9FJnbqdCYf9IoCB52GPQytsNupQy7WiyIirpuY+13n9kLjNG1hdWOdc/vEtQHY3iiCo91TrYCY+xIgZGfxw+MBr5UygREuj0fDEgybrp/NMbu6yauOGcPdbYxt+36HyU8MYnrtD9NFv0kX3SyG3bun0gprZgkCrRB/4fwtf+yKmbzLBHTPe6EXfsnXxlDbY60rzX6P4Tv+y+fmrTIb8u4SUWd/mSObf2TUW/9K93+A+z77xv7/Zf7WuQm/7z/0xNvMs89uwccZzTi4dnz9fnNcBXyKOI9tz0cXl1erDyRFXdxZrOh2+PjMV8uuQ1G7prE+z1cJ3ksi6p5DTq/vVIAAAAAAAAAAAAAAAAAAIDj9QK3V/54ACgAAA=="
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+3UXUuDUBwGcK/9FP9cV6Op57ijMNjFmoZCzUGOLsaIrRkOZMq0VbR997QXiKhtkFtEz+/moD7o0eccVU3aO71gCVGOzBL6x/GdxJqmzrmwGDOK81aT6RKJ/U9Nku6yfLwgku6zeGNu2/U/StXUyTiLGtNw2Qjny72shp37Z4xzg0s6Y5Yh0P8hfO4/XSS3szhUpxWuhF37ZyYXghU5ZpiGgf4P4fv+08c8SubX6TiP1Cz6yTO29S909rr/mxYXern/TcGL/79e1Utu8s/7rx1pk9lcK9eAXKuWXCPbp54fkGN7wQkFrndJZ965Q91Oj04dGvTtTuDYdOUFrj8IyqjXdSqfhjwcUuv4qd8J3HWL2m2qK8Wh6184a02Nk5txXH6CllKn0YhWKyqDbeWLxNs9FDl8SJNF/hKUf7tAAAAAAAAAAAAAAAAAAACAwjO9ksudACgAAA=="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
