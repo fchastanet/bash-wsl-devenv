@@ -16,7 +16,8 @@ helpDescription() {
 }
 
 fortunes() {
-  fortunes+=("Python - virtualenv is automatically loaded by ~/.bash-dev-env")
+  echo "Python - virtualenv is automatically loaded by ~/.bash-dev-env"
+  echo "%"
 }
 dependencies() { :; }
 helpVariables() { :; }

@@ -21,7 +21,8 @@ dependencies() {
 }
 
 fortunes() {
-  fortunes+=("GitDefaultConfig - default main branch is set to $(git config --global --get init.defaultBranch), you can change it in your ~/.gitconfig")
+  echo "GitDefaultConfig - default main branch is set to $(git config --global --get init.defaultBranch), you can change it in your ~/.gitconfig"
+  echo "%"
 }
 
 # jscpd:ignore-start

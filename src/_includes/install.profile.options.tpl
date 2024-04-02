@@ -69,7 +69,7 @@ commandCallback() {
       IFS=$'\n' Profiles::loadProfile "${BASH_DEV_ENV_ROOT_DIR}/profiles" "${PROFILE}"
     )
   fi
-  if [[ "${SKIP_DEPENDENCIES}" = "0" ]]; then
+  if [[ "${SKIP_DEPENDENCIES:-0}" = "0" ]]; then
     CONFIG_LIST=("${CONFIG_LIST[@]}")
 
     declare rootDependency="your software selection"

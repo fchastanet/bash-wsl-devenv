@@ -39,7 +39,8 @@ fortunes() {
   currentUserShell="$(grep "^${USERNAME}:" /etc/passwd | awk -F ":" '{print $7}')"
   if [[ "${currentUserShell}" = "/usr/bin/bash" ]]; then
     if command -v zsh &>/dev/null; then
-      fortunes+=("Bash is set as default shell, you can switch to zsh using 'chsh -s /usr/bin/zsh'")
+      echo "Bash is set as default shell, you can switch to zsh using 'chsh -s /usr/bin/zsh'"
+      echo "%"
     fi
   fi
 }
@@ -126,7 +127,7 @@ testConfigure() {
   Assert::fileExists "${USER_HOME}/.bash-dev-env/completions.d/makeTargets.sh" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bash-dev-env/completions.d/DISCLAIMER.md" || ((++failures))
 
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/00_bash_prompt.sh" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/zzz_bash_prompt.sh" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/bash_navigation.sh" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/DISCLAIMER.md" || ((++failures))
 

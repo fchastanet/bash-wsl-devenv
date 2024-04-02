@@ -3274,9 +3274,12 @@ breakOnTestFailure() { :; }
 
 fortunes() {
   if command -v fzf &>/dev/null; then
-    fortunes+=("Fzf -- fzf - Use CTRL-T - Paste the selected file path(s) into the command line")
-    fortunes+=("Fzf -- fzf - Use CTRL-R - search command line from zsh/bash history")
-    fortunes+=("Fzf -- fzf - Use ALT-C - easily select sub directory of current directory")
+    echo "Fzf -- fzf - Use CTRL-T - Paste the selected file path(s) into the command line"
+    echo "%"
+    echo "Fzf -- fzf - Use CTRL-R - search command line from zsh/bash history"
+    echo "%"
+    echo "Fzf -- fzf - Use ALT-C - easily select sub directory of current directory"
+    echo "%"
   fi
 }
 

@@ -12,7 +12,8 @@ scriptName() {
 
 fortunes() {
   if command -v bat &>/dev/null; then
-    fortunes+=("Bat - Use bat command to pre-visualize one or multiple files")
+    echo "Bat - Use bat command to pre-visualize one or multiple files"
+    echo "%"
   fi
 }
 

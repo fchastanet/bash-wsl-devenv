@@ -3029,9 +3029,11 @@ dependencies() {
 
 fortunes() {
   if [[ "${SHOW_MOTD}" = "1" ]]; then
-    fortunes+=("You can set SHOW_MOTD to 0 in '${BASH_DEV_ENV_ROOT_DIR}/.env' to hide motd")
+    echo "You can set SHOW_MOTD to 0 in '${BASH_DEV_ENV_ROOT_DIR}/.env' to hide motd"
+    echo "%"
   else
-    fortunes+=("You can set SHOW_MOTD to 1 in '${BASH_DEV_ENV_ROOT_DIR}/.env' to display motd")
+    echo "You can set SHOW_MOTD to 1 in '${BASH_DEV_ENV_ROOT_DIR}/.env' to display motd"
+    echo "%"
   fi
 }
 
