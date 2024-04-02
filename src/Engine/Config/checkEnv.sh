@@ -86,7 +86,6 @@ Engine::Config::checkEnv() {
   checkVarAndDir USER_HOME rw || true
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
-  checkValidValues AWS_AUTHENTICATOR Saml2Aws Awsume
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh
 
   checkValidValues SHOW_FORTUNES 0 1

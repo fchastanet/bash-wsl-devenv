@@ -15,13 +15,11 @@ dependencies() {
 }
 
 fortunes() {
-  if [[ "${AWS_AUTHENTICATOR:-Saml2Aws}" = "Saml2Aws" ]]; then
-    echo "use aws-login alias to log to aws using saml2aws (see https://github.com/Versent/saml2aws)"
-    if ! command -v saml2aws &>/dev/null; then
-      printf "\ninstall it using 'installAndConfigure Saml2Aws"
-    fi
-    echo "%"
+  echo "use aws-login alias to log to aws using saml2aws (see https://github.com/Versent/saml2aws)"
+  if ! command -v saml2aws &>/dev/null; then
+    printf "\ninstall it using 'installAndConfigure Saml2Aws"
   fi
+  echo "%"
 }
 
 # @see https://github.com/fchastanet/my-documents/blob/master/HowTo/Saml2Aws.md
