@@ -25,7 +25,6 @@ listVariables() {
   echo "USER_HOME"
   echo "USERNAME"
   echo "USERGROUP"
-  echo "AWS_AUTHENTICATOR"
   echo "CAN_TALK_DURING_INSTALLATION"
   echo "AWS_APP_ID"
   echo "AWS_PROFILE"

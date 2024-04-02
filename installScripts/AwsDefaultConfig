@@ -419,10 +419,6 @@ UPGRADE_UBUNTU_VERSION=0
 # -----------------------------------------
 # PROFILES options
 
-# Choose your AWS authenticator tool
-# possible choices: Saml2Aws, Awsume
-AWS_AUTHENTICATOR="Saml2Aws"
-
 # Choose your preferred shell
 # possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
 PREFERRED_SHELL="ShellBash"
@@ -1290,7 +1286,6 @@ Engine::Config::checkEnv() {
   checkVarAndDir USER_HOME rw || true
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
-  checkValidValues AWS_AUTHENTICATOR Saml2Aws Awsume
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh
 
   checkValidValues SHOW_FORTUNES 0 1
@@ -3040,7 +3035,6 @@ listVariables() {
   echo "USER_HOME"
   echo "USERNAME"
   echo "USERGROUP"
-  echo "AWS_AUTHENTICATOR"
   echo "CAN_TALK_DURING_INSTALLATION"
   echo "AWS_APP_ID"
   echo "AWS_PROFILE"
