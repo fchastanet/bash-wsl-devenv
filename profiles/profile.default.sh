@@ -17,7 +17,7 @@ CONFIG_LIST+=(
   "Docker"
   "MotdDefaultConfig"
   "AwsDefaultConfig"
-  "DefaultKubeConfig"
+  "KubeDefaultConfig"
   "Fortune"
   "Saml2Aws"
   "ShellBash"

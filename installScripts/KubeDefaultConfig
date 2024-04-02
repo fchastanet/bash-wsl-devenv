@@ -5,7 +5,7 @@
 # @generated
 ###############################################################################
 # shellcheck disable=SC2288,SC2034
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/DefaultKubeConfig
+# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/KubeDefaultConfig
 
 # ensure that no user aliases could interfere with
 # commands used in this script
@@ -226,6 +226,28 @@ Array::wrap2() {
   ) | sed -E -e 's/[[:blank:]]+$//'
 }
 
+# @description check if command specified exists or return 1
+# with error and message if not
+#
+# @arg $1 commandName:String on which existence must be checked
+# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
+#
+# @exitcode 1 if the command specified does not exist
+# @stderr diagnostic information + help if second argument is provided
+Assert::commandExists() {
+  local commandName="$1"
+  local helpIfNotExists="$2"
+
+  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
+    Log::displayError "${commandName} is not installed, please install it"
+    if [[ -n "${helpIfNotExists}" ]]; then
+      Log::displayInfo "${helpIfNotExists}"
+    fi
+    return 1
+  }
+  return 0
+}
+
 # @description asserts that first argument is directory that exists with specified ownership
 # @arg $1 dir:String
 # @arg $2 user:String expected owner user name of the directory (default: USERNAME or id -un command)
@@ -354,6 +376,12 @@ AWS_DEFAULT_REGION=""
 AWS_TEST_SECRET_ID=""
 AWS_DEFAULT_DOCKER_REGISTRY_ID=""
 
+# KubeDefaultConfig ~/.kube/config generation
+# aws region of the cluster (Eg: us-east-1)
+KUBE_CONFIG_REGION_CODE=
+# aws arn of the cluster arn:aws:ecs:region:aws_account_id:cluster/MyCluster
+KUBE_CONFIG_CLUSTER_ARN=
+
 # hostname of the distro
 DISTRO_HOSTNAME="wslHost"
 
@@ -383,10 +411,6 @@ UPGRADE_UBUNTU_VERSION=0
 
 # -----------------------------------------
 # PROFILES options
-
-# Choose your AWS authenticator tool
-# possible choices: Saml2Aws, Awsume
-AWS_AUTHENTICATOR="Saml2Aws"
 
 # Choose your preferred shell
 # possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
@@ -522,6 +546,106 @@ Env::requireLoad() {
 # @arg $1 templateName:String template name to use(optional)
 Framework::createTempFile() {
   mktemp -p "${TMPDIR:-/tmp}" -t "${1:-}.XXXXXXXXXXXX"
+}
+
+# @description clone the repository if not done yet, else pull it if no change in it
+# @arg $1 dir:String directory in which repository is installed or will be cloned
+# @arg $2 repo:String repository url
+# @arg $3 cloneCallback:Function callback on successful clone
+# @arg $4 pullCallback:Function callback on successful pull
+# @env GIT_CLONE_OPTIONS:String additional options to pass to git clone command
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode 0 on successful pulling/cloning, 1 on failure
+Git::cloneOrPullIfNoChanges() {
+  local dir="$1"
+  shift || true
+  local repo="$1"
+  shift || true
+  local cloneCallback=${1:-}
+  shift || true
+  local pullCallback=${1:-}
+  shift || true
+
+  if [[ -d "${dir}/.git" ]]; then
+    if ! Git::pullIfNoChanges "${dir}"; then
+      return 1
+    fi
+    # shellcheck disable=SC2086
+    if [[ "$(type -t ${pullCallback})" = "function" ]]; then
+      ${pullCallback} "${dir}"
+    fi
+  else
+    Log::displayInfo "cloning ${repo} ..."
+    ${SUDO:-} mkdir -p "$(${SUDO:-} dirname "${dir}")"
+    # shellcheck disable=SC2086,SC2248
+    if ${SUDO:-} git clone ${GIT_CLONE_OPTIONS} --progress "$@" "${repo}" "${dir}"; then
+      # shellcheck disable=SC2086
+      if [[ "$(type -t ${cloneCallback})" = "function" ]]; then
+        ${cloneCallback} "${dir}"
+      fi
+    else
+      Log::displayError "Cloning '${repo}' on '${dir}' failed"
+      return 1
+    fi
+  fi
+}
+
+# @description upgrade given binary to latest github release using retry
+#
+# releaseUrl argument : the placeholder @latestVersion@ will be replaced by the latest release version
+# @arg $1 targetFile:String target binary file (eg: /usr/local/bin/kind)
+# @arg $2 releaseUrl:String github release url (eg: https://github.com/kubernetes-sigs/kind/releases/download/@latestVersion@/kind-linux-amd64)
+# @arg $3 softVersionArg:String parameter to add to existing command to compute current version
+# @arg $4 softVersionCallback:Function function called to get software version (default: Version::getCommandVersionFromPlainText will call software with argument --version)
+# @arg $5 installCallback:Function function called to install the file retrieved on github (default copy as is and set execution bit)
+# @arg $6 parseGithubVersionCallback:Function function to call to filter the version retrieved from github (Default: Version::parse)
+# @stdout log messages about retry, install, upgrade
+# @env SOFT_VERSION_CALLBACK pass softVersionCallback by env variable instead of passing it by arg
+# @env PARSE_VERSION_CALLBACK pass parseGithubVersionCallback by env variable instead of passing it by arg
+# @env INSTALL_CALLBACK pass installCallback by env variable instead of passing it by arg
+Github::upgradeRelease() {
+  local targetFile="$1"
+  local releaseUrl="$2"
+  local softVersionArg="${3:---version}"
+  local softVersionCallback="${4:-${SOFT_VERSION_CALLBACK:-Version::getCommandVersionFromPlainText}}"
+  # shellcheck disable=SC2034
+  local installCallback="${5:-${INSTALL_CALLBACK:-}}"
+  local parseGithubVersionCallback="${6:-${PARSE_VERSION_CALLBACK:-Version::parse}}"
+  local latestVersion
+  local repo
+
+  repo="$(Github::extractRepoFromGithubUrl "${releaseUrl}")"
+  Github::getLatestRelease "${repo}" latestVersion ||
+    Log::fatal "Repo ${repo} latest version not found"
+  if [[ "$(type -t "${parseGithubVersionCallback}")" = "function" ]]; then
+    latestVersion="$(${parseGithubVersionCallback} <<<"${latestVersion}")"
+  fi
+  Log::displayInfo "Repo ${repo} latest version found is ${latestVersion}"
+
+  local currentVersion="not existing"
+  if [[ -f "${targetFile}" ]]; then
+    currentVersion="$(${softVersionCallback} "${targetFile}" "${softVersionArg}" 2>&1 || true)"
+  fi
+  if [[ "${currentVersion}" = "${latestVersion}" ]]; then
+    Log::displayInfo "${targetFile} version ${latestVersion} already installed"
+  else
+    if [[ -z "${currentVersion}" ]]; then
+      Log::displayInfo "Installing ${targetFile} with version ${latestVersion}"
+    else
+      Log::displayInfo "Upgrading ${targetFile} from version ${currentVersion} to ${latestVersion}"
+    fi
+    local url
+    url="$(echo "${releaseUrl}" | sed -E "s/@latestVersion@/${latestVersion}/g")"
+    Log::displayInfo "Using url ${url}"
+    newSoftware=$(mktemp -p "${TMPDIR:-/tmp}" -t github.newSoftware.XXXX)
+    Retry::default curl \
+      -L \
+      -o "${newSoftware}" \
+      --fail \
+      "${url}"
+
+    Github::defaultInstall "${newSoftware}" "${targetFile}" "${latestVersion}" "${installCallback}"
+  fi
 }
 
 # @description the command launch different actions(install, configure, test)
@@ -683,6 +807,33 @@ InstallScripts::scriptFunctionEmpty() {
   [[ "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} && "$(declare -f "$1" | sed '4q;d')" = "}" ]]
 }
 
+# @description apt-get install if package is not installed yet
+# @arg $@ packages:String[] list of packages to install
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @env SKIP_APT_GET_UPDATE
+# @stdout diagnostics logs
+Linux::Apt::installIfNecessary() {
+  local -a packages=("$@")
+  local package
+  local -i installNeeded=0
+  for package in "${packages[@]}"; do
+    if [[ "${package}" =~ ^-- ]]; then
+      continue
+    fi
+    if ! Linux::Apt::isPackageInstalled "${package}"; then
+      installNeeded=1
+    fi
+  done
+  if ((installNeeded == 1)); then
+    if [[ "${SKIP_APT_GET_UPDATE:-0}" = "0" ]]; then
+      Linux::Apt::update
+    fi
+    Linux::Apt::install "${packages[@]}"
+  fi
+}
+
 # @description Log namespace provides 2 kind of functions
 # - Log::display* allows to display given message with
 #   given display level
@@ -743,6 +894,16 @@ Log::displayInfo() {
     echo -e "${__INFO_COLOR}${type}    - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
   fi
   Log::logInfo "$1" "${type}"
+}
+
+# @description Display message using skip color (yellow)
+# @arg $1 message:String the message to display
+Log::displaySkipped() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    Log::computeDuration
+    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logSkipped "$1"
 }
 
 # @description Display message using warning color (yellow)
@@ -807,6 +968,14 @@ Log::requireLoad() {
       Log::rotate "${BASH_FRAMEWORK_LOG_FILE}" "${BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION}"
     fi
   fi
+}
+
+# @description Retry a command 5 times with a delay of 15 seconds between each attempt
+# @arg $@ command:String[] the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+Retry::default() {
+  Retry::parameterized 5 15 "" "$@"
 }
 
 # @description draw a line with the character passed in parameter repeated depending on terminal width
@@ -896,6 +1065,58 @@ UI::theme() {
   fi
 }
 
+# @description Check that command version is greater than expected minimal version
+# display warning if command version greater than expected minimal version
+# display error if command version less than expected minimal version and exit 1
+# @arg $1 commandName:String command path
+# @arg $2 argVersion:String command line parameters to launch to get command version
+# @arg $3 minimalVersion:String expected minimal command version
+# @arg $4 parseVersionCallback:Function
+# @arg $5 help:String optional help message to display if command does not exist
+# @exitcode 0 if command version greater or equal to expected minimal version
+# @exitcode 1 if command version less than expected minimal version
+# @exitcode 2 if command does not exist
+Version::checkMinimal() {
+  local commandName="$1"
+  local argVersion="$2"
+  local minimalVersion="$3"
+  local parseVersionCallback=${4:-Version::parse}
+  local help="${5:-}"
+
+  Assert::commandExists "${commandName}" "${help}" || return 2
+
+  # shellcheck disable=SC2034
+  local status=0
+  # shellcheck disable=SC2034
+  local -a pipeStatus=()
+  local version
+  version="$("${commandName}" "${argVersion}" 2>&1 | ${parseVersionCallback} || Bash::handlePipelineFailure status pipeStatus)"
+
+  Log::displayDebug "check ${commandName} version ${version} against minimal ${minimalVersion}"
+
+  Version::compare "${version}" "${minimalVersion}" || {
+    local result=$?
+    if [[ "${result}" = "1" ]]; then
+      Log::displayDebug "${commandName} version is ${version} greater than ${minimalVersion}, OK let's continue"
+    elif [[ "${result}" = "2" ]]; then
+      Log::displayError "${commandName} minimal version is ${minimalVersion}, your version is ${version}"
+      return 1
+    fi
+    return 0
+  }
+
+}
+
+# @description filter to keep only version number from a string
+# @arg $@ files:String[] the files to filter
+# @exitcode * if one of the filter command fails
+# @stdin you can use stdin as alternative to files argument
+# @stdout the filtered content
+# shellcheck disable=SC2120
+Version::parse() {
+  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
+}
+
 # @description ensure COMMAND_BIN_DIR env var is set
 # and PATH correctly prepared
 # @noargs
@@ -920,6 +1141,36 @@ Assert::tty() {
   fi
   # check if stdout or stderr is connected to terminal
   [[ -t 1 || -t 2 ]]
+}
+
+# @description ignore exit code 141 from simple command pipes
+# @example use with:
+#   local resultingStatus=0
+#   local -a originalPipeStatus=()
+#   cmd1 | cmd2 || Bash::handlePipelineFailure resultingStatus originalPipeStatus || true
+#   [[ "${resultingStatus}" = "0" ]]
+# @arg $1 resultingStatusCode:&int (passed by reference) (optional) resulting status code
+# @arg $2 originalStatus:int[] (passed by reference) (optional) copy of original PIPESTATUS array
+# @env PIPESTATUS assuming that this function is called like in the example provided
+# @see https://unix.stackexchange.com/a/709880/582856
+Bash::handlePipelineFailure() {
+  local -a pipeStatusBackup=("${PIPESTATUS[@]}")
+  local -n handlePipelineFailure_resultingStatusCode=$1
+  local -n handlePipelineFailure_originalStatus=$2
+  # shellcheck disable=SC2034
+  handlePipelineFailure_originalStatus=("${pipeStatusBackup[@]}")
+  handlePipelineFailure_resultingStatusCode=0
+  local statusCode
+  for statusCode in "${pipeStatusBackup[@]}"; do
+    if ((statusCode == 141)); then
+      return 0
+    elif ((statusCode > 0)); then
+      # shellcheck disable=SC2034
+      handlePipelineFailure_resultingStatusCode="${statusCode}"
+      break
+    fi
+  done
+  return "${handlePipelineFailure_resultingStatusCode}"
 }
 
 # @description select right file to load depending if file exists in this order:
@@ -1069,7 +1320,6 @@ Engine::Config::checkEnv() {
   checkVarAndDir USER_HOME rw || true
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
-  checkValidValues AWS_AUTHENTICATOR Saml2Aws Awsume
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh
 
   checkValidValues SHOW_FORTUNES 0 1
@@ -1236,8 +1486,7 @@ Engine::Config::loadWslVariables() {
 Engine::Config::requireWslu() {
   if ! command -v wslvar &>/dev/null; then
     Log::displayInfo "Installing pre-requisite Wslu : wslvar, wslpath, ... commands"
-    Linux::Apt::update
-    Linux::Apt::install --no-install-recommends wslu
+    Linux::Apt::installIfNecessary --no-install-recommends wslu
 
     # @see https://github.com/microsoft/WSL/issues/8843#issuecomment-1792256894
     Log::displayInfo "Fix wsl interoperability due to wsl bug"
@@ -1260,6 +1509,114 @@ Env::pathPrepend() {
       PATH="$(realpath "${arg}"):${PATH}"
     fi
   done
+}
+
+# @description pull git directory only if no change has been detected
+# @arg $1 dir:String the git directory to pull
+# @exitcode 0 on successful pulling
+# @exitcode 1 on any other failure
+# @exitcode 2 changes detected, pull avoided
+# @exitcode 3 not a git directory
+# @exitcode 4 not able to update index
+# @stderr diagnostics information is displayed
+# @env SUDO String allows to use custom sudo prefix command
+# @require Git::requireGitCommand
+Git::pullIfNoChanges() {
+  local dir="$1"
+  if [[ ! -d "${dir}/.git" ]]; then
+    return 3
+  fi
+  (
+    cd "${dir}" || return 3
+    if ! ${SUDO:-} git update-index --refresh &>/dev/null; then
+      Log::displayWarning "Impossible to update git index of '${dir}' - check if you have modified file"
+      return 4
+    fi
+    if ! ${SUDO:-} git diff-index --quiet HEAD --; then
+      Log::displayWarning "Pulling git repository '${dir}' avoided as changes detected"
+      return 2
+    fi
+    Log::displayInfo "Pull git repository '${dir}' as no changes detected"
+    ${SUDO:-} git pull --progress
+  )
+}
+
+# @description intermediate callback that is used by Github::upgradeRelease
+# or Github::installRelease
+# if installCallback is not set, it allows to:
+#   - copy the downloaded file to the right target file
+#   - and set the execution bit
+# else
+#   installCallback is called with newSoftware, targetFile, version arguments
+# fi
+# @warning do not use this function as callback for Github::upgradeRelease or Github::installRelease, as it would result to an infinite loop
+# @arg $1 newSoftware:String the downloaded software file
+# @arg $2 targetFile:String where we want to copy the file
+# @arg $3 version:String the version that has been downloaded
+# @arg $4 installCallback:Function (optional) the callback to call with 3 first arguments
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode * on failure
+# @see Github::upgradeRelease
+# @see Github::installRelease
+# @internal
+Github::defaultInstall() {
+  local newSoftware="$1"
+  local targetFile="$2"
+  local version="$3"
+  local installCallback=$4
+  # shellcheck disable=SC2086
+  ${SUDO:-} mkdir -p "$(dirname "${targetFile}")"
+  if [[ "$(type -t "${installCallback}")" = "function" ]]; then
+    ${installCallback} "${newSoftware}" "${targetFile}" "${version}"
+  else
+    ${SUDO:-} mv "${newSoftware}" "${targetFile}"
+    ${SUDO:-} chmod +x "${targetFile}"
+    hash -r
+    ${SUDO:-} rm -f "${newSoftware}" || true
+  fi
+}
+
+# @description github repository eg: kubernetes-sigs/kind
+# @arg $1 githubUrl:String eg: https://github.com/kubernetes-sigs/kind/releases/download/@latestVersion@/kind-linux-amd64
+# @exitcode 1 if no matching repo found in provided url, 0 otherwise
+# @stdout the repo in the form owner/repo
+Github::extractRepoFromGithubUrl() {
+  local githubUrl="$1"
+  local result
+  result="$(sed -n -E 's#^https://github.com/([^/]+/[^/]+)/.*$#\1#p' <<<"${githubUrl}")"
+  if [[ -z "${result}" ]]; then
+    return 1
+  fi
+  echo "${result}"
+}
+
+# @description Retrieve the latest version number of a github release using Github API using retry
+# repo arg with fchastanet/bash-tools value would match https://github.com/fchastanet/bash-tools
+# @arg $1 repo:String repository in the format fchastanet/bash-tools
+# @arg $2 resultRef:&String reference to a variable that will contain the result of the command
+# @stdout log messages about retry
+Github::getLatestRelease() {
+  local repo="$1"
+  # we need to pass the result through a reference instead of output directly
+  # because retry can output too
+  local -n resultRef=$2
+  resultRef=""
+  local resultFile
+  resultFile="$(mktemp -p "${TMPDIR:-/tmp}" -t githubLatestRelease.XXXX)"
+  # Get latest release from GitHub api
+  if Retry::default curl \
+    -L \
+    -o "${resultFile}" \
+    --fail \
+    --silent \
+    "https://api.github.com/repos/${repo}/releases/latest"; then
+    # shellcheck disable=SC2034
+    resultRef="$(Version::githubApiExtractVersion <"${resultFile}")"
+    return 0
+  fi
+  # display curl result in case of failure
+  cat >&2 "${resultFile}"
+  rm -f "${resultFile}"
 }
 
 # @description install dir to given directory but backup it before
@@ -1355,6 +1712,36 @@ Install::structure() {
 
   # shellcheck disable=SC2295
   Log::displaySuccess "Installed directory '${toDir#${PRETTY_ROOT_DIR}/}' from '${fromDir#${PRETTY_ROOT_DIR}/}'"
+}
+
+# @description apt-get install
+# @arg $@ softwares:String[] list of softwares to install
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::install() {
+  Log::displayInfo "Apt install $*"
+  Retry::default sudo apt-get install -y -q "$@"
+}
+
+# @description check if apt package is installed
+# @arg $1 package:String the package name to check
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::isPackageInstalled() {
+  local package="$1"
+  dpkg -l "${package}" | grep -Eq "^rc  ${package} "
+}
+
+# @description update apt packages list
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::update() {
+  Log::displayInfo "Apt update ..."
+  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
 }
 
 declare -g FIRST_LOG_DATE LOG_LAST_LOG_DATE LOG_LAST_LOG_DATE_INIT LOG_LAST_DURATION_STR
@@ -1463,6 +1850,14 @@ Log::logMessage() {
 
 # @description log message to file
 # @arg $1 message:String the message to display
+Log::logSkipped() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SKIPPED}" "$1"
+  fi
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
 Log::logWarning() {
   if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_WARNING)); then
     Log::logMessage "${2:-WARNING}" "$1"
@@ -1489,6 +1884,43 @@ Log::rotate() {
     echo >"${file}" # reset log file
     Log::displayInfo "Log rotation ${file} to ${file}.1"
   fi
+}
+
+# @description Retry a command several times depending on parameters
+# @arg $1 maxRetries:int    $1 max retries
+# @arg $2 delay:int between attempt
+# @arg $3 message:String to display to describe the attempt
+# @arg $@ rest of parameters, the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+# @exitcode 2 if maxRetries invalid value
+Retry::parameterized() {
+  local maxRetries=$1
+  shift || true
+  local delayBetweenTries=$1
+  shift || true
+  local message="$1"
+  shift || true
+  local retriesCount=1
+  if [[ "${maxRetries}" -lt 1 ]]; then
+    Log::displayError "invalid maxRetry value"
+    return 2
+  fi
+
+  while true; do
+    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
+    if "$@"; then
+      break
+    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
+      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
+      ((retriesCount++))
+      sleep "${delayBetweenTries}"
+    else
+      Log::displayError "The command has failed after ${retriesCount} attempts."
+      return 1
+    fi
+  done
+  return 0
 }
 
 # @description trap function responsible to compute and display stats after each script execution
@@ -1539,11 +1971,61 @@ Stats::statusLine() {
   )
 }
 
+# @description compare 2 version numbers
+# @arg $1 version1:String version 1
+# @arg $2 version2:String version 2
+# @exitcode 0 if equal
+# @exitcode 1 if version1 > version2
+# @exitcode 2 else
+Version::compare() {
+  if [[ "$1" = "$2" ]]; then
+    return 0
+  fi
+  local IFS=.
+  # shellcheck disable=2206
+  local i ver1=($1) ver2=($2)
+  # fill empty fields in ver1 with zeros
+  for ((i = ${#ver1[@]}; i < ${#ver2[@]}; i++)); do
+    ver1[i]=0
+  done
+  for ((i = 0; i < ${#ver1[@]}; i++)); do
+    if [[ -z "${ver2[i]+unset}" ]] || [[ -z ${ver2[i]} ]]; then
+      # fill empty fields in ver2 with zeros
+      ver2[i]=0
+    fi
+    if ((10#${ver1[i]} > 10#${ver2[i]})); then
+      return 1
+    fi
+    if ((10#${ver1[i]} < 10#${ver2[i]})); then
+      return 2
+    fi
+  done
+  return 0
+}
+
+# @description extract software version number
+# @arg $1 command:String the command that will be called with --version parameter
+# @arg $2 argVersion:String  allows to override default --version parameter
+Version::getCommandVersionFromPlainText() {
+  local command="$1"
+  local argVersion="${2:---version}"
+  "${command}" "${argVersion}" 2>&1 |
+    Version::parse # keep only version numbers
+}
+
 # @description ensure command tar is available
 # @exitcode 1 if tar command not available
 # @stderr diagnostics information is displayed
 Linux::requireTarCommand() {
   Assert::commandExists tar
+}
+
+# @description ensure linux distribution is ubuntu
+# @exitcode 1 if linux distribution is not ubuntu
+Linux::requireUbuntu() {
+  if ! Array::contains "$(Linux::getDistributorId)" "Ubuntu" "Debian"; then
+    Log::fatal "this script should be executed under Ubuntu or Debian OS"
+  fi
 }
 
 # @description load color theme
@@ -1571,28 +2053,6 @@ Array::contains() {
     [[ "${element}" = "$1" ]] && return 0
   done
   return 1
-}
-
-# @description check if command specified exists or return 1
-# with error and message if not
-#
-# @arg $1 commandName:String on which existence must be checked
-# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
-#
-# @exitcode 1 if the command specified does not exist
-# @stderr diagnostic information + help if second argument is provided
-Assert::commandExists() {
-  local commandName="$1"
-  local helpIfNotExists="$2"
-
-  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
-    Log::displayError "${commandName} is not installed, please install it"
-    if [[ -n "${helpIfNotExists}" ]]; then
-      Log::displayInfo "${helpIfNotExists}"
-    fi
-    return 1
-  }
-  return 0
 }
 
 # @description check if param is valid email address
@@ -1742,27 +2202,6 @@ Install::file() {
   fi
 }
 
-# @description apt-get install
-# @arg $@ softwares:String[] list of softwares to install
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::install() {
-  Log::displayInfo "Apt install $*"
-  Retry::default sudo apt-get install -y -q "$@"
-}
-
-# @description update apt packages list
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::update() {
-  Log::displayInfo "Apt update ..."
-  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
-}
-
 # @description retrieve path from wslvar and then use wslpath to resolve it
 # using cache (cache is refreshed every day)
 # @arg $1 var:String the var to retrieve using wslvar
@@ -1794,14 +2233,12 @@ Linux::Wsl::cachedWslvar() {
   Cache::getPropertyValue "${tempEnvFile}" "$1" Linux::Wsl::originalWslvar "$@"
 }
 
-# @description Display message using skip color (yellow)
-# @arg $1 message:String the message to display
-Log::displaySkipped() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    Log::computeDuration
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logSkipped "$1"
+# @description retrieve linux distributor id
+# @noargs
+# @exitcode 1 if lsb_release fails or not found
+# @stdout the linux distributor id
+Linux::getDistributorId() {
+  lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
 }
 
 # @description Display message using success color (bg green/fg white)
@@ -1883,6 +2320,23 @@ UI::textLine() {
   ((remainingWidth = $((fullWith - textSize))))
   echo -n "${text}"
   printf '%*s\n' "${remainingWidth}" '' | tr ' ' "${character}"
+}
+
+# @description extract version number from github api
+# @noargs
+# @stdin json result of github API
+# @exitcode 1 if jq or Version::parse fails
+# @stdout the version parsed
+# @require Linux::requireJqCommand
+Version::githubApiExtractVersion() {
+  jq -r ".tag_name"
+}
+
+# @description ensure command git is available
+# @exitcode 1 if git command not available
+# @stderr diagnostics information is displayed
+Git::requireGitCommand() {
+  Assert::commandExists git
 }
 
 # @description check if argument respects this framework variable naming convention
@@ -2030,33 +2484,9 @@ Log::displayStatus() {
 
 # @description log message to file
 # @arg $1 message:String the message to display
-Log::logSkipped() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SKIPPED}" "$1"
-  fi
-}
-
-# @description log message to file
-# @arg $1 message:String the message to display
 Log::logSuccess() {
   if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
     Log::logMessage "${2:-SUCCESS}" "$1"
-  fi
-}
-
-# @description Retry a command 5 times with a delay of 15 seconds between each attempt
-# @arg $@ command:String[] the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-Retry::default() {
-  Retry::parameterized 5 15 "" "$@"
-}
-
-# @description ensure linux distribution is ubuntu
-# @exitcode 1 if linux distribution is not ubuntu
-Linux::requireUbuntu() {
-  if ! Array::contains "$(Linux::getDistributorId)" "Ubuntu" "Debian"; then
-    Log::fatal "this script should be executed under Ubuntu or Debian OS"
   fi
 }
 
@@ -2071,6 +2501,15 @@ Linux::Wsl::requireWsl() {
     File::garbageCollect "${tempEnvDir}/bash_tools_wslpath_$(id -un)" "1"
     tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
     File::garbageCollect "${tempEnvDir}/bash_tools_wslvar_$(id -un)" "1"
+  fi
+}
+
+# @description ensure command jq is available
+# @exitcode 1 if jq command not available
+# @stderr diagnostics information is displayed
+Linux::requireJqCommand() {
+  if [[ "${SKIP_REQUIRE_JQ:-0}" = "0" && "${SKIP_REQUIRES:-0}" = "0" ]]; then
+    Assert::commandExists jq
   fi
 }
 
@@ -2144,14 +2583,6 @@ Linux::Wsl::originalWslpath() {
   wslpath "$@"
 }
 
-# @description retrieve linux distributor id
-# @noargs
-# @exitcode 1 if lsb_release fails or not found
-# @stdout the linux distributor id
-Linux::getDistributorId() {
-  lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
-}
-
 # @description log message to file
 # @arg $1 message:String the message to display
 Log::logStatus() {
@@ -2160,46 +2591,9 @@ Log::logStatus() {
   fi
 }
 
-# @description Retry a command several times depending on parameters
-# @arg $1 maxRetries:int    $1 max retries
-# @arg $2 delay:int between attempt
-# @arg $3 message:String to display to describe the attempt
-# @arg $@ rest of parameters, the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-# @exitcode 2 if maxRetries invalid value
-Retry::parameterized() {
-  local maxRetries=$1
-  shift || true
-  local delayBetweenTries=$1
-  shift || true
-  local message="$1"
-  shift || true
-  local retriesCount=1
-  if [[ "${maxRetries}" -lt 1 ]]; then
-    Log::displayError "invalid maxRetry value"
-    return 2
-  fi
-
-  while true; do
-    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
-    if "$@"; then
-      break
-    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
-      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
-      ((retriesCount++))
-      sleep "${delayBetweenTries}"
-    else
-      Log::displayError "The command has failed after ${retriesCount} attempts."
-      return 1
-    fi
-  done
-  return 0
-}
-
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+3T32uCUBQH8PvsX3GGQRvMH1e9+jCCtXQkjAoyesgYZTeUxCK1/fu7LgYxWAtmjW3n83LlnoNe+Z6rauTsdMFhrFqpw/TD9R2hlq0bBrMdxxL7jmVYBNj5j0ZImRezLQB5ydOjfV/VfylVU+ezPFYWfKfwbHeWaTg5f0oNalKiU+qYJuZ/CR/zT7KCb2dRkey4uqhpGk6//7apO7bI32KUYv6XcDz/VTnnyianah5/4xtf5c9sts/fcgxTPOvUZlQnoNf2l0f88/zlK22eZFo1A5JcL0kGtw+9fgCe6we3EHT9ITz6Tx502j148GA0cNuB58LYD7r9UVC1+h2v9mNIyRImE1CWoK03xdtMi5E+nG2YTu+giHkmAch5zNM0inm0gnxdbiPe0sTl0LIyTUV5v/Xpm0THYEhbzUlY3ocxhGNoXFflZ1G+mYYNaErLRPrp0BFCCCGEEEIIIYQQQgghhBBCCP05r1w+IN4AKAAA"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+3T8WuCQBQH8PvZv+INgzaYeqed/jCCtXIkjAoy+iFjlF0oiUVq+/d3LgYxWAtmjW3v88vJvYeefN/pBjk7KjmclytzOD1c3xHWsKnFKGO03HcshxHg5z8aIUWWz7YA5CVLjvZ9Vf+ldEOfz7JIW4idJtLdWabh1PxNxkxmMSKnwLEszP8SPuYfp7nYzsI83gl9UdE0nJy/aVvUsWX+Dc7w/l/E8fxXxVxom4zpWfSNb3yVP7f5Pv+GY1rymTKbM0qAVvaXR/zz/NUrYx6nRjkDilotRYVOH3p9H9yO59+C3/WG8Og9udBu9eDBhdGg0/LdDow9v9sf+WWr13YrP4YSL2EyAW0JxnqTv820HOnD2Ybp9A7ySKQKgJpFIknCSIQryNbFNhRNQ14OIy2SRJb3W5++SXYMhqxZnwTFfRBBMIbadVl+luWbaVCDurKMlZ8OHSGEEEIIIYQQQgghhBBCCCGE0J/zCtE4YJQAKAAA"
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -2207,11 +2601,13 @@ facade_main_KubeDefaultConfigsh() {
 
 # REQUIRES
 Linux::requireTarCommand
+Linux::requireUbuntu
 Env::requireLoad
 UI::requireTheme
+Git::requireGitCommand
 Log::requireLoad
-Linux::requireUbuntu
 Linux::Wsl::requireWsl
+Linux::requireJqCommand
 Compiler::Facade::requireCommandBinDir
 
 if Assert::functionExists initFacade; then
@@ -3000,17 +3396,16 @@ isTestConfigureImplemented() {
 }
 
 scriptName() {
-  echo "DefaultKubeConfig"
+  echo "KubeDefaultConfig"
 }
 
 helpDescription() {
-  echo "DefaultKubeConfig"
+  echo "KubeDefaultConfig"
 }
 
 dependencies() {
   echo "ShellBash"
-  echo "Kubectx"
-  echo "Kubeps1"
+  echo "Saml2Aws"
 }
 
 # jscpd:ignore-start
@@ -3021,9 +3416,123 @@ checkVariables() { :; }
 fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
-install() { :; }
-testInstall() { :; }
 # jscpd:ignore-end
+
+installHelm() {
+  if ! command -v helm &>/dev/null; then
+    Log::displayInfo "install helm ..."
+    Retry::default curl -fsSL https://baltocdn.com/helm/signing.asc | sudo apt-key add -
+    Linux::Apt::installIfNecessary --no-install-recommends \
+      apt-transport-https
+    echo "deb https://baltocdn.com/helm/stable/debian/ all main" |
+      sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+    Linux::Apt::installIfNecessary --no-install-recommends \
+      helm
+  fi
+}
+
+installKubectl() {
+  Log::displayInfo "install kubectl ..."
+  local versionUrl="https://storage.googleapis.com/kubernetes-release/release/stable.txt"
+  local latestVersion
+  latestVersion="$(curl -fsSL "${versionUrl}" | Version::parse)"
+  if command -v kubectl &&
+    [[ "$(kubectl version --short=true 2>/dev/null | Version::parse)" = "${latestVersion}" ]]; then
+    Log::displaySkipped "kubectl version ${latestVersion} already installed"
+  else
+    Retry::default curl \
+      -L \
+      -o /tmp/kubectl \
+      --fail \
+      "https://storage.googleapis.com/kubernetes-release/release/v${latestVersion}/bin/linux/amd64/kubectl"
+    sudo chmod +x /tmp/kubectl
+    sudo mv /tmp/kubectl /usr/local/bin/kubectl
+  fi
+}
+
+installKind() {
+  SUDO=sudo Github::upgradeRelease \
+    /usr/local/bin/kind \
+    "https://github.com/kubernetes-sigs/kind/releases/download/v@latestVersion@/kind-linux-amd64"
+}
+
+installMinikube() {
+  SUDO=sudo Github::upgradeRelease \
+    /usr/local/bin/minikube \
+    "https://github.com/kubernetes/minikube/releases/download/v@latestVersion@/minikube-linux-amd64" \
+    version
+}
+
+installKubeps1() {
+  SUDO=sudo Git::cloneOrPullIfNoChanges \
+    "/opt/kubeps1" \
+    "https://github.com/jonmosco/kube-ps1.git"
+}
+
+installKubectx() {
+  SUDO=sudo Git::cloneOrPullIfNoChanges \
+    "/opt/kubectx" \
+    "https://github.com/ahmetb/kubectx"
+
+  sudo ln -sf /opt/kubectx/kubectx /usr/local/bin/kubectx
+  sudo ln -sf /opt/kubectx/kubens /usr/local/bin/kubens
+}
+
+install() {
+  installHelm || {
+    Log::displayError "Error during helm install"
+    return 1
+  }
+  installKubectl || {
+    Log::displayError "Error during kubectl install"
+    return 1
+  }
+  installKind || {
+    Log::displayError "Error during kind install"
+    return 1
+  }
+  installMinikube || {
+    Log::displayError "Error during minikube install"
+    return 1
+  }
+  installKubeps1 || {
+    Log::displayError "Error during kubeps1 install"
+    return 1
+  }
+  installKubectx || {
+    Log::displayError "Error during kubectx install"
+    return 1
+  }
+}
+
+testInstall() {
+  local -i failures=0
+  Version::checkMinimal "helm" "version" "3.14.2" || ((++failures))
+  Version::checkMinimal "kubectl" "version" "1.29.1" || ((++failures))
+  Version::checkMinimal "kind" "--version" "0.16.0" || ((++failures))
+  Version::checkMinimal "minikube" "version" "1.27.1" || ((++failures))
+  Assert::commandExists kubectx || ((++failures))
+  Assert::commandExists kubens || ((++failures))
+  Assert::fileExists /opt/kubeps1/kube-ps1.sh root root || ((++failures))
+  return "${failures}"
+}
+
+isKubeConfigGenerationAvailable() {
+  local type="$1"
+  if [[ "${INSTALL_INTERACTIVE}" = "0" ]]; then
+    Log::displaySkipped ".kube/config configuration ${type} skipped as INSTALL_INTERACTIVE is set to 0"
+    return 1
+  fi
+
+  if [[ -z "${KUBE_CONFIG_REGION_CODE}" || -z "${KUBE_CONFIG_CLUSTER_ARN}" ]]; then
+    Log::displaySkipped ".kube/config configuration ${type} skipped as KUBE_CONFIG_REGION_CODE or KUBE_CONFIG_CLUSTER_ARN are not provided"
+    return 1
+  fi
+  if command -v aws &>/dev/null; then
+    Log::displaySkipped ".kube/config configuration ${type} skipped as aws command is not available"
+    return 1
+  fi
+}
 
 configure() {
   mkdir -p "${USER_HOME}/.bash_completion.d" || true
@@ -3039,6 +3548,17 @@ configure() {
     "${embed_dir_conf_dir}" \
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
     ".bash-dev-env"
+
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".kube" || true # ignore if conf override does not define .kube/config
+
+  if [[ ! -f "${USER_HOME}/.kube/config" ]] && isKubeConfigGenerationAvailable "generation"; then
+    aws eks update-kubeconfig \
+      --region "${KUBE_CONFIG_REGION_CODE}" \
+      --name "${KUBE_CONFIG_CLUSTER_ARN}" || return 1
+  fi
 }
 
 testConfigure() {
@@ -3047,6 +3567,10 @@ testConfigure() {
   Assert::fileExists "${USER_HOME}/.bash_completion.d/kubens" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bash_completion.d/kubectx" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/kube-ps1.sh" || ((++failures))
+  if isKubeConfigGenerationAvailable "test"; then
+    Assert::fileExists "${USER_HOME}/.kube/config" || ((++failures))
+  fi
+
   return "${failures}"
 }
 
