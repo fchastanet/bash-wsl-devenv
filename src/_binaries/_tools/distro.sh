@@ -72,7 +72,7 @@ installDistro() {
   local destDistroPath installTarPath
   mkdir -p "${BASE_MNT_C}/Programs"
   local distroImageDir
-  distroImageDir="$(distroImageDir)"
+  distroImageDir="$(getDistroImageDir)"
   destDistroPath="$(wslpath -w "${BASE_MNT_C}/Programs/${DISTRO_NAME}")"
   installTarPath="$(wslpath -w "${distroImageDir}/install.tar")"
   powershell.exe -ExecutionPolicy Bypass -NoProfile \
