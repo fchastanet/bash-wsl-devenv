@@ -46,6 +46,7 @@ keyscan
 konsole
 kterm
 kube
+kubeconfig
 kubectl
 kubectx
 kubens
@@ -90,6 +91,7 @@ Powerline
 precommit
 pstree
 pyupgrade
+rerere
 screenlock
 stylelint
 substr
@@ -104,6 +106,7 @@ venv
 virtualenv
 VIRTUALENV
 virtualenvs
+Wbem
 wincmd
 WORKON_HOME
 wslg
@@ -121,5 +124,3 @@ xorg
 xsession
 Xsrv
 xvfb
-Wbem
-rerere
