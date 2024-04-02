@@ -2701,7 +2701,8 @@ dependencies() {
 }
 
 fortunes() {
-  fortunes+=("PreCommit - if .pre-commit-config.yaml file is present, pre-commit will run automatically the tools specified before the commit")
+  echo "PreCommit - if .pre-commit-config.yaml file is present, pre-commit will run automatically the tools specified before the commit"
+  echo "%"
 }
 
 helpVariables() { :; }

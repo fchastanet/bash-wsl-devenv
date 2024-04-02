@@ -17,11 +17,15 @@ helpDescription() {
 
 fortunes() {
   if [[ -d "${USER_HOME}/fchastanet/bash-tools/bin" ]]; then
-    fortunes+=("BashTools - cli -- tool to easily connect to your containers")
-    fortunes+=("BashTools - dbImport -- tool to import database from aws or Mizar")
-    fortunes+=("BashTools - dbQueryAllDatabases -- tool to execute a query on multiple databases")
+    echo "BashTools - cli -- tool to easily connect to your containers"
+    echo "%"
+    echo "BashTools - dbImport -- tool to import database from aws or Mizar"
+    echo "%"
+    echo "BashTools - dbQueryAllDatabases -- tool to execute a query on multiple databases"
+    echo "%"
   else
-    fortunes+=("Run 'installAndConfigure BashTools' -- to initialize bash tools (cli, dbImport, dbQueryAllDatabases, ...)")
+    echo "Run 'installAndConfigure BashTools' -- to initialize bash tools (cli, dbImport, dbQueryAllDatabases, ...)"
+    echo "%"
   fi
 }
 

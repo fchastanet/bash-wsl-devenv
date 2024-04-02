@@ -15,7 +15,8 @@ helpDescription() {
 }
 
 fortunes() {
-  fortunes+=("Tig - use 'tig' command to browse git repository's logs")
+  echo "Tig - use 'tig' command to browse git repository's logs"
+  echo "%"
 }
 
 dependencies() { :; }

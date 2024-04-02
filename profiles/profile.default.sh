@@ -18,6 +18,7 @@ CONFIG_LIST+=(
   "MotdDefaultConfig"
   "AwsDefaultConfig"
   "DefaultKubeConfig"
+  "Fortune"
   "Saml2Aws"
   "ShellBash"
   "BashTools"

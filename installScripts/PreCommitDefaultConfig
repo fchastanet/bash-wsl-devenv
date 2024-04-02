@@ -2643,8 +2643,10 @@ dependencies() {
 }
 
 fortunes() {
-  fortunes+=("PreCommit - pre-commit hooks template is automatically applied on git clone or git init")
-  fortunes+=("PreCommit - You can disable git hooks template using 'git config --global --unset init.templatedir'")
+  echo "PreCommit - pre-commit hooks template is automatically applied on git clone or git init"
+  echo "%"
+  echo "PreCommit - You can disable git hooks template using 'git config --global --unset init.templatedir'"
+  echo "%"
 }
 
 # jscpd:ignore-start

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/ShellBash/ShellBash.sh
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/Fortune/Fortune.sh
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
 # shellcheck disable=SC2288,SC2034
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/ShellBash
+# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Fortune
 
 # ensure that no user aliases could interfere with
 # commands used in this script
@@ -224,6 +224,51 @@ Array::wrap2() {
       printCurrentLine
     fi
   ) | sed -E -e 's/[[:blank:]]+$//'
+}
+
+# @description check if command specified exists or return 1
+# with error and message if not
+#
+# @arg $1 commandName:String on which existence must be checked
+# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
+#
+# @exitcode 1 if the command specified does not exist
+# @stderr diagnostic information + help if second argument is provided
+Assert::commandExists() {
+  local commandName="$1"
+  local helpIfNotExists="$2"
+
+  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
+    Log::displayError "${commandName} is not installed, please install it"
+    if [[ -n "${helpIfNotExists}" ]]; then
+      Log::displayInfo "${helpIfNotExists}"
+    fi
+    return 1
+  }
+  return 0
+}
+
+# @description asserts that first argument is a file that exists with specified ownership and is executable
+# @arg $1 file:String
+# @arg $2 user:String expected owner user name of the file (default: USERNAME or id -un command)
+# @arg $3 group:String expected owner group name of the file (default: USERGROUP or id -gn command)
+# @env USERNAME String if arg $2 is not provided
+# @env USERGROUP String if arg $3 is not provided
+# @exitcode 1 if Assert::fileExists fails
+# @exitcode 2 if file is not executable
+# @stderr diagnostics information is displayed
+# @see Assert::fileExists
+Assert::fileExecutable() {
+  local file user group
+  file="$1"
+  user="${2:-${USERNAME}}"
+  group="${3:-${USERGROUP}}"
+
+  Assert::fileExists "${file}" "${user}" "${group}" || return 1
+  if [[ ! -x "${file}" ]]; then
+    Log::displayError "file ${file} is expected to be executable"
+    return 2
+  fi
 }
 
 # @description asserts that first argument is file that exists with specified ownership
@@ -617,6 +662,27 @@ Install::file() {
   fi
 }
 
+# @description install callback
+#   set file with root ownership and execution bit
+# @arg $1 fromFile:String
+# @arg $2 targetFile:String
+# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
+# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
+# @env USERNAME (default: root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode 1 on any failure
+# @see Install::file
+Install::setUserRightsCallback() {
+  # shellcheck disable=SC2034 # $1 not used
+  local fromFile="$1"
+  local targetFile="$2"
+  local userName="${3:-${USERNAME:-root}}"
+  local userGroup="${4:-${USERGROUP:-root}}"
+
+  ${SUDO:-} chown "${userName}":"${userGroup}" "${targetFile}"
+}
+
 # @description the command launch different actions(install, configure, test)
 # depending on the options selected
 # @see src/_includes/install.skip.options.tpl
@@ -797,22 +863,6 @@ Linux::Apt::update() {
   Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
 }
 
-# @description retrieve wslpath using cache (cache is refreshed every day)
-# @arg $@ args:String[] arguments to pass to wslpath
-# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
-# @exitcode * if Linux::Wsl::originalWslpath cannot find the path
-# @stderr diagnostics information is displayed
-# @require Linux::Wsl::requireWsl
-# @feature cache
-Linux::Wsl::cachedWslpath() {
-  local -a args=("$@")
-  local tempEnvFile key
-  tempEnvFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslpath_$(id -un)"
-
-  key="$(Linux::Wsl::getKeyFromWslpathOptions "$@")"
-  Cache::getPropertyValue "${tempEnvFile}" "${key}" Linux::Wsl::originalWslpath "${args[@]}"
-}
-
 # @description Log namespace provides 2 kind of functions
 # - Log::display* allows to display given message with
 #   given display level
@@ -948,14 +998,6 @@ Log::requireLoad() {
       Log::rotate "${BASH_FRAMEWORK_LOG_FILE}" "${BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION}"
     fi
   fi
-}
-
-# @description Retry a command 5 times with a delay of 15 seconds between each attempt
-# @arg $@ command:String[] the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-Retry::default() {
-  Retry::parameterized 5 15 "" "$@"
 }
 
 # @description draw a line with the character passed in parameter repeated depending on terminal width
@@ -1095,39 +1137,6 @@ Backup::file() {
     Log::displayInfo "Backup file '${file}' to ${backupFile}"
     ${SUDO:-} cp "${file}" "${backupFile}"
   fi
-}
-
-# @description get property value from file
-# if not present compute it using propertyNotFoundCallback (if provided) and store it in property file
-# @arg $1 propertyFile:String the file in which the property will be searched
-# @arg $2 key:String the property key to search in property file
-# @arg $3 propertyNotFoundCallback:Function (optional) a callback to call if property key is not found in property file
-# @arg $@ args:String[] (optional) the arguments to pass to the propertyNotFoundCallback
-# @exitcode 1 if value is not found
-# @exitcode * if propertyNotFoundCallback fails
-# @stdout the property value given by property file or by the propertyNotFoundCallback
-Cache::getPropertyValue() {
-  local value
-  local propertyFile="$1"
-  shift || true
-  local key
-  key="$(echo -E "$1" | sed -E 's#\\#/#g')"
-  shift || true
-  local propertyNotFoundCallback=$1
-  shift || true
-
-  if grep -E "^${key}=.*" "${propertyFile}" &>/dev/null; then
-    grep -E "^${key}=" "${propertyFile}" | cut -d'=' -f2
-    return 0
-  elif [[ "$(type -t "${propertyNotFoundCallback}")" = "function" ]]; then
-    value="$("${propertyNotFoundCallback}" "$@")" || return $?
-    if [[ -n "${value}" ]]; then
-      echo -E "${key}=${value}" >>"${propertyFile}"
-    fi
-    echo -E "${value}"
-    return 0
-  fi
-  return 1
 }
 
 # @description select right file to load depending if file exists in this order:
@@ -1432,27 +1441,6 @@ Env::pathPrepend() {
   done
 }
 
-# @description install callback
-#   set file with root ownership and execution bit
-# @arg $1 fromFile:String
-# @arg $2 targetFile:String
-# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
-# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
-# @env USERNAME (default: root) the user name that will be used to set target files ownership
-# @env USERGROUP (default: root) the group name that will be used to set target files ownership
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode 1 on any failure
-# @see Install::file
-Install::setUserRightsCallback() {
-  # shellcheck disable=SC2034 # $1 not used
-  local fromFile="$1"
-  local targetFile="$2"
-  local userName="${3:-${USERNAME:-root}}"
-  local userGroup="${4:-${USERGROUP:-root}}"
-
-  ${SUDO:-} chown "${userName}":"${userGroup}" "${targetFile}"
-}
-
 # @description install dir to given directory but backup it before
 # @arg $1 fromDir:String the source base directory
 # @arg $2 toDir:String the target base directory
@@ -1561,49 +1549,6 @@ Install::unableToCopyCallback() {
   local fileName="$2"
   local targetFile="$3"
   Log::fatal "unable to copy file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fileName}' to '${targetFile}'"
-}
-
-# @description Compute a cache from wslpath options
-# @arg $@ args:String[] arguments passed to wslpath
-# @stderr diagnostics information is displayed
-# @stdout the cache key deduced from the options
-# @require Linux::Wsl::requireWsl
-# @feature cache
-# @internal
-Linux::Wsl::getKeyFromWslpathOptions() {
-  local options
-  options=$(getopt -o "auwm" -- "$@" 2>/dev/null) || {
-    Log::displayError "invalid options specified"
-    return 1
-  }
-  local key="wslpath"
-  eval set -- "${options}"
-  while true; do
-    case "$1" in
-      -a | -u | -w | -m)
-        key="${key}$1"
-        ;;
-      --)
-        shift || true
-        break
-        ;;
-      *)
-        shift || true
-        Log::displayWarning "Unknown key $1"
-        ;;
-    esac
-    shift || true
-  done
-  echo -E "${key}_$1"
-}
-
-# @description call simply original wslpath command
-# @arg $@ args:String[] args to pass to wslpath
-# @exitcode * wslpath exit code
-# @stdout wslpath stdout
-# @require Linux::Wsl::requireWsl
-Linux::Wsl::originalWslpath() {
-  wslpath "$@"
 }
 
 declare -g FIRST_LOG_DATE LOG_LAST_LOG_DATE LOG_LAST_LOG_DATE_INIT LOG_LAST_DURATION_STR
@@ -1769,41 +1714,12 @@ Log::rotate() {
   fi
 }
 
-# @description Retry a command several times depending on parameters
-# @arg $1 maxRetries:int    $1 max retries
-# @arg $2 delay:int between attempt
-# @arg $3 message:String to display to describe the attempt
-# @arg $@ rest of parameters, the command to run
+# @description Retry a command 5 times with a delay of 15 seconds between each attempt
+# @arg $@ command:String[] the command to run
 # @exitcode 0 on success
 # @exitcode 1 if max retries count reached
-# @exitcode 2 if maxRetries invalid value
-Retry::parameterized() {
-  local maxRetries=$1
-  shift || true
-  local delayBetweenTries=$1
-  shift || true
-  local message="$1"
-  shift || true
-  local retriesCount=1
-  if [[ "${maxRetries}" -lt 1 ]]; then
-    Log::displayError "invalid maxRetry value"
-    return 2
-  fi
-
-  while true; do
-    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
-    if "$@"; then
-      break
-    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
-      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
-      ((retriesCount++))
-      sleep "${delayBetweenTries}"
-    else
-      Log::displayError "The command has failed after ${retriesCount} attempts."
-      return 1
-    fi
-  done
-  return 0
+Retry::default() {
+  Retry::parameterized 5 15 "" "$@"
 }
 
 # @description trap function responsible to compute and display stats after each script execution
@@ -1869,20 +1785,6 @@ Linux::requireUbuntu() {
   fi
 }
 
-# @description ensure linux runs under wsl
-# @env WSL_GARBAGE_COLLECT int 0 to disable garbage collect of cache files
-# @exitcode 1 if linux does not run under wsl
-Linux::Wsl::requireWsl() {
-  Assert::wsl || return 1
-  if [[ "${WSL_GARBAGE_COLLECT:-1}" = "1" ]]; then
-    local tempEnvDir
-    tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
-    File::garbageCollect "${tempEnvDir}/bash_tools_wslpath_$(id -un)" "1"
-    tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
-    File::garbageCollect "${tempEnvDir}/bash_tools_wslvar_$(id -un)" "1"
-  fi
-}
-
 # @description load color theme
 # @noargs
 # @env BASH_FRAMEWORK_THEME String theme to use
@@ -1908,28 +1810,6 @@ Array::contains() {
     [[ "${element}" = "$1" ]] && return 0
   done
   return 1
-}
-
-# @description check if command specified exists or return 1
-# with error and message if not
-#
-# @arg $1 commandName:String on which existence must be checked
-# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
-#
-# @exitcode 1 if the command specified does not exist
-# @stderr diagnostic information + help if second argument is provided
-Assert::commandExists() {
-  local commandName="$1"
-  local helpIfNotExists="$2"
-
-  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
-    Log::displayError "${commandName} is not installed, please install it"
-    if [[ -n "${helpIfNotExists}" ]]; then
-      Log::displayInfo "${helpIfNotExists}"
-    fi
-    return 1
-  }
-  return 0
 }
 
 # @description check if param is valid email address
@@ -1995,33 +1875,6 @@ Assert::wsl() {
   [[ "$(uname -o)" = "GNU/Linux" ]]
 }
 
-# @description delete files older than n days in given path
-# @warning use this function with caution as it will delete all files in given path without any prompt
-# @arg $1 path:String the directory in which files will be deleted or the file to delete
-# @arg $2 mtime:String expiration time in days (eg: 1 means 1 day) (default value: 1). Eg: +1 match files that have been accessed at least two days ago (rounding effect)
-# @arg $3 maxdepth:int Descend at most levels (a non-negative integer) levels of directories below the starting-points. (default value: 1)
-# @exitcode 1 if path not provided or empty
-# @exitcode * find command failure code
-# @stderr find output on error or diagnostics logs
-# @see man find atime
-File::garbageCollect() {
-  local path="$1"
-  local mtime="$2"
-  local maxdepth="${3:-1}"
-
-  if [[ -z "${path}" ]]; then
-    return 1
-  fi
-
-  if [[ ! -e "${path}" ]]; then
-    # path already removed
-    return 0
-  fi
-
-  Log::displayInfo "Garbage collect files older than ${mtime} days in path ${path} with max depth ${maxdepth}"
-  find "${path}" -depth -maxdepth "${maxdepth}" -type f -mtime "${mtime}" -print -delete
-}
-
 # @description retrieve path from wslvar and then use wslpath to resolve it
 # using cache (cache is refreshed every day)
 # @arg $1 var:String the var to retrieve using wslvar
@@ -2085,6 +1938,43 @@ Log::logSuccess() {
   if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
     Log::logMessage "${2:-SUCCESS}" "$1"
   fi
+}
+
+# @description Retry a command several times depending on parameters
+# @arg $1 maxRetries:int    $1 max retries
+# @arg $2 delay:int between attempt
+# @arg $3 message:String to display to describe the attempt
+# @arg $@ rest of parameters, the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+# @exitcode 2 if maxRetries invalid value
+Retry::parameterized() {
+  local maxRetries=$1
+  shift || true
+  local delayBetweenTries=$1
+  shift || true
+  local message="$1"
+  shift || true
+  local retriesCount=1
+  if [[ "${maxRetries}" -lt 1 ]]; then
+    Log::displayError "invalid maxRetry value"
+    return 2
+  fi
+
+  while true; do
+    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
+    if "$@"; then
+      break
+    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
+      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
+      ((retriesCount++))
+      sleep "${delayBetweenTries}"
+    else
+      Log::displayError "The command has failed after ${retriesCount} attempts."
+      return 1
+    fi
+  done
+  return 0
 }
 
 # @description extract stats form log
@@ -2170,6 +2060,55 @@ Assert::validVariableName() {
   echo "$1" | LC_ALL=POSIX grep -E -q '(^[a-z][A-Za-z_0-9:]+$)|(^[A-Z_][A-Z_0-9:]+$)'
 }
 
+# @description get property value from file
+# if not present compute it using propertyNotFoundCallback (if provided) and store it in property file
+# @arg $1 propertyFile:String the file in which the property will be searched
+# @arg $2 key:String the property key to search in property file
+# @arg $3 propertyNotFoundCallback:Function (optional) a callback to call if property key is not found in property file
+# @arg $@ args:String[] (optional) the arguments to pass to the propertyNotFoundCallback
+# @exitcode 1 if value is not found
+# @exitcode * if propertyNotFoundCallback fails
+# @stdout the property value given by property file or by the propertyNotFoundCallback
+Cache::getPropertyValue() {
+  local value
+  local propertyFile="$1"
+  shift || true
+  local key
+  key="$(echo -E "$1" | sed -E 's#\\#/#g')"
+  shift || true
+  local propertyNotFoundCallback=$1
+  shift || true
+
+  if grep -E "^${key}=.*" "${propertyFile}" &>/dev/null; then
+    grep -E "^${key}=" "${propertyFile}" | cut -d'=' -f2
+    return 0
+  elif [[ "$(type -t "${propertyNotFoundCallback}")" = "function" ]]; then
+    value="$("${propertyNotFoundCallback}" "$@")" || return $?
+    if [[ -n "${value}" ]]; then
+      echo -E "${key}=${value}" >>"${propertyFile}"
+    fi
+    echo -E "${value}"
+    return 0
+  fi
+  return 1
+}
+
+# @description retrieve wslpath using cache (cache is refreshed every day)
+# @arg $@ args:String[] arguments to pass to wslpath
+# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
+# @exitcode * if Linux::Wsl::originalWslpath cannot find the path
+# @stderr diagnostics information is displayed
+# @require Linux::Wsl::requireWsl
+# @feature cache
+Linux::Wsl::cachedWslpath() {
+  local -a args=("$@")
+  local tempEnvFile key
+  tempEnvFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslpath_$(id -un)"
+
+  key="$(Linux::Wsl::getKeyFromWslpathOptions "$@")"
+  Cache::getPropertyValue "${tempEnvFile}" "${key}" Linux::Wsl::originalWslpath "${args[@]}"
+}
+
 # @description call simply original wslvar command
 # @arg $@ args:String[] args to pass to wslvar
 # @exitcode * wslvar exit code
@@ -2187,21 +2126,105 @@ Log::logSkipped() {
   fi
 }
 
+# @description ensure linux runs under wsl
+# @env WSL_GARBAGE_COLLECT int 0 to disable garbage collect of cache files
+# @exitcode 1 if linux does not run under wsl
+Linux::Wsl::requireWsl() {
+  Assert::wsl || return 1
+  if [[ "${WSL_GARBAGE_COLLECT:-1}" = "1" ]]; then
+    local tempEnvDir
+    tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
+    File::garbageCollect "${tempEnvDir}/bash_tools_wslpath_$(id -un)" "1"
+    tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
+    File::garbageCollect "${tempEnvDir}/bash_tools_wslvar_$(id -un)" "1"
+  fi
+}
+
+# @description delete files older than n days in given path
+# @warning use this function with caution as it will delete all files in given path without any prompt
+# @arg $1 path:String the directory in which files will be deleted or the file to delete
+# @arg $2 mtime:String expiration time in days (eg: 1 means 1 day) (default value: 1). Eg: +1 match files that have been accessed at least two days ago (rounding effect)
+# @arg $3 maxdepth:int Descend at most levels (a non-negative integer) levels of directories below the starting-points. (default value: 1)
+# @exitcode 1 if path not provided or empty
+# @exitcode * find command failure code
+# @stderr find output on error or diagnostics logs
+# @see man find atime
+File::garbageCollect() {
+  local path="$1"
+  local mtime="$2"
+  local maxdepth="${3:-1}"
+
+  if [[ -z "${path}" ]]; then
+    return 1
+  fi
+
+  if [[ ! -e "${path}" ]]; then
+    # path already removed
+    return 0
+  fi
+
+  Log::displayInfo "Garbage collect files older than ${mtime} days in path ${path} with max depth ${maxdepth}"
+  find "${path}" -depth -maxdepth "${maxdepth}" -type f -mtime "${mtime}" -print -delete
+}
+
+# @description Compute a cache from wslpath options
+# @arg $@ args:String[] arguments passed to wslpath
+# @stderr diagnostics information is displayed
+# @stdout the cache key deduced from the options
+# @require Linux::Wsl::requireWsl
+# @feature cache
+# @internal
+Linux::Wsl::getKeyFromWslpathOptions() {
+  local options
+  options=$(getopt -o "auwm" -- "$@" 2>/dev/null) || {
+    Log::displayError "invalid options specified"
+    return 1
+  }
+  local key="wslpath"
+  eval set -- "${options}"
+  while true; do
+    case "$1" in
+      -a | -u | -w | -m)
+        key="${key}$1"
+        ;;
+      --)
+        shift || true
+        break
+        ;;
+      *)
+        shift || true
+        Log::displayWarning "Unknown key $1"
+        ;;
+    esac
+    shift || true
+  done
+  echo -E "${key}_$1"
+}
+
+# @description call simply original wslpath command
+# @arg $@ args:String[] args to pass to wslpath
+# @exitcode * wslpath exit code
+# @stdout wslpath stdout
+# @require Linux::Wsl::requireWsl
+Linux::Wsl::originalWslpath() {
+  wslpath "$@"
+}
+
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "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"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2Xa2/aMBSG+ZxfcQZVr0sch1ykTkhlJRVILVQjiA+9TCZxSqRcUByoULv/PqdhbYbUdkzAVM1PPji2T+STvMfyGwVVNo7KsQwjb7FlqOX2FxWsm6pmaoZhaHzc0rFZAWPzqVUqU5aRFKByz8I3496b/6AoiGbuhmtgZf0xn8dC/21Q6O+mSax4myqDlfQ361x/XDfE/t8Kv+k/Imwse3Qm03gm+0maTWO6hjVygU1df01/jLGxtP8Nra5XQF3D2u/yn+tfWy9SDVo96PYcsFsd5zM47U4fzjrnNpw2u/DVhsFlq+nYLRh2nHZv4OShnVNbWn8a5bqeTu5S4tFjyPsZGQGNszSgDHiNQzamUC58WERLUr9tn5830CiIn3aGdNl02g00ZSkKE5eEiPGZ41L/ufsy8XRTdJ/H7khEWfm58kAwQrzS8vYYRXGGXDQMYi+5Z4jNWUajurY0vhzWX4Sh4YhGr08WA5fJPU37YxqGaIYVFUn8ww2K1wc6o+kcLPDInAHJQNMmkaSqvIVDZMEhv9IkyQBOTnsXF81u60T618UsWBkFKeXi34gF+OPzn5/7pqnm57+l18X5vw2W9Q/ijKbEzYIZXZshXEl/i/sErBuqJfTfBm/r7wVsEpL5WWEFmcLGf7PGe/rrmrXwf7pm5nGaqnEbKPzfFqh9evE3UuDD1RXIfmGeFj8AMrcHE9lNoojEHoPdXajuPPTbveH3s943Z9C1+z+q0IAqrsLNzZfcTsUSQMqDk6gZBxEJG9WdfZ8bDijM0ZikFLncfZD5UwNyNp9Q8OER2HjqgxwDzu+pB7INMoU9VrtVjtD+1S1Sbo4OrhX+1E7tGtf2Dqp8qUWebyX9CMV6+bvx7MvJ8eQfIUxCl1scmYGpqpIfCCcjEAgEAoFAIBAIBAKBQCAQCD4+PwGvplnJACgAAA=="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
-facade_main_ShellBashsh() {
+facade_main_Fortunesh() {
 
 # REQUIRES
 Linux::requireTarCommand
 Linux::requireUbuntu
-Linux::Wsl::requireWsl
 Env::requireLoad
 UI::requireTheme
 Log::requireLoad
+Linux::Wsl::requireWsl
 Compiler::Facade::requireCommandBinDir
 
 if Assert::functionExists initFacade; then
@@ -2236,7 +2259,7 @@ fi
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/ShellBash/conf" as conf_dir
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/Fortune/conf" as conf_dir
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -2935,7 +2958,7 @@ installScriptCommand() {
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
     echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/ShellBash/ShellBash.sh'
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/Fortune/Fortune.sh'
     echo
     echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
     echo 'MIT License'
@@ -2990,146 +3013,96 @@ isTestConfigureImplemented() {
 }
 
 scriptName() {
-  echo "ShellBash"
+  echo "Fortune"
 }
 
 helpDescription() {
-  echo "ShellBash"
-}
-
-dependencies() {
-  echo Fasd
-  echo Fzf
-  echo Kubectx
-  echo Kubeps1
-  # font needed for displaying bash prompt
-  echo Font
-  echo Vim
+  echo "Fortune"
 }
 
 # jscpd:ignore-start
+dependencies() { :; }
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
+fortunes() {
+  if [[ "${SHOW_FORTUNES}" = "1" ]]; then
+    # shellcheck disable=SC2016
+    echo "You can set SHOW_FORTUNES to 0 in '${BASH_DEV_ENV_ROOT_DIR}/.env' to hide fortunes"
+    echo "%"
+  fi
+}
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 # jscpd:ignore-end
 
-fortunes() {
-  local currentUserShell
-  currentUserShell="$(grep "^${USERNAME}:" /etc/passwd | awk -F ":" '{print $7}')"
-  if [[ "${currentUserShell}" = "/usr/bin/bash" ]]; then
-    if command -v zsh &>/dev/null; then
-      echo "Bash is set as default shell, you can switch to zsh using 'chsh -s /usr/bin/zsh'"
-      echo "%"
-    fi
-  fi
-}
-
 install() {
   Linux::Apt::update
   Linux::Apt::install \
-    bash-completion
+    cowsay \
+    lolcat \
+    fortune-mod
 }
 
 testInstall() {
-  Assert::fileExists /etc/profile.d/bash_completion.sh root root || return 1
+  Assert::commandExists fortune
+  Assert::commandExists lolcat
+  Assert::commandExists cowsay
 }
 
 configure() {
-  if [[ "${PREFERRED_SHELL}" = "ShellBash" ]]; then
-    CURRENT_USER_SHELL="$(grep "^${USERNAME}:" /etc/passwd | awk -F ":" '{print $7}')"
-    if [[ "${CURRENT_USER_SHELL}" != "/bin/bash" ]]; then
-      usermod --shell /bin/bash "${USERNAME}"
-      Log::displayHelp "You have to log in/log out to make bash by default"
-    fi
-    if command -v zsh &>/dev/null; then
-      Log::displayHelp "Bash is set as default shell, you can switch back to zsh using 'chsh -s /usr/bin/zsh'"
-    fi
-  fi
+  local configDir
+  # shellcheck disable=SC2154
+  configDir="$(Conf::getOverriddenDir "${embed_dir_conf_dir}" "${CONF_OVERRIDE_DIR}/Fortune")"
 
-  mkdir -p "${USER_HOME}/.bash-dev-env/interactive.d" || return 1
-  Retry::default curl -o "${USER_HOME}/.bash-dev-env/interactive.d/git-prompt.sh" \
-    https://raw.githubusercontent.com/git/git/master/contrib/completion/git-prompt.sh || return 1
+  Log::displayInfo "prepare fortunes database file"
+  sudo touch /etc/fortune-help-commands
+  sudo chown "${USERNAME}:${USERGROUP}" /etc/fortune-help-commands
+
+  Log::displayInfo "Install cron to update fortunes"
+  if [[ -z "${PROFILE}" ]]; then
+    Log::displayHelp "Please provide a profile to the install command in order to activate automatic fortune generation"
+  else
+    # shellcheck disable=SC2317
+    updateCronFortune() {
+      local -a cmd=(
+        sudo
+        -i -n
+        -u "${USERNAME}"
+        "${BASH_DEV_ENV_ROOT_DIR}/bin/fortune"
+        -p "${PROFILE}"
+      )
+      sudo sed -i -E -e "s#@COMMAND@#(cd '${BASH_DEV_ENV_ROOT_DIR}' \&\& ${cmd[*]} \&>'${BASH_DEV_ENV_ROOT_DIR}/logs/fortune-job.log')#" \
+        "/etc/cron.d/bash-dev-env-fortune"
+      SUDO=sudo Install::setUserRightsCallback "$@"
+    }
+
+    SUDO=sudo OVERWRITE_CONFIG_FILES=1 BACKUP_BEFORE_INSTALL=0 Install::file \
+      "${configDir}/etc/cron.d/bash-dev-env-fortune" "/etc/cron.d/bash-dev-env-fortune" \
+      root root updateCronFortune
+    sudo chmod +x "/etc/cron.d/bash-dev-env-fortune"
+  fi
 
   # shellcheck disable=SC2154
   Conf::copyStructure \
     "${embed_dir_conf_dir}" \
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
     ".bash-dev-env"
-
-  Conf::copyStructure \
-    "${embed_dir_conf_dir}" \
-    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
-    ".vscode"
-
-  Conf::copyStructure \
-    "${embed_dir_conf_dir}" \
-    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
-    "home" \
-    "${USER_HOME}"
-
-  local configDir
-  # shellcheck disable=SC2154
-  configDir="$(Conf::getOverriddenDir "${embed_dir_conf_dir}" "${CONF_OVERRIDE_DIR}/$(scriptName)")"
-
-  SUDO=sudo OVERWRITE_CONFIG_FILES=0 Install::file \
-    "${configDir}/home/.vimrc" "/root/.vimrc" root root
-  SUDO=sudo OVERWRITE_CONFIG_FILES=0 Install::file \
-    "${configDir}/home/.inputrc" "/root/.inputrc" root root
-
-  # disable bell
-  sudo sed -i -e 's/;set bell-style none/set bell-style none/g' /etc/inputrc
-
 }
 
 testConfigure() {
   local -i failures=0
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/git-prompt.sh" || ((++failures))
-
-  Assert::fileExists "${USER_HOME}/.bash_logout" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bashrc" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.dir_colors" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.inputrc" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.profile" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.vimrc" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.Xresources" || ((++failures))
-
-  SUDO=sudo Assert::fileExists /root/.vimrc root root || ((++failures))
-  SUDO=sudo Assert::fileExists /root/.inputrc root root || ((++failures))
-
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/colors.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/filesDirectory.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/miscellaneous.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/ssh.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/xserver.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/DISCLAIMER.md" || ((++failures))
-
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/completions.d/makeTargets.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/completions.d/DISCLAIMER.md" || ((++failures))
-
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/zzz_bash_prompt.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/bash_navigation.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/DISCLAIMER.md" || ((++failures))
-
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/profile.d/DISCLAIMER.md" || ((++failures))
-
-  Assert::fileExists "${USER_HOME}/.vscode/argv.json" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.vscode/settings.json" || ((++failures))
-
-  # check font in windows terminal configuration
-  local terminalConfFile
-  # cspell:ignore wekyb, bbwe
-  terminalConfFile="${WINDOWS_PROFILE_DIR}/AppData/Local/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/settings.json"
-  if [[ -f "${terminalConfFile}" ]]; then
-    if ! grep -q '"face": "MesloLGS NF"' "${terminalConfFile}"; then
-      Log::displayHelp "Please change your terminal settings($(Linux::Wsl::cachedWslpath -w "${terminalConfFile}")) to use font 'MesloLGS NF' for wsl profile"
+  Assert::fileExists /etc/fortune-help-commands || ((++failures))
+  if [[ -n "${PROFILE}" ]]; then
+    Log::displayInfo "checking Fortune cron configuration"
+    Assert::fileExecutable "/etc/cron.d/bash-dev-env-fortune" "root" "root" || ((++failures))
+    if ! grep -q -E -e "fortune -p ${PROFILE}" /etc/cron.d/bash-dev-env-fortune; then
+      ((failures++))
+      Log::displayError "File /etc/cron.d/bash-dev-env-fortune content invalid"
     fi
-  else
-    Log::displayHelp "please use windows terminal for better shell display results"
   fi
-
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/displayFortunes.sh" || ((++failures))
   return "${failures}"
 }
 
@@ -3202,4 +3175,4 @@ esac
 exit 0
 }
 
-facade_main_ShellBashsh "$@"
+facade_main_Fortunesh "$@"

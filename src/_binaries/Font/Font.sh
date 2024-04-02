@@ -26,7 +26,8 @@ breakOnTestFailure() { :; }
 fortunes() {
   if Assert::wsl; then
     if ! ls "${WINDOWS_PROFILE_DIR}/AppData/Local/Microsoft/Windows/Fonts/mesloLGS_NF"*.ttf &>/dev/null; then
-      fortunes+=("Font 'Meslo LG S' does not seem to be installed, use 'install Font' to get better terminal results")
+      echo "Font 'Meslo LG S' does not seem to be installed, use 'install Font' to get better terminal results"
+      echo "%"
     fi
   fi
 }

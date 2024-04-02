@@ -27,10 +27,13 @@ breakOnTestFailure() { :; }
 
 fortunes() {
   if command -v fasd &>/dev/null; then
-    fortunes+=("Fasd -- z <directory> to easily change directory (see https://github.com/clvv/fasd)")
-    fortunes+=("Fasd -- v <file> to easily edit recently file with vi (see https://github.com/clvv/fasd)")
+    echo "Fasd -- z <directory> to easily change directory (see https://github.com/clvv/fasd)"
+    echo "%"
+    echo "Fasd -- v <file> to easily edit recently file with vi (see https://github.com/clvv/fasd)"
+    echo "%"
   else
-    fortunes+=("Fasd -- Think about installing fasd to easily switch directory - run 'install Fasd'")
+    echo "Fasd -- Think about installing fasd to easily switch directory - run 'install Fasd'"
+    echo "%"
   fi
 }
 
