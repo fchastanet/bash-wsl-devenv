@@ -347,6 +347,12 @@ AWS_DEFAULT_REGION=""
 AWS_TEST_SECRET_ID=""
 AWS_DEFAULT_DOCKER_REGISTRY_ID=""
 
+# KubeDefaultConfig ~/.kube/config generation
+# aws region of the cluster (Eg: us-east-1)
+KUBE_CONFIG_REGION_CODE=
+# aws arn of the cluster arn:aws:ecs:region:aws_account_id:cluster/MyCluster
+KUBE_CONFIG_CLUSTER_ARN=
+
 # hostname of the distro
 DISTRO_HOSTNAME="wslHost"
 
@@ -376,10 +382,6 @@ UPGRADE_UBUNTU_VERSION=0
 
 # -----------------------------------------
 # PROFILES options
-
-# Choose your AWS authenticator tool
-# possible choices: Saml2Aws, Awsume
-AWS_AUTHENTICATOR="Saml2Aws"
 
 # Choose your preferred shell
 # possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
@@ -1084,7 +1086,6 @@ Engine::Config::checkEnv() {
   checkVarAndDir USER_HOME rw || true
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
-  checkValidValues AWS_AUTHENTICATOR Saml2Aws Awsume
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh
 
   checkValidValues SHOW_FORTUNES 0 1
@@ -3026,7 +3027,7 @@ install() {
 testInstall() {
   local -i failures=0
   Assert::commandExists fasd || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/bash-tools-dev.sh" || ((++failures))
+  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/fasd.sh" || ((++failures))
   return "${failures}"
 }
 
