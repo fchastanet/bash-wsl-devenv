@@ -3079,8 +3079,8 @@ testConfigure() {
   Assert::fileExecutable "/etc/update-motd.d/00-wsl-header" || ((++failures))
   Assert::fileExecutable "/etc/update-motd.d/01-wsl-sysinfo" || ((++failures))
   Assert::fileExecutable "/etc/update-motd.d/03-wsl-automatic-upgrade" || ((++failures))
-  Assert::fileNotExecutable "/etc/update-motd.d/10-help-text" || ((++failures))
-  Assert::fileNotExecutable "/etc/update-motd.d/00-header" || ((++failures))
+  Assert::fileNotExecutable "/etc/update-motd.d/10-help-text" root root || ((++failures))
+  Assert::fileNotExecutable "/etc/update-motd.d/00-header" root root || ((++failures))
 
   Assert::fileExecutable "/etc/cron.daily/motd" || ((++failures))
 
