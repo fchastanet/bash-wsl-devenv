@@ -3188,7 +3188,7 @@ configure() {
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
     ".bash-dev-env"
 
-  OVERWRITE_CONFIG_FILES=1 Conf::copyStructure \
+  Conf::copyStructure \
     "${embed_dir_conf_dir}" \
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
     ".bash-tools"
