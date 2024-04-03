@@ -26,8 +26,7 @@ breakOnTestFailure() { :; }
 # jscpd:ignore-end
 
 install() {
-  Linux::Apt::update
-  Linux::Apt::install \
+  Linux::Apt::installIfNecessary --no-install-recommends \
     openjdk-17-jre
 }
 

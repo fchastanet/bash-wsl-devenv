@@ -1132,8 +1132,7 @@ Engine::Config::loadWslVariables() {
 Engine::Config::requireWslu() {
   if ! command -v wslvar &>/dev/null; then
     Log::displayInfo "Installing pre-requisite Wslu : wslvar, wslpath, ... commands"
-    Linux::Apt::update
-    Linux::Apt::install --no-install-recommends wslu
+    Linux::Apt::installIfNecessary --no-install-recommends wslu
 
     # @see https://github.com/microsoft/WSL/issues/8843#issuecomment-1792256894
     Log::displayInfo "Fix wsl interoperability due to wsl bug"

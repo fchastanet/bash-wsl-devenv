@@ -82,7 +82,7 @@ executeScript() {
     installCmd+=(--skip-test)
   fi
 
-  "${installCmd[@]}"
+  LOG_CONTEXT="${configName} - " "${installCmd[@]}"
 }
 
 executeScripts() {

@@ -40,15 +40,15 @@ install() {
     # libkrb5-dev needed by pykerberos
     libkrb5-dev
     python3.9
+    python3.9-dev
     # needed by some pip dependencies
     python3-cairo-dev
     python3-dbus
-    python3.9-distutils
-    python3.9-dev
+    python3-distutils
     python-is-python3
     python3-pip
   )
-  Linux::Apt::install "${packages[@]}"
+  SKIP_APT_GET_UPDATE=1 Linux::Apt::installIfNecessary --no-install-recommends "${packages[@]}"
 
   mkdir -p \
     "${USER_HOME}/.local/bin" \

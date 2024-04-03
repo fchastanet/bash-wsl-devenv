@@ -24,12 +24,11 @@ breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 
 install() {
-  Linux::Apt::update
   PACKAGES=(
     # /usr/share/update-notifier/notify-updates-outdated needed by motd
     update-notifier-common
   )
-  Linux::Apt::install "${PACKAGES[@]}"
+  Linux::Apt::installIfNecessary --no-install-recommends "${PACKAGES[@]}"
 }
 
 testInstall() { :; }

@@ -34,7 +34,7 @@ InstallScripts::command() {
   local globalStatsFile="${logsDir}/${scriptName}-global.stat"
   local hook
   if [[ "${SKIP_INSTALL}" = "0" ]] && ! InstallScripts::scriptFunctionEmpty install; then
-    Log::headLine "INSTALL" "Installing ${scriptName}"
+    LOG_CONTEXT="${scriptName} - " Log::headLine "INSTALL" "Installing ${scriptName}"
     logFile="${logsDir}/${scriptName}-install.log"
     statsFile="${logsDir}/${scriptName}-install.stat"
 
@@ -46,7 +46,7 @@ InstallScripts::command() {
         local rc=$?
         Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
         Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
-        Stats::statusLine "${rc}" "${statsFile}" "Installation ${scriptName}"
+        LOG_CONTEXT="${scriptName} - " Stats::statusLine "${rc}" "${statsFile}" "Installation"
         exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT

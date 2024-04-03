@@ -60,7 +60,7 @@ install() {
   Retry::default sudo apt-get autoremove -y
 
   # add do-release-upgrade
-  Linux::Apt::install ubuntu-release-upgrader-core
+  SKIP_APT_GET_UPDATE=1 Linux::Apt::installIfNecessary --no-install-recommends ubuntu-release-upgrader-core
 
   Log::displayInfo "configure to upgrade to the latest LTS development release"
   sudo sed -i -r 's/^Prompt=.*$/Prompt=lts/g' /etc/update-manager/release-upgrades

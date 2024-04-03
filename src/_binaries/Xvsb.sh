@@ -29,17 +29,16 @@ install() {
   # use to launch headless chrome (used by aws cli)
   # https://stackoverflow.com/a/61043049/3045926
   # Install Xvfb
-  Linux::Apt::update
-  Linux::Apt::install \
+  Linux::Apt::installIfNecessary --no-install-recommends \
     xvfb
 
   # Dependencies to make "headless" chrome
-  Linux::Apt::install \
+  SKIP_APT_GET_UPDATE=1 Linux::Apt::installIfNecessary --no-install-recommends \
     gtk2-engines-pixbuf \
     xorg \
     xvfb
 
-  Linux::Apt::install \
+  SKIP_APT_GET_UPDATE=1 Linux::Apt::installIfNecessary --no-install-recommends \
     dbus-x11 \
     xfonts-100dpi \
     xfonts-75dpi \

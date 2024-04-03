@@ -25,7 +25,10 @@ helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
-fortunes() { :; }
+fortunes() {
+  echo "$(scriptName) - these kubernetes tools are available helm, kubectl, kind, minikube, kubeps1, kubectx, kubens"
+  echo ";"
+}
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 # jscpd:ignore-end
@@ -33,7 +36,7 @@ breakOnTestFailure() { :; }
 installHelm() {
   if ! command -v helm &>/dev/null; then
     Log::displayInfo "install helm ..."
-    Retry::default curl -fsSL https://baltocdn.com/helm/signing.asc | sudo apt-key add -
+    Retry::default curl -fsSL https://baltocdn.com/helm/signing.asc | sudo apt-key add --no-tty --batch -
     Linux::Apt::installIfNecessary --no-install-recommends \
       apt-transport-https
     echo "deb https://baltocdn.com/helm/stable/debian/ all main" |

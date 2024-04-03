@@ -47,8 +47,7 @@ fzfInstall() {
 }
 
 install() {
-  Linux::Apt::update
-  Linux::Apt::install \
+  Linux::Apt::installIfNecessary --no-install-recommends \
     tree # tree command is used by some fzf key binding
 
   Log::displayInfo "install fzf"

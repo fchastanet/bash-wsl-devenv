@@ -22,8 +22,7 @@ EOF
 downloadDistro() {
   if ! command -v aria2c &>/dev/null; then
     Log::displayInfo "Installing aria2"
-    sudo apt-get update
-    sudo apt-get install -y aria2
+    Linux::Apt::installIfNecessary --no-install-recommends aria2
   fi
   local distroImageDir
   distroImageDir="$(getDistroImageDir)"

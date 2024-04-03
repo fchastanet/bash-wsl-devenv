@@ -10,7 +10,7 @@ Log::headLine() {
     message="${text}"
   else
     Log::computeDuration
-    message="$(printf '%-7s - %s%s' "${type}" "${LOG_LAST_DURATION_STR}" "${text}")"
+    message="$(printf '%-7s - %s%s' "${type}" "${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}" "${text}")"
   fi
   echo -e "${__TEST_COLOR}$(UI::textLine "${message}" " ")${__RESET_COLOR}" >&2
 }
