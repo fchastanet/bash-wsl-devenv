@@ -100,7 +100,9 @@ getDistroImageDir() {
 }
 
 getDistroFile() {
-  echo "$(getDistroImageDir)-${DISTRO_NAME}-export.tar.gz"
+  local distroVersion
+  distroVersion="$(Version::parse <"${BASH_DEV_ENV_ROOT_DIR}/.distroVersion")"
+  echo "$(getDistroImageDir)-${DISTRO_NAME}-export-${distroVersion}.tar.gz"
 }
 
 exportDistro() {

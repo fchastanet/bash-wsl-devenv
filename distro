@@ -738,6 +738,16 @@ UI::theme() {
   fi
 }
 
+# @description filter to keep only version number from a string
+# @arg $@ files:String[] the files to filter
+# @exitcode * if one of the filter command fails
+# @stdin you can use stdin as alternative to files argument
+# @stdout the filtered content
+# shellcheck disable=SC2120
+Version::parse() {
+  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
+}
+
 # @description ensure COMMAND_BIN_DIR env var is set
 # and PATH correctly prepared
 # @noargs
@@ -2357,7 +2367,9 @@ getDistroImageDir() {
 }
 
 getDistroFile() {
-  echo "$(getDistroImageDir)-${DISTRO_NAME}-export.tar.gz"
+  local distroVersion
+  distroVersion="$(Version::parse <"${BASH_DEV_ENV_ROOT_DIR}/.distroVersion")"
+  echo "$(getDistroImageDir)-${DISTRO_NAME}-export-${distroVersion}.tar.gz"
 }
 
 exportDistro() {
