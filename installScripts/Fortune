@@ -2256,7 +2256,7 @@ Linux::Wsl::originalWslpath() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2Xa2/aMBSG+ZxfcQZVr0sch1ykTkhlkAqkFqoRxIdeJpM4JVIuKA5UaN1/n9PQNqvUdkzAVM0PHxwfn8gnvCfJGwVVNo7KsQwjH7FlqOXxkQrWTVUzNcMwNB63dGxWwNh8aZXKjGUkBajcsfDNvPfWPygKopm74R5YWX/M17HQfxsU+rtpEiveptpgJf3NOtcf1w1x/2+F3/QfEzaRPTqXaTyX/STNZjFdwx65wKauv6Y/xthY6q+beh7HhlbXK6CuYe93+c/1r60XqQbtPvT6DtjtrvMZnE53AKfdMxtazR58tWF40W46dhtGXafTHzp5ardlS+svo9zXs+ltSjx6DPk8I2OgcZYGlAHvccgmFMqND8tsSRp07LOzBhoH8cOdIV00nU4DzViKwsQlIWJ85bg0f5o+LzwcFNOn2C2JKCufVw4EY8Q7LR+PURRnyEWjIPaSO4bYgmU0qmsv4i/TBss0NBrT6PXFInCR3NF0MKFhiOZYUZHE/7hhcflA5zRdgAUeWTAgGWh4Gkmqykc4RBYc8l+aJBnASat/ft7stU+kf93MgpVRkFJu/o1YgD9+//P3vmnmz39s6XXx/t8GL/UP4oymxM2COV2bIVxJf4v7BMxdgCX03wZv6+8FbBqSxWlhBZnCJn+zx3v665r16P80M8/TVI1/Bgr/twVqn579jRT4cHkJsl+Yp+UHgMztwVR2kygiscdgdxeqOz8Gnf7o+2n/mzPs2YOfVWhAFVfh+vpLbqdiCSDlyUnUjIOIhI3qzr7PDQcU5mhCUopc7j7I4mEAOVtMKfhwD2wy80GOAefH1APZBpnCHqvdKEdo//IGKddHB1cKP2undoVrewdVvtWyzreKvodiv/zaePXl4njx9xAmocstjszAVFXJD4STEQgEAoFAIBAIBAKBQCAQCAQfn19rXq8eACgAAA=="
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2Xa2/aMBSG8zm/4gyqXpc4zlXqhFRWUoHUQjWC+NDLFBKnRMoFxYEKtfvvcxrWZpVKxwRs0/zwwfHxiWzznsRvZCRsHIVhGUbRYstQqu0PBKybimqqhmGoLG7p2BTA2PzSBGFKczcDEO5ptDTvvfF/FBmR3NtwDaysP2bjmOu/DUr9vSxNZH9TZbCS/qbG9MeawZ//rfCT/iOXjiWfzCSSzKQgzfJpQtYwRyGwqetv6Y8xNhb666ZexLGharoAyhrmfpf/XP/6ehHr0OpBt+eA3eo4H8Fpd/pw1jm34bTZhc82DC5bTcduwbDjtHsDp0jtnNri+pdRrevp5C5zfXIMRT93R0CSPAsJBVbjkI8JVAsfFtmi2G/b5+cNNAqTpydDvGw67Qaa0gxFqedGiLKR40r/ufsy8HRRdp9jd25MaPW+aiAcIVZpRXuM4iRHHhqGiZ/eU0TnNCexpr6Kv07rL9LQcETitwfLwGV6T7L+mEQRmmFZQSL74wbl9oHMSDYHC3x3TsHNQcWTWFQU1sIhsuCQ/bI0zQFOTnsXF81u60T808XMWRkZydXi34gF+OXzn537plm8/7Gla/z83wav9Q+TnGSul4czsjZDuJL+FvMJmLkAi+u/DZbr74d0Ernzs9IKUpmOf2eO9/TXmeaF/pqmm4bF4qqiss9A7v+2QP3Di78RwwCurkAKSvO0+ACQmD2YSF4ax27iU9jdXZ4g+8wrsKTazkO/3Rt+Pet9cQZdu/+tBg2o4Rrc3HwqPFciAmTshjRuJmHsRo3azn7AXAmUDmrsZgR5zKK486cGpHw+IRDAI9DxNAApAVxcEx8kGyQCe7R+Kx+h/atbJN8cHVzL7K6d+jWu7x3U2FSLtS7b2SOU8xX7Y6uvLo4t/hGiNPLY3iQKpqKIQcjtDofD4XA4HA6Hw+FwOBwOh8P5q/kOFGn7RgAoAAA="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -3119,6 +3119,8 @@ configure() {
       sudo sed -i -E -e "s#@COMMAND@#(cd '${BASH_DEV_ENV_ROOT_DIR}' \&\& ${cmd[*]} \&>'${BASH_DEV_ENV_ROOT_DIR}/logs/fortune-job.log')#" \
         "/etc/cron.d/bash-dev-env-fortune"
       SUDO=sudo Install::setUserRightsCallback "$@"
+      # generate /etc/fortune-help-commands and /etc/fortune-help-commands.dat
+      SKIP_REQUIRES=1 "${cmd[@]}"
     }
 
     SUDO=sudo OVERWRITE_CONFIG_FILES=1 BACKUP_BEFORE_INSTALL=0 Install::file \

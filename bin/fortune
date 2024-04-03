@@ -457,6 +457,22 @@ Env::requireLoad() {
   done
 }
 
+# @description remove all empty lines
+# - at the beginning of the file before non empty line
+# - at the end of the file after last non empty line
+# @arg $@ files:String[] the files to filter
+# @exitcode * if one of the filter command fails
+# @stdin you can use stdin as alternative to files argument
+# @stdout the filtered content
+# shellcheck disable=SC2120
+# @see https://unix.stackexchange.com/a/653883
+Filters::trimEmptyLines() {
+  awk '
+    NF {print saved $0; saved = ""; started = 1; next}
+    started {saved = saved $0 ORS}
+  ' "$@"
+}
+
 # @description create a temp file using default TMPDIR variable
 # initialized in _includes/_commonHeader.sh
 # @env TMPDIR String (default value /tmp)
@@ -2482,7 +2498,7 @@ generateFortunes() {
       for configName in "${CONFIG_LIST[@]}"; do
         (
           local fortunes
-          fortunes="$("${INSTALL_SCRIPTS_DIR}/${configName}" fortunes)"
+          fortunes="$("${INSTALL_SCRIPTS_DIR}/${configName}" fortunes | Filters::trimEmptyLines)"
           if [[ -n "${fortunes}" ]]; then
             echo "${fortunes}"
           fi
@@ -2493,6 +2509,11 @@ generateFortunes() {
     ) 2>&1 | tee >(sed -r 's/\x1b\[[0-9;]*m//g' >>"${LOGS_DIR}/automatic-fortune") || return 1
     Log::displayInfo "$(grep -cE '^%$' /etc/fortune-help-commands) fortunes generated"
   fi
+}
+
+generateFortunesDat() {
+  # generate dat file
+  sudo strfile -c % /etc/fortune-help-commands /etc/fortune-help-commands.dat
 }
 
 # we need non root user to be sure that all variables will be correctly deduced
@@ -2514,6 +2535,7 @@ run() {
   export INTERACTIVE=1
 
   generateFortunes
+  generateFortunesDat
 }
 
 if [[ "${BASH_FRAMEWORK_QUIET_MODE:-0}" = "1" ]]; then
