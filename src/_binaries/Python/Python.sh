@@ -28,7 +28,7 @@ breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 
 install() {
-  Linux::Apt::addRepository ppa:deadsnakes/ppa
+  SKIP_APT_GET_UPDATE=1 Linux::Apt::addRepository ppa:deadsnakes/ppa
   local -a packages=(
     build-essential
     # libdbus-glib-1-dev needed by dbus-python
@@ -48,7 +48,7 @@ install() {
     python-is-python3
     python3-pip
   )
-  SKIP_APT_GET_UPDATE=1 Linux::Apt::installIfNecessary --no-install-recommends "${packages[@]}"
+  Linux::Apt::installIfNecessary --no-install-recommends "${packages[@]}"
 
   mkdir -p \
     "${USER_HOME}/.local/bin" \
