@@ -52,7 +52,7 @@ installKubectl() {
   local latestVersion
   latestVersion="$(curl -fsSL "${versionUrl}" | Version::parse)"
   if command -v kubectl &&
-    [[ "$(kubectl version --short=true 2>/dev/null | Version::parse)" = "${latestVersion}" ]]; then
+    [[ "$(kubectl version 2>/dev/null | Version::parse)" = "${latestVersion}" ]]; then
     Log::displaySkipped "kubectl version ${latestVersion} already installed"
   else
     Retry::default curl \
