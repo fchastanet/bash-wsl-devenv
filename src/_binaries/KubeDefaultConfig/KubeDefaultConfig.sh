@@ -27,7 +27,7 @@ defaultVariables() { :; }
 checkVariables() { :; }
 fortunes() {
   echo "$(scriptName) - these kubernetes tools are available helm, kubectl, kind, minikube, kubeps1, kubectx, kubens"
-  echo ";"
+  echo "%"
 }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }

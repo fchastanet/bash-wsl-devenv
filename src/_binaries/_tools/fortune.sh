@@ -24,7 +24,7 @@ generateFortunes() {
       for configName in "${CONFIG_LIST[@]}"; do
         (
           local fortunes
-          fortunes="$("${INSTALL_SCRIPTS_DIR}/${configName}" fortunes)"
+          fortunes="$("${INSTALL_SCRIPTS_DIR}/${configName}" fortunes | Filters::trimEmptyLines)"
           if [[ -n "${fortunes}" ]]; then
             echo "${fortunes}"
           fi
@@ -35,6 +35,11 @@ generateFortunes() {
     ) 2>&1 | tee >(sed -r 's/\x1b\[[0-9;]*m//g' >>"${LOGS_DIR}/automatic-fortune") || return 1
     Log::displayInfo "$(grep -cE '^%$' /etc/fortune-help-commands) fortunes generated"
   fi
+}
+
+generateFortunesDat() {
+  # generate dat file
+  sudo strfile -c % /etc/fortune-help-commands /etc/fortune-help-commands.dat
 }
 
 # we need non root user to be sure that all variables will be correctly deduced
@@ -56,6 +61,7 @@ run() {
   export INTERACTIVE=1
 
   generateFortunes
+  generateFortunesDat
 }
 
 if [[ "${BASH_FRAMEWORK_QUIET_MODE:-0}" = "1" ]]; then

@@ -70,6 +70,8 @@ configure() {
       sudo sed -i -E -e "s#@COMMAND@#(cd '${BASH_DEV_ENV_ROOT_DIR}' \&\& ${cmd[*]} \&>'${BASH_DEV_ENV_ROOT_DIR}/logs/fortune-job.log')#" \
         "/etc/cron.d/bash-dev-env-fortune"
       SUDO=sudo Install::setUserRightsCallback "$@"
+      # generate /etc/fortune-help-commands and /etc/fortune-help-commands.dat
+      SKIP_REQUIRES=1 "${cmd[@]}"
     }
 
     SUDO=sudo OVERWRITE_CONFIG_FILES=1 BACKUP_BEFORE_INSTALL=0 Install::file \
