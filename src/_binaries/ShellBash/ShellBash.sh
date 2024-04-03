@@ -18,8 +18,6 @@ helpDescription() {
 dependencies() {
   echo Fasd
   echo Fzf
-  echo Kubectx
-  echo Kubeps1
   # font needed for displaying bash prompt
   echo Font
   echo Vim
@@ -46,8 +44,7 @@ fortunes() {
 }
 
 install() {
-  Linux::Apt::update
-  Linux::Apt::install \
+  Linux::Apt::installIfNecessary --no-install-recommends \
     bash-completion
 }
 

@@ -18,15 +18,12 @@ Stats::statusLine() {
     if [[ "${status}" = "0" ]]; then
       if [[ "${skipped}" = "0" ]]; then
         color="${__SUCCESS_COLOR}"
-        statusMsg="SUCCESS - ${LOG_LAST_DURATION_STR}${msg} successful"
-      else
-        color="${__SKIPPED_COLOR}"
-        statusMsg="SKIPPED - ${LOG_LAST_DURATION_STR}${msg} skipped"
+        statusMsg="SUCCESS - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR}${msg} successful"
       fi
     elif [[ "${status}" = "-1" ]]; then
-      statusMsg="ABORTED - ${LOG_LAST_DURATION_STR}${msg} not executed"
+      statusMsg="ABORTED - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR}${msg} not executed"
     else
-      statusMsg="ERROR   - ${LOG_LAST_DURATION_STR}${msg} in error"
+      statusMsg="ERROR   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR}${msg} in error"
     fi
     # overwrite final TEST line
     echo -e "${color}${statusMsg}${__RESET_COLOR}"

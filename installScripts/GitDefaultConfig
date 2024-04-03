@@ -325,6 +325,12 @@ AWS_DEFAULT_REGION=""
 AWS_TEST_SECRET_ID=""
 AWS_DEFAULT_DOCKER_REGISTRY_ID=""
 
+# KubeDefaultConfig ~/.kube/config generation
+# aws region of the cluster (Eg: us-east-1)
+KUBE_CONFIG_REGION_CODE=
+# aws arn of the cluster arn:aws:ecs:region:aws_account_id:cluster/MyCluster
+KUBE_CONFIG_CLUSTER_ARN=
+
 # hostname of the distro
 DISTRO_HOSTNAME="wslHost"
 
@@ -354,10 +360,6 @@ UPGRADE_UBUNTU_VERSION=0
 
 # -----------------------------------------
 # PROFILES options
-
-# Choose your AWS authenticator tool
-# possible choices: Saml2Aws, Awsume
-AWS_AUTHENTICATOR="Saml2Aws"
 
 # Choose your preferred shell
 # possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
@@ -529,7 +531,7 @@ InstallScripts::command() {
   local globalStatsFile="${logsDir}/${scriptName}-global.stat"
   local hook
   if [[ "${SKIP_INSTALL}" = "0" ]] && ! InstallScripts::scriptFunctionEmpty install; then
-    Log::headLine "INSTALL" "Installing ${scriptName}"
+    LOG_CONTEXT="${scriptName} - " Log::headLine "INSTALL" "Installing ${scriptName}"
     logFile="${logsDir}/${scriptName}-install.log"
     statsFile="${logsDir}/${scriptName}-install.stat"
 
@@ -541,7 +543,7 @@ InstallScripts::command() {
         local rc=$?
         Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
         Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
-        Stats::statusLine "${rc}" "${statsFile}" "Installation ${scriptName}"
+        LOG_CONTEXT="${scriptName} - " Stats::statusLine "${rc}" "${statsFile}" "Installation"
         exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
@@ -689,7 +691,7 @@ export __VERBOSE_LEVEL_TRACE=3
 Log::displayDebug() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_DEBUG)); then
     Log::computeDuration
-    echo -e "${__DEBUG_COLOR}DEBUG   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__DEBUG_COLOR}DEBUG   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logDebug "$1"
 }
@@ -699,7 +701,7 @@ Log::displayDebug() {
 Log::displayError() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_ERROR)); then
     Log::computeDuration
-    echo -e "${__ERROR_COLOR}ERROR   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__ERROR_COLOR}ERROR   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logError "$1"
 }
@@ -710,7 +712,7 @@ Log::displayHelp() {
   local type="${2:-HELP}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
     Log::computeDuration
-    echo -e "${__HELP_COLOR}${type}    - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__HELP_COLOR}${type}    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logHelp "$1" "${type}"
 }
@@ -722,7 +724,7 @@ Log::displayInfo() {
   local type="${2:-INFO}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
     Log::computeDuration
-    echo -e "${__INFO_COLOR}${type}    - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__INFO_COLOR}${type}    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logInfo "$1" "${type}"
 }
@@ -732,7 +734,7 @@ Log::displayInfo() {
 Log::displayWarning() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
     Log::computeDuration
-    echo -e "${__WARNING_COLOR}WARN    - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__WARNING_COLOR}WARN    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logWarning "$1"
 }
@@ -741,7 +743,7 @@ Log::displayWarning() {
 # @arg $1 message:String the message to display
 Log::fatal() {
   Log::computeDuration
-  echo -e "${__ERROR_COLOR}FATAL   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+  echo -e "${__ERROR_COLOR}FATAL   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   Log::logFatal "$1"
   exit 1
 }
@@ -1068,7 +1070,6 @@ Engine::Config::checkEnv() {
   checkVarAndDir USER_HOME rw || true
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
-  checkValidValues AWS_AUTHENTICATOR Saml2Aws Awsume
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh
 
   checkValidValues SHOW_FORTUNES 0 1
@@ -1235,8 +1236,7 @@ Engine::Config::loadWslVariables() {
 Engine::Config::requireWslu() {
   if ! command -v wslvar &>/dev/null; then
     Log::displayInfo "Installing pre-requisite Wslu : wslvar, wslpath, ... commands"
-    Linux::Apt::update
-    Linux::Apt::install --no-install-recommends wslu
+    Linux::Apt::installIfNecessary --no-install-recommends wslu
 
     # @see https://github.com/microsoft/WSL/issues/8843#issuecomment-1792256894
     Log::displayInfo "Fix wsl interoperability due to wsl bug"
@@ -1398,7 +1398,7 @@ Log::headLine() {
     message="${text}"
   else
     Log::computeDuration
-    message="$(printf '%-7s - %s%s' "${type}" "${LOG_LAST_DURATION_STR}" "${text}")"
+    message="$(printf '%-7s - %s%s' "${type}" "${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}" "${text}")"
   fi
   echo -e "${__TEST_COLOR}$(UI::textLine "${message}" " ")${__RESET_COLOR}" >&2
 }
@@ -1531,15 +1531,12 @@ Stats::statusLine() {
     if [[ "${status}" = "0" ]]; then
       if [[ "${skipped}" = "0" ]]; then
         color="${__SUCCESS_COLOR}"
-        statusMsg="SUCCESS - ${LOG_LAST_DURATION_STR}${msg} successful"
-      else
-        color="${__SKIPPED_COLOR}"
-        statusMsg="SKIPPED - ${LOG_LAST_DURATION_STR}${msg} skipped"
+        statusMsg="SUCCESS - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR}${msg} successful"
       fi
     elif [[ "${status}" = "-1" ]]; then
-      statusMsg="ABORTED - ${LOG_LAST_DURATION_STR}${msg} not executed"
+      statusMsg="ABORTED - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR}${msg} not executed"
     else
-      statusMsg="ERROR   - ${LOG_LAST_DURATION_STR}${msg} in error"
+      statusMsg="ERROR   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR}${msg} in error"
     fi
     # overwrite final TEST line
     echo -e "${color}${statusMsg}${__RESET_COLOR}"
@@ -1763,25 +1760,42 @@ Install::file() {
   fi
 }
 
-# @description apt-get install
-# @arg $@ softwares:String[] list of softwares to install
+# @description apt-get install if package is not installed yet
+# @arg $@ packages:String[] list of packages to install
 # @feature Retry::default
 # Linux::requireSudoCommand
 # @require Linux::requireUbuntu
+# @env SKIP_APT_GET_UPDATE
 # @stdout diagnostics logs
-Linux::Apt::install() {
-  Log::displayInfo "Apt install $*"
-  Retry::default sudo apt-get install -y -q "$@"
-}
-
-# @description update apt packages list
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::update() {
-  Log::displayInfo "Apt update ..."
-  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
+Linux::Apt::installIfNecessary() {
+  local -a packages=("$@")
+  local package
+  local -i installNeeded=0
+  for package in "${packages[@]}"; do
+    if [[ "${package}" =~ ^-- ]]; then
+      continue
+    fi
+    if ! Linux::Apt::isPackageInstalled "${package}"; then
+      Log::displayInfo "Package ${package} is not installed"
+      installNeeded=1
+    fi
+  done
+  if ((installNeeded == 1)); then
+    if [[ "${SKIP_APT_GET_UPDATE:-0}" = "0" ]]; then
+      Linux::Apt::update
+    fi
+    Linux::Apt::install "${packages[@]}"
+    for package in "${packages[@]}"; do
+      if [[ "${package}" =~ ^-- ]]; then
+        continue
+      fi
+      if ! Linux::Apt::isPackageInstalled "${package}"; then
+        Log::displayWarning "Package ${package} does not appear to have been installed, check if you could have chosen the wrong package name (Eg: python3.9-distutils instead of python3-distutils)"
+      fi
+    done
+  else
+    Log::displayInfo "Apt install avoided as packages are already installed : ${packages[*]}"
+  fi
 }
 
 # @description retrieve path from wslvar and then use wslpath to resolve it
@@ -1820,7 +1834,7 @@ Linux::Wsl::cachedWslvar() {
 Log::displaySkipped() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
     Log::computeDuration
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logSkipped "$1"
 }
@@ -1830,7 +1844,7 @@ Log::displaySkipped() {
 Log::displaySuccess() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
     Log::computeDuration
-    echo -e "${__SUCCESS_COLOR}SUCCESS - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__SUCCESS_COLOR}SUCCESS - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logSuccess "$1"
 }
@@ -2013,6 +2027,36 @@ Install::unableToCopyCallback() {
   Log::fatal "unable to copy file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fileName}' to '${targetFile}'"
 }
 
+# @description apt-get install
+# @arg $@ softwares:String[] list of softwares to install
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::install() {
+  Log::displayInfo "Apt install $*"
+  Retry::default sudo apt-get install -y -q "$@"
+}
+
+# @description check if apt package is installed
+# @arg $1 package:String the package name to check
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::isPackageInstalled() {
+  local package="$1"
+  dpkg -l "${package}" | grep -Eq "^ii  ${package}"
+}
+
+# @description update apt packages list
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::update() {
+  Log::displayInfo "Apt update ..."
+  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
+}
+
 # @description retrieve wslpath using cache (cache is refreshed every day)
 # @arg $@ args:String[] arguments to pass to wslpath
 # @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
@@ -2044,7 +2088,7 @@ Log::displayStatus() {
   local type="${2:-STATUS}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
     Log::computeDuration
-    echo -e "${__INFO_COLOR}${type}  - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__INFO_COLOR}${type}  - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logStatus "$1" "${type}"
 }
@@ -2063,14 +2107,6 @@ Log::logSuccess() {
   if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
     Log::logMessage "${2:-SUCCESS}" "$1"
   fi
-}
-
-# @description Retry a command 5 times with a delay of 15 seconds between each attempt
-# @arg $@ command:String[] the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-Retry::default() {
-  Retry::parameterized 5 15 "" "$@"
 }
 
 # @description ensure linux distribution is ubuntu
@@ -2181,6 +2217,14 @@ Log::logStatus() {
   fi
 }
 
+# @description Retry a command 5 times with a delay of 15 seconds between each attempt
+# @arg $@ command:String[] the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+Retry::default() {
+  Retry::parameterized 5 15 "" "$@"
+}
+
 # @description Retry a command several times depending on parameters
 # @arg $1 maxRetries:int    $1 max retries
 # @arg $2 delay:int between attempt
@@ -2220,7 +2264,7 @@ Retry::parameterized() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "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"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "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"
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -3037,6 +3081,7 @@ dependencies() {
 
 fortunes() {
   echo "GitDefaultConfig - default main branch is set to $(git config --global --get init.defaultBranch), you can change it in your ~/.gitconfig"
+  echo "%"
 }
 
 # jscpd:ignore-start

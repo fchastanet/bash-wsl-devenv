@@ -42,12 +42,11 @@ install() {
   Linux::Apt::remove \
     openssh-server
 
-  Linux::Apt::update
   # configure language support
-  Linux::Apt::install \
+  Linux::Apt::installIfNecessary --no-install-recommends \
     language-selector-common
   # shellcheck disable=SC2046
-  Linux::Apt::install \
+  SKIP_APT_GET_UPDATE=1 Linux::Apt::installIfNecessary --no-install-recommends \
     tzdata \
     $(check-language-support)
 
@@ -68,7 +67,7 @@ install() {
     unzip
     wget
   )
-  Linux::Apt::install "${PACKAGES[@]}"
+  SKIP_APT_GET_UPDATE=1 Linux::Apt::installIfNecessary --no-install-recommends "${PACKAGES[@]}"
 }
 
 testInstall() {

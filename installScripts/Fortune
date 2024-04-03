@@ -408,6 +408,12 @@ AWS_DEFAULT_REGION=""
 AWS_TEST_SECRET_ID=""
 AWS_DEFAULT_DOCKER_REGISTRY_ID=""
 
+# KubeDefaultConfig ~/.kube/config generation
+# aws region of the cluster (Eg: us-east-1)
+KUBE_CONFIG_REGION_CODE=
+# aws arn of the cluster arn:aws:ecs:region:aws_account_id:cluster/MyCluster
+KUBE_CONFIG_CLUSTER_ARN=
+
 # hostname of the distro
 DISTRO_HOSTNAME="wslHost"
 
@@ -437,10 +443,6 @@ UPGRADE_UBUNTU_VERSION=0
 
 # -----------------------------------------
 # PROFILES options
-
-# Choose your AWS authenticator tool
-# possible choices: Saml2Aws, Awsume
-AWS_AUTHENTICATOR="Saml2Aws"
 
 # Choose your preferred shell
 # possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
@@ -717,7 +719,7 @@ InstallScripts::command() {
   local globalStatsFile="${logsDir}/${scriptName}-global.stat"
   local hook
   if [[ "${SKIP_INSTALL}" = "0" ]] && ! InstallScripts::scriptFunctionEmpty install; then
-    Log::headLine "INSTALL" "Installing ${scriptName}"
+    LOG_CONTEXT="${scriptName} - " Log::headLine "INSTALL" "Installing ${scriptName}"
     logFile="${logsDir}/${scriptName}-install.log"
     statsFile="${logsDir}/${scriptName}-install.stat"
 
@@ -729,7 +731,7 @@ InstallScripts::command() {
         local rc=$?
         Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
         Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
-        Stats::statusLine "${rc}" "${statsFile}" "Installation ${scriptName}"
+        LOG_CONTEXT="${scriptName} - " Stats::statusLine "${rc}" "${statsFile}" "Installation"
         exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
@@ -842,25 +844,42 @@ InstallScripts::scriptFunctionEmpty() {
   [[ "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} && "$(declare -f "$1" | sed '4q;d')" = "}" ]]
 }
 
-# @description apt-get install
-# @arg $@ softwares:String[] list of softwares to install
+# @description apt-get install if package is not installed yet
+# @arg $@ packages:String[] list of packages to install
 # @feature Retry::default
 # Linux::requireSudoCommand
 # @require Linux::requireUbuntu
+# @env SKIP_APT_GET_UPDATE
 # @stdout diagnostics logs
-Linux::Apt::install() {
-  Log::displayInfo "Apt install $*"
-  Retry::default sudo apt-get install -y -q "$@"
-}
-
-# @description update apt packages list
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::update() {
-  Log::displayInfo "Apt update ..."
-  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
+Linux::Apt::installIfNecessary() {
+  local -a packages=("$@")
+  local package
+  local -i installNeeded=0
+  for package in "${packages[@]}"; do
+    if [[ "${package}" =~ ^-- ]]; then
+      continue
+    fi
+    if ! Linux::Apt::isPackageInstalled "${package}"; then
+      Log::displayInfo "Package ${package} is not installed"
+      installNeeded=1
+    fi
+  done
+  if ((installNeeded == 1)); then
+    if [[ "${SKIP_APT_GET_UPDATE:-0}" = "0" ]]; then
+      Linux::Apt::update
+    fi
+    Linux::Apt::install "${packages[@]}"
+    for package in "${packages[@]}"; do
+      if [[ "${package}" =~ ^-- ]]; then
+        continue
+      fi
+      if ! Linux::Apt::isPackageInstalled "${package}"; then
+        Log::displayWarning "Package ${package} does not appear to have been installed, check if you could have chosen the wrong package name (Eg: python3.9-distutils instead of python3-distutils)"
+      fi
+    done
+  else
+    Log::displayInfo "Apt install avoided as packages are already installed : ${packages[*]}"
+  fi
 }
 
 # @description Log namespace provides 2 kind of functions
@@ -898,7 +917,7 @@ export __VERBOSE_LEVEL_TRACE=3
 Log::displayDebug() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_DEBUG)); then
     Log::computeDuration
-    echo -e "${__DEBUG_COLOR}DEBUG   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__DEBUG_COLOR}DEBUG   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logDebug "$1"
 }
@@ -908,7 +927,7 @@ Log::displayDebug() {
 Log::displayError() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_ERROR)); then
     Log::computeDuration
-    echo -e "${__ERROR_COLOR}ERROR   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__ERROR_COLOR}ERROR   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logError "$1"
 }
@@ -919,7 +938,7 @@ Log::displayHelp() {
   local type="${2:-HELP}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
     Log::computeDuration
-    echo -e "${__HELP_COLOR}${type}    - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__HELP_COLOR}${type}    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logHelp "$1" "${type}"
 }
@@ -931,7 +950,7 @@ Log::displayInfo() {
   local type="${2:-INFO}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
     Log::computeDuration
-    echo -e "${__INFO_COLOR}${type}    - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__INFO_COLOR}${type}    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logInfo "$1" "${type}"
 }
@@ -941,7 +960,7 @@ Log::displayInfo() {
 Log::displayWarning() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
     Log::computeDuration
-    echo -e "${__WARNING_COLOR}WARN    - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__WARNING_COLOR}WARN    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logWarning "$1"
 }
@@ -950,7 +969,7 @@ Log::displayWarning() {
 # @arg $1 message:String the message to display
 Log::fatal() {
   Log::computeDuration
-  echo -e "${__ERROR_COLOR}FATAL   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+  echo -e "${__ERROR_COLOR}FATAL   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   Log::logFatal "$1"
   exit 1
 }
@@ -1248,7 +1267,6 @@ Engine::Config::checkEnv() {
   checkVarAndDir USER_HOME rw || true
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
-  checkValidValues AWS_AUTHENTICATOR Saml2Aws Awsume
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh
 
   checkValidValues SHOW_FORTUNES 0 1
@@ -1415,8 +1433,7 @@ Engine::Config::loadWslVariables() {
 Engine::Config::requireWslu() {
   if ! command -v wslvar &>/dev/null; then
     Log::displayInfo "Installing pre-requisite Wslu : wslvar, wslpath, ... commands"
-    Linux::Apt::update
-    Linux::Apt::install --no-install-recommends wslu
+    Linux::Apt::installIfNecessary --no-install-recommends wslu
 
     # @see https://github.com/microsoft/WSL/issues/8843#issuecomment-1792256894
     Log::displayInfo "Fix wsl interoperability due to wsl bug"
@@ -1551,6 +1568,36 @@ Install::unableToCopyCallback() {
   Log::fatal "unable to copy file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fileName}' to '${targetFile}'"
 }
 
+# @description apt-get install
+# @arg $@ softwares:String[] list of softwares to install
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::install() {
+  Log::displayInfo "Apt install $*"
+  Retry::default sudo apt-get install -y -q "$@"
+}
+
+# @description check if apt package is installed
+# @arg $1 package:String the package name to check
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::isPackageInstalled() {
+  local package="$1"
+  dpkg -l "${package}" | grep -Eq "^ii  ${package}"
+}
+
+# @description update apt packages list
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::update() {
+  Log::displayInfo "Apt update ..."
+  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
+}
+
 declare -g FIRST_LOG_DATE LOG_LAST_LOG_DATE LOG_LAST_LOG_DATE_INIT LOG_LAST_DURATION_STR
 FIRST_LOG_DATE="$(date '+%s%3N')"
 LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
@@ -1589,7 +1636,7 @@ Log::displayStatus() {
   local type="${2:-STATUS}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
     Log::computeDuration
-    echo -e "${__INFO_COLOR}${type}  - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__INFO_COLOR}${type}  - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logStatus "$1" "${type}"
 }
@@ -1599,7 +1646,7 @@ Log::displayStatus() {
 Log::displaySuccess() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
     Log::computeDuration
-    echo -e "${__SUCCESS_COLOR}SUCCESS - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__SUCCESS_COLOR}SUCCESS - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logSuccess "$1"
 }
@@ -1614,7 +1661,7 @@ Log::headLine() {
     message="${text}"
   else
     Log::computeDuration
-    message="$(printf '%-7s - %s%s' "${type}" "${LOG_LAST_DURATION_STR}" "${text}")"
+    message="$(printf '%-7s - %s%s' "${type}" "${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}" "${text}")"
   fi
   echo -e "${__TEST_COLOR}$(UI::textLine "${message}" " ")${__RESET_COLOR}" >&2
 }
@@ -1714,14 +1761,6 @@ Log::rotate() {
   fi
 }
 
-# @description Retry a command 5 times with a delay of 15 seconds between each attempt
-# @arg $@ command:String[] the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-Retry::default() {
-  Retry::parameterized 5 15 "" "$@"
-}
-
 # @description trap function responsible to compute and display stats after each script execution
 # @arg $1 logFile:String
 # @arg $2 statFile:String
@@ -1755,15 +1794,12 @@ Stats::statusLine() {
     if [[ "${status}" = "0" ]]; then
       if [[ "${skipped}" = "0" ]]; then
         color="${__SUCCESS_COLOR}"
-        statusMsg="SUCCESS - ${LOG_LAST_DURATION_STR}${msg} successful"
-      else
-        color="${__SKIPPED_COLOR}"
-        statusMsg="SKIPPED - ${LOG_LAST_DURATION_STR}${msg} skipped"
+        statusMsg="SUCCESS - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR}${msg} successful"
       fi
     elif [[ "${status}" = "-1" ]]; then
-      statusMsg="ABORTED - ${LOG_LAST_DURATION_STR}${msg} not executed"
+      statusMsg="ABORTED - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR}${msg} not executed"
     else
-      statusMsg="ERROR   - ${LOG_LAST_DURATION_STR}${msg} in error"
+      statusMsg="ERROR   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR}${msg} in error"
     fi
     # overwrite final TEST line
     echo -e "${color}${statusMsg}${__RESET_COLOR}"
@@ -1919,7 +1955,7 @@ Linux::getDistributorId() {
 Log::displaySkipped() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
     Log::computeDuration
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logSkipped "$1"
 }
@@ -1940,41 +1976,12 @@ Log::logSuccess() {
   fi
 }
 
-# @description Retry a command several times depending on parameters
-# @arg $1 maxRetries:int    $1 max retries
-# @arg $2 delay:int between attempt
-# @arg $3 message:String to display to describe the attempt
-# @arg $@ rest of parameters, the command to run
+# @description Retry a command 5 times with a delay of 15 seconds between each attempt
+# @arg $@ command:String[] the command to run
 # @exitcode 0 on success
 # @exitcode 1 if max retries count reached
-# @exitcode 2 if maxRetries invalid value
-Retry::parameterized() {
-  local maxRetries=$1
-  shift || true
-  local delayBetweenTries=$1
-  shift || true
-  local message="$1"
-  shift || true
-  local retriesCount=1
-  if [[ "${maxRetries}" -lt 1 ]]; then
-    Log::displayError "invalid maxRetry value"
-    return 2
-  fi
-
-  while true; do
-    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
-    if "$@"; then
-      break
-    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
-      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
-      ((retriesCount++))
-      sleep "${delayBetweenTries}"
-    else
-      Log::displayError "The command has failed after ${retriesCount} attempts."
-      return 1
-    fi
-  done
-  return 0
+Retry::default() {
+  Retry::parameterized 5 15 "" "$@"
 }
 
 # @description extract stats form log
@@ -2126,6 +2133,43 @@ Log::logSkipped() {
   fi
 }
 
+# @description Retry a command several times depending on parameters
+# @arg $1 maxRetries:int    $1 max retries
+# @arg $2 delay:int between attempt
+# @arg $3 message:String to display to describe the attempt
+# @arg $@ rest of parameters, the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+# @exitcode 2 if maxRetries invalid value
+Retry::parameterized() {
+  local maxRetries=$1
+  shift || true
+  local delayBetweenTries=$1
+  shift || true
+  local message="$1"
+  shift || true
+  local retriesCount=1
+  if [[ "${maxRetries}" -lt 1 ]]; then
+    Log::displayError "invalid maxRetry value"
+    return 2
+  fi
+
+  while true; do
+    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
+    if "$@"; then
+      break
+    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
+      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
+      ((retriesCount++))
+      sleep "${delayBetweenTries}"
+    else
+      Log::displayError "The command has failed after ${retriesCount} attempts."
+      return 1
+    fi
+  done
+  return 0
+}
+
 # @description ensure linux runs under wsl
 # @env WSL_GARBAGE_COLLECT int 0 to disable garbage collect of cache files
 # @exitcode 1 if linux does not run under wsl
@@ -2212,7 +2256,7 @@ Linux::Wsl::originalWslpath() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2Xa2/aMBSG+ZxfcQZVr0sch1ykTkhlJRVILVQjiA+9TCZxSqRcUByoULv/PqdhbYbUdkzAVM1PPji2T+STvMfyGwVVNo7KsQwjb7FlqOX2FxWsm6pmaoZhaHzc0rFZAWPzqVUqU5aRFKByz8I3496b/6AoiGbuhmtgZf0xn8dC/21Q6O+mSax4myqDlfQ361x/XDfE/t8Kv+k/Imwse3Qm03gm+0maTWO6hjVygU1df01/jLGxtP8Nra5XQF3D2u/yn+tfWy9SDVo96PYcsFsd5zM47U4fzjrnNpw2u/DVhsFlq+nYLRh2nHZv4OShnVNbWn8a5bqeTu5S4tFjyPsZGQGNszSgDHiNQzamUC58WERLUr9tn5830CiIn3aGdNl02g00ZSkKE5eEiPGZ41L/ufsy8XRTdJ/H7khEWfm58kAwQrzS8vYYRXGGXDQMYi+5Z4jNWUajurY0vhzWX4Sh4YhGr08WA5fJPU37YxqGaIYVFUn8ww2K1wc6o+kcLPDInAHJQNMmkaSqvIVDZMEhv9IkyQBOTnsXF81u60T618UsWBkFKeXi34gF+OPzn5/7pqnm57+l18X5vw2W9Q/ijKbEzYIZXZshXEl/i/sErBuqJfTfBm/r7wVsEpL5WWEFmcLGf7PGe/rrmrXwf7pm5nGaqnEbKPzfFqh9evE3UuDD1RXIfmGeFj8AMrcHE9lNoojEHoPdXajuPPTbveH3s943Z9C1+z+q0IAqrsLNzZfcTsUSQMqDk6gZBxEJG9WdfZ8bDijM0ZikFLncfZD5UwNyNp9Q8OER2HjqgxwDzu+pB7INMoU9VrtVjtD+1S1Sbo4OrhX+1E7tGtf2Dqp8qUWebyX9CMV6+bvx7MvJ8eQfIUxCl1scmYGpqpIfCCcjEAgEAoFAIBAIBAKBQCAQCD4+PwGvplnJACgAAA=="
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2Xa2/aMBSG+ZxfcQZVr0sch1ykTkhlkAqkFqoRxIdeJpM4JVIuKA5UaN1/n9PQNqvUdkzAVM0PHxwfn8gnvCfJGwVVNo7KsQwjH7FlqOXxkQrWTVUzNcMwNB63dGxWwNh8aZXKjGUkBajcsfDNvPfWPygKopm74R5YWX/M17HQfxsU+rtpEiveptpgJf3NOtcf1w1x/2+F3/QfEzaRPTqXaTyX/STNZjFdwx65wKauv6Y/xthY6q+beh7HhlbXK6CuYe93+c/1r60XqQbtPvT6DtjtrvMZnE53AKfdMxtazR58tWF40W46dhtGXafTHzp5ardlS+svo9zXs+ltSjx6DPk8I2OgcZYGlAHvccgmFMqND8tsSRp07LOzBhoH8cOdIV00nU4DzViKwsQlIWJ85bg0f5o+LzwcFNOn2C2JKCufVw4EY8Q7LR+PURRnyEWjIPaSO4bYgmU0qmsv4i/TBss0NBrT6PXFInCR3NF0MKFhiOZYUZHE/7hhcflA5zRdgAUeWTAgGWh4Gkmqykc4RBYc8l+aJBnASat/ft7stU+kf93MgpVRkFJu/o1YgD9+//P3vmnmz39s6XXx/t8GL/UP4oymxM2COV2bIVxJf4v7BMxdgCX03wZv6+8FbBqSxWlhBZnCJn+zx3v665r16P80M8/TVI1/Bgr/twVqn579jRT4cHkJsl+Yp+UHgMztwVR2kygiscdgdxeqOz8Gnf7o+2n/mzPs2YOfVWhAFVfh+vpLbqdiCSDlyUnUjIOIhI3qzr7PDQcU5mhCUopc7j7I4mEAOVtMKfhwD2wy80GOAefH1APZBpnCHqvdKEdo//IGKddHB1cKP2undoVrewdVvtWyzreKvodiv/zaePXl4njx9xAmocstjszAVFXJD4STEQgEAoFAIBAIBAKBQCAQCAQfn19rXq8eACgAAA=="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -3038,8 +3082,7 @@ breakOnTestFailure() { :; }
 # jscpd:ignore-end
 
 install() {
-  Linux::Apt::update
-  Linux::Apt::install \
+  Linux::Apt::installIfNecessary --no-install-recommends \
     cowsay \
     lolcat \
     fortune-mod

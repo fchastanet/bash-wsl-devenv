@@ -35,8 +35,7 @@ breakOnTestFailure() { :; }
 # REQUIRE Linux::requireExecutedAsUser
 install() {
   Log::displayInfo "install docker required packages"
-  Linux::Apt::update
-  Linux::Apt::install \
+  Linux::Apt::installIfNecessary --no-install-recommends \
     apt-transport-https \
     ca-certificates \
     curl \
@@ -50,15 +49,15 @@ install() {
   sudo update-alternatives --set iptables /usr/sbin/iptables-legacy
 
   Log::displayInfo "install docker apt source list"
-  Retry::default curl -fsSL "https://download.docker.com/linux/${ID}/gpg" | sudo apt-key add -
+  Retry::default curl -fsSL "https://download.docker.com/linux/${ID}/gpg" | sudo apt-key add --no-tty --batch -
   local dockerSource="deb [arch=amd64] https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable"
-  if ! grep -q "${dockerSource}" "/etc/apt/sources.list.d/docker.list"; then
+  if ! grep -Fq "${dockerSource}" "/etc/apt/sources.list.d/docker.list"; then
     echo "deb [arch=amd64] https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable" | sudo tee /etc/apt/sources.list.d/docker.list
     Linux::Apt::update
   fi
 
   Log::displayInfo "install docker"
-  Retry::default sudo apt-get install -y \
+  Linux::Apt::installIfNecessary --no-install-recommends \
     containerd.io \
     docker-ce \
     docker-ce-cli

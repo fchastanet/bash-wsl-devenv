@@ -33,8 +33,7 @@ plantumlVersionCallback() {
 }
 
 install() {
-  Linux::Apt::update
-  Linux::Apt::install \
+  Linux::Apt::installIfNecessary --no-install-recommends \
     graphviz
 
   Log::displayInfo "install Plantuml"

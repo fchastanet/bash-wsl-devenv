@@ -34,8 +34,7 @@ install() {
     # needed by composer : php-xml
     php-xml
   )
-  Linux::Apt::update
-  Linux::Apt::install "${PACKAGES[@]}"
+  Linux::Apt::installIfNecessary --no-install-recommends "${PACKAGES[@]}"
 }
 
 checkPhpModuleExists() {

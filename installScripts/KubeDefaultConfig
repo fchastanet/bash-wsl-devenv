@@ -682,7 +682,7 @@ InstallScripts::command() {
   local globalStatsFile="${logsDir}/${scriptName}-global.stat"
   local hook
   if [[ "${SKIP_INSTALL}" = "0" ]] && ! InstallScripts::scriptFunctionEmpty install; then
-    Log::headLine "INSTALL" "Installing ${scriptName}"
+    LOG_CONTEXT="${scriptName} - " Log::headLine "INSTALL" "Installing ${scriptName}"
     logFile="${logsDir}/${scriptName}-install.log"
     statsFile="${logsDir}/${scriptName}-install.stat"
 
@@ -694,7 +694,7 @@ InstallScripts::command() {
         local rc=$?
         Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
         Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
-        Stats::statusLine "${rc}" "${statsFile}" "Installation ${scriptName}"
+        LOG_CONTEXT="${scriptName} - " Stats::statusLine "${rc}" "${statsFile}" "Installation"
         exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
@@ -823,6 +823,7 @@ Linux::Apt::installIfNecessary() {
       continue
     fi
     if ! Linux::Apt::isPackageInstalled "${package}"; then
+      Log::displayInfo "Package ${package} is not installed"
       installNeeded=1
     fi
   done
@@ -831,6 +832,16 @@ Linux::Apt::installIfNecessary() {
       Linux::Apt::update
     fi
     Linux::Apt::install "${packages[@]}"
+    for package in "${packages[@]}"; do
+      if [[ "${package}" =~ ^-- ]]; then
+        continue
+      fi
+      if ! Linux::Apt::isPackageInstalled "${package}"; then
+        Log::displayWarning "Package ${package} does not appear to have been installed, check if you could have chosen the wrong package name (Eg: python3.9-distutils instead of python3-distutils)"
+      fi
+    done
+  else
+    Log::displayInfo "Apt install avoided as packages are already installed : ${packages[*]}"
   fi
 }
 
@@ -869,7 +880,7 @@ export __VERBOSE_LEVEL_TRACE=3
 Log::displayDebug() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_DEBUG)); then
     Log::computeDuration
-    echo -e "${__DEBUG_COLOR}DEBUG   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__DEBUG_COLOR}DEBUG   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logDebug "$1"
 }
@@ -879,7 +890,7 @@ Log::displayDebug() {
 Log::displayError() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_ERROR)); then
     Log::computeDuration
-    echo -e "${__ERROR_COLOR}ERROR   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__ERROR_COLOR}ERROR   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logError "$1"
 }
@@ -891,7 +902,7 @@ Log::displayInfo() {
   local type="${2:-INFO}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
     Log::computeDuration
-    echo -e "${__INFO_COLOR}${type}    - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__INFO_COLOR}${type}    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logInfo "$1" "${type}"
 }
@@ -901,7 +912,7 @@ Log::displayInfo() {
 Log::displaySkipped() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
     Log::computeDuration
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logSkipped "$1"
 }
@@ -911,7 +922,7 @@ Log::displaySkipped() {
 Log::displayWarning() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
     Log::computeDuration
-    echo -e "${__WARNING_COLOR}WARN    - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__WARNING_COLOR}WARN    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logWarning "$1"
 }
@@ -920,7 +931,7 @@ Log::displayWarning() {
 # @arg $1 message:String the message to display
 Log::fatal() {
   Log::computeDuration
-  echo -e "${__ERROR_COLOR}FATAL   - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+  echo -e "${__ERROR_COLOR}FATAL   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   Log::logFatal "$1"
   exit 1
 }
@@ -1097,7 +1108,7 @@ Version::checkMinimal() {
   Version::compare "${version}" "${minimalVersion}" || {
     local result=$?
     if [[ "${result}" = "1" ]]; then
-      Log::displayDebug "${commandName} version is ${version} greater than ${minimalVersion}, OK let's continue"
+      Log::displayInfo "${commandName} version is ${version} greater than ${minimalVersion}"
     elif [[ "${result}" = "2" ]]; then
       Log::displayError "${commandName} minimal version is ${minimalVersion}, your version is ${version}"
       return 1
@@ -1731,7 +1742,7 @@ Linux::Apt::install() {
 # @stdout diagnostics logs
 Linux::Apt::isPackageInstalled() {
   local package="$1"
-  dpkg -l "${package}" | grep -Eq "^rc  ${package} "
+  dpkg -l "${package}" | grep -Eq "^ii  ${package}"
 }
 
 # @description update apt packages list
@@ -1786,7 +1797,7 @@ Log::headLine() {
     message="${text}"
   else
     Log::computeDuration
-    message="$(printf '%-7s - %s%s' "${type}" "${LOG_LAST_DURATION_STR}" "${text}")"
+    message="$(printf '%-7s - %s%s' "${type}" "${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}" "${text}")"
   fi
   echo -e "${__TEST_COLOR}$(UI::textLine "${message}" " ")${__RESET_COLOR}" >&2
 }
@@ -1956,15 +1967,12 @@ Stats::statusLine() {
     if [[ "${status}" = "0" ]]; then
       if [[ "${skipped}" = "0" ]]; then
         color="${__SUCCESS_COLOR}"
-        statusMsg="SUCCESS - ${LOG_LAST_DURATION_STR}${msg} successful"
-      else
-        color="${__SKIPPED_COLOR}"
-        statusMsg="SKIPPED - ${LOG_LAST_DURATION_STR}${msg} skipped"
+        statusMsg="SUCCESS - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR}${msg} successful"
       fi
     elif [[ "${status}" = "-1" ]]; then
-      statusMsg="ABORTED - ${LOG_LAST_DURATION_STR}${msg} not executed"
+      statusMsg="ABORTED - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR}${msg} not executed"
     else
-      statusMsg="ERROR   - ${LOG_LAST_DURATION_STR}${msg} in error"
+      statusMsg="ERROR   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR}${msg} in error"
     fi
     # overwrite final TEST line
     echo -e "${color}${statusMsg}${__RESET_COLOR}"
@@ -2246,7 +2254,7 @@ Linux::getDistributorId() {
 Log::displaySuccess() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
     Log::computeDuration
-    echo -e "${__SUCCESS_COLOR}SUCCESS - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__SUCCESS_COLOR}SUCCESS - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logSuccess "$1"
 }
@@ -2477,7 +2485,7 @@ Log::displayStatus() {
   local type="${2:-STATUS}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
     Log::computeDuration
-    echo -e "${__INFO_COLOR}${type}  - ${LOG_LAST_DURATION_STR}${1}${__RESET_COLOR}" >&2
+    echo -e "${__INFO_COLOR}${type}  - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logStatus "$1" "${type}"
 }
@@ -3413,7 +3421,10 @@ helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
-fortunes() { :; }
+fortunes() {
+  echo "$(scriptName) - these kubernetes tools are available helm, kubectl, kind, minikube, kubeps1, kubectx, kubens"
+  echo ";"
+}
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 # jscpd:ignore-end
@@ -3421,7 +3432,7 @@ breakOnTestFailure() { :; }
 installHelm() {
   if ! command -v helm &>/dev/null; then
     Log::displayInfo "install helm ..."
-    Retry::default curl -fsSL https://baltocdn.com/helm/signing.asc | sudo apt-key add -
+    Retry::default curl -fsSL https://baltocdn.com/helm/signing.asc | sudo apt-key add --no-tty --batch -
     Linux::Apt::installIfNecessary --no-install-recommends \
       apt-transport-https
     echo "deb https://baltocdn.com/helm/stable/debian/ all main" |
