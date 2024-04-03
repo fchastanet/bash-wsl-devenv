@@ -3115,9 +3115,9 @@ configure() {
   # shellcheck disable=SC2154
   configDir="$(Conf::getOverriddenDir "${embed_dir_conf_dir}" "${CONF_OVERRIDE_DIR}/$(scriptName)")"
 
-  SUDO=sudo OVERWRITE_CONFIG_FILES=0 Install::file \
+  SUDO=sudo Install::file \
     "${configDir}/home/.vimrc" "/root/.vimrc" root root
-  SUDO=sudo OVERWRITE_CONFIG_FILES=0 Install::file \
+  SUDO=sudo Install::file \
     "${configDir}/home/.inputrc" "/root/.inputrc" root root
 
   # disable bell
