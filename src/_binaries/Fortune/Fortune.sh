@@ -16,7 +16,9 @@ helpDescription() {
 }
 
 # jscpd:ignore-start
-dependencies() { :; }
+dependencies() {
+  echo "Anacron"
+}
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
@@ -58,26 +60,18 @@ configure() {
   if [[ -z "${PROFILE}" ]]; then
     Log::displayHelp "Please provide a profile to the install command in order to activate automatic fortune generation"
   else
-    # shellcheck disable=SC2317
-    updateCronFortune() {
-      local -a cmd=(
-        sudo
-        -i -n
-        -u "${USERNAME}"
-        "${BASH_DEV_ENV_ROOT_DIR}/bin/fortune"
-        -p "${PROFILE}"
-      )
-      sudo sed -i -E -e "s#@COMMAND@#(cd '${BASH_DEV_ENV_ROOT_DIR}' \&\& ${cmd[*]} \&>'${BASH_DEV_ENV_ROOT_DIR}/logs/fortune-job.log')#" \
-        "/etc/cron.d/bash-dev-env-fortune"
-      SUDO=sudo Install::setUserRightsCallback "$@"
-      # generate /etc/fortune-help-commands and /etc/fortune-help-commands.dat
-      SKIP_REQUIRES=1 "${cmd[@]}"
-    }
+    local -a cmd=(
+      sudo -i -n -u "${USERNAME}"
+      "${BASH_DEV_ENV_ROOT_DIR}/bin/fortune"
+      -p "${PROFILE}"
+    )
+    SUDO=sudo Conf::createCron \
+      "/etc/cron.daily/bash-dev-env-fortune" \
+      fortune-job.log \
+      "${cmd[@]}"
 
-    SUDO=sudo OVERWRITE_CONFIG_FILES=1 BACKUP_BEFORE_INSTALL=0 Install::file \
-      "${configDir}/etc/cron.d/bash-dev-env-fortune" "/etc/cron.d/bash-dev-env-fortune" \
-      root root updateCronFortune
-    sudo chmod +x "/etc/cron.d/bash-dev-env-fortune"
+    # generate /etc/fortune-help-commands and /etc/fortune-help-commands.dat
+    SKIP_REQUIRES=1 "${cmd[@]}" 
   fi
 
   # shellcheck disable=SC2154

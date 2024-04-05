@@ -95,27 +95,21 @@ configureUpdateCron() {
   if [[ -z "${PROFILE}" ]]; then
     Log::displayHelp "Please provide a profile to the install command in order to activate automatic upgrade"
   else
-    # shellcheck disable=SC2317
-    updateCronUpgrade() {
-      local -a cmd=(
-        CAN_TALK_DURING_INSTALLATION=0
-        INSTALL_INTERACTIVE=0
-        sudo
-        -i -n
-        -u "${USERNAME}"
-        "${BASH_DEV_ENV_ROOT_DIR}/install"
-        -p "${PROFILE}"
-        --skip-configure --skip-test
-      )
-      sudo sed -i -E -e "s#@COMMAND@#(cd '${BASH_DEV_ENV_ROOT_DIR}' \&\& ${cmd[*]} \&>'${BASH_DEV_ENV_ROOT_DIR}/logs/upgrade-job.log')#" \
-        "/etc/cron.d/bash-dev-env-upgrade"
-      SUDO=sudo Install::setUserRightsCallback "$@"
-    }
+    local -a cmd=(
+      CAN_TALK_DURING_INSTALLATION=0
+      INSTALL_INTERACTIVE=0
+      sudo
+      -i -n
+      -u "${USERNAME}"
+      "${BASH_DEV_ENV_ROOT_DIR}/install"
+      -p "${PROFILE}"
+      --skip-configure --skip-test
+    )
 
-    SUDO=sudo OVERWRITE_CONFIG_FILES=1 BACKUP_BEFORE_INSTALL=0 Install::file \
-      "${configDir}/etc/cron.d/bash-dev-env-upgrade" "/etc/cron.d/bash-dev-env-upgrade" \
-      root root updateCronUpgrade
-    sudo chmod +x "/etc/cron.d/bash-dev-env-upgrade"
+    SUDO=sudo Conf::createCron \
+      "/etc/cron.weekly/bash-dev-env-upgrade" \
+      upgrade-job.log \
+      "${cmd[@]}"
   fi
 
   # shellcheck disable=SC2154

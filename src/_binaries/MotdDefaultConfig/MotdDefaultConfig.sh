@@ -17,6 +17,7 @@ helpDescription() {
 
 dependencies() {
   echo "Motd"
+  echo "Anacron"
 }
 
 fortunes() {
