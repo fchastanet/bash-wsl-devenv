@@ -2259,7 +2259,7 @@ Retry::parameterized() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "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"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+1ae3PTOBDv3/4Ui9tS+65+x8kNUGYCDTQzfQ1JYYDjOq6tJD78yNlyH1fSz34rOc+SXHvQhmOqXzuWYq12V9rV6mXdWLl3mIia67LUqrnmdDrCilWpmrbtVm3Xxve1iuWsgHv/qq2sFDn1MoCVszz6V7qbyn9S6Aah/j37wG3tb7luxa0hnYXlVWH/ZaC0f9EPPEq0OKWBHty5N9zW/hXbNl2zgva3q3ZF2H8ZmGd/09KwtVp+kYdJJ/1+GTfYv2KZ1TL+V2p2xXXQ/q6DLgHm94u+GQ/c/quPjJMwMU68vCet3i2kVdg+gP2DNjS2m+1NaO80W/CquduAl/V9eNGAo8PteruxDe+a7Z2DozYjbb5s3LkaqEffi4+Zc0OQkhySlILvZdkF0B4BkpyGWZrEJKFS2IGPH0HrAB8VAel4RUSNKPW9iMCnT09ZhUQCyNMi88k8KqkTSuS8n2YUduv7ryU/zUi+taZ0M9IHzYc/+lnqkzxPMzBY1vD7BRtlYD9HTqdGUkSRKqES8tolrzuQQSN/gWzKqAA8fgwlR0uiPUx7aRRsjUifaNZAN+VhK+Q1hfi9lKV+QbFRFmgBbOBfKThKvcA77arwDNYux8xQ3Bc48VUZHm2BbMnTrWbshgnI0LrIKYmBKZ/FHg3TBIIw904igt1cEKApMBHQC7s9kiEPL5kVxFidhxRM1meSohT9FvHTJMhhiyltFHnGfZNrH+i8BaXqRZ+GMVFlVcVqOfFZjUntdaiavCQOk9kSA0smxT004vVyp2oyCrvCKQLv4jrBb9WKyaofHbabew00bD8LE9oBeR1bjeSbsG7aQY89YvbIZWZJVjLgOS60zDL1yhxrwkBWmad2CeVeybvOOyWZ1yW5lBH8pWWQJgQ64Sl7dCghCWBnUng2Y1BJQjN8bvU9n7RT6kXoHkrQAa2HhvXOPsPGZdhR1pT9VypsYUcbsgqXvBHAXmqWuimDIm/yHw7+MIZ5G/Oq/JTb7OlgsKHKUkziNLt4lRHChHQwZWI0LSZdbyTN2CPxE2MkoTZVb6zdbSravKI08mjaR6fICfU6YKkAoF/h/9WVrl/p8iKiJ0iib1xt4BPzAEfci/RpsNdrl6VtB4sYXYGCZOrweQWwx5szh9GkfwagsERFDxq95s3H9zxVFwhTUNNSZXxiXoXFWukjxbB9qNUu86D60IOmtUInGmxiyhxpmOHOhLpYm+BuguUC+uYilYBJ4VqxXmSd/6ZIkjDpwmEZ2pg0Lknp5+Cdoz3PfNAiTGnGQhC6/GLeyLe0JCB/xE6KDt48hHoQoK/n41YoYR+ytKAEMJqcwTAIj31nFJTHru1w/1kkFLjgjWEOhcYEtnEUAR9Gk66bHVkjD9GSCc9uZjI/XS3V+juNT0IC/VHHSIct5vD9cjbw2JD+wMiTkw+cMt+aRO3LwxYPxrzzkEhRxlSapqqwCpqF4z9OMRz0MD6QjAX+KSp4Dhip5kfva13QxghNIMyxiePqAygzSq4+mW3dmAlXkUXvH72KEfhWzF3/O3z97xU0ZRO7rxXosOhg3yrjhvW/Zdm14f4Pt/8O2//XbLsq1v/LwENY/7+ot3aOtxtvjxv7b493D163jrebb7aMMDn1ojD4sfsDPoNM+GJMnavtwIi8nDYTdNYoalGPFvnM0tz36H+qK5EoJ4tmA+UXFd4R8jm6gPooBsAwBkx6KCckztkqPyuS2flBTAg/D+bGf5PH/3JRcQcybjr/c53a5PynUmPnP2alIuL/MvAQ4v+cIGeXm0bcZowT3FOwQQC/yut13MUTWH8B6+8xly3YrjAeGzr8Xp6pgL7BeRSJh5sHLc/iFKv9aPPeiHL8+zjB6YEXRhf3cRV0u/N/t1atVu1ajZ//2644/18KvrI/mwPuWMZN9neq5lT8x/eWY1k1Ef+XgYcQ/6dWN///gLxk6IbObK8F5FTDnc69fAlw6+8/HNcxHXb/Z9Uq4vuPpeC6/ftZ2gkjcqdfAdz++x+ratWY/Z2qYwr7LwOL7c83g3nvDmTcfP7nTOZ/x2b7P1wBiPl/GXgI8/8qBMTzaXjKtnf8mC/sQEJIQILxXflla+fg3fHeQXt7IMNXN9/T53M7B3uNgaH3irwXpd0wmSEEyOKFdI8nV/zwhd2GFYRXKfeW79MC/kRvhJGqAeyhrpv8CWchVjopb7sSVP6cAru9ZJcx7EQxKjV8dBsdr4mb9M1cgb0wCMg1iTQt/N5cOeLsT0BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAYEn4B7BSeVEAUAAA"
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -3068,7 +3068,6 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "Motd"
   echo "Anacron"
 }
 
@@ -3108,11 +3107,23 @@ configure() {
     "/etc"
 
   # disable some parts
-  sudo chmod 600 /etc/update-motd.d/00-header
-  sudo chmod 600 /etc/update-motd.d/10-help-text
+  sudo chmod 600 \
+    /etc/update-motd.d/00-header \
+    /etc/update-motd.d/10-help-text \
+    /etc/update-motd.d/50-motd-news \
+    /etc/update-motd.d/90-updates-available \
+    /etc/update-motd.d/91-contract-ua-esm-status \
+    /etc/update-motd.d/91-release-upgrade \
+    /etc/update-motd.d/92-unattended-upgrades \
+    /etc/update-motd.d/95-hwe-eol \
+    || true
+
   if [[ -f /usr/share/landscape/landscape-sysinfo.wrapper ]]; then
     sudo chmod 600 /usr/share/landscape/landscape-sysinfo.wrapper
   fi
+  sudo sed -i -E \
+    -e "s#^BASH_DEV_ENV_LOGS_DIR=.*\$#BASH_DEV_ENV_LOGS_DIR=${LOGS_DIR}#" \
+    /etc/update-motd.d/03-wsl-automatic-upgrade
 
   # update motd cache
   sudo update-motd >/dev/null
@@ -3124,6 +3135,10 @@ testConfigure() {
   Assert::fileExecutable "/etc/update-motd.d/00-wsl-header" || ((++failures))
   Assert::fileExecutable "/etc/update-motd.d/01-wsl-sysinfo" || ((++failures))
   Assert::fileExecutable "/etc/update-motd.d/03-wsl-automatic-upgrade" || ((++failures))
+  if grep -E -q '^BASH_DEV_ENV_LOGS_DIR=/invalid$' /etc/update-motd.d/03-wsl-automatic-upgrade; then
+    Log::displayError "/etc/update-motd.d/03-wsl-automatic-upgrade contain invalid path"
+    ((++failures))
+  fi
   Assert::fileNotExecutable "/etc/update-motd.d/10-help-text" root root || ((++failures))
   Assert::fileNotExecutable "/etc/update-motd.d/00-header" root root || ((++failures))
 

@@ -2900,35 +2900,52 @@ summary() {
   if [[ "${summaryDisplayed}" = "1" ]]; then
     return "${rc}"
   fi
-  UI::drawLine '-'
-  Log::headLine "" "Important messages recapitulative"
-  Stats::logRecapitulative "${LOGS_DIR}/automatic-upgrade"
+  (
+    Log::headLine "" "Important messages recapitulative"
+    Stats::logRecapitulative "${LOGS_DIR}/lastInstallLogRecapitulative.log"
 
-  UI::drawLine '-'
-  Log::headLine "" "Summary"
-  Stats::aggregateStatsSummary "software installation(s)" "${LOGS_DIR:-#}/global.stat"
-  Log::headLine "" "Details"
-  if [[ "${SKIP_INSTALL}" = "0" ]]; then
-    Stats::aggregateStatsSummary "installation(s)" "${LOGS_DIR:-#}/install.stat"
-  fi
-  if [[ "${SKIP_TEST}" = "0" ]]; then
-    Stats::aggregateStatsSummary "installation test(s)" "${LOGS_DIR:-#}/test-install.stat"
-  fi
-  if [[ "${SKIP_CONFIGURE}" = "0" ]]; then
-    Stats::aggregateStatsSummary "configuration(s)" "${LOGS_DIR:-#}/config.stat"
-  fi
-  if [[ "${SKIP_TEST}" = "0" ]]; then
-    Stats::aggregateStatsSummary "configuration test(s)" "${LOGS_DIR:-#}/test-configuration.stat"
-  fi
-  local endDate
-  endDate="$(date +%s)"
-  Log::displayInfo "Total duration: $((endDate - startDate))s"
-  summaryDisplayed="1"
-  if [[ "${installResultCode}" = "0" ]]; then
-    Log::displaySuccess "Successful Installation"
-  else
-    Log::displayError "Installation error, check logs /var/log/automatic-upgrade"
-  fi
+    Log::headLine "" "Summary"
+    Stats::aggregateStatsSummary "software installation(s)" "${LOGS_DIR:-#}/global.stat"
+    Log::headLine "" "Details"
+    if [[ "${SKIP_INSTALL}" = "0" ]]; then
+      Stats::aggregateStatsSummary "installation(s)" "${LOGS_DIR:-#}/install.stat"
+    fi
+    if [[ "${SKIP_TEST}" = "0" ]]; then
+      Stats::aggregateStatsSummary "installation test(s)" "${LOGS_DIR:-#}/test-install.stat"
+    fi
+    if [[ "${SKIP_CONFIGURE}" = "0" ]]; then
+      Stats::aggregateStatsSummary "configuration(s)" "${LOGS_DIR:-#}/config.stat"
+    fi
+    if [[ "${SKIP_TEST}" = "0" ]]; then
+      Stats::aggregateStatsSummary "configuration test(s)" "${LOGS_DIR:-#}/test-configuration.stat"
+    fi
+    local endDate
+    endDate="$(date +%s)"
+    Log::displayInfo "Total duration: $((endDate - startDate))s"
+    summaryDisplayed="1"
+    if [[ "${installResultCode}" = "0" ]]; then
+      Log::displaySuccess "Successful Installation"
+    else
+      Log::displayError "Aborted after ${currentConfigName} failure"
+    fi
+  ) | tee >(sed -r 's/\x1b\[[0-9;]*m//g' >>"${LOGS_DIR}/lastInstallSummary")
+  (
+    if [[ "${installResultCode}" = "0" ]]; then
+      echo -e "${__SUCCESS_COLOR}Bash-dev-env installation success${__RESET_COLOR}"
+    else
+      echo -e "${__ERROR_COLOR}Bash-dev-env installation aborted after ${currentConfigName} failure${__RESET_COLOR}"
+    fi
+    echo "Last execution date: $(date)"
+    echo "Command: ${SCRIPT_NAME} ${ORIGINAL_BASH_FRAMEWORK_ARGV[*]}"
+    echo "From directory: ${BASH_DEV_ENV_ROOT_DIR}"
+    echo "Logs path: ${LOGS_DIR}/lastInstall.log"
+    if [[ "${installResultCode}" != "0" ]]; then
+      cat "${LOGS_DIR}/lastInstallSummary"
+    fi
+  ) > "${LOGS_DIR:-#}/lastInstallStatus"
+  Log::displayInfo "regenerating motd"
+  sudo update-motd &>/dev/null|| true
+  rm -f "${USER_HOME}/.motd_shown" &>/dev/null || true
   exit "${installResultCode}"
 }
 trap 'summary "${INSTALL_START}"' EXIT INT TERM ABRT
@@ -2951,6 +2968,7 @@ executeScript() {
   LOG_CONTEXT="${configName} - " "${installCmd[@]}"
 }
 
+declare -g currentConfigName
 executeScripts() {
   (
     # sudoersFile is initialized in _includes/_installScript.tpl
@@ -2985,6 +3003,7 @@ executeScripts() {
     local -i installTestConfigCount=0
     local -i configConfigCount=0
     local -i configTestConfigCount=0
+    local configName
     for configName in "${CONFIG_LIST[@]}"; do
       if [[ "${SKIP_INSTALL}" = "0" ]] &&
         SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isInstallImplemented; then
@@ -3004,30 +3023,30 @@ executeScripts() {
       fi
     done
     # shellcheck disable=SC2317
-    for configName in "${CONFIG_LIST[@]}"; do
+    for currentConfigName in "${CONFIG_LIST[@]}"; do
       installStatus="0"
       (
         aggregateStat() {
           local rc=$?
           local -a statFiles=()
           if [[ "${SKIP_INSTALL}" = "0" ]] &&
-            SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isInstallImplemented; then
-            Stats::aggregateStats "${LOGS_DIR:-#}/install.stat" "${installConfigCount}" "${LOGS_DIR:-#}/${configName}-install.stat"
-            statFiles+=("${LOGS_DIR:-#}/${configName}-install.stat")
+            SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${currentConfigName}" isInstallImplemented; then
+            Stats::aggregateStats "${LOGS_DIR:-#}/install.stat" "${installConfigCount}" "${LOGS_DIR:-#}/${currentConfigName}-install.stat"
+            statFiles+=("${LOGS_DIR:-#}/${currentConfigName}-install.stat")
           fi
           if [[ "${SKIP_CONFIGURE}" = "0" ]] &&
-            SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isConfigureImplemented; then
-            Stats::aggregateStats "${LOGS_DIR:-#}/config.stat" "${configConfigCount}" "${LOGS_DIR:-#}/${configName}-config.stat"
-            statFiles+=("${LOGS_DIR:-#}/${configName}-config.stat")
+            SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${currentConfigName}" isConfigureImplemented; then
+            Stats::aggregateStats "${LOGS_DIR:-#}/config.stat" "${configConfigCount}" "${LOGS_DIR:-#}/${currentConfigName}-config.stat"
+            statFiles+=("${LOGS_DIR:-#}/${currentConfigName}-config.stat")
           fi
           if [[ "${SKIP_TEST}" = "0" ]]; then
-            if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isTestInstallImplemented; then
-              Stats::aggregateStats "${LOGS_DIR:-#}/test-install.stat" "${installTestConfigCount}" "${LOGS_DIR:-#}/${configName}-test-install.stat"
-              statFiles+=("${LOGS_DIR:-#}/${configName}-test-install.stat")
+            if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${currentConfigName}" isTestInstallImplemented; then
+              Stats::aggregateStats "${LOGS_DIR:-#}/test-install.stat" "${installTestConfigCount}" "${LOGS_DIR:-#}/${currentConfigName}-test-install.stat"
+              statFiles+=("${LOGS_DIR:-#}/${currentConfigName}-test-install.stat")
             fi
-            if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isTestConfigureImplemented; then
-              Stats::aggregateStats "${LOGS_DIR:-#}/test-configuration.stat" "${configTestConfigCount}" "${LOGS_DIR:-#}/${configName}-test-configuration.stat"
-              statFiles+=("${LOGS_DIR:-#}/${configName}-test-configuration.stat")
+            if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${currentConfigName}" isTestConfigureImplemented; then
+              Stats::aggregateStats "${LOGS_DIR:-#}/test-configuration.stat" "${configTestConfigCount}" "${LOGS_DIR:-#}/${currentConfigName}-test-configuration.stat"
+              statFiles+=("${LOGS_DIR:-#}/${currentConfigName}-test-configuration.stat")
             fi
           fi
           Stats::aggregateGlobalStats "${LOGS_DIR:-#}/global.stat" "${configCount}" "${statFiles[@]}"
@@ -3036,19 +3055,19 @@ executeScripts() {
         trap 'aggregateStat' EXIT INT TERM ABRT
 
         rm -f \
-          "${LOGS_DIR:-#}/${configName}"-{install,config,test-install,test-configuration,global}.stat \
+          "${LOGS_DIR:-#}/${currentConfigName}"-{install,config,test-install,test-configuration,global}.stat \
           &>/dev/null || true
 
-        UI::drawLineWithMsg "Installing ${configName} (${configIndex}/${configCount})" '#'
-        executeScript "${configName}"
+        UI::drawLineWithMsg "Installing ${currentConfigName} (${configIndex}/${configCount})" '#'
+        executeScript "${currentConfigName}"
       ) || installStatus="$?"
       if [[ "${installStatus}" != "0" ]]; then
-        Log::displayError "Aborted after ${configName} failure"
+        Log::displayError "Aborted after ${currentConfigName} failure"
         exit "${installStatus}"
       fi
       ((++configIndex))
     done
-  ) 2>&1 | tee >(sed -r 's/\x1b\[[0-9;]*m//g' >>"${LOGS_DIR}/automatic-upgrade")
+  ) 2>&1 | tee >(sed -r 's/\x1b\[[0-9;]*m//g' >>"${LOGS_DIR}/lastInstall.log")
 }
 # we need non root user to be sure that all variables will be correctly deduced
 # @require Linux::requireExecutedAsUser
@@ -3060,9 +3079,13 @@ run() {
   Log::displayInfo "Will Install ${CONFIG_LIST[*]}"
 
   # Start install process
-  Log::rotate "${LOGS_DIR}/automatic-upgrade"
+  local -i maxLogRotationCount=3
+  Log::rotate "${LOGS_DIR}/lastInstall.log" "${maxLogRotationCount}"
+  Log::rotate "${LOGS_DIR}/lastInstallSummary" "${maxLogRotationCount}"
   rm -f \
     "${LOGS_DIR:-#}/"{install,config,test-install,test-configuration,global}.stat \
+    "${LOGS_DIR}/lastInstallStatus" \
+    "${LOGS_DIR}/lastInstallLogRecapitulative.log" \
     &>/dev/null || true
 
   UI::drawLine '-'
