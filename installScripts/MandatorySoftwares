@@ -3148,7 +3148,7 @@ install() {
   Linux::Apt::installIfNecessary --no-install-recommends \
     language-selector-common
   # shellcheck disable=SC2046
-  SKIP_APT_GET_UPDATE=1 Linux::Apt::installIfNecessary --no-install-recommends \
+  Linux::Apt::installIfNecessary --no-install-recommends \
     tzdata \
     $(check-language-support)
 
@@ -3169,7 +3169,7 @@ install() {
     unzip
     wget
   )
-  SKIP_APT_GET_UPDATE=1 Linux::Apt::installIfNecessary --no-install-recommends "${PACKAGES[@]}"
+  Linux::Apt::installIfNecessary --no-install-recommends "${PACKAGES[@]}"
 }
 
 testInstall() {
@@ -3250,10 +3250,10 @@ testConfigure() {
 
   if [[ -n "${PROFILE}" ]]; then
     Log::displayInfo "checking Upgrade cron configuration"
-    Assert::fileExecutable "/etc/cron.d/bash-dev-env-upgrade" "root" "root" || ((++failures))
-    if ! grep -q -E -e "install -p ${PROFILE}" /etc/cron.d/bash-dev-env-upgrade; then
+    Assert::fileExecutable "/etc/cron.weekly/bash-dev-env-upgrade" "root" "root" || ((++failures))
+    if ! grep -q -E -e "install -p ${PROFILE}" /etc/cron.weekly/bash-dev-env-upgrade; then
       ((failures++))
-      Log::displayError "File /etc/cron.d/bash-dev-env-upgrade content invalid"
+      Log::displayError "File /etc/cron.weekly/bash-dev-env-upgrade content invalid"
     fi
   fi
   return "${failures}"
