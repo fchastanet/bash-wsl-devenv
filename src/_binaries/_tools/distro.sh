@@ -120,6 +120,17 @@ isDistroSystemdRunning() {
   runWslCmd systemctl status --no-pager &>/dev/null || return 1
 }
 
+waitUntilDistroTerminated() {
+  # shellcheck disable=SC2317
+  checkDistroTerminated() {
+    WSL_UTF8=1 WSLENV="${WSLENV}:WSL_UTF8" wsl.exe -l -v |
+      grep "${DISTRO_NAME}" |
+      awk -F ' ' '{print $2}' |
+      grep -q 'Stopped'
+  }
+  Retry::parameterized 20 1 "Waiting for distro ${DISTRO_NAME} to terminate" checkDistroTerminated
+}
+
 # @require Linux::requireExecutedAsUser
 run() {
   if [[ ! -f "${BASH_DEV_ENV_ROOT_DIR}/.env.distro" ]]; then
@@ -202,13 +213,7 @@ run() {
     Log::displayInfo "Terminating the distro ${DISTRO_NAME} to enable Systemd"
     wsl.exe --terminate "${DISTRO_NAME}"
 
-    checkDistroTerminated() {
-      WSL_UTF8=1 WSLENV="${WSLENV}:WSL_UTF8" wsl.exe -l -v |
-        grep "${DISTRO_NAME}" |
-        awk -F ' ' '{print $2}' |
-        grep -q 'Stopped'
-    }
-    Retry::parameterized 20 1 "Waiting for distro ${DISTRO_NAME} to terminate" checkDistroTerminated
+    waitUntilDistroTerminated || exit 1
     Log::displayInfo "Check if systemd has been enabled successfully"
     if ! isDistroSystemdRunning; then
       Log::fatal "Systemd is not running"
@@ -236,6 +241,9 @@ run() {
       REMOTE_USER=${USERNAME} REMOTE_PWD="${DISTRO_BASH_DEV_ENV_TARGET_DIR}" \
         runWslCmd "${installCmd[@]}" || exit 1
     ) || exit 1
+    Log::displayInfo "Restarting wsl distribution ${DISTRO_NAME}"
+    wsl.exe --terminate "${DISTRO_NAME}"
+    waitUntilDistroTerminated || exit 1
   fi
 
   if [[ "${optionExport}" = "1" ]]; then
