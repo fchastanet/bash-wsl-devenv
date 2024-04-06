@@ -86,10 +86,10 @@ testConfigure() {
   Assert::fileExists /etc/fortune-help-commands || ((++failures))
   if [[ -n "${PROFILE}" ]]; then
     Log::displayInfo "checking Fortune cron configuration"
-    Assert::fileExecutable "/etc/cron.d/bash-dev-env-fortune" "root" "root" || ((++failures))
-    if ! grep -q -E -e "fortune -p ${PROFILE}" /etc/cron.d/bash-dev-env-fortune; then
+    Assert::fileExecutable "/etc/cron.daily/bash-dev-env-fortune" "root" "root" || ((++failures))
+    if ! grep -q -E -e "fortune -p ${PROFILE}" /etc/cron.daily/bash-dev-env-fortune; then
       ((failures++))
-      Log::displayError "File /etc/cron.d/bash-dev-env-fortune content invalid"
+      Log::displayError "File /etc/cron.daily/bash-dev-env-fortune content invalid"
     fi
   fi
   Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/displayFortunes.sh" || ((++failures))
