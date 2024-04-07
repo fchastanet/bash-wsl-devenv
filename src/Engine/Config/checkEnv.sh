@@ -4,8 +4,16 @@
 # @env CHECK_ENV int 0 to avoid checking environment
 # @noargs
 Engine::Config::checkEnv() {
+  local envFile="$1"
   if [[ "${CHECK_ENV:-1}" = "0" ]]; then
     return 0
+  fi
+  # avoid checks if .env file didn't changed
+  local envFileMd5Cache="${PERSISTENT_TMPDIR:-/tmp}/bash-dev-env-enf-file-checksum"
+  if md5sum -c "${envFileMd5Cache}" &>/dev/null; then
+    return 0
+  else
+    md5sum "${envFile}" >"${envFileMd5Cache}"
   fi
   local errorCount=0 || true
   checkNotEmpty() {
@@ -20,7 +28,7 @@ Engine::Config::checkEnv() {
     local mode="${2:-}"
     local status=0
     if checkNotEmpty "${var}"; then
-      if ! mkdir -p "${!var}"; then
+      if [[ ! -d "${!var}" ]] && ! mkdir -p "${!var}"; then
         Log::displayError "variable ${var} - impossible to create the directory '${!var}'"
         ((errorCount++))
         return 1
@@ -98,6 +106,6 @@ Engine::Config::checkEnv() {
 
   checkNotEmpty WSLCONFIG_MAX_MEMORY
   checkValidValues WSLCONFIG_SWAP 0 1
-
+  export CHECK_ENV=0
   return "${errorCount}"
 }

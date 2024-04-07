@@ -46,7 +46,7 @@ configure() {
     "${embed_dir_conf_dir}" \
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
     ".bash-dev-env"
-  
+
   # shellcheck disable=SC2154
   SUDO=sudo Conf::copyStructure \
     "${embed_dir_conf_dir}" \
@@ -63,8 +63,8 @@ configure() {
     /etc/update-motd.d/91-contract-ua-esm-status \
     /etc/update-motd.d/91-release-upgrade \
     /etc/update-motd.d/92-unattended-upgrades \
-    /etc/update-motd.d/95-hwe-eol \
-    || true
+    /etc/update-motd.d/95-hwe-eol ||
+    true
 
   if [[ -f /usr/share/landscape/landscape-sysinfo.wrapper ]]; then
     sudo chmod 600 /usr/share/landscape/landscape-sysinfo.wrapper
@@ -89,7 +89,7 @@ testConfigure() {
   fi
   Assert::fileNotExecutable "/etc/update-motd.d/10-help-text" root root || ((++failures))
   Assert::fileNotExecutable "/etc/update-motd.d/00-header" root root || ((++failures))
-  
+
   Assert::fileExecutable "/etc/cron.daily/motd" || ((++failures))
 
   Assert::fileExists "${USER_HOME}/.bash-dev-env/profile.d/motd.sh" || ((++failures))

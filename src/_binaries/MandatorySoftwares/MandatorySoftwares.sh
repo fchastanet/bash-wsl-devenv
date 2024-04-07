@@ -87,10 +87,6 @@ testInstall() {
 }
 
 configureUpdateCron() {
-  local configDir
-  # shellcheck disable=SC2154
-  configDir="$(Conf::getOverriddenDir "${embed_dir_conf_dir}" "${CONF_OVERRIDE_DIR}/MandatorySoftwares")"
-
   Log::displayInfo "Install upgrade cron"
   if [[ -z "${PROFILE}" ]]; then
     Log::displayHelp "Please provide a profile to the install command in order to activate automatic upgrade"

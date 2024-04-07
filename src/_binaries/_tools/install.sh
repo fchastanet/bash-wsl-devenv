@@ -76,9 +76,9 @@ summary() {
     if [[ "${installResultCode}" != "0" ]]; then
       cat "${LOGS_DIR}/lastInstallSummary"
     fi
-  ) > "${LOGS_DIR:-#}/lastInstallStatus"
+  ) >"${LOGS_DIR:-#}/lastInstallStatus"
   Log::displayInfo "regenerating motd"
-  sudo update-motd &>/dev/null|| true
+  sudo update-motd &>/dev/null || true
   rm -f "${USER_HOME}/.motd_shown" &>/dev/null || true
   exit "${installResultCode}"
 }

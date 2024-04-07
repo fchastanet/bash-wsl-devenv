@@ -18,7 +18,7 @@ fortunes() {
   echo "Tig - use 'tig' command to browse git repository's logs"
   echo "%"
 }
-
+# jscpd:ignore-start
 dependencies() { :; }
 helpVariables() { :; }
 listVariables() { :; }
@@ -26,6 +26,7 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+# jscpd:ignore-end
 
 install() {
   Linux::Apt::installIfNecessary --no-install-recommends \

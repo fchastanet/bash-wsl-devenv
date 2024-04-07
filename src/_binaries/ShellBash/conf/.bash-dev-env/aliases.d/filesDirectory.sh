@@ -10,13 +10,13 @@ alias ....='cd ../../../'
 alias .....='cd ../../../../'
 
 # some ls aliases
-alias ll='ls -alF'
+alias ll='/bin/ls -altrXh --group-directories-first --color'
 alias la='ls -A'
 alias l='ls -CF'
 
 # directory size
 function folderSize() {
-  sudo find "${1:-.}" -maxdepth 1 -mindepth 1 -print0 | 
+  sudo find "${1:-.}" -maxdepth 1 -mindepth 1 -print0 |
     xargs -0 -P 10 -L 1 sudo du -hsx
 }
 alias folder-size='folderSize'

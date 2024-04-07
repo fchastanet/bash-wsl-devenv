@@ -33,7 +33,7 @@ install() {
 
   curl -fLo "${USER_HOME}/.vim/autoload/plug.vim" --create-dirs \
     https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
-  
+
   sudo mkdir -p /root/.vim/autoload
   sudo cp "${USER_HOME}/.vim/autoload/plug.vim" /root/.vim/autoload/plug.vim
 }

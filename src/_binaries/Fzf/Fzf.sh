@@ -54,7 +54,7 @@ install() {
   SUDO=sudo INSTALL_CALLBACK=fzfInstall Github::upgradeRelease \
     "/usr/local/bin/fzf" \
     "https://github.com/junegunn/fzf/releases/download/@latestVersion@/fzf-@latestVersion@-linux_amd64.tar.gz"
-  
+
   # shellcheck disable=SC2154
   Conf::copyStructure \
     "${embed_dir_conf_dir}" \

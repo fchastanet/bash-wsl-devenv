@@ -109,15 +109,15 @@ install() {
   installMinikube || {
     Log::displayError "Error during minikube install"
     return 1
-  } 
+  }
   installKubeps1 || {
     Log::displayError "Error during kubeps1 install"
     return 1
-  } 
+  }
   installKubectx || {
     Log::displayError "Error during kubectx install"
     return 1
-  } 
+  }
 }
 
 testInstall() {
@@ -157,7 +157,7 @@ configure() {
   chown -h "${USERNAME}":"${USERGROUP}" "${USER_HOME}/.bash_completion.d/kubens"
   ln -sf /opt/kubectx/completion/kubectx.bash "${USER_HOME}/.bash_completion.d/kubectx"
   chown -h "${USERNAME}":"${USERGROUP}" "${USER_HOME}/.bash_completion.d/kubectx"
-  
+
   # shellcheck disable=SC2154
   Conf::copyStructure \
     "${embed_dir_conf_dir}" \

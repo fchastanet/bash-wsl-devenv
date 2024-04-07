@@ -18,6 +18,7 @@ dependencies() {
   echo "Clean"
 }
 
+# jscpd:ignore-start
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
@@ -27,6 +28,7 @@ breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 install() { :; }
 testInstall() { :; }
+# jscpd:ignore-end
 
 configure() {
   # some cleaning to prepare export
@@ -44,7 +46,7 @@ configure() {
       rm -f "${USER_HOME}/.saml2aws" || true
       rm -f "${USER_HOME}/.aws/credentials" || true
       rm -f "${USER_HOME}/.aws/config" || true
-      
+
       deleteFolderExcept() {
         local folder="$1"
         ${SUDO:-} find "${folder}" \

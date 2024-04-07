@@ -15,6 +15,7 @@ helpDescription() {
   echo "Font"
 }
 
+# jscpd:ignore-start
 dependencies() { :; }
 helpVariables() { :; }
 listVariables() { :; }
@@ -22,6 +23,7 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+# jscpd:ignore-end
 
 fortunes() {
   if Assert::wsl; then
@@ -52,6 +54,10 @@ install() {
     changeBranchOnSuccess \
     changeBranchOnSuccess
 
+  local fontDir
+  Linux::Wsl::cachedWslpath2 fontDir -w "${TMPDIR:-/tmp}/Font.ps1"
+  local windowsTempDir
+  Linux::Wsl::cachedWslpath2 windowsTempDir -w "${tempFolder}"
   (
     # shellcheck disable=SC2154
     cp "${embed_file_fontScript}" "${TMPDIR:-/tmp}/Font.ps1"
@@ -61,8 +67,8 @@ install() {
     cp "/opt/IlanCosman-tide-fonts/fonts/mesloLGS_NF"*.ttf "${tempFolder}"
     cd "${tempFolder}" || exit 1
     powershell.exe -ExecutionPolicy Bypass -NoProfile \
-      -Command "$(Linux::Wsl::cachedWslpath -w "${TMPDIR:-/tmp}/Font.ps1")" \
-      -verbose "$(Linux::Wsl::cachedWslpath -w "${tempFolder}")"
+      -Command "${fontDir}" \
+      -verbose "${windowsTempDir}"
   )
 }
 
@@ -72,7 +78,7 @@ testInstall() {
   Assert::fileExists /opt/IlanCosman-tide-fonts/fonts/mesloLGS_NF_regular.ttf root root || ((++failures))
 
   local localAppData
-  localAppData="$(Linux::Wsl::cachedWslpathFromWslVar LOCALAPPDATA)"
+  Linux::Wsl::cachedWslpathFromWslVar2 localAppData LOCALAPPDATA
   Assert::fileExists "${localAppData}/Microsoft/Windows/Fonts/mesloLGS_NF_regular.ttf" || {
     ((++failures))
     Log::displayError "Font mesloLGS_NF_regular.ttf not installed in windows folder: ${localAppData}/Microsoft/Windows/Fonts"

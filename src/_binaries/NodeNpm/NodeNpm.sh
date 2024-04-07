@@ -15,6 +15,7 @@ helpDescription() {
   echo "NodeNpm"
 }
 
+# jscpd:ignore-start
 dependencies() { :; }
 helpVariables() { :; }
 listVariables() { :; }
@@ -23,6 +24,7 @@ checkVariables() { :; }
 fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+# jscpd:ignore-end
 
 install() {
   if [[ ! -d "${USER_HOME}/n" ]]; then
@@ -34,7 +36,7 @@ install() {
     # update node
     N_PREFIX="${USER_HOME}/n" "${USER_HOME}/n/bin/n" latest
   fi
-  
+
   # shellcheck disable=SC2154
   Conf::copyStructure \
     "${embed_dir_conf_dir}" \

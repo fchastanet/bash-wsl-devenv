@@ -65,7 +65,7 @@ configure() {
     "${embed_dir_conf_dir}" \
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
     ".bash-dev-env"
-  
+
   # use saml2aws to configure with the right parameters
   if [[ -n "${AWS_APP_ID}" && -n "${AWS_PROFILE}" && -n "${AWS_USER_MAIL}" ]]; then
     Log::displayInfo "Please wait saml2aws configuration finishing ..."
