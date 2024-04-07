@@ -4,7 +4,7 @@ default_stages: [pre-commit, manual]
 minimum_pre_commit_version: 3.5.0
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v4.6.0
     hooks:
       - id: mixed-line-ending
       - id: end-of-file-fixer
@@ -46,7 +46,7 @@ repos:
         exclude: /testsData/
 
   - repo: https://github.com/fchastanet/bash-tools-framework
-    rev: 2.3.0
+    rev: 2.3.3
     hooks:
       - id: fixShebangExecutionBit
       - id: fixShebangExecutionBitGithubActions
