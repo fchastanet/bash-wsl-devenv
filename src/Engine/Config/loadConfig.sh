@@ -24,13 +24,13 @@ Engine::Config::loadConfig() {
 
   # load environment variables ID, VERSION_CODENAME
   Engine::Config::loadOsRelease
+  Engine::Config::loadUserVariables
 
-  if ! Engine::Config::checkEnv; then
+  if ! Engine::Config::checkEnv "${BASH_DEV_ENV_ROOT_DIR}/.env"; then
     Log::displayError "one or more variables are invalid, check above logs and fix '${envFile}' file accordingly"
     return 1
   fi
 
-  Engine::Config::loadUserVariables
   Engine::Config::loadHostIp
 
   Engine::Config::requireWslu

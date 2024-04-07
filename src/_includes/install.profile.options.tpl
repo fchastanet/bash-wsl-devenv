@@ -37,10 +37,7 @@ profileHelp() {
 
 softwareArgHelp() {
   echo "List of softwares to install (--profile option cannot be used in this case)"
-  echo "List of softwares available:"
-  Conf::list "${BASH_DEV_ENV_ROOT_DIR}/installScripts" "" "" "-type f" "" |
-    grep -v -E '^(_.*|MandatorySoftwares)$' | paste -s -d ',' | sed -e 's/,/, /g' || true
-
+  echo "See below for complete list of softwares available"
 }
 
 validateProfile() {
@@ -57,7 +54,7 @@ commandCallback() {
     # check if each Softwares exists
     local software
     for software in "${CONFIG_LIST[@]}"; do
-      if [[ ! -f "${BASH_DEV_ENV_ROOT_DIR}/installScripts/${software}" ]]; then
+      if [[ ! -f "${INSTALL_SCRIPTS_DIR}/${software}" ]]; then
         Log::fatal "Software installScripts/${software} configuration does not exists"
       fi
     done

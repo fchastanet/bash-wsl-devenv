@@ -1,6 +1,6 @@
 #!/bin/bash
 ###############################################################################
-# AVOID EDITING THIS FILE 
+# AVOID EDITING THIS FILE
 # PREFER to add files in dedicated sections of ~/.bash-dev-env
 # CHECK ~/.bash-dev-env/README.md
 ###############################################################################
@@ -68,7 +68,7 @@ if [[ "$-" =~ .*i.* ]]; then
   }
 
   loadConfigFiles "${HOME}/.bash-dev-env/aliases.d"
-  
+
   # enable programmable completion features (you don't need to enable
   # this, if it's already enabled in /etc/bash.bashrc and /etc/profile
   # sources /etc/bash.bashrc).

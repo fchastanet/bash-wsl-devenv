@@ -7,7 +7,9 @@
 Engine::Config::installBashDevEnv() {
   Log::displayInfo "Creating file '${USER_HOME}/.bash-dev-env/profile.d/00_init.sh'"
   ${SUDO:-} rm -f "${USER_HOME}/.bash-dev-env/profile.d/00_init.sh" || true
-  ${SUDO:-} mkdir -p "${USER_HOME}/.bash-dev-env/profile.d"
+  if ! ${SUDO:-} test -d "${USER_HOME}/.bash-dev-env/profile.d"; then
+    ${SUDO:-} mkdir -p "${USER_HOME}/.bash-dev-env/profile.d"
+  fi
   (
     echo '#!/bin/bash'
     echo "export BASH_DEV_ENV_ROOT_DIR='${BASH_DEV_ENV_ROOT_DIR}'"

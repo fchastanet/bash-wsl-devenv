@@ -18,6 +18,7 @@ dependencies() {
   echo "NodeNpm"
 }
 
+# jscpd:ignore-start
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
@@ -25,6 +26,7 @@ checkVariables() { :; }
 fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+# jscpd:ignore-end
 
 install() {
   if [[ ! -d "${USER_HOME}/n" ]]; then

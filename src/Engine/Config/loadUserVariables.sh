@@ -8,11 +8,16 @@
 # @set USER_HOME String
 Engine::Config::loadUserVariables() {
   # deduce user home and group
-  # shellcheck disable=SC2153
-  USER_ID="$(getent passwd "${USERNAME}" | cut -d: -f3)"
-  USERGROUP_ID="$(getent passwd "${USERNAME}" | cut -d: -f4)"
-  USERGROUP="$(getent group "${USERGROUP_ID}" | cut -d: -f1)"
-  USER_HOME="$(getent passwd "${USERNAME}" | cut -d: -f6)"
+  local -a split
+  local IFS=':'
+  # shellcheck disable=SC2207
+  split=($(getent passwd "${USERNAME}"))
+  USER_ID="${split[2]}"
+  USERGROUP_ID="${split[3]}"
+  USER_HOME="${split[5]}"
+  # shellcheck disable=SC2207
+  split=($(getent group "${USERNAME}"))
+  USERGROUP="${split[0]}"
 
   if [[ -z "${USERGROUP}" || -z "${USER_HOME}" ]]; then
     Log::displayError "USERNAME - unable to deduce USERGROUP, USER_HOME from USERNAME"

@@ -225,7 +225,7 @@ run() {
   if [[ "${optionExport}" = "1" ]]; then
     installCmd+=(--prepare-export)
   fi
-    
+
   if [[ "${optionSkipInstall}" = "1" ]]; then
     Log::displayInfo "Install manually using :"
     echo "wsl.exe -d '${DISTRO_NAME}' -u wsl --cd '${DISTRO_BASH_DEV_ENV_TARGET_DIR}' -- ${installCmd[*]}"

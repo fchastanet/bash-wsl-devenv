@@ -73,19 +73,19 @@ configure() {
     "${embed_dir_conf_dir}" \
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
     ".bash-dev-env"
-  
+
   Conf::copyStructure \
     "${embed_dir_conf_dir}" \
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
     ".vscode"
-  
+
   Conf::copyStructure \
     "${embed_dir_conf_dir}" \
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
     "home" \
     "${USER_HOME}"
 
-  local configDir  
+  local configDir
   # shellcheck disable=SC2154
   configDir="$(Conf::getOverriddenDir "${embed_dir_conf_dir}" "${CONF_OVERRIDE_DIR}/$(scriptName)")"
 
@@ -102,7 +102,7 @@ configure() {
 testConfigure() {
   local -i failures=0
   Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/git-prompt.sh" || ((++failures))
-  
+
   Assert::fileExists "${USER_HOME}/.bash_logout" || ((++failures))
   Assert::fileExists "${USER_HOME}/.bashrc" || ((++failures))
   Assert::fileExists "${USER_HOME}/.dir_colors" || ((++failures))
@@ -139,7 +139,9 @@ testConfigure() {
   terminalConfFile="${WINDOWS_PROFILE_DIR}/AppData/Local/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/settings.json"
   if [[ -f "${terminalConfFile}" ]]; then
     if ! grep -q '"face": "MesloLGS NF"' "${terminalConfFile}"; then
-      Log::displayHelp "Please change your terminal settings($(Linux::Wsl::cachedWslpath -w "${terminalConfFile}")) to use font 'MesloLGS NF' for wsl profile"
+      local terminalConfFilePath
+      Linux::Wsl::cachedWslpath2 terminalConfFilePath -w "${terminalConfFile}"
+      Log::displayHelp "Please change your terminal settings(${terminalConfFilePath}) to use font 'MesloLGS NF' for wsl profile"
     fi
   else
     Log::displayHelp "please use windows terminal for better shell display results"

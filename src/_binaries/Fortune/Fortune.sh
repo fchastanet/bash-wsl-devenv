@@ -48,10 +48,6 @@ testInstall() {
 }
 
 configure() {
-  local configDir
-  # shellcheck disable=SC2154
-  configDir="$(Conf::getOverriddenDir "${embed_dir_conf_dir}" "${CONF_OVERRIDE_DIR}/Fortune")"
-
   Log::displayInfo "prepare fortunes database file"
   sudo touch /etc/fortune-help-commands
   sudo chown "${USERNAME}:${USERGROUP}" /etc/fortune-help-commands
@@ -71,7 +67,7 @@ configure() {
       "${cmd[@]}"
 
     # generate /etc/fortune-help-commands and /etc/fortune-help-commands.dat
-    SKIP_REQUIRES=1 "${cmd[@]}" 
+    SKIP_REQUIRES=1 "${cmd[@]}"
   fi
 
   # shellcheck disable=SC2154

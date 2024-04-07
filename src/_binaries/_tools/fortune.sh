@@ -46,7 +46,7 @@ generateFortunesDat() {
 # @require Linux::requireExecutedAsUser
 run() {
   LOGS_DIR="${LOGS_DIR:-${PERSISTENT_TMPDIR}}"
-  
+
   Profiles::checkScriptsExistence "${INSTALL_SCRIPTS_DIR}" "" "${CONFIG_LIST[@]}"
   Log::displayInfo "Will Install ${CONFIG_LIST[*]}"
 

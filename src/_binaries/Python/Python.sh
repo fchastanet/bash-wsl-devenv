@@ -19,6 +19,7 @@ fortunes() {
   echo "Python - virtualenv is automatically loaded by ~/.bash-dev-env"
   echo "%"
 }
+# jscpd:ignore-start
 dependencies() { :; }
 helpVariables() { :; }
 listVariables() { :; }
@@ -26,6 +27,7 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+# jscpd:ignore-end
 
 install() {
   SKIP_APT_GET_UPDATE=1 Linux::Apt::addRepository ppa:deadsnakes/ppa

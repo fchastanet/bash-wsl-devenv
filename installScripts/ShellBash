@@ -65,7 +65,7 @@ REAL_SCRIPT_FILE="$(readlink -e "$(realpath "${BASH_SOURCE[0]}")")"
 if [[ -n "${EMBED_CURRENT_DIR}" ]]; then
   CURRENT_DIR="${EMBED_CURRENT_DIR}"
 else
-  CURRENT_DIR="$(cd "$(readlink -e "${REAL_SCRIPT_FILE%/*}")" && pwd -P)"
+  CURRENT_DIR="${REAL_SCRIPT_FILE%/*}"
 fi
 
 ################################################
@@ -78,7 +78,9 @@ export KEEP_TEMP_FILES
 # PERSISTENT_TMPDIR is not deleted by traps
 PERSISTENT_TMPDIR="${TMPDIR:-/tmp}/bash-framework"
 export PERSISTENT_TMPDIR
-mkdir -p "${PERSISTENT_TMPDIR}"
+if [[ ! -d "${PERSISTENT_TMPDIR}" ]]; then
+  mkdir -p "${PERSISTENT_TMPDIR}"
+fi
 
 # shellcheck disable=SC2034
 TMPDIR="$(mktemp -d -p "${PERSISTENT_TMPDIR:-/tmp}" -t bash-framework-$$-XXXXXX)"
@@ -286,6 +288,16 @@ Compiler::Embed::extractDirFromBase64() {
   fi
 }
 
+# @description copy folder structure to target directory
+# merge embedDir with overridden directory if provided and available
+# @arg $1 embedDir:String the path embedded
+# @arg $2 overrideDir:String the path overridden
+# @arg $3 subDir:String the sub-directory to copy from embedDir and/or overrideDir
+# @arg $4 targetDir:String the target directory (default: ${USER_HOME}/${subDir})
+# @env SUDO String allows to use custom sudo prefix command
+# @env USER_HOME used for default value of targetDir arg
+# @env OVERWRITE_CONFIG_FILES indicates if target directory should be overwritten if it exists
+# @env PRETTY_ROOT_DIR used to make paths relative to this directory to reduce length of messages
 Conf::copyStructure() {
   local embedDir="$1"
   local overrideDir="$2"
@@ -297,8 +309,8 @@ Conf::copyStructure() {
   configDir="$(Conf::getOverriddenDir "${embedDir}" "${overrideDir}")"
   # shellcheck disable=SC2154
   OVERWRITE_CONFIG_FILES=${OVERWRITE_CONFIG_FILES:-1} \
-  PRETTY_ROOT_DIR="$(dirname "${embedDir}")" \
-  Install::structure "${configDir}/${subDir}" "${targetDir}"
+    PRETTY_ROOT_DIR="${embedDir%/*}" \
+    Install::structure "${configDir}/${subDir}" "${targetDir}"
 }
 
 # @description generate temp directory where default
@@ -475,13 +487,13 @@ Engine::Config::loadConfig() {
 
   # load environment variables ID, VERSION_CODENAME
   Engine::Config::loadOsRelease
+  Engine::Config::loadUserVariables
 
-  if ! Engine::Config::checkEnv; then
+  if ! Engine::Config::checkEnv "${BASH_DEV_ENV_ROOT_DIR}/.env"; then
     Log::displayError "one or more variables are invalid, check above logs and fix '${envFile}' file accordingly"
     return 1
   fi
 
-  Engine::Config::loadUserVariables
   Engine::Config::loadHostIp
 
   Engine::Config::requireWslu
@@ -509,8 +521,10 @@ Env::requireLoad() {
     # BASH_FRAMEWORK_ENV_FILES is an array
     configFiles+=("${BASH_FRAMEWORK_ENV_FILES[@]}")
   fi
-  if [[ -f "$(pwd)/.framework-config" ]]; then
-    configFiles+=("$(pwd)/.framework-config")
+  local localFrameworkConfigFile
+  localFrameworkConfigFile="$(pwd)/.framework-config"
+  if [[ -f "${localFrameworkConfigFile}" ]]; then
+    configFiles+=("${localFrameworkConfigFile}")
   fi
   if [[ -f "${FRAMEWORK_ROOT_DIR}/.framework-config" ]]; then
     configFiles+=("${FRAMEWORK_ROOT_DIR}/.framework-config")
@@ -584,16 +598,13 @@ Install::file() {
     return 0
   fi
 
-  local targetDir
-  targetDir="$(dirname "${targetFile}")"
-  if [[ ! -d "${targetDir}" ]]; then
+  local targetDir="${targetFile%/*}"
+  if ! ${SUDO} test -d "${targetDir}"; then
     ${SUDO:-} mkdir -p "${targetDir}"
     ${SUDO:-} chown "${userName}":"${userGroup}" "${targetDir}"
   fi
-  local fromDir
-  fromDir="$(dirname "${fromFile}")"
-  local fromFilename
-  fromFilename="$(basename "${fromFile}")"
+  local fromDir="${fromFile%/*}"
+  local fromFilename="${fromFile##*/}"
 
   local prettyFromDir
   # shellcheck disable=SC2295
@@ -603,7 +614,7 @@ Install::file() {
     return 0
   fi
 
-  if [[ "${BACKUP_BEFORE_INSTALL:-1}" = "1" ]] ; then
+  if [[ "${BACKUP_BEFORE_INSTALL:-1}" = "1" ]]; then
     Backup::file "${targetFile}" || return 2
   fi
 
@@ -646,7 +657,7 @@ InstallScripts::command() {
     # shellcheck disable=SC2154
     hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh" "${embed_dir_hooks_dir}/${hookName}.sh")"
     if [[ -x "${hook}" ]]; then
-      # shellcheck source=src/_binaries/SimpleTest/conf/preInstall.sh
+      # shellcheck source=src/_binaries/SimpleTest/hooks/preInstall.sh
       source "${hook}" || exit 1
     fi
   }
@@ -816,6 +827,7 @@ Linux::Apt::installIfNecessary() {
   fi
 }
 
+declare -Agx bash_tools_wslpath=()
 # @description retrieve wslpath using cache (cache is refreshed every day)
 # @arg $@ args:String[] arguments to pass to wslpath
 # @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
@@ -823,13 +835,20 @@ Linux::Apt::installIfNecessary() {
 # @stderr diagnostics information is displayed
 # @require Linux::Wsl::requireWsl
 # @feature cache
-Linux::Wsl::cachedWslpath() {
-  local -a args=("$@")
+Linux::Wsl::cachedWslpath2() {
+  # shellcheck disable=SC2034
+  local -n cachedWslpath2_value=$1
+  shift || true
   local tempEnvFile key
-  tempEnvFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslpath_$(id -un)"
+  tempEnvFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslpath"
 
   key="$(Linux::Wsl::getKeyFromWslpathOptions "$@")"
-  Cache::getPropertyValue "${tempEnvFile}" "${key}" Linux::Wsl::originalWslpath "${args[@]}"
+  Cache::getPropertyValue2 \
+    "${tempEnvFile}" \
+    bash_tools_wslpath \
+    cachedWslpath2_value \
+    "${key}" \
+    Linux::Wsl::originalWslpath "$@"
 }
 
 # @description Log namespace provides 2 kind of functions
@@ -946,10 +965,12 @@ Log::requireLoad() {
 
   if ((BASH_FRAMEWORK_LOG_LEVEL > __LEVEL_OFF)); then
     if [[ ! -f "${BASH_FRAMEWORK_LOG_FILE}" ]]; then
-      if
-        ! mkdir -p "$(dirname "${BASH_FRAMEWORK_LOG_FILE}")" 2>/dev/null ||
-          ! touch --no-create "${BASH_FRAMEWORK_LOG_FILE}" 2>/dev/null
-      then
+      if [[ ! -d "${BASH_FRAMEWORK_LOG_FILE%/*}" ]]; then
+        if ! mkdir -p "${BASH_FRAMEWORK_LOG_FILE%/*}" 2>/dev/null; then
+          BASH_FRAMEWORK_LOG_LEVEL=${__LEVEL_OFF}
+          echo -e "${__ERROR_COLOR}ERROR   - directory ${BASH_FRAMEWORK_LOG_FILE%/*} is not writable${__RESET_COLOR}" >&2
+        fi
+      elif ! touch --no-create "${BASH_FRAMEWORK_LOG_FILE}" 2>/dev/null; then
         BASH_FRAMEWORK_LOG_LEVEL=${__LEVEL_OFF}
         echo -e "${__ERROR_COLOR}ERROR   - File ${BASH_FRAMEWORK_LOG_FILE} is not writable${__RESET_COLOR}" >&2
       fi
@@ -957,7 +978,6 @@ Log::requireLoad() {
       BASH_FRAMEWORK_LOG_LEVEL=${__LEVEL_OFF}
       echo -e "${__ERROR_COLOR}ERROR   - File ${BASH_FRAMEWORK_LOG_FILE} is not writable${__RESET_COLOR}" >&2
     fi
-
   fi
 
   if ((BASH_FRAMEWORK_LOG_LEVEL > __LEVEL_OFF)); then
@@ -1092,7 +1112,7 @@ Assert::tty() {
 
 # @description Backup given file in the same directory or in BACKUP_DIR directory
 # backup file name is composed by following fields separated by -:
-#   - if BACKUP_DIR is not empty then escaped dirname separated by @
+#   - if BACKUP_DIR is not empty then escaped dir name separated by @
 #   - filename(without path)
 #   - date with format %Y%m%d_%H:%M:%S (Eg: 20240326_14:45:08)
 # @arg $1 file:String the file to backup
@@ -1102,14 +1122,15 @@ Assert::tty() {
 # @exitcode 1 on copy failure
 Backup::file() {
   local file="$1"
-  local backupFile dirname escapedDirname
   if [[ -f "${file}" ]]; then
-    dirname="$(dirname "${file}")"
-    escapedDirname="$(sed -e 's#^/##; s#/#@#g' <<<"${dirname}")"
+    local backupFile fileDirname escapedDirname
+    fileDirname="${file%/*}"
+    escapedDirname=${fileDirname/\//}      # remove first slash
+    escapedDirname=${escapedDirname//\//@} # replace all slashes by @
     if [[ -z "${BACKUP_DIR:-}" ]]; then
-      backupFile="${dirname}/$(basename "${file}")-$(date +"%Y%m%d_%H:%M:%S")"
+      backupFile="${fileDirname}/${file##*/}-$(date +"%Y%m%d_%H:%M:%S")"
     else
-      backupFile="${BACKUP_DIR}/${escapedDirname}@$(basename "${file}")-$(date +"%Y%m%d_%H:%M:%S")"
+      backupFile="${BACKUP_DIR}/${escapedDirname}@${file##*/}-$(date +"%Y%m%d_%H:%M:%S")"
     fi
     Log::displayInfo "Backup file '${file}' to ${backupFile}"
     ${SUDO:-} cp "${file}" "${backupFile}"
@@ -1125,25 +1146,31 @@ Backup::file() {
 # @exitcode 1 if value is not found
 # @exitcode * if propertyNotFoundCallback fails
 # @stdout the property value given by property file or by the propertyNotFoundCallback
-Cache::getPropertyValue() {
-  local value
+Cache::getPropertyValue2() {
   local propertyFile="$1"
-  shift || true
-  local key
-  key="$(echo -E "$1" | sed -E 's#\\#/#g')"
-  shift || true
-  local propertyNotFoundCallback=$1
-  shift || true
+  local -n propertiesMap=$2
+  local -n getPropertyValue2_val=$3
+  local key="$4"
+  local propertyNotFoundCallback=$5
+  shift 5 || true
+  local -a args=("$@")
 
-  if grep -E "^${key}=.*" "${propertyFile}" &>/dev/null; then
-    grep -E "^${key}=" "${propertyFile}" | cut -d'=' -f2
+  if [[ "${#propertiesMap[@]}" = "0" && -s "${propertyFile}" ]]; then
+    local line
+    while IFS="" read -r line; do
+      if [[ "${line}" =~ ^([^=]+)=(.+)$ ]]; then
+        propertiesMap["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
+      fi
+    done <"${propertyFile}"
+  fi
+
+  if [[ -n "${propertiesMap[${key}]+abc}" ]]; then
+    getPropertyValue2_val="${propertiesMap[${key}]}"
     return 0
   elif [[ "$(type -t "${propertyNotFoundCallback}")" = "function" ]]; then
-    value="$("${propertyNotFoundCallback}" "$@")" || return $?
-    if [[ -n "${value}" ]]; then
-      echo -E "${key}=${value}" >>"${propertyFile}"
-    fi
-    echo -E "${value}"
+    getPropertyValue2_val="$("${propertyNotFoundCallback}" "${args[@]}")" || return $?
+    propertiesMap["${key}"]="${getPropertyValue2_val}"
+    echo "${key}=${getPropertyValue2_val}" >>"${propertyFile}"
     return 0
   fi
   return 1
@@ -1176,8 +1203,16 @@ Conf::dynamicConfFile() {
 # @env CHECK_ENV int 0 to avoid checking environment
 # @noargs
 Engine::Config::checkEnv() {
+  local envFile="$1"
   if [[ "${CHECK_ENV:-1}" = "0" ]]; then
     return 0
+  fi
+  # avoid checks if .env file didn't changed
+  local envFileMd5Cache="${PERSISTENT_TMPDIR:-/tmp}/bash-dev-env-enf-file-checksum"
+  if md5sum -c "${envFileMd5Cache}" &>/dev/null; then
+    return 0
+  else
+    md5sum "${envFile}" >"${envFileMd5Cache}"
   fi
   local errorCount=0 || true
   checkNotEmpty() {
@@ -1192,7 +1227,7 @@ Engine::Config::checkEnv() {
     local mode="${2:-}"
     local status=0
     if checkNotEmpty "${var}"; then
-      if ! mkdir -p "${!var}"; then
+      if [[ ! -d "${!var}" ]] && ! mkdir -p "${!var}"; then
         Log::displayError "variable ${var} - impossible to create the directory '${!var}'"
         ((errorCount++))
         return 1
@@ -1270,7 +1305,7 @@ Engine::Config::checkEnv() {
 
   checkNotEmpty WSLCONFIG_MAX_MEMORY
   checkValidValues WSLCONFIG_SWAP 0 1
-
+  export CHECK_ENV=0
   return "${errorCount}"
 }
 
@@ -1326,11 +1361,16 @@ Engine::Config::loadOsRelease() {
 # @set USER_HOME String
 Engine::Config::loadUserVariables() {
   # deduce user home and group
-  # shellcheck disable=SC2153
-  USER_ID="$(getent passwd "${USERNAME}" | cut -d: -f3)"
-  USERGROUP_ID="$(getent passwd "${USERNAME}" | cut -d: -f4)"
-  USERGROUP="$(getent group "${USERGROUP_ID}" | cut -d: -f1)"
-  USER_HOME="$(getent passwd "${USERNAME}" | cut -d: -f6)"
+  local -a split
+  local IFS=':'
+  # shellcheck disable=SC2207
+  split=($(getent passwd "${USERNAME}"))
+  USER_ID="${split[2]}"
+  USERGROUP_ID="${split[3]}"
+  USER_HOME="${split[5]}"
+  # shellcheck disable=SC2207
+  split=($(getent group "${USERNAME}"))
+  USERGROUP="${split[0]}"
 
   if [[ -z "${USERGROUP}" || -z "${USER_HOME}" ]]; then
     Log::displayError "USERNAME - unable to deduce USERGROUP, USER_HOME from USERNAME"
@@ -1360,23 +1400,28 @@ Engine::Config::loadWslVariables() {
     # skip
     return 0
   fi
+
+  local IFS=' '
+  local -a split=()
+  # shellcheck disable=SC2207
+  split=($(grep -m 1 -E 'C:\\[^ ]+ ([^ ]+) ' /proc/mounts 2>/dev/null))
   # shellcheck disable=SC1003
-  BASE_MNT_C="$(mount | grep 'path=C:\\' | awk -F ' ' '{print $3}')"
+  BASE_MNT_C="${split[1]}"
   export BASE_MNT_C
 
-  WINDOWS_DIR="$(Linux::Wsl::cachedWslpathFromWslVar SystemRoot)"
+  Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_DIR SystemRoot
   WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C}/Windows}"
   export WINDOWS_DIR
 
-  WINDOWS_PROFILE_DIR="$(Linux::Wsl::cachedWslpathFromWslVar USERPROFILE)"
-  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C}/Users/$(id -un)}"
+  Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_PROFILE_DIR USERPROFILE
+  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C}/Users/${USERNAME}}}"
   export WINDOWS_PROFILE_DIR
 
-  LOCAL_APP_DATA="$(Linux::Wsl::cachedWslpathFromWslVar LOCALAPPDATA | tr -d '\n\r')"
+  Linux::Wsl::cachedWslpathFromWslVar2 LOCAL_APP_DATA LOCALAPPDATA
   export LOCAL_APP_DATA
 
   # WINDOW_PATH
-  WINDOW_PATH="$(Linux::Wsl::cachedWslvar PATH)"
+  Linux::Wsl::cachedWslvar2 WINDOW_PATH PATH
   WINDOW_PATH="${WINDOW_PATH//;/:}"
   WINDOW_PATH="${WINDOW_PATH//\\//}"
   WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C}}"
@@ -1512,9 +1557,11 @@ Install::structure() {
   # shellcheck disable=SC2317
   createStructure() {
     local dir="$1"
-    if ! ${SUDO:-} mkdir -p "${dir}"; then
-      Log::displayError "Install::structure - impossible to create directory '${dir}'"
-      exit 1
+    if ! ${SUDO} test -d "${dir}"; then
+      if ! ${SUDO:-} mkdir -p "${dir}"; then
+        Log::displayError "Install::structure - impossible to create directory '${dir}'"
+        exit 1
+      fi
     fi
 
     if ! ${SUDO:-} chown "${userName}":"${userGroup}" "${dir}"; then
@@ -1536,11 +1583,11 @@ Install::structure() {
           exit 1
         fi
       done || {
-        if [[ "${PIPESTATUS[0]}" != "0" ]]; then
-          Log::displayError "Install::structure - replicated directory structure - find directories on '${fromDir}' resulted in an error"
-          exit 2
-        fi
-      }
+      if [[ "${PIPESTATUS[0]}" != "0" ]]; then
+        Log::displayError "Install::structure - replicated directory structure - find directories on '${fromDir}' resulted in an error"
+        exit 2
+      fi
+    }
   ) || return 2
 
   # for each file, copy it
@@ -1549,16 +1596,16 @@ Install::structure() {
     shopt -s lastpipe
     ${SUDO:-} find "${fromDir}" -depth -type f -printf "%P\0" |
       while read -rd '' file; do
-          if ! Install::file "${fromDir}/${file}" "${toDir}/${file}"; then
-            # error already reported by Install::file
-            exit 1
-          fi
-      done || {
-        if [[ "${PIPESTATUS[0]}" != "0" ]]; then
-          Log::displayError "Install::structure - replicated file structure - find files on '${fromDir}' resulted in an error"
-          exit 2
+        if ! Install::file "${fromDir}/${file}" "${toDir}/${file}"; then
+          # error already reported by Install::file
+          exit 1
         fi
-      }
+      done || {
+      if [[ "${PIPESTATUS[0]}" != "0" ]]; then
+        Log::displayError "Install::structure - replicated file structure - find files on '${fromDir}' resulted in an error"
+        exit 2
+      fi
+    }
   ) || return 3
 
   # shellcheck disable=SC2295
@@ -1641,7 +1688,12 @@ Linux::Wsl::getKeyFromWslpathOptions() {
     esac
     shift || true
   done
-  echo -E "${key}_$1"
+  key="${key}_$1"
+  # replace some characters \:/
+  key="${key//\\//}"
+  key="${key//:/_}"
+  key="${key////_}"
+  echo "${key}"
 }
 
 # @description call simply original wslpath command
@@ -1650,11 +1702,11 @@ Linux::Wsl::getKeyFromWslpathOptions() {
 # @stdout wslpath stdout
 # @require Linux::Wsl::requireWsl
 Linux::Wsl::originalWslpath() {
-  wslpath "$@"
+  wslpath "$@" | sed -z '$ s/[\r\n]$//'
 }
 
 declare -g FIRST_LOG_DATE LOG_LAST_LOG_DATE LOG_LAST_LOG_DATE_INIT LOG_LAST_DURATION_STR
-FIRST_LOG_DATE="$(date '+%s%3N')"
+FIRST_LOG_DATE="${EPOCHREALTIME/[^0-9]/}"
 LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
 LOG_LAST_LOG_DATE_INIT=1
 LOG_LAST_DURATION_STR=""
@@ -1667,18 +1719,19 @@ Log::computeDuration() {
     local -i duration=0
     local -i delta=0
     local -i currentLogDate
-    currentLogDate="$(date '+%s%3N')"
+    currentLogDate="${EPOCHREALTIME/[^0-9]/}"
     if ((LOG_LAST_LOG_DATE_INIT == 1)); then
       LOG_LAST_LOG_DATE_INIT=0
       LOG_LAST_DURATION_STR="Ref"
     else
-      duration=$(((currentLogDate - FIRST_LOG_DATE) / 1000))
-      delta=$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000))
+      duration=$(((currentLogDate - FIRST_LOG_DATE) / 1000000))
+      delta=$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000000))
       LOG_LAST_DURATION_STR="${duration}s/+${delta}s"
     fi
     LOG_LAST_LOG_DATE="${currentLogDate}"
     # shellcheck disable=SC2034
-    LOG_LAST_DURATION_STR="$(date '+%H:%M:%S.%3N')(${LOG_LAST_DURATION_STR}) - "
+    local microSeconds="${EPOCHREALTIME#*.}"
+    LOG_LAST_DURATION_STR="$(printf '%(%T)T.%03.0f\n' "${EPOCHSECONDS}" "${microSeconds:0:3}")(${LOG_LAST_DURATION_STR}) - "
   else
     # shellcheck disable=SC2034
     LOG_LAST_DURATION_STR=""
@@ -1908,7 +1961,7 @@ Linux::requireTarCommand() {
 # @description ensure linux distribution is ubuntu
 # @exitcode 1 if linux distribution is not ubuntu
 Linux::requireUbuntu() {
-  if ! Array::contains "$(Linux::getDistributorId)" "Ubuntu" "Debian"; then
+  if ! Array::contains "$(Linux::getDistributorId)" "ubuntu" "debian"; then
     Log::fatal "this script should be executed under Ubuntu or Debian OS"
   fi
 }
@@ -1921,9 +1974,9 @@ Linux::Wsl::requireWsl() {
   if [[ "${WSL_GARBAGE_COLLECT:-1}" = "1" ]]; then
     local tempEnvDir
     tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
-    File::garbageCollect "${tempEnvDir}/bash_tools_wslpath_$(id -un)" "1"
+    File::garbageCollect "${tempEnvDir}/bash_tools_wslpath_${USER_ID:-$(id -un)}" "1"
     tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
-    File::garbageCollect "${tempEnvDir}/bash_tools_wslvar_$(id -un)" "1"
+    File::garbageCollect "${tempEnvDir}/bash_tools_wslvar_${USER_ID:-$(id -un)}" "1"
   fi
 }
 
@@ -2075,26 +2128,38 @@ File::garbageCollect() {
 # @stderr diagnostics information is displayed
 # @require Linux::Wsl::requireWsl
 # @feature cache
-Linux::Wsl::cachedWslpathFromWslVar() {
-  local var="$1"
+Linux::Wsl::cachedWslpathFromWslVar2() {
+  # shellcheck disable=SC2034
+  local -n cachedWslpathFromWslVar2_value=$1
   shift || true
   local value
-  value="$(Linux::Wsl::cachedWslvar "${var}" "$@")" || return 1
-  Linux::Wsl::cachedWslpath "${value}" || return 1
+  Linux::Wsl::cachedWslvar2 value "$@"
+  Linux::Wsl::cachedWslpath2 cachedWslpathFromWslVar2_value "${value}" || return 1
 }
 
+declare -Agx bash_tools_wslvar=()
 # @description retrieve wslvar using cache (cache is refreshed every day)
+# @arg $1 cachedWslvar2_var:&String the variable to set by reference if the value is found
 # @arg $@ args:String[] arguments to pass to wslvar
 # @env WSL_TMPDIR String temp directory to store the wslvar cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
 # @exitcode * if Linux::Wsl::originalWslvar cannot find the variable
 # @stderr diagnostics information is displayed
 # @require Linux::Wsl::requireWsl
 # @feature cache
-Linux::Wsl::cachedWslvar() {
-  local tempEnvFile
-  tempEnvFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslvar_$(id -un)"
-
-  Cache::getPropertyValue "${tempEnvFile}" "$1" Linux::Wsl::originalWslvar "$@"
+Linux::Wsl::cachedWslvar2() {
+  # shellcheck disable=SC2034
+  local -n cachedWslvar2_var="$1"
+  shift || true
+  local -a args=("$@")
+  local tempWslvarFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslvar"
+  local key
+  key="$(Linux::Wsl::getKeyFromWslpathOptions "${args[@]}")"
+  Cache::getPropertyValue2 \
+    "${tempWslvarFile}" \
+    bash_tools_wslvar \
+    cachedWslvar2_var \
+    "${key}" \
+    Linux::Wsl::originalWslvar "${args[@]}"
 }
 
 # @description retrieve linux distributor id
@@ -2102,7 +2167,10 @@ Linux::Wsl::cachedWslvar() {
 # @exitcode 1 if lsb_release fails or not found
 # @stdout the linux distributor id
 Linux::getDistributorId() {
-  lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
+  (
+    source /etc/os-release
+    echo "${ID}"
+  )
 }
 
 # @description Display message using skip color (yellow)
@@ -2211,7 +2279,7 @@ UI::textLine() {
 # @exitcode 1 if regexp not matches
 # @see https://regex101.com/r/BUlPXS/1
 Assert::validVariableName() {
-  echo "$1" | LC_ALL=POSIX grep -E -q '(^[a-z][A-Za-z_0-9:]+$)|(^[A-Z_][A-Z_0-9:]+$)'
+  [[ "$1" =~ (^[a-z][A-Za-z_0-9:]+$)|(^[A-Z_][A-Z_0-9:]+$) ]]
 }
 
 # @description call simply original wslvar command
@@ -2233,7 +2301,7 @@ Log::logSkipped() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "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"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "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"
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -2469,7 +2537,7 @@ defaultFrameworkConfig="$(
 # shellcheck disable=SC2034
 
 REAL_SCRIPT_FILE="${REAL_SCRIPT_FILE:-$(readlink -e "$(realpath "${BASH_SOURCE[0]}")")}"
-FRAMEWORK_ROOT_DIR="${FRAMEWORK_ROOT_DIR:-$(cd "$(readlink -e "${REAL_SCRIPT_FILE%/*}")/../.." && pwd -P)}"
+FRAMEWORK_ROOT_DIR="${FRAMEWORK_ROOT_DIR:-${REAL_SCRIPT_FILE%/*/*}}"
 FRAMEWORK_SRC_DIR="${FRAMEWORK_SRC_DIR:-${FRAMEWORK_ROOT_DIR}/src}"
 FRAMEWORK_BIN_DIR="${FRAMEWORK_BIN_DIR:-${FRAMEWORK_ROOT_DIR}/bin}"
 FRAMEWORK_VENDOR_DIR="${FRAMEWORK_VENDOR_DIR:-${FRAMEWORK_ROOT_DIR}/vendor}"
@@ -2496,7 +2564,7 @@ export REPOSITORY_URL="${REPOSITORY_URL:-https://github.com/fchastanet/bash-tool
 BASH_FRAMEWORK_THEME="${BASH_FRAMEWORK_THEME:-default}"
 BASH_FRAMEWORK_LOG_LEVEL="${BASH_FRAMEWORK_LOG_LEVEL:-0}"
 BASH_FRAMEWORK_DISPLAY_LEVEL="${BASH_FRAMEWORK_DISPLAY_LEVEL:-3}"
-BASH_FRAMEWORK_LOG_FILE="${BASH_FRAMEWORK_LOG_FILE:-${FRAMEWORK_ROOT_DIR}/logs/$(basename "$0").log}"
+BASH_FRAMEWORK_LOG_FILE="${BASH_FRAMEWORK_LOG_FILE:-${FRAMEWORK_ROOT_DIR}/logs/${0##*/}.log}"
 BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION="${BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION:-5}"
 EOF
 )"
@@ -3165,7 +3233,9 @@ testConfigure() {
   terminalConfFile="${WINDOWS_PROFILE_DIR}/AppData/Local/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/settings.json"
   if [[ -f "${terminalConfFile}" ]]; then
     if ! grep -q '"face": "MesloLGS NF"' "${terminalConfFile}"; then
-      Log::displayHelp "Please change your terminal settings($(Linux::Wsl::cachedWslpath -w "${terminalConfFile}")) to use font 'MesloLGS NF' for wsl profile"
+      local terminalConfFilePath
+      Linux::Wsl::cachedWslpath2 terminalConfFilePath -w "${terminalConfFile}"
+      Log::displayHelp "Please change your terminal settings(${terminalConfFilePath}) to use font 'MesloLGS NF' for wsl profile"
     fi
   else
     Log::displayHelp "please use windows terminal for better shell display results"

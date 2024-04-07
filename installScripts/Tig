@@ -65,7 +65,7 @@ REAL_SCRIPT_FILE="$(readlink -e "$(realpath "${BASH_SOURCE[0]}")")"
 if [[ -n "${EMBED_CURRENT_DIR}" ]]; then
   CURRENT_DIR="${EMBED_CURRENT_DIR}"
 else
-  CURRENT_DIR="$(cd "$(readlink -e "${REAL_SCRIPT_FILE%/*}")" && pwd -P)"
+  CURRENT_DIR="${REAL_SCRIPT_FILE%/*}"
 fi
 
 ################################################
@@ -78,7 +78,9 @@ export KEEP_TEMP_FILES
 # PERSISTENT_TMPDIR is not deleted by traps
 PERSISTENT_TMPDIR="${TMPDIR:-/tmp}/bash-framework"
 export PERSISTENT_TMPDIR
-mkdir -p "${PERSISTENT_TMPDIR}"
+if [[ ! -d "${PERSISTENT_TMPDIR}" ]]; then
+  mkdir -p "${PERSISTENT_TMPDIR}"
+fi
 
 # shellcheck disable=SC2034
 TMPDIR="$(mktemp -d -p "${PERSISTENT_TMPDIR:-/tmp}" -t bash-framework-$$-XXXXXX)"
@@ -391,13 +393,13 @@ Engine::Config::loadConfig() {
 
   # load environment variables ID, VERSION_CODENAME
   Engine::Config::loadOsRelease
+  Engine::Config::loadUserVariables
 
-  if ! Engine::Config::checkEnv; then
+  if ! Engine::Config::checkEnv "${BASH_DEV_ENV_ROOT_DIR}/.env"; then
     Log::displayError "one or more variables are invalid, check above logs and fix '${envFile}' file accordingly"
     return 1
   fi
 
-  Engine::Config::loadUserVariables
   Engine::Config::loadHostIp
 
   Engine::Config::requireWslu
@@ -425,8 +427,10 @@ Env::requireLoad() {
     # BASH_FRAMEWORK_ENV_FILES is an array
     configFiles+=("${BASH_FRAMEWORK_ENV_FILES[@]}")
   fi
-  if [[ -f "$(pwd)/.framework-config" ]]; then
-    configFiles+=("$(pwd)/.framework-config")
+  local localFrameworkConfigFile
+  localFrameworkConfigFile="$(pwd)/.framework-config"
+  if [[ -f "${localFrameworkConfigFile}" ]]; then
+    configFiles+=("${localFrameworkConfigFile}")
   fi
   if [[ -f "${FRAMEWORK_ROOT_DIR}/.framework-config" ]]; then
     configFiles+=("${FRAMEWORK_ROOT_DIR}/.framework-config")
@@ -478,7 +482,7 @@ InstallScripts::command() {
     # shellcheck disable=SC2154
     hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh" "${embed_dir_hooks_dir}/${hookName}.sh")"
     if [[ -x "${hook}" ]]; then
-      # shellcheck source=src/_binaries/SimpleTest/conf/preInstall.sh
+      # shellcheck source=src/_binaries/SimpleTest/hooks/preInstall.sh
       source "${hook}" || exit 1
     fi
   }
@@ -751,10 +755,12 @@ Log::requireLoad() {
 
   if ((BASH_FRAMEWORK_LOG_LEVEL > __LEVEL_OFF)); then
     if [[ ! -f "${BASH_FRAMEWORK_LOG_FILE}" ]]; then
-      if
-        ! mkdir -p "$(dirname "${BASH_FRAMEWORK_LOG_FILE}")" 2>/dev/null ||
-          ! touch --no-create "${BASH_FRAMEWORK_LOG_FILE}" 2>/dev/null
-      then
+      if [[ ! -d "${BASH_FRAMEWORK_LOG_FILE%/*}" ]]; then
+        if ! mkdir -p "${BASH_FRAMEWORK_LOG_FILE%/*}" 2>/dev/null; then
+          BASH_FRAMEWORK_LOG_LEVEL=${__LEVEL_OFF}
+          echo -e "${__ERROR_COLOR}ERROR   - directory ${BASH_FRAMEWORK_LOG_FILE%/*} is not writable${__RESET_COLOR}" >&2
+        fi
+      elif ! touch --no-create "${BASH_FRAMEWORK_LOG_FILE}" 2>/dev/null; then
         BASH_FRAMEWORK_LOG_LEVEL=${__LEVEL_OFF}
         echo -e "${__ERROR_COLOR}ERROR   - File ${BASH_FRAMEWORK_LOG_FILE} is not writable${__RESET_COLOR}" >&2
       fi
@@ -762,7 +768,6 @@ Log::requireLoad() {
       BASH_FRAMEWORK_LOG_LEVEL=${__LEVEL_OFF}
       echo -e "${__ERROR_COLOR}ERROR   - File ${BASH_FRAMEWORK_LOG_FILE} is not writable${__RESET_COLOR}" >&2
     fi
-
   fi
 
   if ((BASH_FRAMEWORK_LOG_LEVEL > __LEVEL_OFF)); then
@@ -914,8 +919,16 @@ Conf::dynamicConfFile() {
 # @env CHECK_ENV int 0 to avoid checking environment
 # @noargs
 Engine::Config::checkEnv() {
+  local envFile="$1"
   if [[ "${CHECK_ENV:-1}" = "0" ]]; then
     return 0
+  fi
+  # avoid checks if .env file didn't changed
+  local envFileMd5Cache="${PERSISTENT_TMPDIR:-/tmp}/bash-dev-env-enf-file-checksum"
+  if md5sum -c "${envFileMd5Cache}" &>/dev/null; then
+    return 0
+  else
+    md5sum "${envFile}" >"${envFileMd5Cache}"
   fi
   local errorCount=0 || true
   checkNotEmpty() {
@@ -930,7 +943,7 @@ Engine::Config::checkEnv() {
     local mode="${2:-}"
     local status=0
     if checkNotEmpty "${var}"; then
-      if ! mkdir -p "${!var}"; then
+      if [[ ! -d "${!var}" ]] && ! mkdir -p "${!var}"; then
         Log::displayError "variable ${var} - impossible to create the directory '${!var}'"
         ((errorCount++))
         return 1
@@ -1008,7 +1021,7 @@ Engine::Config::checkEnv() {
 
   checkNotEmpty WSLCONFIG_MAX_MEMORY
   checkValidValues WSLCONFIG_SWAP 0 1
-
+  export CHECK_ENV=0
   return "${errorCount}"
 }
 
@@ -1064,11 +1077,16 @@ Engine::Config::loadOsRelease() {
 # @set USER_HOME String
 Engine::Config::loadUserVariables() {
   # deduce user home and group
-  # shellcheck disable=SC2153
-  USER_ID="$(getent passwd "${USERNAME}" | cut -d: -f3)"
-  USERGROUP_ID="$(getent passwd "${USERNAME}" | cut -d: -f4)"
-  USERGROUP="$(getent group "${USERGROUP_ID}" | cut -d: -f1)"
-  USER_HOME="$(getent passwd "${USERNAME}" | cut -d: -f6)"
+  local -a split
+  local IFS=':'
+  # shellcheck disable=SC2207
+  split=($(getent passwd "${USERNAME}"))
+  USER_ID="${split[2]}"
+  USERGROUP_ID="${split[3]}"
+  USER_HOME="${split[5]}"
+  # shellcheck disable=SC2207
+  split=($(getent group "${USERNAME}"))
+  USERGROUP="${split[0]}"
 
   if [[ -z "${USERGROUP}" || -z "${USER_HOME}" ]]; then
     Log::displayError "USERNAME - unable to deduce USERGROUP, USER_HOME from USERNAME"
@@ -1098,23 +1116,28 @@ Engine::Config::loadWslVariables() {
     # skip
     return 0
   fi
+
+  local IFS=' '
+  local -a split=()
+  # shellcheck disable=SC2207
+  split=($(grep -m 1 -E 'C:\\[^ ]+ ([^ ]+) ' /proc/mounts 2>/dev/null))
   # shellcheck disable=SC1003
-  BASE_MNT_C="$(mount | grep 'path=C:\\' | awk -F ' ' '{print $3}')"
+  BASE_MNT_C="${split[1]}"
   export BASE_MNT_C
 
-  WINDOWS_DIR="$(Linux::Wsl::cachedWslpathFromWslVar SystemRoot)"
+  Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_DIR SystemRoot
   WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C}/Windows}"
   export WINDOWS_DIR
 
-  WINDOWS_PROFILE_DIR="$(Linux::Wsl::cachedWslpathFromWslVar USERPROFILE)"
-  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C}/Users/$(id -un)}"
+  Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_PROFILE_DIR USERPROFILE
+  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C}/Users/${USERNAME}}}"
   export WINDOWS_PROFILE_DIR
 
-  LOCAL_APP_DATA="$(Linux::Wsl::cachedWslpathFromWslVar LOCALAPPDATA | tr -d '\n\r')"
+  Linux::Wsl::cachedWslpathFromWslVar2 LOCAL_APP_DATA LOCALAPPDATA
   export LOCAL_APP_DATA
 
   # WINDOW_PATH
-  WINDOW_PATH="$(Linux::Wsl::cachedWslvar PATH)"
+  Linux::Wsl::cachedWslvar2 WINDOW_PATH PATH
   WINDOW_PATH="${WINDOW_PATH//;/:}"
   WINDOW_PATH="${WINDOW_PATH//\\//}"
   WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C}}"
@@ -1218,7 +1241,7 @@ Linux::Apt::update() {
 }
 
 declare -g FIRST_LOG_DATE LOG_LAST_LOG_DATE LOG_LAST_LOG_DATE_INIT LOG_LAST_DURATION_STR
-FIRST_LOG_DATE="$(date '+%s%3N')"
+FIRST_LOG_DATE="${EPOCHREALTIME/[^0-9]/}"
 LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
 LOG_LAST_LOG_DATE_INIT=1
 LOG_LAST_DURATION_STR=""
@@ -1231,18 +1254,19 @@ Log::computeDuration() {
     local -i duration=0
     local -i delta=0
     local -i currentLogDate
-    currentLogDate="$(date '+%s%3N')"
+    currentLogDate="${EPOCHREALTIME/[^0-9]/}"
     if ((LOG_LAST_LOG_DATE_INIT == 1)); then
       LOG_LAST_LOG_DATE_INIT=0
       LOG_LAST_DURATION_STR="Ref"
     else
-      duration=$(((currentLogDate - FIRST_LOG_DATE) / 1000))
-      delta=$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000))
+      duration=$(((currentLogDate - FIRST_LOG_DATE) / 1000000))
+      delta=$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000000))
       LOG_LAST_DURATION_STR="${duration}s/+${delta}s"
     fi
     LOG_LAST_LOG_DATE="${currentLogDate}"
     # shellcheck disable=SC2034
-    LOG_LAST_DURATION_STR="$(date '+%H:%M:%S.%3N')(${LOG_LAST_DURATION_STR}) - "
+    local microSeconds="${EPOCHREALTIME#*.}"
+    LOG_LAST_DURATION_STR="$(printf '%(%T)T.%03.0f\n' "${EPOCHSECONDS}" "${microSeconds:0:3}")(${LOG_LAST_DURATION_STR}) - "
   else
     # shellcheck disable=SC2034
     LOG_LAST_DURATION_STR=""
@@ -1399,7 +1423,7 @@ Stats::statusLine() {
 # @description ensure linux distribution is ubuntu
 # @exitcode 1 if linux distribution is not ubuntu
 Linux::requireUbuntu() {
-  if ! Array::contains "$(Linux::getDistributorId)" "Ubuntu" "Debian"; then
+  if ! Array::contains "$(Linux::getDistributorId)" "ubuntu" "debian"; then
     Log::fatal "this script should be executed under Ubuntu or Debian OS"
   fi
 }
@@ -1503,26 +1527,38 @@ Assert::wsl() {
 # @stderr diagnostics information is displayed
 # @require Linux::Wsl::requireWsl
 # @feature cache
-Linux::Wsl::cachedWslpathFromWslVar() {
-  local var="$1"
+Linux::Wsl::cachedWslpathFromWslVar2() {
+  # shellcheck disable=SC2034
+  local -n cachedWslpathFromWslVar2_value=$1
   shift || true
   local value
-  value="$(Linux::Wsl::cachedWslvar "${var}" "$@")" || return 1
-  Linux::Wsl::cachedWslpath "${value}" || return 1
+  Linux::Wsl::cachedWslvar2 value "$@"
+  Linux::Wsl::cachedWslpath2 cachedWslpathFromWslVar2_value "${value}" || return 1
 }
 
+declare -Agx bash_tools_wslvar=()
 # @description retrieve wslvar using cache (cache is refreshed every day)
+# @arg $1 cachedWslvar2_var:&String the variable to set by reference if the value is found
 # @arg $@ args:String[] arguments to pass to wslvar
 # @env WSL_TMPDIR String temp directory to store the wslvar cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
 # @exitcode * if Linux::Wsl::originalWslvar cannot find the variable
 # @stderr diagnostics information is displayed
 # @require Linux::Wsl::requireWsl
 # @feature cache
-Linux::Wsl::cachedWslvar() {
-  local tempEnvFile
-  tempEnvFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslvar_$(id -un)"
-
-  Cache::getPropertyValue "${tempEnvFile}" "$1" Linux::Wsl::originalWslvar "$@"
+Linux::Wsl::cachedWslvar2() {
+  # shellcheck disable=SC2034
+  local -n cachedWslvar2_var="$1"
+  shift || true
+  local -a args=("$@")
+  local tempWslvarFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslvar"
+  local key
+  key="$(Linux::Wsl::getKeyFromWslpathOptions "${args[@]}")"
+  Cache::getPropertyValue2 \
+    "${tempWslvarFile}" \
+    bash_tools_wslvar \
+    cachedWslvar2_var \
+    "${key}" \
+    Linux::Wsl::originalWslvar "${args[@]}"
 }
 
 # @description retrieve linux distributor id
@@ -1530,7 +1566,10 @@ Linux::Wsl::cachedWslvar() {
 # @exitcode 1 if lsb_release fails or not found
 # @stdout the linux distributor id
 Linux::getDistributorId() {
-  lsb_release -a 2>/dev/null | sed -En 's/Distributor ID:[ \t]+(.+)/\1/p'
+  (
+    source /etc/os-release
+    echo "${ID}"
+  )
 }
 
 # @description Display message using skip color (yellow)
@@ -1631,7 +1670,7 @@ UI::textLine() {
 # @exitcode 1 if regexp not matches
 # @see https://regex101.com/r/BUlPXS/1
 Assert::validVariableName() {
-  echo "$1" | LC_ALL=POSIX grep -E -q '(^[a-z][A-Za-z_0-9:]+$)|(^[A-Z_][A-Z_0-9:]+$)'
+  [[ "$1" =~ (^[a-z][A-Za-z_0-9:]+$)|(^[A-Z_][A-Z_0-9:]+$) ]]
 }
 
 # @description get property value from file
@@ -1643,30 +1682,37 @@ Assert::validVariableName() {
 # @exitcode 1 if value is not found
 # @exitcode * if propertyNotFoundCallback fails
 # @stdout the property value given by property file or by the propertyNotFoundCallback
-Cache::getPropertyValue() {
-  local value
+Cache::getPropertyValue2() {
   local propertyFile="$1"
-  shift || true
-  local key
-  key="$(echo -E "$1" | sed -E 's#\\#/#g')"
-  shift || true
-  local propertyNotFoundCallback=$1
-  shift || true
+  local -n propertiesMap=$2
+  local -n getPropertyValue2_val=$3
+  local key="$4"
+  local propertyNotFoundCallback=$5
+  shift 5 || true
+  local -a args=("$@")
 
-  if grep -E "^${key}=.*" "${propertyFile}" &>/dev/null; then
-    grep -E "^${key}=" "${propertyFile}" | cut -d'=' -f2
+  if [[ "${#propertiesMap[@]}" = "0" && -s "${propertyFile}" ]]; then
+    local line
+    while IFS="" read -r line; do
+      if [[ "${line}" =~ ^([^=]+)=(.+)$ ]]; then
+        propertiesMap["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
+      fi
+    done <"${propertyFile}"
+  fi
+
+  if [[ -n "${propertiesMap[${key}]+abc}" ]]; then
+    getPropertyValue2_val="${propertiesMap[${key}]}"
     return 0
   elif [[ "$(type -t "${propertyNotFoundCallback}")" = "function" ]]; then
-    value="$("${propertyNotFoundCallback}" "$@")" || return $?
-    if [[ -n "${value}" ]]; then
-      echo -E "${key}=${value}" >>"${propertyFile}"
-    fi
-    echo -E "${value}"
+    getPropertyValue2_val="$("${propertyNotFoundCallback}" "${args[@]}")" || return $?
+    propertiesMap["${key}"]="${getPropertyValue2_val}"
+    echo "${key}=${getPropertyValue2_val}" >>"${propertyFile}"
     return 0
   fi
   return 1
 }
 
+declare -Agx bash_tools_wslpath=()
 # @description retrieve wslpath using cache (cache is refreshed every day)
 # @arg $@ args:String[] arguments to pass to wslpath
 # @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
@@ -1674,13 +1720,59 @@ Cache::getPropertyValue() {
 # @stderr diagnostics information is displayed
 # @require Linux::Wsl::requireWsl
 # @feature cache
-Linux::Wsl::cachedWslpath() {
-  local -a args=("$@")
+Linux::Wsl::cachedWslpath2() {
+  # shellcheck disable=SC2034
+  local -n cachedWslpath2_value=$1
+  shift || true
   local tempEnvFile key
-  tempEnvFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslpath_$(id -un)"
+  tempEnvFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslpath"
 
   key="$(Linux::Wsl::getKeyFromWslpathOptions "$@")"
-  Cache::getPropertyValue "${tempEnvFile}" "${key}" Linux::Wsl::originalWslpath "${args[@]}"
+  Cache::getPropertyValue2 \
+    "${tempEnvFile}" \
+    bash_tools_wslpath \
+    cachedWslpath2_value \
+    "${key}" \
+    Linux::Wsl::originalWslpath "$@"
+}
+
+# @description Compute a cache from wslpath options
+# @arg $@ args:String[] arguments passed to wslpath
+# @stderr diagnostics information is displayed
+# @stdout the cache key deduced from the options
+# @require Linux::Wsl::requireWsl
+# @feature cache
+# @internal
+Linux::Wsl::getKeyFromWslpathOptions() {
+  local options
+  options=$(getopt -o "auwm" -- "$@" 2>/dev/null) || {
+    Log::displayError "invalid options specified"
+    return 1
+  }
+  local key="wslpath"
+  eval set -- "${options}"
+  while true; do
+    case "$1" in
+      -a | -u | -w | -m)
+        key="${key}$1"
+        ;;
+      --)
+        shift || true
+        break
+        ;;
+      *)
+        shift || true
+        Log::displayWarning "Unknown key $1"
+        ;;
+    esac
+    shift || true
+  done
+  key="${key}_$1"
+  # replace some characters \:/
+  key="${key//\\//}"
+  key="${key//:/_}"
+  key="${key////_}"
+  echo "${key}"
 }
 
 # @description call simply original wslvar command
@@ -1745,9 +1837,9 @@ Linux::Wsl::requireWsl() {
   if [[ "${WSL_GARBAGE_COLLECT:-1}" = "1" ]]; then
     local tempEnvDir
     tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
-    File::garbageCollect "${tempEnvDir}/bash_tools_wslpath_$(id -un)" "1"
+    File::garbageCollect "${tempEnvDir}/bash_tools_wslpath_${USER_ID:-$(id -un)}" "1"
     tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
-    File::garbageCollect "${tempEnvDir}/bash_tools_wslvar_$(id -un)" "1"
+    File::garbageCollect "${tempEnvDir}/bash_tools_wslvar_${USER_ID:-$(id -un)}" "1"
   fi
 }
 
@@ -1778,47 +1870,13 @@ File::garbageCollect() {
   find "${path}" -depth -maxdepth "${maxdepth}" -type f -mtime "${mtime}" -print -delete
 }
 
-# @description Compute a cache from wslpath options
-# @arg $@ args:String[] arguments passed to wslpath
-# @stderr diagnostics information is displayed
-# @stdout the cache key deduced from the options
-# @require Linux::Wsl::requireWsl
-# @feature cache
-# @internal
-Linux::Wsl::getKeyFromWslpathOptions() {
-  local options
-  options=$(getopt -o "auwm" -- "$@" 2>/dev/null) || {
-    Log::displayError "invalid options specified"
-    return 1
-  }
-  local key="wslpath"
-  eval set -- "${options}"
-  while true; do
-    case "$1" in
-      -a | -u | -w | -m)
-        key="${key}$1"
-        ;;
-      --)
-        shift || true
-        break
-        ;;
-      *)
-        shift || true
-        Log::displayWarning "Unknown key $1"
-        ;;
-    esac
-    shift || true
-  done
-  echo -E "${key}_$1"
-}
-
 # @description call simply original wslpath command
 # @arg $@ args:String[] args to pass to wslpath
 # @exitcode * wslpath exit code
 # @stdout wslpath stdout
 # @require Linux::Wsl::requireWsl
 Linux::Wsl::originalWslpath() {
-  wslpath "$@"
+  wslpath "$@" | sed -z '$ s/[\r\n]$//'
 }
 
 # FUNCTIONS
@@ -2053,7 +2111,7 @@ defaultFrameworkConfig="$(
 # shellcheck disable=SC2034
 
 REAL_SCRIPT_FILE="${REAL_SCRIPT_FILE:-$(readlink -e "$(realpath "${BASH_SOURCE[0]}")")}"
-FRAMEWORK_ROOT_DIR="${FRAMEWORK_ROOT_DIR:-$(cd "$(readlink -e "${REAL_SCRIPT_FILE%/*}")/../.." && pwd -P)}"
+FRAMEWORK_ROOT_DIR="${FRAMEWORK_ROOT_DIR:-${REAL_SCRIPT_FILE%/*/*}}"
 FRAMEWORK_SRC_DIR="${FRAMEWORK_SRC_DIR:-${FRAMEWORK_ROOT_DIR}/src}"
 FRAMEWORK_BIN_DIR="${FRAMEWORK_BIN_DIR:-${FRAMEWORK_ROOT_DIR}/bin}"
 FRAMEWORK_VENDOR_DIR="${FRAMEWORK_VENDOR_DIR:-${FRAMEWORK_ROOT_DIR}/vendor}"
@@ -2080,7 +2138,7 @@ export REPOSITORY_URL="${REPOSITORY_URL:-https://github.com/fchastanet/bash-tool
 BASH_FRAMEWORK_THEME="${BASH_FRAMEWORK_THEME:-default}"
 BASH_FRAMEWORK_LOG_LEVEL="${BASH_FRAMEWORK_LOG_LEVEL:-0}"
 BASH_FRAMEWORK_DISPLAY_LEVEL="${BASH_FRAMEWORK_DISPLAY_LEVEL:-3}"
-BASH_FRAMEWORK_LOG_FILE="${BASH_FRAMEWORK_LOG_FILE:-${FRAMEWORK_ROOT_DIR}/logs/$(basename "$0").log}"
+BASH_FRAMEWORK_LOG_FILE="${BASH_FRAMEWORK_LOG_FILE:-${FRAMEWORK_ROOT_DIR}/logs/${0##*/}.log}"
 BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION="${BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION:-5}"
 EOF
 )"
@@ -2629,7 +2687,7 @@ fortunes() {
   echo "Tig - use 'tig' command to browse git repository's logs"
   echo "%"
 }
-
+# jscpd:ignore-start
 dependencies() { :; }
 helpVariables() { :; }
 listVariables() { :; }
@@ -2637,6 +2695,7 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+# jscpd:ignore-end
 
 install() {
   Linux::Apt::installIfNecessary --no-install-recommends \

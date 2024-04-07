@@ -41,7 +41,7 @@ install() {
   Linux::Apt::addRepository ppa:aacebedo/fasd
   SKIP_APT_GET_UPDATE=1 Linux::Apt::installIfNecessary --no-install-recommends \
     fasd
-  
+
   # shellcheck disable=SC2154
   Conf::copyStructure \
     "${embed_dir_conf_dir}" \

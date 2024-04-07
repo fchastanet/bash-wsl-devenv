@@ -24,6 +24,7 @@ dependencies() {
   echo "Composer"
 }
 
+# jscpd:ignore-start
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
@@ -31,6 +32,7 @@ checkVariables() { :; }
 fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+# jscpd:ignore-end
 
 install() {
   Linux::Apt::installIfNecessary --no-install-recommends \

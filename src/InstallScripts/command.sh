@@ -27,7 +27,7 @@ InstallScripts::command() {
     # shellcheck disable=SC2154
     hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh" "${embed_dir_hooks_dir}/${hookName}.sh")"
     if [[ -x "${hook}" ]]; then
-      # shellcheck source=src/_binaries/SimpleTest/conf/preInstall.sh
+      # shellcheck source=src/_binaries/SimpleTest/hooks/preInstall.sh
       source "${hook}" || exit 1
     fi
   }

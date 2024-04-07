@@ -17,23 +17,28 @@ Engine::Config::loadWslVariables() {
     # skip
     return 0
   fi
+
+  local IFS=' '
+  local -a split=()
+  # shellcheck disable=SC2207
+  split=($(grep -m 1 -E 'C:\\[^ ]+ ([^ ]+) ' /proc/mounts 2>/dev/null))
   # shellcheck disable=SC1003
-  BASE_MNT_C="$(mount | grep 'path=C:\\' | awk -F ' ' '{print $3}')"
+  BASE_MNT_C="${split[1]}"
   export BASE_MNT_C
 
-  WINDOWS_DIR="$(Linux::Wsl::cachedWslpathFromWslVar SystemRoot)"
+  Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_DIR SystemRoot
   WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C}/Windows}"
   export WINDOWS_DIR
 
-  WINDOWS_PROFILE_DIR="$(Linux::Wsl::cachedWslpathFromWslVar USERPROFILE)"
-  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C}/Users/$(id -un)}"
+  Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_PROFILE_DIR USERPROFILE
+  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C}/Users/${USERNAME}}}"
   export WINDOWS_PROFILE_DIR
 
-  LOCAL_APP_DATA="$(Linux::Wsl::cachedWslpathFromWslVar LOCALAPPDATA | tr -d '\n\r')"
+  Linux::Wsl::cachedWslpathFromWslVar2 LOCAL_APP_DATA LOCALAPPDATA
   export LOCAL_APP_DATA
 
   # WINDOW_PATH
-  WINDOW_PATH="$(Linux::Wsl::cachedWslvar PATH)"
+  Linux::Wsl::cachedWslvar2 WINDOW_PATH PATH
   WINDOW_PATH="${WINDOW_PATH//;/:}"
   WINDOW_PATH="${WINDOW_PATH//\\//}"
   WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C}}"

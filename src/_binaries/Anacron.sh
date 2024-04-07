@@ -14,6 +14,7 @@ helpDescription() {
   echo "Anacron"
 }
 
+# jscpd:ignore-start
 dependencies() { :; }
 helpVariables() { :; }
 listVariables() { :; }
@@ -22,6 +23,7 @@ checkVariables() { :; }
 fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+# jscpd:ignore-end
 
 install() {
   Linux::Apt::installIfNecessary --no-install-recommends \
