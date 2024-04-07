@@ -101,19 +101,56 @@ cleanOnExit() {
 }
 trap cleanOnExit EXIT HUP QUIT ABRT TERM
 
-# @description display help and exits if one of args is -h|--help
-# @arg $1 helpArg:String|Function the help string to display or the function to call to display the help
-# @arg $@ args:String[] list of options
-# @option -h short help option
-# @option --help long help option
-# @exitcode 0 displays help and exit with code 0 if -h or --help option is in the args list
-# @stdout displays help if -h or --help option is in the args list
-Args::defaultHelp() {
-  local helpArg=$1
-  shift || true
-  if ! Args::defaultHelpNoExit "${helpArg}" "$@"; then
-    exit 0
+# @description Log namespace provides 2 kind of functions
+# - Log::display* allows to display given message with
+#   given display level
+# - Log::log* allows to log given message with
+#   given log level
+# Log::display* functions automatically log the message too
+# @see Env::requireLoad to load the display and log level from .env file
+
+# @description log level off
+export __LEVEL_OFF=0
+# @description log level error
+export __LEVEL_ERROR=1
+# @description log level warning
+export __LEVEL_WARNING=2
+# @description log level info
+export __LEVEL_INFO=3
+# @description log level success
+export __LEVEL_SUCCESS=3
+# @description log level debug
+export __LEVEL_DEBUG=4
+
+# @description verbose level off
+export __VERBOSE_LEVEL_OFF=0
+# @description verbose level info
+export __VERBOSE_LEVEL_INFO=1
+# @description verbose level info
+export __VERBOSE_LEVEL_DEBUG=2
+# @description verbose level info
+export __VERBOSE_LEVEL_TRACE=3
+
+# @description Display message using info color (bg light blue/fg white)
+# @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+Log::displayInfo() {
+  local type="${2:-INFO}"
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    Log::computeDuration
+    echo -e "${__INFO_COLOR}${type}    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
+  Log::logInfo "$1" "${type}"
+}
+
+# @description Display message using debug color (grey)
+# @arg $1 message:String the message to display
+Log::displayDebug() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_DEBUG)); then
+    Log::computeDuration
+    echo -e "${__DEBUG_COLOR}DEBUG   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logDebug "$1"
 }
 
 # @description checks if function name provided exists
@@ -280,56 +317,19 @@ Engine::Config::loadConfig() {
   export BASH_DEV_ENV_CONFIG_LOADED=1
 }
 
-# @description Log namespace provides 2 kind of functions
-# - Log::display* allows to display given message with
-#   given display level
-# - Log::log* allows to log given message with
-#   given log level
-# Log::display* functions automatically log the message too
-# @see Env::requireLoad to load the display and log level from .env file
-
-# @description log level off
-export __LEVEL_OFF=0
-# @description log level error
-export __LEVEL_ERROR=1
-# @description log level warning
-export __LEVEL_WARNING=2
-# @description log level info
-export __LEVEL_INFO=3
-# @description log level success
-export __LEVEL_SUCCESS=3
-# @description log level debug
-export __LEVEL_DEBUG=4
-
-# @description verbose level off
-export __VERBOSE_LEVEL_OFF=0
-# @description verbose level info
-export __VERBOSE_LEVEL_INFO=1
-# @description verbose level info
-export __VERBOSE_LEVEL_DEBUG=2
-# @description verbose level info
-export __VERBOSE_LEVEL_TRACE=3
-
-# @description Display message using debug color (grey)
-# @arg $1 message:String the message to display
-Log::displayDebug() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_DEBUG)); then
-    Log::computeDuration
-    echo -e "${__DEBUG_COLOR}DEBUG   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+# @description display help and exits if one of args is -h|--help
+# @arg $1 helpArg:String|Function the help string to display or the function to call to display the help
+# @arg $@ args:String[] list of options
+# @option -h short help option
+# @option --help long help option
+# @exitcode 0 displays help and exit with code 0 if -h or --help option is in the args list
+# @stdout displays help if -h or --help option is in the args list
+Args::defaultHelp() {
+  local helpArg=$1
+  shift || true
+  if ! Args::defaultHelpNoExit "${helpArg}" "$@"; then
+    exit 0
   fi
-  Log::logDebug "$1"
-}
-
-# @description Display message using info color (bg light blue/fg white)
-# @arg $1 message:String the message to display
-# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
-Log::displayInfo() {
-  local type="${2:-INFO}"
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    Log::computeDuration
-    echo -e "${__INFO_COLOR}${type}    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logInfo "$1" "${type}"
 }
 
 # @description ensure COMMAND_BIN_DIR env var is set
@@ -342,39 +342,119 @@ Compiler::Facade::requireCommandBinDir() {
   Env::pathPrepend "${COMMAND_BIN_DIR}"
 }
 
-# @description display help if one of args is -h|--help
-# @arg $1 helpArg:String|Function the help string to display or the function to call to display the help
-# @arg $@ args:String[] list of options
-# @option -h short help option
-# @option --help long help option
-# @exitcode 1 displays help and returns with code 1 if -h or --help option is in the args list
-# @stdout displays help if -h or --help option is in the args list
-Args::defaultHelpNoExit() {
-  local helpArg=$1
-  shift || true
-  # shellcheck disable=SC2034
-  local args
-  args="$(getopt -l help -o h -- "$@" 2>/dev/null)" || true
-  eval set -- "${args}"
+declare -g FIRST_LOG_DATE LOG_LAST_LOG_DATE LOG_LAST_LOG_DATE_INIT LOG_LAST_DURATION_STR
+FIRST_LOG_DATE="${EPOCHREALTIME/[^0-9]/}"
+LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
+LOG_LAST_LOG_DATE_INIT=1
+LOG_LAST_DURATION_STR=""
 
-  while true; do
-    case $1 in
-      -h | --help)
-        if [[ "$(type -t "${helpArg}")" = "function" ]]; then
-          "${helpArg}" "$@"
-        else
-          Args::showHelp "${helpArg}"
-        fi
-        return 1
-        ;;
-      --)
-        break
-        ;;
-      *)
-        # ignore
-        ;;
-    esac
-  done
+# @description Display message using info color (bg light blue/fg white)
+# @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+Log::computeDuration() {
+  if ((DISPLAY_DURATION == 1)); then
+    local -i duration=0
+    local -i delta=0
+    local -i currentLogDate
+    currentLogDate="${EPOCHREALTIME/[^0-9]/}"
+    if ((LOG_LAST_LOG_DATE_INIT == 1)); then
+      LOG_LAST_LOG_DATE_INIT=0
+      LOG_LAST_DURATION_STR="Ref"
+    else
+      duration=$(((currentLogDate - FIRST_LOG_DATE) / 1000000))
+      delta=$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000000))
+      LOG_LAST_DURATION_STR="${duration}s/+${delta}s"
+    fi
+    LOG_LAST_LOG_DATE="${currentLogDate}"
+    # shellcheck disable=SC2034
+    local microSeconds="${EPOCHREALTIME#*.}"
+    LOG_LAST_DURATION_STR="$(printf '%(%T)T.%03.0f\n' "${EPOCHSECONDS}" "${microSeconds:0:3}")(${LOG_LAST_DURATION_STR}) - "
+  else
+    # shellcheck disable=SC2034
+    LOG_LAST_DURATION_STR=""
+  fi
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logInfo() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-INFO}" "$1"
+  fi
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logDebug() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_DEBUG)); then
+    Log::logMessage "${2:-DEBUG}" "$1"
+  fi
+}
+
+# @description if .env does not exist, initialize it with .env.template
+Engine::Config::createEnvFileFromTemplate() {
+  local envFile="$1"
+  local envFileTemplate="$2"
+
+  if [[ ! -f "${envFile}" ]]; then
+    echo "${envFileTemplate}" >"${envFile}"
+    Log::displayError "a default env file has been created, please edit ${envFile}"
+    return 1
+  fi
+}
+
+# @description load /etc/os-release file
+# @set NAME
+# @set VERSION
+# @set ID
+# @set ID_LIKE
+# @set PRETTY_NAME
+# @set VERSION_ID
+# @set HOME_URL
+# @set SUPPORT_URL
+# @set BUG_REPORT_URL
+# @set PRIVACY_POLICY_URL
+# @set VERSION_CODENAME
+# @set UBUNTU_CODENAME
+Engine::Config::loadOsRelease() {
+  if [[ ! -f /etc/os-release ]]; then
+    Log::displayError "file /etc/os-release does not exists"
+    return 1
+  fi
+  # This will load environment variables ID, VERSION_CODENAME, ...
+  set -o allexport
+  source /etc/os-release
+  set +o allexport
+}
+
+# @description deduce USER_HOME, USER_ID, USERGROUP_ID and USERGROUP from USERNAME
+# @env USERNAME String the name of the user
+# @set USER_ID String
+# @set USERGROUP String
+# @set USERGROUP_ID String
+# @set USER_HOME String
+Engine::Config::loadUserVariables() {
+  # deduce user home and group
+  local -a split
+  local IFS=':'
+  # shellcheck disable=SC2207
+  split=($(getent passwd "${USERNAME}"))
+  USER_ID="${split[2]}"
+  USERGROUP_ID="${split[3]}"
+  USER_HOME="${split[5]}"
+  # shellcheck disable=SC2207
+  split=($(getent group "${USERNAME}"))
+  USERGROUP="${split[0]}"
+
+  if [[ -z "${USERGROUP}" || -z "${USER_HOME}" ]]; then
+    Log::displayError "USERNAME - unable to deduce USERGROUP, USER_HOME from USERNAME"
+    return 1
+  fi
+
+  export USER_HOME
+  export USER_ID
+  export USERGROUP_ID
+  export USERGROUP
 }
 
 # @description check validity of .env variables
@@ -487,16 +567,14 @@ Engine::Config::checkEnv() {
   return "${errorCount}"
 }
 
-# @description if .env does not exist, initialize it with .env.template
-Engine::Config::createEnvFileFromTemplate() {
-  local envFile="$1"
-  local envFileTemplate="$2"
-
-  if [[ ! -f "${envFile}" ]]; then
-    echo "${envFileTemplate}" >"${envFile}"
-    Log::displayError "a default env file has been created, please edit ${envFile}"
-    return 1
+# @description Display message using error color (red)
+# @arg $1 message:String the message to display
+Log::displayError() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_ERROR)); then
+    Log::computeDuration
+    echo -e "${__ERROR_COLOR}ERROR   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
+  Log::logError "$1"
 }
 
 # @description deduce wsl host ip
@@ -507,58 +585,21 @@ Engine::Config::loadHostIp() {
   export HOST_IP
 }
 
-# @description load /etc/os-release file
-# @set NAME
-# @set VERSION
-# @set ID
-# @set ID_LIKE
-# @set PRETTY_NAME
-# @set VERSION_ID
-# @set HOME_URL
-# @set SUPPORT_URL
-# @set BUG_REPORT_URL
-# @set PRIVACY_POLICY_URL
-# @set VERSION_CODENAME
-# @set UBUNTU_CODENAME
-Engine::Config::loadOsRelease() {
-  if [[ ! -f /etc/os-release ]]; then
-    Log::displayError "file /etc/os-release does not exists"
-    return 1
+# @description install apt wslu if necessary providing wslvar, wslpath
+Engine::Config::requireWslu() {
+  if ! command -v wslvar &>/dev/null; then
+    Log::displayInfo "Installing pre-requisite Wslu : wslvar, wslpath, ... commands"
+    Linux::Apt::installIfNecessary --no-install-recommends wslu
+
+    # @see https://github.com/microsoft/WSL/issues/8843#issuecomment-1792256894
+    Log::displayInfo "Fix wsl interoperability due to wsl bug"
+    if [[ ! -f /usr/lib/binfmt.d/WSLInterop.conf &&
+      ! -f /etc/systemd/system/wsl-binfmt.service &&
+      -f /run/systemd/generator.early/wsl-binfmt.service ]]; then
+      sudo sh -c 'echo :WSLInterop:M::MZ::/init:PF > /usr/lib/binfmt.d/WSLInterop.conf'
+      sudo ln -s /run/systemd/generator.early/wsl-binfmt.service /etc/systemd/system/wsl-binfmt.service
+    fi
   fi
-  # This will load environment variables ID, VERSION_CODENAME, ...
-  set -o allexport
-  source /etc/os-release
-  set +o allexport
-}
-
-# @description deduce USER_HOME, USER_ID, USERGROUP_ID and USERGROUP from USERNAME
-# @env USERNAME String the name of the user
-# @set USER_ID String
-# @set USERGROUP String
-# @set USERGROUP_ID String
-# @set USER_HOME String
-Engine::Config::loadUserVariables() {
-  # deduce user home and group
-  local -a split
-  local IFS=':'
-  # shellcheck disable=SC2207
-  split=($(getent passwd "${USERNAME}"))
-  USER_ID="${split[2]}"
-  USERGROUP_ID="${split[3]}"
-  USER_HOME="${split[5]}"
-  # shellcheck disable=SC2207
-  split=($(getent group "${USERNAME}"))
-  USERGROUP="${split[0]}"
-
-  if [[ -z "${USERGROUP}" || -z "${USER_HOME}" ]]; then
-    Log::displayError "USERNAME - unable to deduce USERGROUP, USER_HOME from USERNAME"
-    return 1
-  fi
-
-  export USER_HOME
-  export USER_ID
-  export USERGROUP_ID
-  export USERGROUP
 }
 
 # @description load wsl env variables
@@ -643,94 +684,6 @@ Engine::Config::loadWslVariables() {
   return "${errorCount}"
 }
 
-# @description install apt wslu if necessary providing wslvar, wslpath
-Engine::Config::requireWslu() {
-  if ! command -v wslvar &>/dev/null; then
-    Log::displayInfo "Installing pre-requisite Wslu : wslvar, wslpath, ... commands"
-    Linux::Apt::installIfNecessary --no-install-recommends wslu
-
-    # @see https://github.com/microsoft/WSL/issues/8843#issuecomment-1792256894
-    Log::displayInfo "Fix wsl interoperability due to wsl bug"
-    if [[ ! -f /usr/lib/binfmt.d/WSLInterop.conf &&
-      ! -f /etc/systemd/system/wsl-binfmt.service &&
-      -f /run/systemd/generator.early/wsl-binfmt.service ]]; then
-      sudo sh -c 'echo :WSLInterop:M::MZ::/init:PF > /usr/lib/binfmt.d/WSLInterop.conf'
-      sudo ln -s /run/systemd/generator.early/wsl-binfmt.service /etc/systemd/system/wsl-binfmt.service
-    fi
-  fi
-}
-
-# @description prepend directories to the PATH environment variable
-# @arg $@ args:String[] list of directories to prepend
-# @set PATH update PATH with the directories prepended
-Env::pathPrepend() {
-  local arg
-  for arg in "$@"; do
-    if [[ -d "${arg}" && ":${PATH}:" != *":${arg}:"* ]]; then
-      PATH="$(realpath "${arg}"):${PATH}"
-    fi
-  done
-}
-
-declare -g FIRST_LOG_DATE LOG_LAST_LOG_DATE LOG_LAST_LOG_DATE_INIT LOG_LAST_DURATION_STR
-FIRST_LOG_DATE="${EPOCHREALTIME/[^0-9]/}"
-LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
-LOG_LAST_LOG_DATE_INIT=1
-LOG_LAST_DURATION_STR=""
-
-# @description Display message using info color (bg light blue/fg white)
-# @arg $1 message:String the message to display
-# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
-Log::computeDuration() {
-  if ((DISPLAY_DURATION == 1)); then
-    local -i duration=0
-    local -i delta=0
-    local -i currentLogDate
-    currentLogDate="${EPOCHREALTIME/[^0-9]/}"
-    if ((LOG_LAST_LOG_DATE_INIT == 1)); then
-      LOG_LAST_LOG_DATE_INIT=0
-      LOG_LAST_DURATION_STR="Ref"
-    else
-      duration=$(((currentLogDate - FIRST_LOG_DATE) / 1000000))
-      delta=$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000000))
-      LOG_LAST_DURATION_STR="${duration}s/+${delta}s"
-    fi
-    LOG_LAST_LOG_DATE="${currentLogDate}"
-    # shellcheck disable=SC2034
-    local microSeconds="${EPOCHREALTIME#*.}"
-    LOG_LAST_DURATION_STR="$(printf '%(%T)T.%03.0f\n' "${EPOCHSECONDS}" "${microSeconds:0:3}")(${LOG_LAST_DURATION_STR}) - "
-  else
-    # shellcheck disable=SC2034
-    LOG_LAST_DURATION_STR=""
-  fi
-}
-
-# @description Display message using error color (red)
-# @arg $1 message:String the message to display
-Log::displayError() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_ERROR)); then
-    Log::computeDuration
-    echo -e "${__ERROR_COLOR}ERROR   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logError "$1"
-}
-
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logDebug() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_DEBUG)); then
-    Log::logMessage "${2:-DEBUG}" "$1"
-  fi
-}
-
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logInfo() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-INFO}" "$1"
-  fi
-}
-
 # @description activate or not Log::display* and Log::log* functions
 # based on BASH_FRAMEWORK_DISPLAY_LEVEL and BASH_FRAMEWORK_LOG_LEVEL
 # environment variables loaded by Env::requireLoad
@@ -777,56 +730,78 @@ Log::requireLoad() {
   fi
 }
 
-# @description display help
-# @arg $1 helpArg:String the help string to show
-# @stdout display help arg
-Args::showHelp() {
-  local helpArg="$1"
-  echo -e "${helpArg}"
-}
+# @description display help if one of args is -h|--help
+# @arg $1 helpArg:String|Function the help string to display or the function to call to display the help
+# @arg $@ args:String[] list of options
+# @option -h short help option
+# @option --help long help option
+# @exitcode 1 displays help and returns with code 1 if -h or --help option is in the args list
+# @stdout displays help if -h or --help option is in the args list
+Args::defaultHelpNoExit() {
+  local helpArg=$1
+  shift || true
+  # shellcheck disable=SC2034
+  local args
+  args="$(getopt -l help -o h -- "$@" 2>/dev/null)" || true
+  eval set -- "${args}"
 
-# @description check if an element is contained in an array
-#
-# @arg $1 needle:String
-# @arg $@ array:String[]
-# @exitcode 0 if found
-# @exitcode 1 otherwise
-# @example
-#   Array::contains "${libPath}" "${__BASH_FRAMEWORK_IMPORTED_FILES[@]}"
-Array::contains() {
-  local element
-  for element in "${@:2}"; do
-    [[ "${element}" = "$1" ]] && return 0
+  while true; do
+    case $1 in
+      -h | --help)
+        if [[ "$(type -t "${helpArg}")" = "function" ]]; then
+          "${helpArg}" "$@"
+        else
+          Args::showHelp "${helpArg}"
+        fi
+        return 1
+        ;;
+      --)
+        break
+        ;;
+      *)
+        # ignore
+        ;;
+    esac
   done
-  return 1
 }
 
-# @description check if param is valid email address
-# @warning it is a very simple check, no RFC validation
-# @arg $1 emailAddress:String the full email address
-# @exitcode 1 if invalid email address
-Assert::emailAddress() {
-  local expectedRegexp="^\S+@\S+$"
-
-  [[ "$1" =~ ${expectedRegexp} ]]
+# @description prepend directories to the PATH environment variable
+# @arg $@ args:String[] list of directories to prepend
+# @set PATH update PATH with the directories prepended
+Env::pathPrepend() {
+  local arg
+  for arg in "$@"; do
+    if [[ -d "${arg}" && ":${PATH}:" != *":${arg}:"* ]]; then
+      PATH="$(realpath "${arg}"):${PATH}"
+    fi
+  done
 }
 
-# @description check if argument respects 2 or more words separated by a space
-# it supports accentuated characters and names with hyphen(-)
-# @arg $1 firstNameLastName:String
-# @exitcode 1 if regexp not matches
-# @see https://regex101.com/r/JyyfOM/1
-Assert::firstNameLastName() {
-  local regexp="^[^ ]+([ ][^ ]+)+$"
-  [[ $1 =~ ${regexp} ]]
-}
+# @description Internal: common log message
+# @example text
+#   [date]|[levelMsg]|message
+#
+# @example text
+#   2020-01-19 19:20:21|ERROR  |log error
+#   2020-01-19 19:20:21|SKIPPED|log skipped
+#
+# @arg $1 levelMsg:String message's level description (eg: STATUS, ERROR, ...)
+# @arg $2 msg:String the message to display
+# @env BASH_FRAMEWORK_LOG_FILE String log file to use, do nothing if empty
+# @env BASH_FRAMEWORK_LOG_LEVEL int log level log only if > OFF or fatal messages
+# @stderr diagnostics information is displayed
+# @require Env::requireLoad
+# @require Log::requireLoad
+Log::logMessage() {
+  local levelMsg="$1"
+  local msg="$2"
+  local date
 
-# @description check if argument respects ldap login naming convention
-# only using lowercase characters a-z
-# @arg $1 ldapLogin:String
-# @exitcode 1 if regexp not matches
-Assert::ldapLogin() {
-  [[ $1 =~ ^[a-z]+$ ]]
+  if [[ -n "${BASH_FRAMEWORK_LOG_FILE}" ]] && ((BASH_FRAMEWORK_LOG_LEVEL > __LEVEL_OFF)); then
+    date="$(date '+%Y-%m-%d %H:%M:%S')"
+    touch "${BASH_FRAMEWORK_LOG_FILE}"
+    printf "%s|%7s|%s\n" "${date}" "${levelMsg}" "${msg}" >>"${BASH_FRAMEWORK_LOG_FILE}"
+  fi
 }
 
 # @description checks if variable name provided exists
@@ -851,17 +826,65 @@ Assert::varExistsAndNotEmpty() {
   fi
 }
 
-# @description determine if the script is executed under WSL
-# cspell:disable
-# @example text
-#   uname GitBash windows (with wsl) => MINGW64_NT-10.0 ZOXFL-6619QN2 2.10.0(0.325/5/3) 2018-06-13 23:34 x86_64 Msys
-#   uname GitBash windows (wo wsl)   => MINGW64_NT-10.0 frsa02-j5cbkc2 2.9.0(0.318/5/3) 2018-01-12 23:37 x86_64 Msys
-#   uname wsl => Linux ZOXFL-6619QN2 4.4.0-17134-Microsoft #112-Microsoft Thu Jun 07 22:57:00 PST 2018 x86_64 x86_64 x86_64 GNU/Linux
-# cspell:enable
+# @description check if an element is contained in an array
 #
-# @exitcode 1 on error
-Assert::wsl() {
-  [[ "$(uname -o)" = "GNU/Linux" ]]
+# @arg $1 needle:String
+# @arg $@ array:String[]
+# @exitcode 0 if found
+# @exitcode 1 otherwise
+# @example
+#   Array::contains "${libPath}" "${__BASH_FRAMEWORK_IMPORTED_FILES[@]}"
+Array::contains() {
+  local element
+  for element in "${@:2}"; do
+    [[ "${element}" = "$1" ]] && return 0
+  done
+  return 1
+}
+
+# @description Display message using error color (red) and exit immediately with error status 1
+# @arg $1 message:String the message to display
+Log::fatal() {
+  Log::computeDuration
+  echo -e "${__ERROR_COLOR}FATAL   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  Log::logFatal "$1"
+  exit 1
+}
+
+# @description check if argument respects ldap login naming convention
+# only using lowercase characters a-z
+# @arg $1 ldapLogin:String
+# @exitcode 1 if regexp not matches
+Assert::ldapLogin() {
+  [[ $1 =~ ^[a-z]+$ ]]
+}
+
+# @description check if argument respects 2 or more words separated by a space
+# it supports accentuated characters and names with hyphen(-)
+# @arg $1 firstNameLastName:String
+# @exitcode 1 if regexp not matches
+# @see https://regex101.com/r/JyyfOM/1
+Assert::firstNameLastName() {
+  local regexp="^[^ ]+([ ][^ ]+)+$"
+  [[ $1 =~ ${regexp} ]]
+}
+
+# @description check if param is valid email address
+# @warning it is a very simple check, no RFC validation
+# @arg $1 emailAddress:String the full email address
+# @exitcode 1 if invalid email address
+Assert::emailAddress() {
+  local expectedRegexp="^\S+@\S+$"
+
+  [[ "$1" =~ ${expectedRegexp} ]]
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logError() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_ERROR)); then
+    Log::logMessage "${2:-ERROR}" "$1"
+  fi
 }
 
 # @description apt-get install if package is not installed yet
@@ -900,6 +923,19 @@ Linux::Apt::installIfNecessary() {
   else
     Log::displayInfo "Apt install avoided as packages are already installed : ${packages[*]}"
   fi
+}
+
+# @description determine if the script is executed under WSL
+# cspell:disable
+# @example text
+#   uname GitBash windows (with wsl) => MINGW64_NT-10.0 ZOXFL-6619QN2 2.10.0(0.325/5/3) 2018-06-13 23:34 x86_64 Msys
+#   uname GitBash windows (wo wsl)   => MINGW64_NT-10.0 frsa02-j5cbkc2 2.9.0(0.318/5/3) 2018-01-12 23:37 x86_64 Msys
+#   uname wsl => Linux ZOXFL-6619QN2 4.4.0-17134-Microsoft #112-Microsoft Thu Jun 07 22:57:00 PST 2018 x86_64 x86_64 x86_64 GNU/Linux
+# cspell:enable
+#
+# @exitcode 1 on error
+Assert::wsl() {
+  [[ "$(uname -o)" = "GNU/Linux" ]]
 }
 
 # @description retrieve path from wslvar and then use wslpath to resolve it
@@ -945,50 +981,6 @@ Linux::Wsl::cachedWslvar2() {
     Linux::Wsl::originalWslvar "${args[@]}"
 }
 
-# @description Display message using error color (red) and exit immediately with error status 1
-# @arg $1 message:String the message to display
-Log::fatal() {
-  Log::computeDuration
-  echo -e "${__ERROR_COLOR}FATAL   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
-  Log::logFatal "$1"
-  exit 1
-}
-
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logError() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_ERROR)); then
-    Log::logMessage "${2:-ERROR}" "$1"
-  fi
-}
-
-# @description Internal: common log message
-# @example text
-#   [date]|[levelMsg]|message
-#
-# @example text
-#   2020-01-19 19:20:21|ERROR  |log error
-#   2020-01-19 19:20:21|SKIPPED|log skipped
-#
-# @arg $1 levelMsg:String message's level description (eg: STATUS, ERROR, ...)
-# @arg $2 msg:String the message to display
-# @env BASH_FRAMEWORK_LOG_FILE String log file to use, do nothing if empty
-# @env BASH_FRAMEWORK_LOG_LEVEL int log level log only if > OFF or fatal messages
-# @stderr diagnostics information is displayed
-# @require Env::requireLoad
-# @require Log::requireLoad
-Log::logMessage() {
-  local levelMsg="$1"
-  local msg="$2"
-  local date
-
-  if [[ -n "${BASH_FRAMEWORK_LOG_FILE}" ]] && ((BASH_FRAMEWORK_LOG_LEVEL > __LEVEL_OFF)); then
-    date="$(date '+%Y-%m-%d %H:%M:%S')"
-    touch "${BASH_FRAMEWORK_LOG_FILE}"
-    printf "%s|%7s|%s\n" "${date}" "${levelMsg}" "${msg}" >>"${BASH_FRAMEWORK_LOG_FILE}"
-  fi
-}
-
 # @description To be called before logging in the log file
 # @arg $1 file:string log file name
 # @arg $2 maxLogFilesCount:int maximum number of log files
@@ -1009,6 +1001,14 @@ Log::rotate() {
     echo >"${file}" # reset log file
     Log::displayInfo "Log rotation ${file} to ${file}.1"
   fi
+}
+
+# @description display help
+# @arg $1 helpArg:String the help string to show
+# @stdout display help arg
+Args::showHelp() {
+  local helpArg="$1"
+  echo -e "${helpArg}"
 }
 
 # @description ensure env files are loaded
@@ -1067,54 +1067,10 @@ Assert::validVariableName() {
   [[ "$1" =~ (^[a-z][A-Za-z_0-9:]+$)|(^[A-Z_][A-Z_0-9:]+$) ]]
 }
 
-# @description get property value from file
-# if not present compute it using propertyNotFoundCallback (if provided) and store it in property file
-# @arg $1 propertyFile:String the file in which the property will be searched
-# @arg $2 key:String the property key to search in property file
-# @arg $3 propertyNotFoundCallback:Function (optional) a callback to call if property key is not found in property file
-# @arg $@ args:String[] (optional) the arguments to pass to the propertyNotFoundCallback
-# @exitcode 1 if value is not found
-# @exitcode * if propertyNotFoundCallback fails
-# @stdout the property value given by property file or by the propertyNotFoundCallback
-Cache::getPropertyValue2() {
-  local propertyFile="$1"
-  local -n propertiesMap=$2
-  local -n getPropertyValue2_val=$3
-  local key="$4"
-  local propertyNotFoundCallback=$5
-  shift 5 || true
-  local -a args=("$@")
-
-  if [[ "${#propertiesMap[@]}" = "0" && -s "${propertyFile}" ]]; then
-    local line
-    while IFS="" read -r line; do
-      if [[ "${line}" =~ ^([^=]+)=(.+)$ ]]; then
-        propertiesMap["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
-      fi
-    done <"${propertyFile}"
-  fi
-
-  if [[ -n "${propertiesMap[${key}]+abc}" ]]; then
-    getPropertyValue2_val="${propertiesMap[${key}]}"
-    return 0
-  elif [[ "$(type -t "${propertyNotFoundCallback}")" = "function" ]]; then
-    getPropertyValue2_val="$("${propertyNotFoundCallback}" "${args[@]}")" || return $?
-    propertiesMap["${key}"]="${getPropertyValue2_val}"
-    echo "${key}=${getPropertyValue2_val}" >>"${propertyFile}"
-    return 0
-  fi
-  return 1
-}
-
-# @description apt-get install
-# @arg $@ softwares:String[] list of softwares to install
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::install() {
-  Log::displayInfo "Apt install $*"
-  Retry::default sudo apt-get install -y -q "$@"
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logFatal() {
+  Log::logMessage "${2:-FATAL}" "$1"
 }
 
 # @description check if apt package is installed
@@ -1134,6 +1090,27 @@ Linux::Apt::isPackageInstalled() {
 Linux::Apt::update() {
   Log::displayInfo "Apt update ..."
   Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
+}
+
+# @description apt-get install
+# @arg $@ softwares:String[] list of softwares to install
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::install() {
+  Log::displayInfo "Apt install $*"
+  Retry::default sudo apt-get install -y -q "$@"
+}
+
+# @description Display message using warning color (yellow)
+# @arg $1 message:String the message to display
+Log::displayWarning() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
+    Log::computeDuration
+    echo -e "${__WARNING_COLOR}WARN    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logWarning "$1"
 }
 
 declare -Agx bash_tools_wslpath=()
@@ -1199,6 +1176,45 @@ Linux::Wsl::getKeyFromWslpathOptions() {
   echo "${key}"
 }
 
+# @description get property value from file
+# if not present compute it using propertyNotFoundCallback (if provided) and store it in property file
+# @arg $1 propertyFile:String the file in which the property will be searched
+# @arg $2 key:String the property key to search in property file
+# @arg $3 propertyNotFoundCallback:Function (optional) a callback to call if property key is not found in property file
+# @arg $@ args:String[] (optional) the arguments to pass to the propertyNotFoundCallback
+# @exitcode 1 if value is not found
+# @exitcode * if propertyNotFoundCallback fails
+# @stdout the property value given by property file or by the propertyNotFoundCallback
+Cache::getPropertyValue2() {
+  local propertyFile="$1"
+  local -n propertiesMap=$2
+  local -n getPropertyValue2_val=$3
+  local key="$4"
+  local propertyNotFoundCallback=$5
+  shift 5 || true
+  local -a args=("$@")
+
+  if [[ "${#propertiesMap[@]}" = "0" && -s "${propertyFile}" ]]; then
+    local line
+    while IFS="" read -r line; do
+      if [[ "${line}" =~ ^([^=]+)=(.+)$ ]]; then
+        propertiesMap["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
+      fi
+    done <"${propertyFile}"
+  fi
+
+  if [[ -n "${propertiesMap[${key}]+abc}" ]]; then
+    getPropertyValue2_val="${propertiesMap[${key}]}"
+    return 0
+  elif [[ "$(type -t "${propertyNotFoundCallback}")" = "function" ]]; then
+    getPropertyValue2_val="$("${propertyNotFoundCallback}" "${args[@]}")" || return $?
+    propertiesMap["${key}"]="${getPropertyValue2_val}"
+    echo "${key}=${getPropertyValue2_val}" >>"${propertyFile}"
+    return 0
+  fi
+  return 1
+}
+
 # @description call simply original wslvar command
 # @arg $@ args:String[] args to pass to wslvar
 # @exitcode * wslvar exit code
@@ -1216,22 +1232,6 @@ Log::displaySkipped() {
     echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logSkipped "$1"
-}
-
-# @description Display message using warning color (yellow)
-# @arg $1 message:String the message to display
-Log::displayWarning() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
-    Log::computeDuration
-    echo -e "${__WARNING_COLOR}WARN    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logWarning "$1"
-}
-
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logFatal() {
-  Log::logMessage "${2:-FATAL}" "$1"
 }
 
 # @description load colors theme constants
@@ -1336,6 +1336,39 @@ Linux::Wsl::requireWsl() {
   fi
 }
 
+# @description Retry a command 5 times with a delay of 15 seconds between each attempt
+# @arg $@ command:String[] the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+Retry::default() {
+  Retry::parameterized 5 15 "" "$@"
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logWarning() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_WARNING)); then
+    Log::logMessage "${2:-WARNING}" "$1"
+  fi
+}
+
+# @description call simply original wslpath command
+# @arg $@ args:String[] args to pass to wslpath
+# @exitcode * wslpath exit code
+# @stdout wslpath stdout
+# @require Linux::Wsl::requireWsl
+Linux::Wsl::originalWslpath() {
+  wslpath "$@" | sed -z '$ s/[\r\n]$//'
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logSkipped() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SKIPPED}" "$1"
+  fi
+}
+
 # @description check if tty (interactive mode) is active
 # @noargs
 # @exitcode 1 if tty not active
@@ -1350,6 +1383,17 @@ Assert::tty() {
   fi
   # check if stdout or stderr is connected to terminal
   [[ -t 1 || -t 2 ]]
+}
+
+# @description retrieve linux distributor id
+# @noargs
+# @exitcode 1 if lsb_release fails or not found
+# @stdout the linux distributor id
+Linux::getDistributorId() {
+  (
+    source /etc/os-release
+    echo "${ID}"
+  )
 }
 
 # @description delete files older than n days in given path
@@ -1377,50 +1421,6 @@ File::garbageCollect() {
 
   Log::displayInfo "Garbage collect files older than ${mtime} days in path ${path} with max depth ${maxdepth}"
   find "${path}" -depth -maxdepth "${maxdepth}" -type f -mtime "${mtime}" -print -delete
-}
-
-# @description call simply original wslpath command
-# @arg $@ args:String[] args to pass to wslpath
-# @exitcode * wslpath exit code
-# @stdout wslpath stdout
-# @require Linux::Wsl::requireWsl
-Linux::Wsl::originalWslpath() {
-  wslpath "$@" | sed -z '$ s/[\r\n]$//'
-}
-
-# @description retrieve linux distributor id
-# @noargs
-# @exitcode 1 if lsb_release fails or not found
-# @stdout the linux distributor id
-Linux::getDistributorId() {
-  (
-    source /etc/os-release
-    echo "${ID}"
-  )
-}
-
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logSkipped() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SKIPPED}" "$1"
-  fi
-}
-
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logWarning() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_WARNING)); then
-    Log::logMessage "${2:-WARNING}" "$1"
-  fi
-}
-
-# @description Retry a command 5 times with a delay of 15 seconds between each attempt
-# @arg $@ command:String[] the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-Retry::default() {
-  Retry::parameterized 5 15 "" "$@"
 }
 
 # @description Retry a command several times depending on parameters
@@ -1467,9 +1467,9 @@ facade_main_installFileWithBackupsh() {
 # REQUIRES
 Env::requireLoad
 UI::requireTheme
+Log::requireLoad
 Linux::requireUbuntu
 Linux::Wsl::requireWsl
-Log::requireLoad
 Compiler::Facade::requireCommandBinDir
 
 if Assert::functionExists initFacade; then
