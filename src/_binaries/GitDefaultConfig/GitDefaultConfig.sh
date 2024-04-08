@@ -47,7 +47,7 @@ configure() {
     "${embed_dir_conf_dir}" \
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
     "home" \
-    "${USER_HOME}"
+    "${HOME}"
 
   # updateGitDefaultConfig
   if [[ -n "${GIT_USERNAME}" ]]; then
@@ -67,16 +67,16 @@ configure() {
   fi
 
   # add github.com to the list of known hosts
-  HOME="${USER_HOME}" Ssh::fixAuthenticityOfHostCantBeEstablished "github.com"
+  HOME="${HOME}" Ssh::fixAuthenticityOfHostCantBeEstablished "github.com"
 }
 
 testConfigure() {
   local -i failures=0
-  Assert::fileExists "${USER_HOME}/.gitconfig" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/GitDefaultConfig/gitignore" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/git.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.config/tig/config" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.tigrc" || ((++failures))
+  Assert::fileExists "${HOME}/.gitconfig" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/GitDefaultConfig/gitignore" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/git.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.config/tig/config" || ((++failures))
+  Assert::fileExists "${HOME}/.tigrc" || ((++failures))
 
   # git config
   local gitUserName

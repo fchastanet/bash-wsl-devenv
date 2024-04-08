@@ -165,7 +165,7 @@ envFileTemplate="$(
 # wsl username
 USERNAME="wsl"
 USERGROUP="wsl"
-USER_HOME="/home/wsl"
+HOME="/home/wsl"
 
 # your login to connect to ssh servers if any
 SSH_LOGIN=""
@@ -198,7 +198,7 @@ CONF_OVERRIDE_DIR="${BASH_DEV_ENV_ROOT_DIR}/conf.override"
 
 # where to install bash-tools, ...
 # shellcheck disable=SC2153
-PROJECTS_DIR="${USER_HOME}/projects"
+PROJECTS_DIR="${HOME}/projects"
 
 # where overridden config files will be backed up
 BACKUP_DIR="${BASH_DEV_ENV_ROOT_DIR}/backup"
@@ -311,7 +311,7 @@ Engine::Config::loadConfig() {
 
   Log::requireLoad
 
-  export PATH="${PATH}:${USER_HOME}/.local/bin"
+  export PATH="${PATH}:${HOME}/.local/bin"
 
   export BASH_DEV_ENV_CONFIG_LOADED=1
 }
@@ -979,12 +979,12 @@ Engine::Config::loadOsRelease() {
   set +o allexport
 }
 
-# @description deduce USER_HOME, USER_ID, USERGROUP_ID and USERGROUP from USERNAME
+# @description deduce HOME, USER_ID, USERGROUP_ID and USERGROUP from USERNAME
 # @env USERNAME String the name of the user
 # @set USER_ID String
 # @set USERGROUP String
 # @set USERGROUP_ID String
-# @set USER_HOME String
+# @set HOME String
 Engine::Config::loadUserVariables() {
   # deduce user home and group
   local -a split
@@ -993,17 +993,17 @@ Engine::Config::loadUserVariables() {
   split=($(getent passwd "${USERNAME}"))
   USER_ID="${split[2]}"
   USERGROUP_ID="${split[3]}"
-  USER_HOME="${split[5]}"
+  HOME="${split[5]}"
   # shellcheck disable=SC2207
   split=($(getent group "${USERNAME}"))
   USERGROUP="${split[0]}"
 
-  if [[ -z "${USERGROUP}" || -z "${USER_HOME}" ]]; then
-    Log::displayError "USERNAME - unable to deduce USERGROUP, USER_HOME from USERNAME"
+  if [[ -z "${USERGROUP}" || -z "${HOME}" ]]; then
+    Log::displayError "USERNAME - unable to deduce USERGROUP, HOME from USERNAME"
     return 1
   fi
 
-  export USER_HOME
+  export HOME
   export USER_ID
   export USERGROUP_ID
   export USERGROUP
@@ -1100,7 +1100,7 @@ Engine::Config::checkEnv() {
   checkVarAndDir BACKUP_DIR rw || true
   checkVarAndDir LOGS_DIR rw || true
   checkVarAndDir INSTALL_SCRIPTS_DIR r || true
-  checkVarAndDir USER_HOME rw || true
+  checkVarAndDir HOME rw || true
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh
@@ -2754,13 +2754,13 @@ configure() {
       git config --global --unset user.name || true
       git config --global --unset user.email || true
       rm -Rf "${BACKUP_DIR:?}/"* || true
-      rm -Rf "${USER_HOME}/.vscode-server" || true
-      rm -f "${USER_HOME}/.ssh/id_rsa" || true
-      rm -f "${USER_HOME}/.ssh/config" || true
-      rm -f "${USER_HOME}/.ssh/known_hosts.old" || true
-      rm -f "${USER_HOME}/.saml2aws" || true
-      rm -f "${USER_HOME}/.aws/credentials" || true
-      rm -f "${USER_HOME}/.aws/config" || true
+      rm -Rf "${HOME}/.vscode-server" || true
+      rm -f "${HOME}/.ssh/id_rsa" || true
+      rm -f "${HOME}/.ssh/config" || true
+      rm -f "${HOME}/.ssh/known_hosts.old" || true
+      rm -f "${HOME}/.saml2aws" || true
+      rm -f "${HOME}/.aws/credentials" || true
+      rm -f "${HOME}/.aws/config" || true
 
       deleteFolderExcept() {
         local folder="$1"
@@ -2800,7 +2800,7 @@ configure() {
 testConfigure() {
   local -i failures=0
   if [[ "${PREPARE_EXPORT}" = "1" ]]; then
-    if [[ -f "${USER_HOME}/.gitconfig" ]]; then
+    if [[ -f "${HOME}/.gitconfig" ]]; then
       if git config --global --get user.name &>/dev/null; then
         Log::displayError "Export - .gitconfig user.name has not been removed"
         ((++failures))
@@ -2810,13 +2810,13 @@ testConfigure() {
         ((++failures))
       fi
     fi
-    Assert::fileNotExists "${USER_HOME}/.vscode-server" || ((++failures))
-    Assert::fileNotExists "${USER_HOME}/.ssh/id_rsa" || ((++failures))
-    Assert::fileNotExists "${USER_HOME}/.ssh/config" || ((++failures))
-    Assert::fileNotExists "${USER_HOME}/.ssh/known_hosts.old" || ((++failures))
-    Assert::fileNotExists "${USER_HOME}/.saml2aws" || ((++failures))
-    Assert::fileNotExists "${USER_HOME}/.aws/credentials" || ((++failures))
-    Assert::fileNotExists "${USER_HOME}/.aws/config" || ((++failures))
+    Assert::fileNotExists "${HOME}/.vscode-server" || ((++failures))
+    Assert::fileNotExists "${HOME}/.ssh/id_rsa" || ((++failures))
+    Assert::fileNotExists "${HOME}/.ssh/config" || ((++failures))
+    Assert::fileNotExists "${HOME}/.ssh/known_hosts.old" || ((++failures))
+    Assert::fileNotExists "${HOME}/.saml2aws" || ((++failures))
+    Assert::fileNotExists "${HOME}/.aws/credentials" || ((++failures))
+    Assert::fileNotExists "${HOME}/.aws/config" || ((++failures))
 
     SUDO=sudo Assert::dirEmpty \
       "${BASH_DEV_ENV_ROOT_DIR}/megalinter-reports/" \

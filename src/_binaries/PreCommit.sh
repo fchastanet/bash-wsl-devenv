@@ -32,13 +32,13 @@ breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 
 install() {
-  if [[ ! -f "${USER_HOME}/.virtualenvs/python3.9/bin/activate" ]]; then
+  if [[ ! -f "${HOME}/.virtualenvs/python3.9/bin/activate" ]]; then
     Log::displayError "VirtualEnv has not been installed correctly"
     return 1
   fi
   # Load virtualenv
   # shellcheck source=/dev/null
-  source "${USER_HOME}/.virtualenvs/python3.9/bin/activate"
+  source "${HOME}/.virtualenvs/python3.9/bin/activate"
 
   pip install --user pre-commit
   # update precommit repo

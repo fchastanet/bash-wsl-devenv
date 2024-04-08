@@ -165,7 +165,7 @@ envFileTemplate="$(
 # wsl username
 USERNAME="wsl"
 USERGROUP="wsl"
-USER_HOME="/home/wsl"
+HOME="/home/wsl"
 
 # your login to connect to ssh servers if any
 SSH_LOGIN=""
@@ -198,7 +198,7 @@ CONF_OVERRIDE_DIR="${BASH_DEV_ENV_ROOT_DIR}/conf.override"
 
 # where to install bash-tools, ...
 # shellcheck disable=SC2153
-PROJECTS_DIR="${USER_HOME}/projects"
+PROJECTS_DIR="${HOME}/projects"
 
 # where overridden config files will be backed up
 BACKUP_DIR="${BASH_DEV_ENV_ROOT_DIR}/backup"
@@ -311,7 +311,7 @@ Engine::Config::loadConfig() {
 
   Log::requireLoad
 
-  export PATH="${PATH}:${USER_HOME}/.local/bin"
+  export PATH="${PATH}:${HOME}/.local/bin"
 
   export BASH_DEV_ENV_CONFIG_LOADED=1
 }
@@ -1049,12 +1049,12 @@ Engine::Config::loadOsRelease() {
   set +o allexport
 }
 
-# @description deduce USER_HOME, USER_ID, USERGROUP_ID and USERGROUP from USERNAME
+# @description deduce HOME, USER_ID, USERGROUP_ID and USERGROUP from USERNAME
 # @env USERNAME String the name of the user
 # @set USER_ID String
 # @set USERGROUP String
 # @set USERGROUP_ID String
-# @set USER_HOME String
+# @set HOME String
 Engine::Config::loadUserVariables() {
   # deduce user home and group
   local -a split
@@ -1063,17 +1063,17 @@ Engine::Config::loadUserVariables() {
   split=($(getent passwd "${USERNAME}"))
   USER_ID="${split[2]}"
   USERGROUP_ID="${split[3]}"
-  USER_HOME="${split[5]}"
+  HOME="${split[5]}"
   # shellcheck disable=SC2207
   split=($(getent group "${USERNAME}"))
   USERGROUP="${split[0]}"
 
-  if [[ -z "${USERGROUP}" || -z "${USER_HOME}" ]]; then
-    Log::displayError "USERNAME - unable to deduce USERGROUP, USER_HOME from USERNAME"
+  if [[ -z "${USERGROUP}" || -z "${HOME}" ]]; then
+    Log::displayError "USERNAME - unable to deduce USERGROUP, HOME from USERNAME"
     return 1
   fi
 
-  export USER_HOME
+  export HOME
   export USER_ID
   export USERGROUP_ID
   export USERGROUP
@@ -1170,7 +1170,7 @@ Engine::Config::checkEnv() {
   checkVarAndDir BACKUP_DIR rw || true
   checkVarAndDir LOGS_DIR rw || true
   checkVarAndDir INSTALL_SCRIPTS_DIR r || true
-  checkVarAndDir USER_HOME rw || true
+  checkVarAndDir HOME rw || true
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh

@@ -27,14 +27,14 @@ breakOnTestFailure() { :; }
 # jscpd:ignore-end
 
 install() {
-  if [[ ! -d "${USER_HOME}/n" ]]; then
+  if [[ ! -d "${HOME}/n" ]]; then
     # -y avoid interactive
     # -n no automatic bash profile install
     Retry::default curl --fail -L https://git.io/n-install |
-      N_PREFIX="${USER_HOME}/n" bash -s -- -y -n latest
+      N_PREFIX="${HOME}/n" bash -s -- -y -n latest
   else
     # update node
-    N_PREFIX="${USER_HOME}/n" "${USER_HOME}/n/bin/n" latest
+    N_PREFIX="${HOME}/n" "${HOME}/n/bin/n" latest
   fi
 
   # shellcheck disable=SC2154
@@ -46,9 +46,9 @@ install() {
 
 testInstall() {
   local -i failures=0
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/profile.d/n_path.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/n_path.sh" || ((++failures))
   # shellcheck source=src/_binaries/NodeNpm/conf/.bash-dev-env/profile.d/n_path.sh
-  HOME="${USER_HOME}" source "${USER_HOME}/.bash-dev-env/profile.d/n_path.sh" || ((++failures))
+  HOME="${HOME}" source "${HOME}/.bash-dev-env/profile.d/n_path.sh" || ((++failures))
   Version::checkMinimal "node" "-v" "20.6.1" || ((++failures))
   Version::checkMinimal "npm" "-v" "10.3.0" || ((++failures))
   return "${failures}"

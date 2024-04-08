@@ -16,7 +16,7 @@ helpDescription() {
 }
 
 fortunes() {
-  if [[ -d "${USER_HOME}/fchastanet/bash-tools/bin" ]]; then
+  if [[ -d "${HOME}/fchastanet/bash-tools/bin" ]]; then
     echo "BashTools - cli -- tool to easily connect to your containers"
     echo "%"
     echo "BashTools - dbImport -- tool to import database from aws or Mizar"
@@ -46,7 +46,7 @@ install() {
 
 testInstall() {
   local -i failures=0
-  Assert::dirExists "${USER_HOME}/fchastanet/bash-tools/.git" || ((++failures))
+  Assert::dirExists "${HOME}/fchastanet/bash-tools/.git" || ((++failures))
   return "${failures}"
 }
 
@@ -64,8 +64,8 @@ configure() {
 }
 testConfigure() {
   local -i failures=0
-  Assert::dirExists "${USER_HOME}/.bash-tools" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/bash-tools-dev.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-tools/cliProfiles/default.sh" || ((++failures))
+  Assert::dirExists "${HOME}/.bash-tools" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/bash-tools-dev.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-tools/cliProfiles/default.sh" || ((++failures))
   return "${failures}"
 }

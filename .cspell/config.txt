@@ -178,7 +178,7 @@ tzdata
 unstaged
 upgrader
 usefontcolor
-USER_HOME
+HOME
 USERGROUP
 USERGROUP_ID
 USERID

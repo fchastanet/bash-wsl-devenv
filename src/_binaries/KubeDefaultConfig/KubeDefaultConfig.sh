@@ -150,13 +150,13 @@ isKubeConfigGenerationAvailable() {
 }
 
 configure() {
-  mkdir -p "${USER_HOME}/.bash_completion.d" || true
-  chown "${USERNAME}":"${USERGROUP}" "${USER_HOME}/.bash_completion.d"
+  mkdir -p "${HOME}/.bash_completion.d" || true
+  chown "${USERNAME}":"${USERGROUP}" "${HOME}/.bash_completion.d"
 
-  ln -sf /opt/kubectx/completion/kubens.bash "${USER_HOME}/.bash_completion.d/kubens"
-  chown -h "${USERNAME}":"${USERGROUP}" "${USER_HOME}/.bash_completion.d/kubens"
-  ln -sf /opt/kubectx/completion/kubectx.bash "${USER_HOME}/.bash_completion.d/kubectx"
-  chown -h "${USERNAME}":"${USERGROUP}" "${USER_HOME}/.bash_completion.d/kubectx"
+  ln -sf /opt/kubectx/completion/kubens.bash "${HOME}/.bash_completion.d/kubens"
+  chown -h "${USERNAME}":"${USERGROUP}" "${HOME}/.bash_completion.d/kubens"
+  ln -sf /opt/kubectx/completion/kubectx.bash "${HOME}/.bash_completion.d/kubectx"
+  chown -h "${USERNAME}":"${USERGROUP}" "${HOME}/.bash_completion.d/kubectx"
 
   # shellcheck disable=SC2154
   Conf::copyStructure \
@@ -169,7 +169,7 @@ configure() {
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
     ".kube" || true # ignore if conf override does not define .kube/config
 
-  if [[ ! -f "${USER_HOME}/.kube/config" ]] && isKubeConfigGenerationAvailable "generation"; then
+  if [[ ! -f "${HOME}/.kube/config" ]] && isKubeConfigGenerationAvailable "generation"; then
     aws eks update-kubeconfig \
       --region "${KUBE_CONFIG_REGION_CODE}" \
       --name "${KUBE_CONFIG_CLUSTER_ARN}" || return 1
@@ -178,12 +178,12 @@ configure() {
 
 testConfigure() {
   local -i failures=0
-  Assert::dirExists "${USER_HOME}/.bash_completion.d" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash_completion.d/kubens" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash_completion.d/kubectx" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/kube-ps1.sh" || ((++failures))
+  Assert::dirExists "${HOME}/.bash_completion.d" || ((++failures))
+  Assert::fileExists "${HOME}/.bash_completion.d/kubens" || ((++failures))
+  Assert::fileExists "${HOME}/.bash_completion.d/kubectx" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/kube-ps1.sh" || ((++failures))
   if isKubeConfigGenerationAvailable "test"; then
-    Assert::fileExists "${USER_HOME}/.kube/config" || ((++failures))
+    Assert::fileExists "${HOME}/.kube/config" || ((++failures))
   fi
 
   return "${failures}"

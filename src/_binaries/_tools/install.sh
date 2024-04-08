@@ -79,7 +79,7 @@ summary() {
   ) >"${LOGS_DIR:-#}/lastInstallStatus"
   Log::displayInfo "regenerating motd"
   sudo update-motd &>/dev/null || true
-  rm -f "${USER_HOME}/.motd_shown" &>/dev/null || true
+  rm -f "${HOME}/.motd_shown" &>/dev/null || true
   exit "${installResultCode}"
 }
 trap 'summary "${INSTALL_START}"' EXIT INT TERM ABRT

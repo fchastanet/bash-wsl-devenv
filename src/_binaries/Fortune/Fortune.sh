@@ -88,6 +88,6 @@ testConfigure() {
       Log::displayError "File /etc/cron.daily/bash-dev-env-fortune content invalid"
     fi
   fi
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/displayFortunes.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/displayFortunes.sh" || ((++failures))
   return "${failures}"
 }

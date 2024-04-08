@@ -64,8 +64,8 @@ configure() {
     fi
   fi
 
-  mkdir -p "${USER_HOME}/.bash-dev-env/interactive.d" || return 1
-  Retry::default curl -o "${USER_HOME}/.bash-dev-env/interactive.d/git-prompt.sh" \
+  mkdir -p "${HOME}/.bash-dev-env/interactive.d" || return 1
+  Retry::default curl -o "${HOME}/.bash-dev-env/interactive.d/git-prompt.sh" \
     https://raw.githubusercontent.com/git/git/master/contrib/completion/git-prompt.sh || return 1
 
   # shellcheck disable=SC2154
@@ -83,7 +83,7 @@ configure() {
     "${embed_dir_conf_dir}" \
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
     "home" \
-    "${USER_HOME}"
+    "${HOME}"
 
   local configDir
   # shellcheck disable=SC2154
@@ -101,37 +101,37 @@ configure() {
 
 testConfigure() {
   local -i failures=0
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/git-prompt.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/git-prompt.sh" || ((++failures))
 
-  Assert::fileExists "${USER_HOME}/.bash_logout" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bashrc" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.dir_colors" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.inputrc" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.profile" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.vimrc" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.Xresources" || ((++failures))
+  Assert::fileExists "${HOME}/.bash_logout" || ((++failures))
+  Assert::fileExists "${HOME}/.bashrc" || ((++failures))
+  Assert::fileExists "${HOME}/.dir_colors" || ((++failures))
+  Assert::fileExists "${HOME}/.inputrc" || ((++failures))
+  Assert::fileExists "${HOME}/.profile" || ((++failures))
+  Assert::fileExists "${HOME}/.vimrc" || ((++failures))
+  Assert::fileExists "${HOME}/.Xresources" || ((++failures))
 
   SUDO=sudo Assert::fileExists /root/.vimrc root root || ((++failures))
   SUDO=sudo Assert::fileExists /root/.inputrc root root || ((++failures))
 
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/colors.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/filesDirectory.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/miscellaneous.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/ssh.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/xserver.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/DISCLAIMER.md" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/colors.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/filesDirectory.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/miscellaneous.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/ssh.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/xserver.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/DISCLAIMER.md" || ((++failures))
 
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/completions.d/makeTargets.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/completions.d/DISCLAIMER.md" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/completions.d/makeTargets.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/completions.d/DISCLAIMER.md" || ((++failures))
 
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/zzz_bash_prompt.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/bash_navigation.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/DISCLAIMER.md" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/zzz_bash_prompt.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/bash_navigation.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/DISCLAIMER.md" || ((++failures))
 
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/profile.d/DISCLAIMER.md" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/DISCLAIMER.md" || ((++failures))
 
-  Assert::fileExists "${USER_HOME}/.vscode/argv.json" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.vscode/settings.json" || ((++failures))
+  Assert::fileExists "${HOME}/.vscode/argv.json" || ((++failures))
+  Assert::fileExists "${HOME}/.vscode/settings.json" || ((++failures))
 
   # check font in windows terminal configuration
   local terminalConfFile

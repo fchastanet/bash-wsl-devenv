@@ -39,9 +39,9 @@ install() {
     shellcheck
 
   Log::displayInfo "Installing python dependencies shfmt-py"
-  if [[ -f "${USER_HOME}/.virtualenvs/python3.9/bin/activate" ]]; then
+  if [[ -f "${HOME}/.virtualenvs/python3.9/bin/activate" ]]; then
     # shellcheck source=/dev/null
-    source "${USER_HOME}/.virtualenvs/python3.9/bin/activate"
+    source "${HOME}/.virtualenvs/python3.9/bin/activate"
     pip install --user shfmt-py
   else
     Log::displaySkipped "VirtualEnv has not been installed correctly"
@@ -65,8 +65,8 @@ testInstall() {
 
   # composer dependencies
   # shellcheck source=src/_binaries/Composer/conf/.bash-dev-env/profile.d/composer_path.sh
-  source "${USER_HOME}/.bash-dev-env/profile.d/composer_path.sh" || {
-    Log::displayError "Composer script failed to install '${USER_HOME}/.bash-dev-env/profile.d/composer_path.sh'"
+  source "${HOME}/.bash-dev-env/profile.d/composer_path.sh" || {
+    Log::displayError "Composer script failed to install '${HOME}/.bash-dev-env/profile.d/composer_path.sh'"
     ((++failures))
   }
   Version::checkMinimal "phpcs" --version "3.9.0" || ((++failures))

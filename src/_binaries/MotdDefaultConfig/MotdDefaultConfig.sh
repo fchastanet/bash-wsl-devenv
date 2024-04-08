@@ -92,7 +92,7 @@ testConfigure() {
 
   Assert::fileExecutable "/etc/cron.daily/motd" || ((++failures))
 
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/profile.d/motd.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/motd.sh" || ((++failures))
 
   if ! sudo update-motd >/dev/null; then
     Log::displayWarning "motd not working"
