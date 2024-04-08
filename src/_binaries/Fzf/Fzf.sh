@@ -65,7 +65,7 @@ install() {
 testInstall() {
   local -i failures=0
   Version::checkMinimal "fzf" --version "0.44.1" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/fzf.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fzf.sh" || ((++failures))
   return "${failures}"
 }
 

@@ -117,17 +117,17 @@ configureUpdateCron() {
 
 configure() {
   Engine::Config::installBashDevEnv
-  SUDO=sudo USER_HOME=/root Engine::Config::installBashDevEnv
+  SUDO=sudo HOME=/root Engine::Config::installBashDevEnv
   configureUpdateCron
   # remove parallel nagware
-  mkdir -p "${USER_HOME}/.parallel"
-  touch "${USER_HOME}/.parallel/will-cite"
+  mkdir -p "${HOME}/.parallel"
+  touch "${HOME}/.parallel/will-cite"
 }
 
 testConfigure() {
   local -i failures=0
 
-  local initFile="${USER_HOME}/.bash-dev-env/profile.d/00_init.sh"
+  local initFile="${HOME}/.bash-dev-env/profile.d/00_init.sh"
   Assert::fileExists "${initFile}" || ((++failures))
   SUDO=sudo Assert::fileExists "/root/.bash-dev-env/profile.d/00_init.sh" root root || ((++failures))
   Log::displayInfo "checking BASH_DEV_ENV_ROOT_DIR variable replaced in ${initFile}"

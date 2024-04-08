@@ -42,8 +42,8 @@ install() {
     Log::fatal "User ${USERNAME} does not exist"
   fi
 
-  if [[ "$(getent passwd "${USERNAME}" | cut -d: -f6)" != "${USER_HOME}" ]]; then
-    Log::fatal "Specified User home '${USER_HOME}' of ${USERNAME} is incorrect."
+  if [[ "$(getent passwd "${USERNAME}" | cut -d: -f6)" != "${HOME}" ]]; then
+    Log::fatal "Specified User home '${HOME}' of ${USERNAME} is incorrect."
   fi
 
   if Assert::wsl &&

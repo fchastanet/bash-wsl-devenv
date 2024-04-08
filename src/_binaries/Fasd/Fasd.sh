@@ -52,7 +52,7 @@ install() {
 testInstall() {
   local -i failures=0
   Assert::commandExists fasd || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/interactive.d/fasd.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fasd.sh" || ((++failures))
   return "${failures}"
 }
 

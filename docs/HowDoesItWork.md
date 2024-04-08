@@ -71,7 +71,7 @@ This function is responsible for:
 
   - CONF_OVERRIDE_DIR => defaults to ${BASH_DEV_ENV_ROOT_DIR}/conf_override
   - LOGS_DIR => defaults to ${BASH_DEV_ENV_ROOT_DIR}/logs
-  - PROJECTS_DIR => defaults to ${USER_HOME}/projects
+  - PROJECTS_DIR => defaults to ${HOME}/projects
   - BACKUP_DIR => defaults to ${BASH_DEV_ENV_ROOT_DIR}/backup
   - INSTALL_SCRIPTS_DIR => defaults to ${BASH_DEV_ENV_ROOT_DIR}/scripts
 

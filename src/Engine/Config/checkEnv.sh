@@ -91,7 +91,7 @@ Engine::Config::checkEnv() {
   checkVarAndDir BACKUP_DIR rw || true
   checkVarAndDir LOGS_DIR rw || true
   checkVarAndDir INSTALL_SCRIPTS_DIR r || true
-  checkVarAndDir USER_HOME rw || true
+  checkVarAndDir HOME rw || true
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh

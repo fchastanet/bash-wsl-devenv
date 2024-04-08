@@ -102,9 +102,9 @@ configure() {
   Log::displayInfo "Configuring docker-compose as docker plugin"
   # create the docker plugins directory if it doesn't exist yet
   # shellcheck disable=SC2153
-  mkdir -p "${USER_HOME}/.docker/cli-plugins"
-  rm -f "${USER_HOME}/.docker/cli-plugins/docker-compose" || true
-  sudo ln -sf /usr/local/bin/docker-compose "${USER_HOME}/.docker/cli-plugins/docker-compose"
+  mkdir -p "${HOME}/.docker/cli-plugins"
+  rm -f "${HOME}/.docker/cli-plugins/docker-compose" || true
+  sudo ln -sf /usr/local/bin/docker-compose "${HOME}/.docker/cli-plugins/docker-compose"
 
   # shellcheck disable=SC2154
   Conf::copyStructure \
@@ -115,8 +115,8 @@ configure() {
 
 testConfigure() {
   local -i failures=0
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/docker.sh"
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/profile.d/docker.sh"
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/docker.sh"
+  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/docker.sh"
   Log::displayInfo "check if docker-compose binary is working"
   if ! docker-compose version &>/dev/null; then
     Log::displayError "docker-compose failure"
@@ -124,8 +124,8 @@ testConfigure() {
   fi
 
   Log::displayInfo "check if docker compose plugin is installed"
-  if [[ ! -f "${USER_HOME}/.docker/cli-plugins/docker-compose" ]]; then
-    Log::displayError "docker compose plugin not installed in folder ${USER_HOME}/.docker/cli-plugins/"
+  if [[ ! -f "${HOME}/.docker/cli-plugins/docker-compose" ]]; then
+    Log::displayError "docker compose plugin not installed in folder ${HOME}/.docker/cli-plugins/"
     ((++failures))
   fi
 

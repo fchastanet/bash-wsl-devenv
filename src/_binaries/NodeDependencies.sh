@@ -29,12 +29,12 @@ breakOnTestFailure() { :; }
 # jscpd:ignore-end
 
 install() {
-  if [[ ! -d "${USER_HOME}/n" ]]; then
+  if [[ ! -d "${HOME}/n" ]]; then
     Log::displaySkipped "node dependencies skipped as node not installed"
     return 0
   fi
   # shellcheck source=src/_binaries/NodeNpm/conf/.bash-dev-env/profile.d/n_path.sh
-  HOME="${USER_HOME}" source "${USER_HOME}/.bash-dev-env/profile.d/n_path.sh"
+  HOME="${HOME}" source "${HOME}/.bash-dev-env/profile.d/n_path.sh"
 
   # npm install
   npmInstall() {
@@ -61,7 +61,7 @@ install() {
 testInstall() {
   local -i failures=0
   # shellcheck source=src/_binaries/NodeNpm/conf/.bash-dev-env/profile.d/n_path.sh
-  HOME="${USER_HOME}" source "${USER_HOME}/.bash-dev-env/profile.d/n_path.sh"
+  HOME="${HOME}" source "${HOME}/.bash-dev-env/profile.d/n_path.sh"
   Version::checkMinimal "npm-check-updates" "--version" "11.5.13" || ((++failures))
   Version::checkMinimal "prettier" "--version" "2.3.0" || ((++failures))
   Version::checkMinimal "sass-lint" "--version" "1.13.1" || ((++failures))

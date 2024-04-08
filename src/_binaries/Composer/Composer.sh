@@ -62,10 +62,10 @@ configure() {
   sudo mkdir -p \
     /usr/local/.composer/cache \
     /usr/local/.composer/vendor \
-    "${USER_HOME}/.config"
+    "${HOME}/.config"
   sudo chown -R "${USERNAME}":"${USERGROUP}" \
     /usr/local/.composer \
-    "${USER_HOME}/.config"
+    "${HOME}/.config"
 
   # shellcheck disable=SC2154
   Conf::copyStructure \
@@ -77,7 +77,7 @@ configure() {
 testConfigure() {
   local -i failures=0
   Assert::dirExists "/usr/local/.composer" || ((++failures))
-  Assert::dirExists "${USER_HOME}/.config" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/profile.d/composer_path.sh" || ((++failures))
+  Assert::dirExists "${HOME}/.config" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/composer_path.sh" || ((++failures))
   exit "${failures}"
 }

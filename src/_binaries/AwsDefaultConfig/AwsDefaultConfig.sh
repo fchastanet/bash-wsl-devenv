@@ -22,7 +22,7 @@ dependencies() {
 }
 
 listVariables() {
-  echo "USER_HOME"
+  echo "HOME"
   echo "USERNAME"
   echo "USERGROUP"
   echo "CAN_TALK_DURING_INSTALLATION"
@@ -54,11 +54,11 @@ configure() {
   configureAwsConfig() {
     sed -i -E \
       -e "s#azure_default_username=.+\$#azure_default_username=${AWS_USER_MAIL}#" \
-      "${USER_HOME}/.aws/config"
+      "${HOME}/.aws/config"
     Install::setUserRightsCallback "$@"
   }
   OVERWRITE_CONFIG_FILES=0 Install::file \
-    "${configDir}/.aws/config" "${USER_HOME}/.aws/config" \
+    "${configDir}/.aws/config" "${HOME}/.aws/config" \
     "${USERNAME}" "${USERGROUP}" configureAwsConfig
   # shellcheck disable=SC2154
   Conf::copyStructure \
@@ -86,26 +86,26 @@ configure() {
 testConfigure() {
   local -i failures=0
 
-  Assert::fileExists "${USER_HOME}/.aws/config" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/awsCli.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/saml2aws.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.aws/config" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/awsCli.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/saml2aws.sh" || ((++failures))
 
-  if grep -q -E -e "azure_default_username=.+$" "${USER_HOME}/.aws/config"; then
+  if grep -q -E -e "azure_default_username=.+$" "${HOME}/.aws/config"; then
     # case where .aws/config has been overridden in conf_override folder
     local azureUserName
-    azureUserName="$(sed -nr 's/azure_default_username=(.*)$/\1/p' "${USER_HOME}/.aws/config")"
+    azureUserName="$(sed -nr 's/azure_default_username=(.*)$/\1/p' "${HOME}/.aws/config")"
     if [[ -z "${azureUserName}" ]]; then
       ((++failures))
-      Log::displayError "empty azure_default_username in '${USER_HOME}/.aws/config'"
+      Log::displayError "empty azure_default_username in '${HOME}/.aws/config'"
     elif [[ "${azureUserName}" != "${AWS_USER_MAIL}" ]]; then
       Log::displayWarning "azureUserName is not the same as AWS_USER_MAIL in ${BASH_DEV_ENV_ROOT_DIR}/.env"
     fi
-  elif ! grep -q -E -e "^\[default\]$" "${USER_HOME}/.aws/config"; then
+  elif ! grep -q -E -e "^\[default\]$" "${HOME}/.aws/config"; then
     ((++failures))
-    Log::displayError "default configuration not found in '${USER_HOME}/.aws/config'"
+    Log::displayError "default configuration not found in '${HOME}/.aws/config'"
   fi
 
-  Assert::fileExists "${USER_HOME}/.saml2aws" || ((++failures))
+  Assert::fileExists "${HOME}/.saml2aws" || ((++failures))
 
   if [[ "${INSTALL_INTERACTIVE}" = "0" ]]; then
     Log::displaySkipped "saml2aws configuration skipped as INSTALL_INTERACTIVE is set to 0"

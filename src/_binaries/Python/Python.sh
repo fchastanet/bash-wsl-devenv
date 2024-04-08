@@ -53,8 +53,8 @@ install() {
   Linux::Apt::installIfNecessary --no-install-recommends "${packages[@]}"
 
   mkdir -p \
-    "${USER_HOME}/.local/bin" \
-    "${USER_HOME}/.local/lib"
+    "${HOME}/.local/bin" \
+    "${HOME}/.local/lib"
 
   # Installing virtualenv
   PIP_REQUIRE_VIRTUALENV=false python -m pip install virtualenv
@@ -79,20 +79,20 @@ testInstall() {
   # since virtualenv is not loaded python 3.9 is not yet available
   Version::checkMinimal "python" "--version" "3.8.10" || ((++failures))
   Version::checkMinimal "virtualenv" "--version" "20.25.1" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/profile.d/python_path.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/python_path.sh" || ((++failures))
   return "${failures}"
 }
 
 configure() {
   # create home directory that will receive virtualenv configs
-  mkdir -p "${USER_HOME}/.virtualenvs" || true
-  mkdir -p "${USER_HOME}/.pip/cache" || true
+  mkdir -p "${HOME}/.virtualenvs" || true
+  mkdir -p "${HOME}/.pip/cache" || true
 
   # create python3.9 virtual env
   # virtualenv (for Python 3) and venv (for Python 2)
   # allows you to manage separate package installations
   # for different projects.
-  virtualenv --system-site-packages --python=/usr/bin/python3.9 "${USER_HOME}/.virtualenvs/python3.9"
+  virtualenv --system-site-packages --python=/usr/bin/python3.9 "${HOME}/.virtualenvs/python3.9"
   upgradePipPackages
 }
 
@@ -100,10 +100,10 @@ upgradePipPackages() {
   if [[ "${PIP_PACKAGES_UPGRADED:-0}" = "1" ]]; then
     return 0
   fi
-  if [[ -f "${USER_HOME}/.virtualenvs/python3.9/bin/activate" ]]; then
+  if [[ -f "${HOME}/.virtualenvs/python3.9/bin/activate" ]]; then
     # load this virtualenv
     # shellcheck source=/dev/null
-    source "${USER_HOME}/.virtualenvs/python3.9/bin/activate"
+    source "${HOME}/.virtualenvs/python3.9/bin/activate"
 
     # remove duplicate pip packages with ~ prefix that breaks pip packages upgrade otherwise
     find "${VIRTUAL_ENV}/lib/python3.9/site-packages" -name '~*' -exec rm -Rf {} ';' || true
@@ -117,10 +117,10 @@ upgradePipPackages() {
 testConfigure() {
   local -i failures=0
   # shellcheck source=/dev/null
-  source "${USER_HOME}/.virtualenvs/python3.9/bin/activate" || ((++failures))
+  source "${HOME}/.virtualenvs/python3.9/bin/activate" || ((++failures))
   Version::checkMinimal "python" "--version" "3.9.18" || ((++failures))
   Version::checkMinimal "pip" "--version" "24.0" || ((++failures))
-  [[ "${VIRTUAL_ENV}" = "${USER_HOME}/.virtualenvs/python3.9" ]] || {
+  [[ "${VIRTUAL_ENV}" = "${HOME}/.virtualenvs/python3.9" ]] || {
     Log::displayError "Virtualenv has not been loaded correctly"
     ((++failures))
   }

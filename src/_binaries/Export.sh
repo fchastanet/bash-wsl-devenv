@@ -39,13 +39,13 @@ configure() {
       git config --global --unset user.name || true
       git config --global --unset user.email || true
       rm -Rf "${BACKUP_DIR:?}/"* || true
-      rm -Rf "${USER_HOME}/.vscode-server" || true
-      rm -f "${USER_HOME}/.ssh/id_rsa" || true
-      rm -f "${USER_HOME}/.ssh/config" || true
-      rm -f "${USER_HOME}/.ssh/known_hosts.old" || true
-      rm -f "${USER_HOME}/.saml2aws" || true
-      rm -f "${USER_HOME}/.aws/credentials" || true
-      rm -f "${USER_HOME}/.aws/config" || true
+      rm -Rf "${HOME}/.vscode-server" || true
+      rm -f "${HOME}/.ssh/id_rsa" || true
+      rm -f "${HOME}/.ssh/config" || true
+      rm -f "${HOME}/.ssh/known_hosts.old" || true
+      rm -f "${HOME}/.saml2aws" || true
+      rm -f "${HOME}/.aws/credentials" || true
+      rm -f "${HOME}/.aws/config" || true
 
       deleteFolderExcept() {
         local folder="$1"
@@ -85,7 +85,7 @@ configure() {
 testConfigure() {
   local -i failures=0
   if [[ "${PREPARE_EXPORT}" = "1" ]]; then
-    if [[ -f "${USER_HOME}/.gitconfig" ]]; then
+    if [[ -f "${HOME}/.gitconfig" ]]; then
       if git config --global --get user.name &>/dev/null; then
         Log::displayError "Export - .gitconfig user.name has not been removed"
         ((++failures))
@@ -95,13 +95,13 @@ testConfigure() {
         ((++failures))
       fi
     fi
-    Assert::fileNotExists "${USER_HOME}/.vscode-server" || ((++failures))
-    Assert::fileNotExists "${USER_HOME}/.ssh/id_rsa" || ((++failures))
-    Assert::fileNotExists "${USER_HOME}/.ssh/config" || ((++failures))
-    Assert::fileNotExists "${USER_HOME}/.ssh/known_hosts.old" || ((++failures))
-    Assert::fileNotExists "${USER_HOME}/.saml2aws" || ((++failures))
-    Assert::fileNotExists "${USER_HOME}/.aws/credentials" || ((++failures))
-    Assert::fileNotExists "${USER_HOME}/.aws/config" || ((++failures))
+    Assert::fileNotExists "${HOME}/.vscode-server" || ((++failures))
+    Assert::fileNotExists "${HOME}/.ssh/id_rsa" || ((++failures))
+    Assert::fileNotExists "${HOME}/.ssh/config" || ((++failures))
+    Assert::fileNotExists "${HOME}/.ssh/known_hosts.old" || ((++failures))
+    Assert::fileNotExists "${HOME}/.saml2aws" || ((++failures))
+    Assert::fileNotExists "${HOME}/.aws/credentials" || ((++failures))
+    Assert::fileNotExists "${HOME}/.aws/config" || ((++failures))
 
     SUDO=sudo Assert::dirEmpty \
       "${BASH_DEV_ENV_ROOT_DIR}/megalinter-reports/" \

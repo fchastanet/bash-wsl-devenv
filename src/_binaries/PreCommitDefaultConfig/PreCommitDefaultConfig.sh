@@ -39,23 +39,23 @@ testInstall() { :; }
 # jscpd:ignore-end
 
 configure() {
-  if [[ ! -f "${USER_HOME}/.virtualenvs/python3.9/bin/activate" ]]; then
+  if [[ ! -f "${HOME}/.virtualenvs/python3.9/bin/activate" ]]; then
     Log::displayError "VirtualEnv has not been installed correctly"
     return 1
   fi
   # Load virtualenv
   # shellcheck source=/dev/null
-  source "${USER_HOME}/.virtualenvs/python3.9/bin/activate"
-  if [[ ! -d "${USER_HOME}/.bash-dev-env/GitDefaultConfig/pre-commit-template" ]]; then
+  source "${HOME}/.virtualenvs/python3.9/bin/activate"
+  if [[ ! -d "${HOME}/.bash-dev-env/GitDefaultConfig/pre-commit-template" ]]; then
     if ! pre-commit init-templatedir -t pre-commit -t pre-push \
-      "${USER_HOME}/.bash-dev-env/GitDefaultConfig/pre-commit-template"; then
+      "${HOME}/.bash-dev-env/GitDefaultConfig/pre-commit-template"; then
       Log::displayError "Error during precommit template creation"
       return 1
     fi
   fi
 
   if ! git config --global init.templatedir \
-    "${USER_HOME}/.bash-dev-env/GitDefaultConfig/pre-commit-template"; then
+    "${HOME}/.bash-dev-env/GitDefaultConfig/pre-commit-template"; then
     Log::displayError "Error during git precommit template initialization"
     return 1
   fi
@@ -64,10 +64,10 @@ configure() {
 testConfigure() {
   local -i failures=0
 
-  Assert::dirExists "${USER_HOME}/.bash-dev-env/GitDefaultConfig/pre-commit-template" || ((++failures))
+  Assert::dirExists "${HOME}/.bash-dev-env/GitDefaultConfig/pre-commit-template" || ((++failures))
 
   Log::displayInfo "check if git init.templatedir correctly set"
-  if [[ "$(git config --global --get init.templatedir)" != "${USER_HOME}/.bash-dev-env/GitDefaultConfig/pre-commit-template" ]]; then
+  if [[ "$(git config --global --get init.templatedir)" != "${HOME}/.bash-dev-env/GitDefaultConfig/pre-commit-template" ]]; then
     Log::displayError "git init.templatedir has not been correctly set"
     ((++failures))
   fi

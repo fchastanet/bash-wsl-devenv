@@ -36,10 +36,10 @@ install() {
         Log::displayError "update-golang sha checksum doesn't match"
       }
       sudo rm -f hash.txt
-      mkdir -p "${USER_HOME}/golang"
+      mkdir -p "${HOME}/golang"
       Log::displayInfo "Install/update go ..."
-      DESTINATION="${USER_HOME}/golang" \
-        PROFILED="${USER_HOME}/.bash-dev-env/profile.d/golang.sh" ./update-golang.sh
+      DESTINATION="${HOME}/golang" \
+        PROFILED="${HOME}/.bash-dev-env/profile.d/golang.sh" ./update-golang.sh
     )
   }
   SUDO=sudo Git::cloneOrPullIfNoChanges \
@@ -50,9 +50,9 @@ install() {
 }
 
 testInstall() {
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/profile.d/golang.sh"
+  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/golang.sh"
   # shellcheck source=/dev/null
-  source "${USER_HOME}/.bash-dev-env/profile.d/golang.sh" || return 1
+  source "${HOME}/.bash-dev-env/profile.d/golang.sh" || return 1
   Version::checkMinimal "go" "version" "1.22.1" || return 1
 }
 

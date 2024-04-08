@@ -217,7 +217,7 @@ envFileTemplate="$(
 # wsl username
 USERNAME="wsl"
 USERGROUP="wsl"
-USER_HOME="/home/wsl"
+HOME="/home/wsl"
 
 # your login to connect to ssh servers if any
 SSH_LOGIN=""
@@ -250,7 +250,7 @@ CONF_OVERRIDE_DIR="${BASH_DEV_ENV_ROOT_DIR}/conf.override"
 
 # where to install bash-tools, ...
 # shellcheck disable=SC2153
-PROJECTS_DIR="${USER_HOME}/projects"
+PROJECTS_DIR="${HOME}/projects"
 
 # where overridden config files will be backed up
 BACKUP_DIR="${BASH_DEV_ENV_ROOT_DIR}/backup"
@@ -363,7 +363,7 @@ Engine::Config::loadConfig() {
 
   Log::requireLoad
 
-  export PATH="${PATH}:${USER_HOME}/.local/bin"
+  export PATH="${PATH}:${HOME}/.local/bin"
 
   export BASH_DEV_ENV_CONFIG_LOADED=1
 }
@@ -1003,16 +1003,16 @@ Install::file() {
 # @arg $1 embedDir:String the path embedded
 # @arg $2 overrideDir:String the path overridden
 # @arg $3 subDir:String the sub-directory to copy from embedDir and/or overrideDir
-# @arg $4 targetDir:String the target directory (default: ${USER_HOME}/${subDir})
+# @arg $4 targetDir:String the target directory (default: ${HOME}/${subDir})
 # @env SUDO String allows to use custom sudo prefix command
-# @env USER_HOME used for default value of targetDir arg
+# @env HOME used for default value of targetDir arg
 # @env OVERWRITE_CONFIG_FILES indicates if target directory should be overwritten if it exists
 # @env PRETTY_ROOT_DIR used to make paths relative to this directory to reduce length of messages
 Conf::copyStructure() {
   local embedDir="$1"
   local overrideDir="$2"
   local subDir="$3"
-  local targetDir="${4:-${USER_HOME}/${subDir}}"
+  local targetDir="${4:-${HOME}/${subDir}}"
 
   local configDir
   # shellcheck disable=SC2154
@@ -1242,12 +1242,12 @@ Engine::Config::loadOsRelease() {
   set +o allexport
 }
 
-# @description deduce USER_HOME, USER_ID, USERGROUP_ID and USERGROUP from USERNAME
+# @description deduce HOME, USER_ID, USERGROUP_ID and USERGROUP from USERNAME
 # @env USERNAME String the name of the user
 # @set USER_ID String
 # @set USERGROUP String
 # @set USERGROUP_ID String
-# @set USER_HOME String
+# @set HOME String
 Engine::Config::loadUserVariables() {
   # deduce user home and group
   local -a split
@@ -1256,17 +1256,17 @@ Engine::Config::loadUserVariables() {
   split=($(getent passwd "${USERNAME}"))
   USER_ID="${split[2]}"
   USERGROUP_ID="${split[3]}"
-  USER_HOME="${split[5]}"
+  HOME="${split[5]}"
   # shellcheck disable=SC2207
   split=($(getent group "${USERNAME}"))
   USERGROUP="${split[0]}"
 
-  if [[ -z "${USERGROUP}" || -z "${USER_HOME}" ]]; then
-    Log::displayError "USERNAME - unable to deduce USERGROUP, USER_HOME from USERNAME"
+  if [[ -z "${USERGROUP}" || -z "${HOME}" ]]; then
+    Log::displayError "USERNAME - unable to deduce USERGROUP, HOME from USERNAME"
     return 1
   fi
 
-  export USER_HOME
+  export HOME
   export USER_ID
   export USERGROUP_ID
   export USERGROUP
@@ -1363,7 +1363,7 @@ Engine::Config::checkEnv() {
   checkVarAndDir BACKUP_DIR rw || true
   checkVarAndDir LOGS_DIR rw || true
   checkVarAndDir INSTALL_SCRIPTS_DIR r || true
-  checkVarAndDir USER_HOME rw || true
+  checkVarAndDir HOME rw || true
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh
@@ -3154,7 +3154,7 @@ dependencies() {
 }
 
 listVariables() {
-  echo "USER_HOME"
+  echo "HOME"
   echo "USERNAME"
   echo "USERGROUP"
   echo "CAN_TALK_DURING_INSTALLATION"
@@ -3186,11 +3186,11 @@ configure() {
   configureAwsConfig() {
     sed -i -E \
       -e "s#azure_default_username=.+\$#azure_default_username=${AWS_USER_MAIL}#" \
-      "${USER_HOME}/.aws/config"
+      "${HOME}/.aws/config"
     Install::setUserRightsCallback "$@"
   }
   OVERWRITE_CONFIG_FILES=0 Install::file \
-    "${configDir}/.aws/config" "${USER_HOME}/.aws/config" \
+    "${configDir}/.aws/config" "${HOME}/.aws/config" \
     "${USERNAME}" "${USERGROUP}" configureAwsConfig
   # shellcheck disable=SC2154
   Conf::copyStructure \
@@ -3218,26 +3218,26 @@ configure() {
 testConfigure() {
   local -i failures=0
 
-  Assert::fileExists "${USER_HOME}/.aws/config" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/awsCli.sh" || ((++failures))
-  Assert::fileExists "${USER_HOME}/.bash-dev-env/aliases.d/saml2aws.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.aws/config" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/awsCli.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/saml2aws.sh" || ((++failures))
 
-  if grep -q -E -e "azure_default_username=.+$" "${USER_HOME}/.aws/config"; then
+  if grep -q -E -e "azure_default_username=.+$" "${HOME}/.aws/config"; then
     # case where .aws/config has been overridden in conf_override folder
     local azureUserName
-    azureUserName="$(sed -nr 's/azure_default_username=(.*)$/\1/p' "${USER_HOME}/.aws/config")"
+    azureUserName="$(sed -nr 's/azure_default_username=(.*)$/\1/p' "${HOME}/.aws/config")"
     if [[ -z "${azureUserName}" ]]; then
       ((++failures))
-      Log::displayError "empty azure_default_username in '${USER_HOME}/.aws/config'"
+      Log::displayError "empty azure_default_username in '${HOME}/.aws/config'"
     elif [[ "${azureUserName}" != "${AWS_USER_MAIL}" ]]; then
       Log::displayWarning "azureUserName is not the same as AWS_USER_MAIL in ${BASH_DEV_ENV_ROOT_DIR}/.env"
     fi
-  elif ! grep -q -E -e "^\[default\]$" "${USER_HOME}/.aws/config"; then
+  elif ! grep -q -E -e "^\[default\]$" "${HOME}/.aws/config"; then
     ((++failures))
-    Log::displayError "default configuration not found in '${USER_HOME}/.aws/config'"
+    Log::displayError "default configuration not found in '${HOME}/.aws/config'"
   fi
 
-  Assert::fileExists "${USER_HOME}/.saml2aws" || ((++failures))
+  Assert::fileExists "${HOME}/.saml2aws" || ((++failures))
 
   if [[ "${INSTALL_INTERACTIVE}" = "0" ]]; then
     Log::displaySkipped "saml2aws configuration skipped as INSTALL_INTERACTIVE is set to 0"
