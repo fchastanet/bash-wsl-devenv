@@ -16,10 +16,11 @@ helpDescription() {
 }
 
 dependencies() {
+  echo Bat
   echo Fasd
-  echo Fzf
   # font needed for displaying bash prompt
   echo Font
+  echo Fzf
   echo Vim
 }
 
@@ -33,9 +34,7 @@ breakOnTestFailure() { :; }
 # jscpd:ignore-end
 
 fortunes() {
-  local currentUserShell
-  currentUserShell="$(grep "^${USERNAME}:" /etc/passwd | awk -F ":" '{print $7}')"
-  if [[ "${currentUserShell}" = "/usr/bin/bash" ]]; then
+  if [[ "${USER_SHELL}" = "/usr/bin/bash" ]]; then
     if command -v zsh &>/dev/null; then
       echo "Bash is set as default shell, you can switch to zsh using 'chsh -s /usr/bin/zsh'"
       echo "%"
@@ -54,9 +53,9 @@ testInstall() {
 
 configure() {
   if [[ "${PREFERRED_SHELL}" = "ShellBash" ]]; then
-    CURRENT_USER_SHELL="$(grep "^${USERNAME}:" /etc/passwd | awk -F ":" '{print $7}')"
-    if [[ "${CURRENT_USER_SHELL}" != "/bin/bash" ]]; then
-      usermod --shell /bin/bash "${USERNAME}"
+    if [[ "${USER_SHELL}" != "/usr/bin/bash" ]]; then
+      usermod --shell /usr/bin/bash "${USERNAME}"
+      USER_SHELL="/usr/bin/bash"
       Log::displayHelp "You have to log in/log out to make bash by default"
     fi
     if command -v zsh &>/dev/null; then

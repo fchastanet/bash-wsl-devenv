@@ -42,7 +42,7 @@ install() {
         PROFILED="${HOME}/.bash-dev-env/profile.d/golang.sh" ./update-golang.sh
     )
   }
-  SUDO=sudo Git::cloneOrPullIfNoChanges \
+  SUDO=sudo GIT_CLONE_OPTIONS="--depth=1" Git::cloneOrPullIfNoChanges \
     "/opt/update-golang" \
     "https://github.com/udhos/update-golang" \
     updateGo \

@@ -18,6 +18,7 @@ helpDescription() {
 dependencies() {
   echo "ShellBash"
   echo "Saml2Aws"
+  echo "Docker"
 }
 
 # jscpd:ignore-start
@@ -79,13 +80,13 @@ installMinikube() {
 }
 
 installKubeps1() {
-  SUDO=sudo Git::cloneOrPullIfNoChanges \
+  SUDO=sudo GIT_CLONE_OPTIONS="--depth=1" Git::cloneOrPullIfNoChanges \
     "/opt/kubeps1" \
     "https://github.com/jonmosco/kube-ps1.git"
 }
 
 installKubectx() {
-  SUDO=sudo Git::cloneOrPullIfNoChanges \
+  SUDO=sudo GIT_CLONE_OPTIONS="--depth=1" Git::cloneOrPullIfNoChanges \
     "/opt/kubectx" \
     "https://github.com/ahmetb/kubectx"
 

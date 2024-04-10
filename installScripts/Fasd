@@ -882,6 +882,28 @@ Linux::Apt::installIfNecessary() {
   fi
 }
 
+# @description check if command specified exists or return 1
+# with error and message if not
+#
+# @arg $1 commandName:String on which existence must be checked
+# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
+#
+# @exitcode 1 if the command specified does not exist
+# @stderr diagnostic information + help if second argument is provided
+Assert::commandExists() {
+  local commandName="$1"
+  local helpIfNotExists="$2"
+
+  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
+    Log::displayError "${commandName} is not installed, please install it"
+    if [[ -n "${helpIfNotExists}" ]]; then
+      Log::displayInfo "${helpIfNotExists}"
+    fi
+    return 1
+  }
+  return 0
+}
+
 # @description copy folder structure to target directory
 # merge embedDir with overridden directory if provided and available
 # @arg $1 embedDir:String the path embedded
@@ -905,28 +927,6 @@ Conf::copyStructure() {
   OVERWRITE_CONFIG_FILES=${OVERWRITE_CONFIG_FILES:-1} \
     PRETTY_ROOT_DIR="${embedDir%/*}" \
     Install::structure "${configDir}/${subDir}" "${targetDir}"
-}
-
-# @description check if command specified exists or return 1
-# with error and message if not
-#
-# @arg $1 commandName:String on which existence must be checked
-# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
-#
-# @exitcode 1 if the command specified does not exist
-# @stderr diagnostic information + help if second argument is provided
-Assert::commandExists() {
-  local commandName="$1"
-  local helpIfNotExists="$2"
-
-  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
-    Log::displayError "${commandName} is not installed, please install it"
-    if [[ -n "${helpIfNotExists}" ]]; then
-      Log::displayInfo "${helpIfNotExists}"
-    fi
-    return 1
-  }
-  return 0
 }
 
 # @description asserts that first argument is file that exists with specified ownership
@@ -1059,6 +1059,7 @@ Engine::Config::loadOsRelease() {
 # @set USER_ID String
 # @set USERGROUP String
 # @set USERGROUP_ID String
+# @set USER_SHELL String current user shell
 # @set HOME String
 Engine::Config::loadUserVariables() {
   # deduce user home and group
@@ -1069,6 +1070,7 @@ Engine::Config::loadUserVariables() {
   USER_ID="${split[2]}"
   USERGROUP_ID="${split[3]}"
   HOME="${split[5]}"
+  USER_SHELL="${split[6]}"
   # shellcheck disable=SC2207
   split=($(getent group "${USERNAME}"))
   USERGROUP="${split[0]}"
@@ -1082,6 +1084,7 @@ Engine::Config::loadUserVariables() {
   export USER_ID
   export USERGROUP_ID
   export USERGROUP
+  export USER_SHELL
 }
 
 # @description check validity of .env variables
@@ -2297,7 +2300,7 @@ File::garbageCollect() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+3TUUvjQBAA4DznV4ypyB3cJtk2mzwcCp7N0YBawcg9iBwxXcli3Eg3rULrf3fSopaeWMHW47j5HpIwu5ndzUxcz9o4H0VCNHceCX/x/sTiQei32yKMeDMvCnhkgdj81ixrZOpsCGDdmfLNeavG/1Gu515mpmADOWZSjzfSDe+uP+dcdDDOedQRVP/PsFx/pWs5zPJajaU7WFM3vL/+fhC0cR4PhM+p/p/h7fpfZWbgmuKDa6yoP/fDzrz+QdiOBMf6iygMLfDXcsIV/vP6t7a8S6W9pgfs1nrZLej24bifQtxN0m+Q9pJT+JkcxnCwfww/Yjg76e6ncRd+JWmvf5Y2U5ODeO3bwH00fWyrK8irm5tMD4CNZyHY2fOw8T09KsvvUBdS2zAb+J1neSF3ne1Jr38UP3huE2RKq5o1X8rBaZjt/Byc7S9LOb86wHSNA5OXRA8OTKewBcz8Eb+4eF54vjSw2TpwWxl1z7JSZQZmf2hRVdfzpxyXvF14xBewicsS9qZL6ZvjKLy0wBSyLDGWX4OpRsNc7j6fHMfnoeXN4cBIG1kvfBIb0/3tliWEEEIIIYQQQgghhBBCCCGEEPKKR6DUvnsAKAAA"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+1YbW/aSBDmM79i6tCA0RljwKATdXVcIApSEqKEqDqFHHLsJVh1bMraaY+E/36z6xcMFNLqCNGpng94mZ2d3dlndmdmS3Lm1amM1FBV9lUaajn5jSij1OrlSkWtNxQm16gpjQyor7+0TMannj4FyHyl9la5l/r/p1SSS3c6HUsmeZSI8/gq3vCj+KvlhlJXlUxZwW4lxX8ftIq/4T5MbOJZrkNL5o684Wfwr9ZRTqmp1RT/vdB2/Ec6NXn/f5qDAVyv1TbhX6mUGwH+1YpSrbHzX6806hko78jGrfSL43/wTr6zHJlhnM0eAPsC+sCD7pjw4JoEFg6RHTJ3GDKRofFgDsMeUhDhKQtwEImSWIE+8sgUBIkI2G+7hm6D4U+13NNR7+xi+Kl32b664c0j1r6do5Q1gpsb2CAhKbdz0DSQigRub5vgjYmDY9jcdExs2xgT4zOYFtXvbKJdHTHP4v1MxWXn4vQvrQC5AlvnPXFAasUrFXJPuLK5IILIB0yJ50+Z7pG1bJpPLeceTDLSfdtDMd20LYcs+iOTWwK47Ntmphs6JVttsgIzpNaz1BaBt182aqNZbry+HBqFJjUjlbFZjJpN3igyiwnVDW7oPfESkOMAinpoaDb5NsHNIgisbaFJNEY1EFv5q+UKfALmNSBJ8RYJIR8CNSBNlvZmDpWPMl5HsuPbNjxHSwegOLHkgDDIUfnvUjE/GBRKxcFAzMuDgSJPELtQzWn3vHNQhLmQHA3wdWzZhEMG0hQYbE0w3YQAwBff9cgwRhW9gn1R0dKSnmGwNGoytRxvBO+/bBgAh4ffHzEYOAm26TqE/xXjjeweX2m5/MDJN5exvuxcXZ/2UXCePJRj1/38vZM5Qk9ENnoZ5IqxzTEe0jFsONnoPw9mNlzZnN0PxGFe+MPXxNqKAmfQgYIJI8AmHcEMZrO3vgZ/WVqN/+HJ3lnux+in8v86i//VOpaBaf63B9qM/25yP0Yv5H/oG40I/womgYi/Wk3zv/3QUv4XxGNdywchW8+HHBpxqBWzzAXPjJmjBXMUMWPBWCyWQhmMKSPfMXiy4bmYYRDDxzBx51u2J2HAMswsDyeGGQYzTBALGAEP4MMHDRQQxUQayLUKuT9YzkVsGkTTIJIGQQnzH86L/2mYjARrIZCP4jjNcyWiwGWDjFSaseAej8MIv5SALqVWPGeMB5ovDDTWBDDBCJeSf08x+K/0L+bAn3m4p7NgT3GfEhs9W+KCZOXX8F89/zgtmeqIxyN5g/ofb4lKUP8raf2/F9qO/+7q/y34KyrW/Bx/tVFR6rWg/lfT+38flLz/D3ZLeLW3e3De60On3e3/Bv2T7hUcd087cNQ6hz87cH3RbvU7bfjU7Z/0rvtMtHvU2fkyWIhBP87ifRyVLNJjECsOF1VafCcHF6aOZTcGh6eT3llnLpcYE8OR5Ulsp4T4oULgZXdSpyhgkeqxK3uhKLjT32FYXOMvBYOwUmbzwMSl1jcpuMf5CWW1VNAyWDWVaOIAdGIsND8+r6hfPGAknhKo608NosWWY3/AWl0cdvgOJV5iS7LZKHhOpjizN2TBO4zMm18syrU67yePGImF0EpUYEAUfSWqo9HWDEvOwtiinjv9B4P7M6/5BSz3b+C2eFOWfsdfbMmyIOI+J9BD9fMsN1Q3zaA8ZfsVvb2gYReXWED3h1hGn7XO27jz4ZtLcc2corh4GoHlYZqwJt1cV81H8xcV3Py3PuAppZRSSimllFJKKaWUUkoh/QvKpzSPACgAAA=="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -3102,7 +3105,19 @@ scriptName() {
 }
 
 helpDescription() {
-  echo "Fasd"
+  if [[ "${USER_SHELL}" = "/bin/bash" || "${USER_SHELL}" = "/usr/bin/bash" ]]; then
+    echo "$(scriptName) -  configuration for bash shell only allows to search files quickly"
+    echo "Following aliases are available:"
+    echo "  - alias 'a' - search files/directories based on a pattern"
+    echo "  - alias 'd' - search directories based on a pattern"
+    echo "  - alias 'f' - search files based on a pattern"
+    echo "  - alias 'si' - search most used files/directories in interactive mode(index)"
+    echo "  - alias 'sid' - search most used directories in interactive mode(index)"
+    echo "  - alias 'sif' - search most used files in interactive mode(index)"
+    echo "  - alias 'z' - allows to switch to the directory matching the most the given pattern"
+    echo "  - alias 'zz' - allows to select interactively one of the most used directory by index"
+    echo '%'
+  fi
 }
 
 # jscpd:ignore-start
@@ -3116,14 +3131,16 @@ breakOnTestFailure() { :; }
 # jscpd:ignore-end
 
 fortunes() {
-  if command -v fasd &>/dev/null; then
-    echo "Fasd -- z <directory> to easily change directory (see https://github.com/clvv/fasd)"
-    echo "%"
-    echo "Fasd -- v <file> to easily edit recently file with vi (see https://github.com/clvv/fasd)"
-    echo "%"
-  else
-    echo "Fasd -- Think about installing fasd to easily switch directory - run 'install Fasd'"
-    echo "%"
+  if [[ "${USER_SHELL}" = "/usr/bin/bash" ]]; then
+    if command -v fasd &>/dev/null; then
+      echo "$(scriptName) -- z <directory> to easily change directory (see https://github.com/clvv/fasd)"
+      echo "%"
+      echo "$(scriptName) -- v <file> to easily edit recently file with vi (see https://github.com/clvv/fasd)"
+      echo "%"
+    else
+      echo "$(scriptName) -- Think about installing fasd to easily switch directory - run 'installAndConfigure Fasd'"
+      echo "%"
+    fi
   fi
 }
 
@@ -3131,23 +3148,28 @@ install() {
   Linux::Apt::addRepository ppa:aacebedo/fasd
   SKIP_APT_GET_UPDATE=1 Linux::Apt::installIfNecessary --no-install-recommends \
     fasd
-
-  # shellcheck disable=SC2154
-  Conf::copyStructure \
-    "${embed_dir_conf_dir}" \
-    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
-    ".bash-dev-env"
 }
 
 testInstall() {
   local -i failures=0
   Assert::commandExists fasd || ((++failures))
-  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fasd.sh" || ((++failures))
   return "${failures}"
 }
 
-configure() { :; }
-testConfigure() { :; }
+configure() {
+    # shellcheck disable=SC2154
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-dev-env"
+}
+testConfigure() {
+  local -i failures=0
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/fasd.bash" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/completions.d/fasd.bash" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fasd.bash" || ((++failures))
+  return "${failures}"
+}
 
 local action=$1
 shift || true

@@ -1086,6 +1086,7 @@ Engine::Config::loadOsRelease() {
 # @set USER_ID String
 # @set USERGROUP String
 # @set USERGROUP_ID String
+# @set USER_SHELL String current user shell
 # @set HOME String
 Engine::Config::loadUserVariables() {
   # deduce user home and group
@@ -1096,6 +1097,7 @@ Engine::Config::loadUserVariables() {
   USER_ID="${split[2]}"
   USERGROUP_ID="${split[3]}"
   HOME="${split[5]}"
+  USER_SHELL="${split[6]}"
   # shellcheck disable=SC2207
   split=($(getent group "${USERNAME}"))
   USERGROUP="${split[0]}"
@@ -1109,6 +1111,7 @@ Engine::Config::loadUserVariables() {
   export USER_ID
   export USERGROUP_ID
   export USERGROUP
+  export USER_SHELL
 }
 
 # @description check validity of .env variables
@@ -2842,7 +2845,7 @@ breakOnTestFailure() { :; }
 fortunes() {
   if Assert::wsl; then
     if ! ls "${WINDOWS_PROFILE_DIR}/AppData/Local/Microsoft/Windows/Fonts/mesloLGS_NF"*.ttf &>/dev/null; then
-      echo "Font 'Meslo LG S' does not seem to be installed, use 'install Font' to get better terminal results"
+      echo "Font 'Meslo LG S' does not seem to be installed, use 'installAndConfigure Font' to get better terminal results"
       echo "%"
     fi
   fi
@@ -2854,19 +2857,9 @@ install() {
     return 0
   fi
 
-  # shellcheck disable=SC2317
-  changeBranchOnSuccess() {
-    (
-      cd /opt/IlanCosman-tide-fonts || return 1
-      sudo git checkout assets
-    )
-  }
-
-  SUDO=sudo Git::cloneOrPullIfNoChanges \
+  SUDO=sudo GIT_CLONE_OPTIONS="--depth=1 --branch assets" Git::cloneOrPullIfNoChanges \
     "/opt/IlanCosman-tide-fonts" \
-    "https://github.com/IlanCosman/tide.git" \
-    changeBranchOnSuccess \
-    changeBranchOnSuccess
+    "https://github.com/IlanCosman/tide.git"
 
   local fontDir
   Linux::Wsl::cachedWslpath2 fontDir -w "${TMPDIR:-/tmp}/Font.ps1"

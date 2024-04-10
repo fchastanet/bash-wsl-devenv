@@ -57,7 +57,7 @@ loadConfigFiles() {
         # shellcheck source=src/_binaries/NodeNpm/conf/.bash-dev-env/profile.d/n_path.sh
         source "${file}"
       fi
-    done < <(find "${dir}" -name '*.sh' -printf '%p\n' 2>/dev/null | sort -n)
+    done < <(find "${dir}" -type f \( -name \*.sh -o -name \*.bash \) -printf '%p\n' 2>/dev/null | sort -n)
   fi
 }
 loadConfigFiles "${HOME}/.bash-dev-env/profile.d"

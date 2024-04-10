@@ -20,7 +20,7 @@ CONFIG_LIST+=(
   "KubeDefaultConfig"
   "Fortune"
   "Saml2Aws"
-  "ShellBash"
+  "ShellZsh"
   "BashTools"
   "PreCommitDefaultConfig"
   "CodeCheckers"

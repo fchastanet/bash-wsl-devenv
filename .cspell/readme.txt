@@ -1,6 +1,10 @@
+Bazyli
 bbwe
-fchastanet
+Brzóska
 chastanet
+docsify
+fchastanet
+hostnames
 Jetbrains
 openapi
 Powerlevel
@@ -9,6 +13,3 @@ setupsh
 wekyb
 xdebug
 xdebugini
-docsify
-Bazyli
-Brzóska

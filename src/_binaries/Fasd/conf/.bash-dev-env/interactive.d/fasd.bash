@@ -12,4 +12,15 @@ if command -v fasd &>/dev/null; then
   # shellcheck source=/dev/null
   source "${fasd_cache}"
   unset fasd_cache
+
+  _fasd_prompt_func() {
+    # shellcheck disable=SC2046
+    eval "fasd --proc $(fasd --sanitize $(history 1 | sed "s/^[ ]*[0-9]*[ ]*//"))" &>/dev/null
+  }
+
+  # add bash hook
+  case "${PROMPT_COMMAND}" in
+    *_fasd_prompt_func*) ;;
+    *) PROMPT_COMMAND="_fasd_prompt_func;${PROMPT_COMMAND}";;
+  esac
 fi

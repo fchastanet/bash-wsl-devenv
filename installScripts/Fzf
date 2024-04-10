@@ -925,31 +925,6 @@ Github::upgradeRelease() {
   fi
 }
 
-# @description copy folder structure to target directory
-# merge embedDir with overridden directory if provided and available
-# @arg $1 embedDir:String the path embedded
-# @arg $2 overrideDir:String the path overridden
-# @arg $3 subDir:String the sub-directory to copy from embedDir and/or overrideDir
-# @arg $4 targetDir:String the target directory (default: ${HOME}/${subDir})
-# @env SUDO String allows to use custom sudo prefix command
-# @env HOME used for default value of targetDir arg
-# @env OVERWRITE_CONFIG_FILES indicates if target directory should be overwritten if it exists
-# @env PRETTY_ROOT_DIR used to make paths relative to this directory to reduce length of messages
-Conf::copyStructure() {
-  local embedDir="$1"
-  local overrideDir="$2"
-  local subDir="$3"
-  local targetDir="${4:-${HOME}/${subDir}}"
-
-  local configDir
-  # shellcheck disable=SC2154
-  configDir="$(Conf::getOverriddenDir "${embedDir}" "${overrideDir}")"
-  # shellcheck disable=SC2154
-  OVERWRITE_CONFIG_FILES=${OVERWRITE_CONFIG_FILES:-1} \
-    PRETTY_ROOT_DIR="${embedDir%/*}" \
-    Install::structure "${configDir}/${subDir}" "${targetDir}"
-}
-
 # @description Check that command version is greater than expected minimal version
 # display warning if command version greater than expected minimal version
 # display error if command version less than expected minimal version and exit 1
@@ -990,6 +965,31 @@ Version::checkMinimal() {
     return 0
   }
 
+}
+
+# @description copy folder structure to target directory
+# merge embedDir with overridden directory if provided and available
+# @arg $1 embedDir:String the path embedded
+# @arg $2 overrideDir:String the path overridden
+# @arg $3 subDir:String the sub-directory to copy from embedDir and/or overrideDir
+# @arg $4 targetDir:String the target directory (default: ${HOME}/${subDir})
+# @env SUDO String allows to use custom sudo prefix command
+# @env HOME used for default value of targetDir arg
+# @env OVERWRITE_CONFIG_FILES indicates if target directory should be overwritten if it exists
+# @env PRETTY_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+Conf::copyStructure() {
+  local embedDir="$1"
+  local overrideDir="$2"
+  local subDir="$3"
+  local targetDir="${4:-${HOME}/${subDir}}"
+
+  local configDir
+  # shellcheck disable=SC2154
+  configDir="$(Conf::getOverriddenDir "${embedDir}" "${overrideDir}")"
+  # shellcheck disable=SC2154
+  OVERWRITE_CONFIG_FILES=${OVERWRITE_CONFIG_FILES:-1} \
+    PRETTY_ROOT_DIR="${embedDir%/*}" \
+    Install::structure "${configDir}/${subDir}" "${targetDir}"
 }
 
 # @description asserts that first argument is file that exists with specified ownership
@@ -1122,6 +1122,7 @@ Engine::Config::loadOsRelease() {
 # @set USER_ID String
 # @set USERGROUP String
 # @set USERGROUP_ID String
+# @set USER_SHELL String current user shell
 # @set HOME String
 Engine::Config::loadUserVariables() {
   # deduce user home and group
@@ -1132,6 +1133,7 @@ Engine::Config::loadUserVariables() {
   USER_ID="${split[2]}"
   USERGROUP_ID="${split[3]}"
   HOME="${split[5]}"
+  USER_SHELL="${split[6]}"
   # shellcheck disable=SC2207
   split=($(getent group "${USERNAME}"))
   USERGROUP="${split[0]}"
@@ -1145,6 +1147,7 @@ Engine::Config::loadUserVariables() {
   export USER_ID
   export USERGROUP_ID
   export USERGROUP
+  export USER_SHELL
 }
 
 # @description check validity of .env variables
@@ -1672,6 +1675,90 @@ Github::defaultInstall() {
   fi
 }
 
+# @description check if command specified exists or return 1
+# with error and message if not
+#
+# @arg $1 commandName:String on which existence must be checked
+# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
+#
+# @exitcode 1 if the command specified does not exist
+# @stderr diagnostic information + help if second argument is provided
+Assert::commandExists() {
+  local commandName="$1"
+  local helpIfNotExists="$2"
+
+  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
+    Log::displayError "${commandName} is not installed, please install it"
+    if [[ -n "${helpIfNotExists}" ]]; then
+      Log::displayInfo "${helpIfNotExists}"
+    fi
+    return 1
+  }
+  return 0
+}
+
+# @description ignore exit code 141 from simple command pipes
+# @example use with:
+#   local resultingStatus=0
+#   local -a originalPipeStatus=()
+#   cmd1 | cmd2 || Bash::handlePipelineFailure resultingStatus originalPipeStatus || true
+#   [[ "${resultingStatus}" = "0" ]]
+# @arg $1 resultingStatusCode:&int (passed by reference) (optional) resulting status code
+# @arg $2 originalStatus:int[] (passed by reference) (optional) copy of original PIPESTATUS array
+# @env PIPESTATUS assuming that this function is called like in the example provided
+# @see https://unix.stackexchange.com/a/709880/582856
+Bash::handlePipelineFailure() {
+  local -a pipeStatusBackup=("${PIPESTATUS[@]}")
+  local -n handlePipelineFailure_resultingStatusCode=$1
+  local -n handlePipelineFailure_originalStatus=$2
+  # shellcheck disable=SC2034
+  handlePipelineFailure_originalStatus=("${pipeStatusBackup[@]}")
+  handlePipelineFailure_resultingStatusCode=0
+  local statusCode
+  for statusCode in "${pipeStatusBackup[@]}"; do
+    if ((statusCode == 141)); then
+      return 0
+    elif ((statusCode > 0)); then
+      # shellcheck disable=SC2034
+      handlePipelineFailure_resultingStatusCode="${statusCode}"
+      break
+    fi
+  done
+  return "${handlePipelineFailure_resultingStatusCode}"
+}
+
+# @description compare 2 version numbers
+# @arg $1 version1:String version 1
+# @arg $2 version2:String version 2
+# @exitcode 0 if equal
+# @exitcode 1 if version1 > version2
+# @exitcode 2 else
+Version::compare() {
+  if [[ "$1" = "$2" ]]; then
+    return 0
+  fi
+  local IFS=.
+  # shellcheck disable=2206
+  local i ver1=($1) ver2=($2)
+  # fill empty fields in ver1 with zeros
+  for ((i = ${#ver1[@]}; i < ${#ver2[@]}; i++)); do
+    ver1[i]=0
+  done
+  for ((i = 0; i < ${#ver1[@]}; i++)); do
+    if [[ -z "${ver2[i]+unset}" ]] || [[ -z ${ver2[i]} ]]; then
+      # fill empty fields in ver2 with zeros
+      ver2[i]=0
+    fi
+    if ((10#${ver1[i]} > 10#${ver2[i]})); then
+      return 1
+    fi
+    if ((10#${ver1[i]} < 10#${ver2[i]})); then
+      return 2
+    fi
+  done
+  return 0
+}
+
 # @description generate temp directory where default
 # and overridden directories have been merged
 #   - if overridden dir exists, create a new temp folder
@@ -1805,90 +1892,6 @@ Install::structure() {
 
   # shellcheck disable=SC2295
   Log::displaySuccess "Installed directory '${toDir#${PRETTY_ROOT_DIR}/}' from '${fromDir#${PRETTY_ROOT_DIR}/}'"
-}
-
-# @description check if command specified exists or return 1
-# with error and message if not
-#
-# @arg $1 commandName:String on which existence must be checked
-# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
-#
-# @exitcode 1 if the command specified does not exist
-# @stderr diagnostic information + help if second argument is provided
-Assert::commandExists() {
-  local commandName="$1"
-  local helpIfNotExists="$2"
-
-  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
-    Log::displayError "${commandName} is not installed, please install it"
-    if [[ -n "${helpIfNotExists}" ]]; then
-      Log::displayInfo "${helpIfNotExists}"
-    fi
-    return 1
-  }
-  return 0
-}
-
-# @description ignore exit code 141 from simple command pipes
-# @example use with:
-#   local resultingStatus=0
-#   local -a originalPipeStatus=()
-#   cmd1 | cmd2 || Bash::handlePipelineFailure resultingStatus originalPipeStatus || true
-#   [[ "${resultingStatus}" = "0" ]]
-# @arg $1 resultingStatusCode:&int (passed by reference) (optional) resulting status code
-# @arg $2 originalStatus:int[] (passed by reference) (optional) copy of original PIPESTATUS array
-# @env PIPESTATUS assuming that this function is called like in the example provided
-# @see https://unix.stackexchange.com/a/709880/582856
-Bash::handlePipelineFailure() {
-  local -a pipeStatusBackup=("${PIPESTATUS[@]}")
-  local -n handlePipelineFailure_resultingStatusCode=$1
-  local -n handlePipelineFailure_originalStatus=$2
-  # shellcheck disable=SC2034
-  handlePipelineFailure_originalStatus=("${pipeStatusBackup[@]}")
-  handlePipelineFailure_resultingStatusCode=0
-  local statusCode
-  for statusCode in "${pipeStatusBackup[@]}"; do
-    if ((statusCode == 141)); then
-      return 0
-    elif ((statusCode > 0)); then
-      # shellcheck disable=SC2034
-      handlePipelineFailure_resultingStatusCode="${statusCode}"
-      break
-    fi
-  done
-  return "${handlePipelineFailure_resultingStatusCode}"
-}
-
-# @description compare 2 version numbers
-# @arg $1 version1:String version 1
-# @arg $2 version2:String version 2
-# @exitcode 0 if equal
-# @exitcode 1 if version1 > version2
-# @exitcode 2 else
-Version::compare() {
-  if [[ "$1" = "$2" ]]; then
-    return 0
-  fi
-  local IFS=.
-  # shellcheck disable=2206
-  local i ver1=($1) ver2=($2)
-  # fill empty fields in ver1 with zeros
-  for ((i = ${#ver1[@]}; i < ${#ver2[@]}; i++)); do
-    ver1[i]=0
-  done
-  for ((i = 0; i < ${#ver1[@]}; i++)); do
-    if [[ -z "${ver2[i]+unset}" ]] || [[ -z ${ver2[i]} ]]; then
-      # fill empty fields in ver2 with zeros
-      ver2[i]=0
-    fi
-    if ((10#${ver1[i]} > 10#${ver2[i]})); then
-      return 1
-    fi
-    if ((10#${ver1[i]} < 10#${ver2[i]})); then
-      return 2
-    fi
-  done
-  return 0
 }
 
 # @description prepend directories to the PATH environment variable
@@ -2563,7 +2566,7 @@ File::garbageCollect() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+3Uy0rDQBQG4KzzFMfUhYK5OkkW4qI2kQZKKzTFRekibSZ2MKaluUijvrsZiiIFm4JpRTzfZsLcMpP/EEUVDk6r2KbJW902ta/tB0EnlmYYpmUT3m8T3RTAPPzRBCFPs2AFIDyn8c55deN/lKIq0yCdyyEtZJoUB6mGvfPXdYM/a7puGxbmfwzb+bMko6tglrGCKmFD1bB3/pptGTap8iemfon5H8Pu/KMyUtL5T99Rl79tkE3+pIrf4vmbFqn+/1oTF6zzz/NvnahTlqi8BsRWs8QWOAPoD3xwHc+/AL/rDeHW67nQaffhxoXRndP2XQfuPb87GPl8qtdxGz9GdY4hzSBfQlXO8EjXUN04ZMlDCkESQpSX5Rpmi6dlTDO2SEQWwXgM0unLsOv2em8SXIP0+ZEkmEyuIJvTRASgRRBXE8/4vrLMh88lkcbfblDuXF/WLY/Y1vrNOt4Nr5Au8tWMihETf7umEEIIIYQQQgghhBBCCCGEEEIIHd8734gjLgAoAAA="
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+3X7U+CQBwHcF77V/zSXtQWD4cc99qEJlvLNnG9Rj2LZejkocn647vTWa41sQm46vd5cxvcJvC974GarlTOEBilciSMGrvjlkIs2zBNajNLHmcWoQrQ6i9NUdI4CZYAyms82zuv6PwvpenaKIif1AnPVB5llayGQ/OnBmsz1lYMQphtYP51+Jp/GCV8GYyTMOPapKTVcHj+tkVNcZxY1MD+12J//tN8uj593G8U5S/S/sjfYkTkbxPxGgCjnFvc75/n3zrTR2Gky5AbrXI1WuD04a7vg+t4/hX4PW8AN96tC93OHVy7MLx3Or7rwIPn9/pDX071um7plyGuY8ATSBcgljM88xWIO56E0WMMQTSBaZrnKxjPXxYznoTzqMGzYAbN8ws5W1Xlk7lsNk6dU1WK+z8Nq+9/e/v+Nwk11/0XA/a/BqL/abxc7wEyaNwDNnvApvvyicAbxPN0OeZ/cwso7n9+bP0P6D/57L9pyf6L/4LY/zrs9D/H+n//CZDLL4BTB4UQQgghhBBCCCGEEEII/cA7kwfvcgAoAAA="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -3369,7 +3372,12 @@ scriptName() {
 }
 
 helpDescription() {
-  echo "Fzf"
+  echo "fzf is a general-purpose command-line fuzzy finder."
+  echo "It's an interactive Unix filter for command-line"
+  echo "that can be used with any list; files, command"
+  echo "history, processes, hostnames, bookmarks, git"
+  echo "commits, etc."
+  echo "More info on https://github.com/junegunn/fzf"
 }
 
 dependencies() {
@@ -3411,23 +3419,29 @@ install() {
   SUDO=sudo INSTALL_CALLBACK=fzfInstall Github::upgradeRelease \
     "/usr/local/bin/fzf" \
     "https://github.com/junegunn/fzf/releases/download/@latestVersion@/fzf-@latestVersion@-linux_amd64.tar.gz"
+}
 
-  # shellcheck disable=SC2154
+testInstall() {
+  local -i failures=0
+  Version::checkMinimal "fzf" --version "0.44.1" || ((++failures))
+  return "${failures}"
+}
+
+configure() {
+   # shellcheck disable=SC2154
   Conf::copyStructure \
     "${embed_dir_conf_dir}" \
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
     ".bash-dev-env"
 }
 
-testInstall() {
+testConfigure() {
   local -i failures=0
-  Version::checkMinimal "fzf" --version "0.44.1" || ((++failures))
-  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fzf.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fzf.bash" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fzf.fish" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fzf.zsh" || ((++failures))
   return "${failures}"
 }
-
-configure() { :; }
-testConfigure() { :; }
 
 local action=$1
 shift || true

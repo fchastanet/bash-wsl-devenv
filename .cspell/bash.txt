@@ -58,6 +58,7 @@ PREREQ
 Pubkey
 pykerberos
 readarray
+readline
 readlink
 realpath
 Referer

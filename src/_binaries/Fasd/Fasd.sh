@@ -12,7 +12,19 @@ scriptName() {
 }
 
 helpDescription() {
-  echo "Fasd"
+  if [[ "${USER_SHELL}" = "/bin/bash" || "${USER_SHELL}" = "/usr/bin/bash" ]]; then
+    echo "$(scriptName) -  configuration for bash shell only allows to search files quickly"
+    echo "Following aliases are available:"
+    echo "  - alias 'a' - search files/directories based on a pattern"
+    echo "  - alias 'd' - search directories based on a pattern"
+    echo "  - alias 'f' - search files based on a pattern"
+    echo "  - alias 'si' - search most used files/directories in interactive mode(index)"
+    echo "  - alias 'sid' - search most used directories in interactive mode(index)"
+    echo "  - alias 'sif' - search most used files in interactive mode(index)"
+    echo "  - alias 'z' - allows to switch to the directory matching the most the given pattern"
+    echo "  - alias 'zz' - allows to select interactively one of the most used directory by index"
+    echo '%'
+  fi
 }
 
 # jscpd:ignore-start
@@ -26,14 +38,16 @@ breakOnTestFailure() { :; }
 # jscpd:ignore-end
 
 fortunes() {
-  if command -v fasd &>/dev/null; then
-    echo "Fasd -- z <directory> to easily change directory (see https://github.com/clvv/fasd)"
-    echo "%"
-    echo "Fasd -- v <file> to easily edit recently file with vi (see https://github.com/clvv/fasd)"
-    echo "%"
-  else
-    echo "Fasd -- Think about installing fasd to easily switch directory - run 'install Fasd'"
-    echo "%"
+  if [[ "${USER_SHELL}" = "/usr/bin/bash" ]]; then
+    if command -v fasd &>/dev/null; then
+      echo "$(scriptName) -- z <directory> to easily change directory (see https://github.com/clvv/fasd)"
+      echo "%"
+      echo "$(scriptName) -- v <file> to easily edit recently file with vi (see https://github.com/clvv/fasd)"
+      echo "%"
+    else
+      echo "$(scriptName) -- Think about installing fasd to easily switch directory - run 'installAndConfigure Fasd'"
+      echo "%"
+    fi
   fi
 }
 
@@ -41,20 +55,25 @@ install() {
   Linux::Apt::addRepository ppa:aacebedo/fasd
   SKIP_APT_GET_UPDATE=1 Linux::Apt::installIfNecessary --no-install-recommends \
     fasd
-
-  # shellcheck disable=SC2154
-  Conf::copyStructure \
-    "${embed_dir_conf_dir}" \
-    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
-    ".bash-dev-env"
 }
 
 testInstall() {
   local -i failures=0
   Assert::commandExists fasd || ((++failures))
-  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fasd.sh" || ((++failures))
   return "${failures}"
 }
 
-configure() { :; }
-testConfigure() { :; }
+configure() {
+    # shellcheck disable=SC2154
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-dev-env"
+}
+testConfigure() {
+  local -i failures=0
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/fasd.bash" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/completions.d/fasd.bash" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fasd.bash" || ((++failures))
+  return "${failures}"
+}
