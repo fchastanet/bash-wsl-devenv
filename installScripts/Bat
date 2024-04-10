@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/Bat.sh
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/Bat/Bat.sh
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -150,6 +150,29 @@ Log::displayDebug() {
     echo -e "${__DEBUG_COLOR}DEBUG   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logDebug "$1"
+}
+
+# @description convert base64 encoded back to target dir
+# it is advised to include the md5sum of the binFile in the path of the target dir
+#
+# @arg $1 targetDir:string the directory in which tar archive will be untarred
+# @arg $2 base64:string the base64 encoded tar czf archive
+# @stderr diagnostics information is displayed
+# @require Linux::requireTarCommand
+Compiler::Embed::extractDirFromBase64() {
+  local targetDir="$1"
+  local base64="$2"
+
+  if [[ ! -d "${targetDir}" ]]; then
+    mkdir -p "${targetDir}"
+    (
+      cd "${targetDir}" || exit 1
+      base64 -d <<<"${base64}" | tar -xzf - 2>/dev/null || {
+        Log::displayError "untar failure, invalid base64 string"
+        exit 1
+      }
+    ) || return 1
+  fi
 }
 
 # @description checks if function name provided exists
@@ -913,6 +936,61 @@ Version::checkMinimal() {
 
 }
 
+# @description copy folder structure to target directory
+# merge embedDir with overridden directory if provided and available
+# @arg $1 embedDir:String the path embedded
+# @arg $2 overrideDir:String the path overridden
+# @arg $3 subDir:String the sub-directory to copy from embedDir and/or overrideDir
+# @arg $4 targetDir:String the target directory (default: ${HOME}/${subDir})
+# @env SUDO String allows to use custom sudo prefix command
+# @env HOME used for default value of targetDir arg
+# @env OVERWRITE_CONFIG_FILES indicates if target directory should be overwritten if it exists
+# @env PRETTY_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+Conf::copyStructure() {
+  local embedDir="$1"
+  local overrideDir="$2"
+  local subDir="$3"
+  local targetDir="${4:-${HOME}/${subDir}}"
+
+  local configDir
+  # shellcheck disable=SC2154
+  configDir="$(Conf::getOverriddenDir "${embedDir}" "${overrideDir}")"
+  # shellcheck disable=SC2154
+  OVERWRITE_CONFIG_FILES=${OVERWRITE_CONFIG_FILES:-1} \
+    PRETTY_ROOT_DIR="${embedDir%/*}" \
+    Install::structure "${configDir}/${subDir}" "${targetDir}"
+}
+
+# @description asserts that first argument is file that exists with specified ownership
+# @arg $1 file:String
+# @arg $2 user:String expected owner user name of the file (default: USERNAME or id -un command)
+# @arg $3 group:String expected owner group name of the file (default: USERGROUP or id -gn command)
+# @env USERNAME String if arg $2 is not provided
+# @env USERGROUP String if arg $3 is not provided
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode 1 if missing file
+# @exitcode 2 if incorrect user ownership
+# @exitcode 3 if incorrect group ownership
+# @stderr diagnostics information is displayed
+Assert::fileExists() {
+  local file="$1"
+  local user="${2:-${USERNAME}}"
+  local group="${3:-${USERGROUP}}"
+  Log::displayInfo "Check ${file} exists with user ${user}:${group}"
+  if ! ${SUDO:-} test -f "${file}" &>/dev/null; then
+    Log::displayError "missing file ${file}"
+    return 1
+  fi
+  if [[ "${user}" != "$(${SUDO:-} stat -c '%U' "${file}")" ]]; then
+    Log::displayError "incorrect user ownership on file ${file}"
+    return 2
+  fi
+  if [[ "${group}" != "$(${SUDO:-} stat -c '%G' "${file}")" ]]; then
+    Log::displayError "incorrect group ownership on file ${file}"
+    return 3
+  fi
+}
+
 # @description ensure COMMAND_BIN_DIR env var is set
 # and PATH correctly prepared
 # @noargs
@@ -1013,6 +1091,7 @@ Engine::Config::loadOsRelease() {
 # @set USER_ID String
 # @set USERGROUP String
 # @set USERGROUP_ID String
+# @set USER_SHELL String current user shell
 # @set HOME String
 Engine::Config::loadUserVariables() {
   # deduce user home and group
@@ -1023,6 +1102,7 @@ Engine::Config::loadUserVariables() {
   USER_ID="${split[2]}"
   USERGROUP_ID="${split[3]}"
   HOME="${split[5]}"
+  USER_SHELL="${split[6]}"
   # shellcheck disable=SC2207
   split=($(getent group "${USERNAME}"))
   USERGROUP="${split[0]}"
@@ -1036,6 +1116,7 @@ Engine::Config::loadUserVariables() {
   export USER_ID
   export USERGROUP_ID
   export USERGROUP
+  export USER_SHELL
 }
 
 # @description check validity of .env variables
@@ -1617,6 +1698,141 @@ Version::compare() {
   return 0
 }
 
+# @description generate temp directory where default
+# and overridden directories have been merged
+#   - if overridden dir exists, create a new temp folder
+#     - copy all files from default folder
+#     - overwrite with files from overridden folder
+#     - (Later) delete files listed in .remove$$ file
+#     - return the path of this temp folder
+#   - else just return the default folder path
+# Then it is easier to pick overridden or default files/folders
+#
+# @arg $1 defaultDir:String usually the embed directory
+# @arg $2 overriddenDirPath:String the path to the directory
+#   that could be overridden
+# @exitcode 1 if default dir does not exist
+# @exitcode 2 if error during copy
+Conf::getOverriddenDir() {
+  local defaultDir="$1"
+  local overriddenDirPath="$2"
+
+  if [[ ! -d "${defaultDir}" ]]; then
+    Log::displayError "Directory ${defaultDir} does not exists"
+    return 1
+  fi
+  if [[ ! -d "${overriddenDirPath}" || -z "$(ls -A "${overriddenDirPath}")" ]]; then
+    Log::displayInfo "Conf::getOverriddenDir - directory ${overriddenDirPath} does not exist, keep default one ${defaultDir}"
+    echo "${defaultDir}"
+    return 0
+  fi
+  local tempDir
+  tempDir="$(mktemp -d)"
+  (
+    shopt -s dotglob
+    cp -R "${defaultDir}/." "${tempDir}"
+    cp -R "${overriddenDirPath}/." "${tempDir}"
+  ) || return 2
+  echo "${tempDir}"
+}
+
+# @description install dir to given directory but backup it before
+# @arg $1 fromDir:String the source base directory
+# @arg $2 toDir:String the target base directory
+# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing files
+# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target directory is in windows file system, overwrite it
+# @env USERNAME (default: ${USERNAME} if SUDO empty else root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: ${USERGROUP} if SUDO empty else root) the group name that will be used to set target files ownership
+# @env BASE_MNT_C String windows C drive base PATH
+# @env PRETTY_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_BEFORE_INSTALL Boolean (default:1) backup directory before installing the dir
+# @exitcode 1 if source directory is not readable
+# @exitcode 2 if error during structure replication
+# @exitcode 2 if error during file copy
+# @exitcode 0 if copy successful
+# @exitcode 0 with warning message if CHANGE_WINDOWS_FILES=0 and target directory in C drive
+# @stderr diagnostics information is displayed, skipped information if OVERWRITE_CONFIG_FILES or CHANGE_WINDOWS_FILES are set to 1
+Install::structure() {
+  local fromDir="$1"
+  local toDir="$2"
+  local userName="root"
+  local userGroup="root"
+  if [[ -z "${SUDO:-}" ]]; then
+    userName="${USERNAME:-root}"
+    userGroup="${USERGROUP:-root}"
+  fi
+
+  if [[ ! -d "${fromDir}" || ! -r "${fromDir}" ]]; then
+    Log::displayError "Install::structure - cannot read source directory '${fromDir}'"
+    return 1
+  fi
+
+  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
+  if [[ "${CHANGE_WINDOWS_FILES:-0}" = "0" && "${toDir}" =~ ^${BASE_MNT_C} ]]; then
+    Log::displayWarning "Install::structure - Directory '${fromDir}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
+    return 0
+  fi
+
+  # first replicate directory structure
+  # shellcheck disable=SC2317
+  createStructure() {
+    local dir="$1"
+    if ! ${SUDO} test -d "${dir}"; then
+      if ! ${SUDO:-} mkdir -p "${dir}"; then
+        Log::displayError "Install::structure - impossible to create directory '${dir}'"
+        exit 1
+      fi
+    fi
+
+    if ! ${SUDO:-} chown "${userName}":"${userGroup}" "${dir}"; then
+      Log::displayError "Install::structure - impossible to update directory owner '${dir}' with ${userName}:${userGroup}"
+      exit 1
+    fi
+  }
+  local dir
+
+  (
+    local dir
+    shopt -s lastpipe
+    # -links 2 allows to exclude empty directories
+    # %P get file without initial directory
+    ${SUDO:-} find "${fromDir}" -depth -type d -links 2 -printf "%P\0" |
+      while read -rd '' dir; do
+        if ! createStructure "${toDir}/${dir}"; then
+          # error already reported by createStructure
+          exit 1
+        fi
+      done || {
+      if [[ "${PIPESTATUS[0]}" != "0" ]]; then
+        Log::displayError "Install::structure - replicated directory structure - find directories on '${fromDir}' resulted in an error"
+        exit 2
+      fi
+    }
+  ) || return 2
+
+  # for each file, copy it
+  (
+    local file
+    shopt -s lastpipe
+    ${SUDO:-} find "${fromDir}" -depth -type f -printf "%P\0" |
+      while read -rd '' file; do
+        if ! Install::file "${fromDir}/${file}" "${toDir}/${file}"; then
+          # error already reported by Install::file
+          exit 1
+        fi
+      done || {
+      if [[ "${PIPESTATUS[0]}" != "0" ]]; then
+        Log::displayError "Install::structure - replicated file structure - find files on '${fromDir}' resulted in an error"
+        exit 2
+      fi
+    }
+  ) || return 3
+
+  # shellcheck disable=SC2295
+  Log::displaySuccess "Installed directory '${toDir#${PRETTY_ROOT_DIR}/}' from '${fromDir#${PRETTY_ROOT_DIR}/}'"
+}
+
 # @description prepend directories to the PATH environment variable
 # @arg $@ args:String[] list of directories to prepend
 # @set PATH update PATH with the directories prepended
@@ -1627,6 +1843,13 @@ Env::pathPrepend() {
       PATH="$(realpath "${arg}"):${PATH}"
     fi
   done
+}
+
+# @description ensure command tar is available
+# @exitcode 1 if tar command not available
+# @stderr diagnostics information is displayed
+Linux::requireTarCommand() {
+  Assert::commandExists tar
 }
 
 # @description load color theme
@@ -1928,6 +2151,97 @@ Retry::parameterized() {
   return 0
 }
 
+# @description installs file to given directory
+#
+# callbacks parameters `${fromFile} ${targetFile} $@`
+# @arg $1 fromFile - original file to copy
+# @arg $2 targetFile - target file
+# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
+# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
+# @arg $5 successCallback:Function the callback to call when file is installed successfully, by default setUserRights callback is called
+# @arg $6 failureCallback:Function the callback to call when file installation has failed, by default unableToCopyCallback callback is called
+# @arg $@ callbacksParams:String[] additional parameters passed to callbacks
+# @exitcode 1 if fromFile is not readable
+# @exitcode 2 if backup file failure
+# @exitcode 3 if copy failure
+# @exitcode 0 on success or if OVERWRITE_CONFIG_FILES=0
+# @exitcode 0 on success or if CHANGE_WINDOWS_FILES=0 and target file is a windows file
+# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
+# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target file is in windows file system, overwrite it
+# @env USERNAME (default: root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @env BASE_MNT_C String windows C drive base PATH
+# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_BEFORE_INSTALL Boolean (default: 1) backup file before installing the file
+Install::file() {
+  local fromFile="$1"
+  local targetFile="$2"
+  local userName="${3:-${USERNAME:-root}}"
+  local userGroup="${4:-${USERGROUP:-root}}"
+  local successCallback=${5:-Install::setUserRightsCallback}
+  local failureCallback=${6:-Install::unableToCopyCallback}
+  shift 6 || true
+
+  if [[ ! -f "${fromFile}" || ! -r "${fromFile}" ]]; then
+    Log::displayError "cannot read source file '${fromFile}'"
+    return 1
+  fi
+
+  # skip if OVERWRITE_CONFIG_FILES is 0 and target file exists
+  if [[ "${OVERWRITE_CONFIG_FILES}" = "0" && -f "${targetFile}" ]]; then
+    Log::displayWarning "File '${targetFile}' exists - Skip install (because OVERWRITE_CONFIG_FILES=0 in .env file)"
+    return 0
+  fi
+
+  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
+  if [[ "${CHANGE_WINDOWS_FILES}" = "0" && "${targetFile}" =~ ^${BASE_MNT_C} ]]; then
+    Log::displayWarning "File '${targetFile}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
+    return 0
+  fi
+
+  local targetDir="${targetFile%/*}"
+  if ! ${SUDO} test -d "${targetDir}"; then
+    ${SUDO:-} mkdir -p "${targetDir}"
+    ${SUDO:-} chown "${userName}":"${userGroup}" "${targetDir}"
+  fi
+  local fromDir="${fromFile%/*}"
+  local fromFilename="${fromFile##*/}"
+
+  local prettyFromDir
+  # shellcheck disable=SC2295
+  prettyFromDir="${fromDir#${PRETTY_ROOT_DIR:-${FRAMEWORK_ROOT_DIR}}/}"
+  if diff -q "${fromFile}" "${targetFile}" &>/dev/null; then
+    Log::displayStatus "No changes detected. No need to update '${targetFile}' from '${prettyFromDir}/${fromFilename}'"
+    return 0
+  fi
+
+  if [[ "${BACKUP_BEFORE_INSTALL:-1}" = "1" ]]; then
+    Backup::file "${targetFile}" || return 2
+  fi
+
+  if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
+    # shellcheck disable=SC2295
+    Log::displaySuccess "Installed file '${targetFile}' from '${prettyFromDir}/${fromFilename}'"
+    ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${prettyFromDir}" "${fromFilename}"
+  else
+    # shellcheck disable=SC2295
+    Log::displayError "unable to copy file '${targetFile}' from '${fromDir#${FRAMEWORK_ROOT_DIR}/}/${fromFilename}'"
+    ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${prettyFromDir}" "${fromFilename}"
+    return 3
+  fi
+}
+
+# @description Display message using success color (bg green/fg white)
+# @arg $1 message:String the message to display
+Log::displaySuccess() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    Log::computeDuration
+    echo -e "${__SUCCESS_COLOR}SUCCESS - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logSuccess "$1"
+}
+
 # @description check if argument respects this framework variable naming convention
 # - if variable begins with an uppercase or underscore, following letters have to be uppercase or underscore
 # - variable name can includes ':' or '_' or digits but not as first letter
@@ -2089,6 +2403,88 @@ Log::logSkipped() {
   fi
 }
 
+# @description install callback
+#   set file with root ownership and execution bit
+# @arg $1 fromFile:String
+# @arg $2 targetFile:String
+# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
+# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
+# @env USERNAME (default: root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode 1 on any failure
+# @see Install::file
+Install::setUserRightsCallback() {
+  # shellcheck disable=SC2034 # $1 not used
+  local fromFile="$1"
+  local targetFile="$2"
+  local userName="${3:-${USERNAME:-root}}"
+  local userGroup="${4:-${USERGROUP:-root}}"
+
+  ${SUDO:-} chown "${userName}":"${userGroup}" "${targetFile}"
+}
+
+# @description install callback
+#   default callback used called when file copy has failed
+# @arg $1 fromFile:String
+# @arg $2 targetFile:String
+# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @exitcode 1 always fail
+# @stderr diagnostics information is displayed
+# @see Install::file
+Install::unableToCopyCallback() {
+  local fromDir="$1"
+  local fileName="$2"
+  local targetFile="$3"
+  Log::fatal "unable to copy file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fileName}' to '${targetFile}'"
+}
+
+# @description Display message using info color (blue) but warning level
+# @arg $1 message:String the message to display
+Log::displayStatus() {
+  local type="${2:-STATUS}"
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
+    Log::computeDuration
+    echo -e "${__INFO_COLOR}${type}  - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logStatus "$1" "${type}"
+}
+
+# @description Backup given file in the same directory or in BACKUP_DIR directory
+# backup file name is composed by following fields separated by -:
+#   - if BACKUP_DIR is not empty then escaped dir name separated by @
+#   - filename(without path)
+#   - date with format %Y%m%d_%H:%M:%S (Eg: 20240326_14:45:08)
+# @arg $1 file:String the file to backup
+# @stderr messages about backup file location
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_DIR if not set backup the file in the same directory as original file
+# @exitcode 1 on copy failure
+Backup::file() {
+  local file="$1"
+  if [[ -f "${file}" ]]; then
+    local backupFile fileDirname escapedDirname
+    fileDirname="${file%/*}"
+    escapedDirname=${fileDirname/\//}      # remove first slash
+    escapedDirname=${escapedDirname//\//@} # replace all slashes by @
+    if [[ -z "${BACKUP_DIR:-}" ]]; then
+      backupFile="${fileDirname}/${file##*/}-$(date +"%Y%m%d_%H:%M:%S")"
+    else
+      backupFile="${BACKUP_DIR}/${escapedDirname}@${file##*/}-$(date +"%Y%m%d_%H:%M:%S")"
+    fi
+    Log::displayInfo "Backup file '${file}' to ${backupFile}"
+    ${SUDO:-} cp "${file}" "${backupFile}"
+  fi
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logSuccess() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SUCCESS}" "$1"
+  fi
+}
+
 # @description ensure linux distribution is ubuntu
 # @exitcode 1 if linux distribution is not ubuntu
 Linux::requireUbuntu() {
@@ -2127,6 +2523,14 @@ Linux::requireJqCommand() {
 # @require Linux::Wsl::requireWsl
 Linux::Wsl::originalWslpath() {
   wslpath "$@" | sed -z '$ s/[\r\n]$//'
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logStatus() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_WARNING)); then
+    Log::logMessage "${2:-STATUS}" "$1"
+  fi
 }
 
 # @description retrieve linux distributor id
@@ -2169,9 +2573,14 @@ File::garbageCollect() {
 
 # FUNCTIONS
 
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2WbYvaQBDH8zqfYnoe9Q4uMat5gIKl9rQolLPQHH29MdsksGYlmyjetd+9k/Tsg1BtId7Rdn5v1mR2Z0f+M39i94yT4yCB59UrCzznx3WHwVzf8Ry/7wxcfB+4TmCAd/rSDKPSJS8AjI2WB/cdi/+l2D074jq1YrG2RL4+STf8tv4D5jPPNxyG4QHp/xjs689lxrXQdtxiJ/yJ/n2fof4Dn5H+j8Kv9Y94aeu0jTuO6e+57k7/gPUD1N8N+p4BThuXH+M/17/zrBdlea/uAbPTLmYHxnO4mYcwGc/CKwins/fwZvZ2AtejG3g9gdt341E4GcOHWTid34b11tn1pPUysI6RlGqjoVQQKziHVMgVLFagit1DkpWwUMtlVtpmMwKA7T/FyLCLP8CyVpJnOa6S50nFEzGsj3XN9OIS7k2As/NXZxhtcvVfPmfwaZfA/Gw+tcaHODz/d60YwJH5Z+gA3/x/UH//MY/V3380/6fnYf7v/unxV7ncwkecdvybV7BVFSx4DlxqBZUWkEgVcQkPrV+7hFqLoshiAVYKPI93ky3yMiuE3GJKDMSZ5pEUMaBbaLUUoFZlpnINvGgObrIyVVUJkcjyBPiirLjEOppMFyJ5AVLjtkuz89VwrASvwRfDLp797iH7noPPutxKMWwcqWv+dLgpExPsG9GRJE/dhARBEARBEARBEARBEARBEARBEERrfAFGUs65ACgAAA=="
+
+declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
+
 facade_main_Batsh() {
 
 # REQUIRES
+Linux::requireTarCommand
 Env::requireLoad
 UI::requireTheme
 Log::requireLoad
@@ -2212,6 +2621,7 @@ fi
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/Bat/conf" as conf_dir
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -2910,7 +3320,7 @@ installScriptCommand() {
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
     echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/Bat.sh'
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/Bat/Bat.sh'
     echo
     echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
     echo 'MIT License'
@@ -2987,9 +3397,20 @@ scriptName() {
 
 fortunes() {
   if command -v bat &>/dev/null; then
-    echo "Bat - Use bat command to pre-visualize one or multiple files"
+    echo "$(scripName) - Use bat command to pre-visualize one or multiple files"
+    echo "%"
+    echo "$(scripName) - alias h allows to display command help using bat, try 'h cp'"
+    echo "%"
+
+    if [[ "${USER_SHELL}" = "/usr/bin/zsh" ]]; then
+      echo "$(scripName) - command with --help will automatically be displayed with bat"
+      echo "%"
+    fi
+  else
+    echo "Run 'installAndConfigure Bat' -- to initialize Bat (file pre-visualization tool)"
     echo "%"
   fi
+
 }
 
 install() {
@@ -3000,6 +3421,19 @@ install() {
 
 testInstall() {
   Version::checkMinimal "bat" --version "0.22.1" || return 1
+}
+
+configure() {
+  # shellcheck disable=SC2154
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-dev-env"
+}
+
+testConfigure() {
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/bat.sh"
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/bat.zsh"
 }
 
 local action=$1

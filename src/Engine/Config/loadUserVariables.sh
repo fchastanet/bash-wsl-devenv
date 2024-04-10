@@ -5,6 +5,7 @@
 # @set USER_ID String
 # @set USERGROUP String
 # @set USERGROUP_ID String
+# @set USER_SHELL String current user shell
 # @set HOME String
 Engine::Config::loadUserVariables() {
   # deduce user home and group
@@ -15,6 +16,7 @@ Engine::Config::loadUserVariables() {
   USER_ID="${split[2]}"
   USERGROUP_ID="${split[3]}"
   HOME="${split[5]}"
+  USER_SHELL="${split[6]}"
   # shellcheck disable=SC2207
   split=($(getent group "${USERNAME}"))
   USERGROUP="${split[0]}"
@@ -28,4 +30,5 @@ Engine::Config::loadUserVariables() {
   export USER_ID
   export USERGROUP_ID
   export USERGROUP
+  export USER_SHELL
 }

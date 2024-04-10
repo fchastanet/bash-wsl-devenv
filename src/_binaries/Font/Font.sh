@@ -28,7 +28,7 @@ breakOnTestFailure() { :; }
 fortunes() {
   if Assert::wsl; then
     if ! ls "${WINDOWS_PROFILE_DIR}/AppData/Local/Microsoft/Windows/Fonts/mesloLGS_NF"*.ttf &>/dev/null; then
-      echo "Font 'Meslo LG S' does not seem to be installed, use 'install Font' to get better terminal results"
+      echo "Font 'Meslo LG S' does not seem to be installed, use 'installAndConfigure Font' to get better terminal results"
       echo "%"
     fi
   fi
@@ -40,19 +40,9 @@ install() {
     return 0
   fi
 
-  # shellcheck disable=SC2317
-  changeBranchOnSuccess() {
-    (
-      cd /opt/IlanCosman-tide-fonts || return 1
-      sudo git checkout assets
-    )
-  }
-
-  SUDO=sudo Git::cloneOrPullIfNoChanges \
+  SUDO=sudo GIT_CLONE_OPTIONS="--depth=1 --branch assets" Git::cloneOrPullIfNoChanges \
     "/opt/IlanCosman-tide-fonts" \
-    "https://github.com/IlanCosman/tide.git" \
-    changeBranchOnSuccess \
-    changeBranchOnSuccess
+    "https://github.com/IlanCosman/tide.git"
 
   local fontDir
   Linux::Wsl::cachedWslpath2 fontDir -w "${TMPDIR:-/tmp}/Font.ps1"

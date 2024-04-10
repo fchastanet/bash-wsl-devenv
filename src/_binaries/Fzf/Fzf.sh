@@ -12,7 +12,12 @@ scriptName() {
 }
 
 helpDescription() {
-  echo "Fzf"
+  echo "fzf is a general-purpose command-line fuzzy finder."
+  echo "It's an interactive Unix filter for command-line"
+  echo "that can be used with any list; files, command"
+  echo "history, processes, hostnames, bookmarks, git"
+  echo "commits, etc."
+  echo "More info on https://github.com/junegunn/fzf"
 }
 
 dependencies() {
@@ -54,20 +59,26 @@ install() {
   SUDO=sudo INSTALL_CALLBACK=fzfInstall Github::upgradeRelease \
     "/usr/local/bin/fzf" \
     "https://github.com/junegunn/fzf/releases/download/@latestVersion@/fzf-@latestVersion@-linux_amd64.tar.gz"
+}
 
-  # shellcheck disable=SC2154
+testInstall() {
+  local -i failures=0
+  Version::checkMinimal "fzf" --version "0.44.1" || ((++failures))
+  return "${failures}"
+}
+
+configure() {
+   # shellcheck disable=SC2154
   Conf::copyStructure \
     "${embed_dir_conf_dir}" \
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
     ".bash-dev-env"
 }
 
-testInstall() {
+testConfigure() {
   local -i failures=0
-  Version::checkMinimal "fzf" --version "0.44.1" || ((++failures))
-  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fzf.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fzf.bash" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fzf.fish" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fzf.zsh" || ((++failures))
   return "${failures}"
 }
-
-configure() { :; }
-testConfigure() { :; }
