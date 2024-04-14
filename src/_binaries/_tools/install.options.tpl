@@ -5,7 +5,7 @@ declare commandFunctionName="installCommand"
 declare help="Install or update softwares"
 declare longDescription="""
 Install or update softwares (kube, aws, composer, node, ...),
-configure Home environnement (git config, kube, motd, ssh, dns, ...) and check configuration
+configure Home environment (git config, kube, motd, ssh, dns, ...) and check configuration
 
 List of softwares available:
 @@@SOFTWARES_LIST_HELP@@@

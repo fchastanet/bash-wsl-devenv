@@ -62,7 +62,6 @@ This function is responsible for:
   - USERID => computed from USERNAME provided by .env file
   - USERGROUP_ID => computed from USERGROUP provided by .env file
   - BASH_DEV_ENV_ROOT_DIR => `<full path to this project directory>`
-  - HOSTIP
   - IPCONFIG => heavy computation of the right command to use for ipconfig
     depending environment
 

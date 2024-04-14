@@ -27,11 +27,11 @@ Engine::Config::loadWslVariables() {
   export BASE_MNT_C
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_DIR SystemRoot
-  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C}/Windows}"
+  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C:-/mnt/c}/Windows}"
   export WINDOWS_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_PROFILE_DIR USERPROFILE
-  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C}/Users/${USERNAME}}}"
+  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C:-/mnt/c}/Users/${USERNAME}}"
   export WINDOWS_PROFILE_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 LOCAL_APP_DATA LOCALAPPDATA
@@ -41,7 +41,7 @@ Engine::Config::loadWslVariables() {
   Linux::Wsl::cachedWslvar2 WINDOW_PATH PATH
   WINDOW_PATH="${WINDOW_PATH//;/:}"
   WINDOW_PATH="${WINDOW_PATH//\\//}"
-  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C}}"
+  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C:-/mnt/c}}"
 
   deduceBin() {
     local var="$1"

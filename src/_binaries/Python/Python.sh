@@ -79,7 +79,7 @@ testInstall() {
   # since virtualenv is not loaded python 3.9 is not yet available
   Version::checkMinimal "python" "--version" "3.8.10" || ((++failures))
   Version::checkMinimal "virtualenv" "--version" "20.25.1" || ((++failures))
-  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/python_path.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/python.sh" || ((++failures))
   return "${failures}"
 }
 

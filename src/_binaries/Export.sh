@@ -46,6 +46,8 @@ configure() {
       rm -f "${HOME}/.saml2aws" || true
       rm -f "${HOME}/.aws/credentials" || true
       rm -f "${HOME}/.aws/config" || true
+      rm -f "${HOME}/.zcompdump" || true
+      rm -f "${HOME}/.motd_shown" || true
 
       deleteFolderExcept() {
         local folder="$1"

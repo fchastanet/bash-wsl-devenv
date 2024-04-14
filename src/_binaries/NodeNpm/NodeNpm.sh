@@ -33,8 +33,14 @@ install() {
     Retry::default curl --fail -L https://git.io/n-install |
       N_PREFIX="${HOME}/n" bash -s -- -y -n latest
   else
-    # update node
-    N_PREFIX="${HOME}/n" "${HOME}/n/bin/n" latest
+    (
+      # shellcheck disable=SC2030
+      PATH="${PATH}":"${HOME}/n/bin"
+      # update n
+      N_PREFIX="${HOME}/n" n-update -y
+      # update node
+      N_PREFIX="${HOME}/n" "${HOME}/n/bin/n" latest
+    ) || return 1
   fi
 
   # shellcheck disable=SC2154
@@ -48,7 +54,7 @@ testInstall() {
   local -i failures=0
   Assert::fileExists "${HOME}/.bash-dev-env/profile.d/n_path.sh" || ((++failures))
   # shellcheck source=src/_binaries/NodeNpm/conf/.bash-dev-env/profile.d/n_path.sh
-  HOME="${HOME}" source "${HOME}/.bash-dev-env/profile.d/n_path.sh" || ((++failures))
+  source "${HOME}/.bash-dev-env/profile.d/n_path.sh" || ((++failures))
   Version::checkMinimal "node" "-v" "20.6.1" || ((++failures))
   Version::checkMinimal "npm" "-v" "10.3.0" || ((++failures))
   return "${failures}"

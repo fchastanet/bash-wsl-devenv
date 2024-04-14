@@ -246,6 +246,10 @@ UPGRADE_UBUNTU_VERSION=0
 # possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
 PREFERRED_SHELL="ShellBash"
 
+# Zsh theme to use
+# possible choices: powerlevel10k/powerlevel10k, sindresorhus/pure, starship/starship
+ZSH_PREFERRED_THEME="powerlevel10k/powerlevel10k"
+
 # Display Fortune tooltip at bash/zsh session open
 SHOW_FORTUNES=1
 
@@ -1228,6 +1232,7 @@ Engine::Config::checkEnv() {
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh
+  checkValidValues ZSH_PREFERRED_THEME powerlevel10k/powerlevel10k sindresorhus/pure starship/starship
 
   checkValidValues SHOW_FORTUNES 0 1
   checkValidValues SHOW_MOTD 0 1
@@ -1295,11 +1300,11 @@ Engine::Config::loadWslVariables() {
   export BASE_MNT_C
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_DIR SystemRoot
-  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C}/Windows}"
+  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C:-/mnt/c}/Windows}"
   export WINDOWS_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_PROFILE_DIR USERPROFILE
-  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C}/Users/${USERNAME}}}"
+  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C:-/mnt/c}/Users/${USERNAME}}"
   export WINDOWS_PROFILE_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 LOCAL_APP_DATA LOCALAPPDATA
@@ -1309,7 +1314,7 @@ Engine::Config::loadWslVariables() {
   Linux::Wsl::cachedWslvar2 WINDOW_PATH PATH
   WINDOW_PATH="${WINDOW_PATH//;/:}"
   WINDOW_PATH="${WINDOW_PATH//\\//}"
-  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C}}"
+  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C:-/mnt/c}}"
 
   deduceBin() {
     local var="$1"
@@ -1584,7 +1589,12 @@ Retry::parameterized() {
 # @stdout the filtered content
 # shellcheck disable=SC2120
 Version::parse() {
-  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
+  # match anything, print(p), exit on first match(Q)
+  sed -En \
+    -e 's/\x1b\[[0-9;]*[mGKHF]//g' \
+    -e 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/' \
+    -e '//{p;Q}' \
+    "$@"
 }
 
 # @description check if command specified exists or return 1
@@ -2412,7 +2422,7 @@ File::garbageCollect() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+3V70vCQBgH8L3eX/GEkG+63W7bbVAYlC4chUYuehnTnTiaN9mp9ed39guRzCJdhM/nzcE89Mb3ua8WNXbO1gLOFysLuL28vjOY59uOw/3AdvTzwGOuAXz3RzOMmZomJYDxqPIv9236/J+yqNVP1IikYk6EnO9kGr6bP/OZzbhr2IzpAcD8q7Caf5JniRLKSrc4CT/KP2A6f9e3Pcy/CuvzT4vBgygtNfr1b2zKn7tv/e/5TuDq/mfcc/T9t7fwfhvtef61A9rPJF3MgFnbLrMGrS50ujGErSg+grgd9eAiugqhedaB8xBur1tncdiCuyhud2/jxdaoGW79GGY2hEExHicyBTKH17km+smkUAIOT6mefSpneX4C05GQJsDLJVjZSNLiUZJCCqJEOc8GolFf+aZyDGQIRNXNYWb+da7ftXr/J2UxzHLxJ/3vMP3Hz1/738H+r8T6/Kvrfy/gS/0fvPS/3o79X4F97f9Pe188TYpyqk/dvAxv7tvdXtyoz2T2dEwpLWfy40ro5V+VPEIIIYQQQgghhBBCCCGE9sozH9OFVwAoAAA="
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2XUW/aMBDH85xPcSvSeFlInMSJxMSkFrIRtWsQBE3aSxWIEVaDEyWBVv30dShsU7YCU0M2hH8vlnyWMfrf/e/SUqWjo3FsjIsV2Vj7dd0iIdPSdB1btqbzfdtEhgT4+E+TpGWWBymA9JBFO8/ti58oLbU1CbK5EpKVQtjqKNlwqP6WbiNb5/ojHhb610JZ/yCiQUayVlhhJhyqP7IQDyCuv2FpptC/Dl7XP4yn9yRtZfM3/8Y+/bGx8X+TO4BR1D82dSSBVsH/28uZ6994p04oU4sckBvVIjeg58Gt54PTc/0P4PfdEXx2bxzoXt7ClQPjQe/Sd3rwzfX73tgvjrpdp/JnyHQG03ixCFgIygpe8lrhO0mcEXj/SeW5r7JlFH2EfE6YDLAugtJBJYwfmBIzomQkXdEp6TRLN6ULUGagZE15RuV/reuhlOufspykwTSnK1JZD/ir/m8YvP5NjIT/18Ju/Tc94OltTWCf/sg01vrbGsYmNrn+Fi7mf+H/x2fj/1xhWX6ijObArQ2C7KJwtYjkNGYXm0DGaJKQHLyv3wft9ktq7AhtffFkrPAsKdd/ksYzGlXn/QWH+r/NO4Cxnv8My0DC/+vgdf3rm/8tHZf0x6apC/+vg3Od//8495PHJE5z/urutTO863sjv9NcMvrYVlU1XbIfJcGXJj/eAMKCSUS2V06WNArhnua/XXU1dm96167fQT9D2727wdD7MnRGo04SBZSd0seDQCAQCAQCgUAgEAgEAoHgv+cZSuda4QAoAAA="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 

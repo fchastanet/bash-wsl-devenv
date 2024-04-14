@@ -5,5 +5,7 @@ if [[ -z "${CONFIG_LIST+xxx}" ]]; then
 fi
 
 CONFIG_LIST=(
-  Fortune
+  Fzf
+  ShellBash
+  ShellZsh
 )

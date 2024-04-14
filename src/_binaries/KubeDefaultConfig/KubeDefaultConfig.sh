@@ -19,6 +19,7 @@ dependencies() {
   echo "ShellBash"
   echo "Saml2Aws"
   echo "Docker"
+  echo "Go"
 }
 
 # jscpd:ignore-start
@@ -27,8 +28,22 @@ listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
 fortunes() {
-  echo "$(scriptName) - these kubernetes tools are available helm, kubectl, kind, minikube, kubeps1, kubectx, kubens"
+  echo "$(scriptName) - these kubernetes tools are available helm, kubectl, kind, minikube, kubeps1, kubectx, kubens, lazydocker"
   echo "%"
+  if command -v lazydocker &>/dev/null; then
+    echo "$(scriptName) - you can use lazydocker to navigate through your containers"
+    echo "A simple terminal UI for both docker and docker-compose, written in Go"
+    echo "%"
+  fi
+  if command -v k9s &>/dev/null; then
+    echo "$(scriptName) - you can use k9s to navigate through your pods"
+    echo "K9s provides a terminal UI to interact with your Kubernetes clusters."
+    echo "The aim of this project is to make it easier to navigate, observe"
+    echo "and manage your applications in the wild. K9s continually watches"
+    echo "Kubernetes for changes and offers subsequent commands to interact"
+    echo "with your observed resources."
+    echo "%"
+  fi
 }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
@@ -94,6 +109,21 @@ installKubectx() {
   sudo ln -sf /opt/kubectx/kubens /usr/local/bin/kubens
 }
 
+installLazydocker() {
+  (
+    # shellcheck source=/dev/null
+    source "${HOME}/.bash-dev-env/profile.d/golang.sh" || exit 1
+    go install github.com/jesseduffield/lazydocker@latest || exit 1
+  ) || return 1
+}
+
+installK9s() {
+  SUDO=sudo INSTALL_CALLBACK=Linux::installDeb Github::upgradeRelease \
+    /usr/bin/k9s \
+    "https://github.com/derailed/k9s/releases/download/v@latestVersion@/k9s_linux_amd64.deb" \
+    version
+}
+
 install() {
   installHelm || {
     Log::displayError "Error during helm install"
@@ -119,6 +149,14 @@ install() {
     Log::displayError "Error during kubectx install"
     return 1
   }
+  installLazydocker || {
+    Log::displayError "Error during lazydocker install"
+    return 1
+  }
+  installK9s || {
+    Log::displayError "Error during k9s install"
+    return 1
+  }
 }
 
 testInstall() {
@@ -127,6 +165,12 @@ testInstall() {
   Version::checkMinimal "kubectl" "version" "1.29.1" || ((++failures))
   Version::checkMinimal "kind" "--version" "0.16.0" || ((++failures))
   Version::checkMinimal "minikube" "version" "1.27.1" || ((++failures))
+  Version::checkMinimal "k9s" "version" "0.28.2" || ((++failures))
+  (
+    # shellcheck source=/dev/null
+    source "${HOME}/.bash-dev-env/profile.d/golang.sh" || exit 1
+    Assert::commandExists "lazydocker" || exit 1
+  ) || ((++failures))
   Assert::commandExists kubectx || ((++failures))
   Assert::commandExists kubens || ((++failures))
   Assert::fileExists /opt/kubeps1/kube-ps1.sh root root || ((++failures))
@@ -182,7 +226,9 @@ testConfigure() {
   Assert::dirExists "${HOME}/.bash_completion.d" || ((++failures))
   Assert::fileExists "${HOME}/.bash_completion.d/kubens" || ((++failures))
   Assert::fileExists "${HOME}/.bash_completion.d/kubectx" || ((++failures))
-  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/kube-ps1.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/completions.d/kubectl.zsh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/kube-ps1.bash" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/kube.zsh" || ((++failures))
   if isKubeConfigGenerationAvailable "test"; then
     Assert::fileExists "${HOME}/.kube/config" || ((++failures))
   fi

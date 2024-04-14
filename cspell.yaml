@@ -1,0 +1,147 @@
+---
+$schema: https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json
+version: '0.2'
+language: en
+noConfigSearch: true
+caseSensitive: true
+useGitignore: true
+enableGlobDot: true
+ignorePaths:
+  - .vscode
+  - .git/**
+  - .cspell/**
+  - report
+  - .jscpd.json
+  - cspell.config.yml
+  - '*-megalinter_file_names_cspell.txt'
+  - .shellcheckrc
+  - commit-msg.md
+  - bin/**
+  - installScripts/**
+  - distro
+  - install
+dictionaryDefinitions:
+  - name: myBash
+    path: '.cspell/bash.txt'
+    addWords: true
+  - name: myZsh
+    path: '.cspell/myZsh.txt'
+    addWords: true
+  - name: myAwk
+    path: '.cspell/myAwk.txt'
+    addWords: true
+  - name: p10kZsh
+    path: '.cspell/p10kZsh.txt'
+    addWords: true
+  - name: config
+    path: '.cspell/config.txt'
+    addWords: true
+  - name: mySoftwares
+    path: '.cspell/softwares.txt'
+    addWords: true
+  - name: dirColors
+    path: '.cspell/dirColors.txt'
+    addWords: true
+  - name: readme
+    path: '.cspell/readme.txt'
+    addWords: true
+  - name: lintersConfig
+    path: '.cspell/lintersConfig.txt'
+    addWords: true
+
+# https://github.com/streetsidesoftware/cspell/blob/main/packages/cspell/README.md#languagesettings
+languageSettings:
+  - languageId: shellscript
+    locale: '*'
+    dictionaries:
+      - bash
+      - myBash
+      - mySoftwares
+      - software
+  - languageId: markdown
+    locale: '*'
+    # List of dictionaries to enable by name in `dictionaryDefinitions`
+    dictionaries:
+      - readme
+      - mySoftwares
+      - softwareTerms
+
+overrides:
+  - filename: '*.yml'
+    dictionaries:
+      - lintersConfig
+  - filename: '*.conf'
+    dictionaries:
+      - config
+  - filename: '**/*.{bats,tpl}'
+    dictionaries:
+      - bash
+      - myBash
+      - mySoftwares
+      - software
+  - filename: 'src/_binaries/MotdDefaultConfig/conf/etc/update-motd.d/**'
+    dictionaries:
+      - bash
+      - myBash
+      - mySoftwares
+      - software
+  - filename:
+      - .github/**
+      - .*
+      - '*.{yaml,yml}'
+      - src/_binaries/ShellBash/conf/home/.Xresources
+      - src/_binaries/GitDefaultConfig/conf/home/.config/tig/config
+      - src/_binaries/GitDefaultConfig/conf/home/.gitconfig
+      - src/_binaries/GitDefaultConfig/conf/home/.tigrc
+    dictionaries:
+      - bash
+      - myBash
+      - config
+      - mySoftwares
+      - software
+  - filename: '**/*.awk'
+    dictionaries:
+      - myAwk
+      - mySoftwares
+      - software
+  - filename: '**/.p10k.zsh'
+    dictionaries:
+      - bash
+      - p10kZsh
+      - softwareTerms
+  - filename: '**/(*.zsh|.zshrc|.zprofile)'
+    dictionaries:
+      - bash
+      - myZsh
+      - mySoftwares
+      - softwareTerms
+  - filename: '**/*.ps1'
+    dictionaries:
+      - powershell
+      - mySoftwares
+      - softwareTerms
+  - filename: src/_binaries/ShellBash/conf/home/.dir_colors
+    dictionaries:
+      - dirColors
+  - filename: src/_binaries/ShellBash/conf/.bash-dev-env/interactive.d/dir_colors.bash
+    dictionaries:
+      - dirColors
+  - filename: pages/index.html
+    dictionaries:
+      - mySoftwares
+  - filename: LICENSE
+    dictionaries:
+      - readme
+
+patterns:
+  - name: urls
+    pattern: "/https?://([^ \t\"'()]+)/g"
+  - name: packages
+    pattern: '/[-A-Za-z0-9.]+/[-A-Za-z0-9.]+/g'
+  - name: markdownToc
+    pattern: "\\]\\(#[^)]+\\)$"
+
+ignoreRegExpList:
+  - urls
+  - packages
+  - markdownToc

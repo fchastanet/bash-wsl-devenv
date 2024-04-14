@@ -35,12 +35,12 @@ breakOnTestFailure() { :; }
 # jscpd:ignore-end
 
 fortunes() {
-  if command -v fzf &>/dev/null; then
-    echo "Fzf -- fzf - Use CTRL-T - Paste the selected file path(s) into the command line"
+  if [[ -f "${HOME}/.fzf/shell/key-bindings.zsh" ]]; then
+    echo "$(scriptName) - Fzf - CTRL-T - Paste the selected file path(s) into the command line"
     echo "%"
-    echo "Fzf -- fzf - Use CTRL-R - search command line from zsh/bash history"
+    echo "$(scriptName) - Fzf - ALT-C - cd into the selected directory"
     echo "%"
-    echo "Fzf -- fzf - Use ALT-C - easily select sub directory of current directory"
+    echo "$(scriptName) - Fzf - CTRL-R - Paste the selected command from history into the command line"
     echo "%"
   fi
 }
@@ -55,20 +55,40 @@ install() {
   Linux::Apt::installIfNecessary --no-install-recommends \
     tree # tree command is used by some fzf key binding
 
-  Log::displayInfo "install fzf"
-  SUDO=sudo INSTALL_CALLBACK=fzfInstall Github::upgradeRelease \
-    "/usr/local/bin/fzf" \
-    "https://github.com/junegunn/fzf/releases/download/@latestVersion@/fzf-@latestVersion@-linux_amd64.tar.gz"
+  # shellcheck disable=SC2317
+  installFzf() {
+    rm -f \
+      "${HOME}/.fzf/bin/fzf" \
+      "${HOME}/.fzf."{bash,zsh}
+    "${HOME}/.fzf/install" \
+      --no-update-rc --no-fish \
+      --completion --key-bindings --bin
+    "${HOME}/.fzf/bin/fzf" --bash >"${HOME}/.fzf.bash"
+    "${HOME}/.fzf/bin/fzf" --zsh >"${HOME}/.fzf.zsh"
+  }
+
+  GIT_CLONE_OPTIONS="--depth=1" Git::cloneOrPullIfNoChanges \
+    "${HOME}/.fzf" \
+    "https://github.com/junegunn/fzf.git" \
+    installFzf \
+    installFzf
 }
 
 testInstall() {
   local -i failures=0
-  Version::checkMinimal "fzf" --version "0.44.1" || ((++failures))
+  (
+    PATH="${PATH}:${HOME}/.fzf/bin"
+    Version::checkMinimal "fzf" --version "0.44.1" || return 1
+  ) || {
+    Log::displayError "Impossible to load fzf"
+    ((++failures))
+  }
+
   return "${failures}"
 }
 
 configure() {
-   # shellcheck disable=SC2154
+  # shellcheck disable=SC2154
   Conf::copyStructure \
     "${embed_dir_conf_dir}" \
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
@@ -77,8 +97,12 @@ configure() {
 
 testConfigure() {
   local -i failures=0
-  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fzf.bash" || ((++failures))
-  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fzf.fish" || ((++failures))
+  Assert::fileExists "${HOME}/.fzf/shell/key-bindings.zsh" || ((++failures))
+  Assert::fileExists "${HOME}/.fzf/shell/completion.zsh" || ((++failures))
   Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fzf.zsh" || ((++failures))
+  Assert::fileExists "${HOME}/.fzf/shell/key-bindings.bash" || ((++failures))
+  Assert::fileExists "${HOME}/.fzf/shell/completion.bash" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fzf.bash" || ((++failures))
+
   return "${failures}"
 }

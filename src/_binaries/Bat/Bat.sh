@@ -13,20 +13,20 @@ scriptName() {
 
 fortunes() {
   if command -v bat &>/dev/null; then
-    echo "$(scripName) - Use bat command to pre-visualize one or multiple files"
+    echo "$(scriptName) - Use bat command to pre-visualize one or multiple files"
     echo "%"
-    echo "$(scripName) - alias h allows to display command help using bat, try 'h cp'"
+    echo "$(scriptName) - alias h allows to display command help using bat, try 'h cp'"
     echo "%"
-    
+
     if [[ "${USER_SHELL}" = "/usr/bin/zsh" ]]; then
-      echo "$(scripName) - command with --help will automatically be displayed with bat"
+      echo "$(scriptName) - command with --help will automatically be displayed with bat"
       echo "%"
     fi
   else
     echo "Run 'installAndConfigure Bat' -- to initialize Bat (file pre-visualization tool)"
     echo "%"
   fi
-  
+
 }
 
 install() {

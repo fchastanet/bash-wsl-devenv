@@ -1,7 +1,7 @@
-#!/usr/bin/fish
+#!/usr/bin/zsh
 ###############################################################################
 # DO NOT EDIT, THIS FILE CAN BE UPDATED WITHOUT NOTICE
 ###############################################################################
 
-# Set up fzf key bindings and fuzzy completion
-fzf --fish | source
+zinit wait lucid for \
+  agkozak/zsh-z

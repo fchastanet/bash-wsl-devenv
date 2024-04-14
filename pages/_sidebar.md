@@ -3,7 +3,6 @@
 - [Home](/)
 - [Install](/docs/Install.md)
 - [HowDoesItWork](/docs/HowDoesItWork.md)
-- [FAQ](/docs/FAQ.md)
 - [Contribute](/docs/Contribute.md)
 - [TODO](/docs/TODO.md)
 - Bash suite projects

@@ -246,6 +246,10 @@ UPGRADE_UBUNTU_VERSION=0
 # possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
 PREFERRED_SHELL="ShellBash"
 
+# Zsh theme to use
+# possible choices: powerlevel10k/powerlevel10k, sindresorhus/pure, starship/starship
+ZSH_PREFERRED_THEME="powerlevel10k/powerlevel10k"
+
 # Display Fortune tooltip at bash/zsh session open
 SHOW_FORTUNES=1
 
@@ -867,61 +871,47 @@ Linux::Apt::installIfNecessary() {
   fi
 }
 
-# @description upgrade given binary to latest github release using retry
-#
-# releaseUrl argument : the placeholder @latestVersion@ will be replaced by the latest release version
-# @arg $1 targetFile:String target binary file (eg: /usr/local/bin/kind)
-# @arg $2 releaseUrl:String github release url (eg: https://github.com/kubernetes-sigs/kind/releases/download/@latestVersion@/kind-linux-amd64)
-# @arg $3 softVersionArg:String parameter to add to existing command to compute current version
-# @arg $4 softVersionCallback:Function function called to get software version (default: Version::getCommandVersionFromPlainText will call software with argument --version)
-# @arg $5 installCallback:Function function called to install the file retrieved on github (default copy as is and set execution bit)
-# @arg $6 parseGithubVersionCallback:Function function to call to filter the version retrieved from github (Default: Version::parse)
-# @stdout log messages about retry, install, upgrade
-# @env SOFT_VERSION_CALLBACK pass softVersionCallback by env variable instead of passing it by arg
-# @env PARSE_VERSION_CALLBACK pass parseGithubVersionCallback by env variable instead of passing it by arg
-# @env INSTALL_CALLBACK pass installCallback by env variable instead of passing it by arg
-Github::upgradeRelease() {
-  local targetFile="$1"
-  local releaseUrl="$2"
-  local softVersionArg="${3:---version}"
-  local softVersionCallback="${4:-${SOFT_VERSION_CALLBACK:-Version::getCommandVersionFromPlainText}}"
-  # shellcheck disable=SC2034
-  local installCallback="${5:-${INSTALL_CALLBACK:-}}"
-  local parseGithubVersionCallback="${6:-${PARSE_VERSION_CALLBACK:-Version::parse}}"
-  local latestVersion
-  local repo
+# @description clone the repository if not done yet, else pull it if no change in it
+# @arg $1 dir:String directory in which repository is installed or will be cloned
+# @arg $2 repo:String repository url
+# @arg $3 cloneCallback:Function callback on successful clone
+# @arg $4 pullCallback:Function callback on successful pull
+# @env GIT_CLONE_OPTIONS:String additional options to pass to git clone command
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode 0 on successful pulling/cloning, 1 on failure
+Git::cloneOrPullIfNoChanges() {
+  local dir="$1"
+  shift || true
+  local repo="$1"
+  shift || true
+  local cloneCallback=${1:-}
+  shift || true
+  local pullCallback=${1:-}
+  shift || true
 
-  repo="$(Github::extractRepoFromGithubUrl "${releaseUrl}")"
-  Github::getLatestRelease "${repo}" latestVersion ||
-    Log::fatal "Repo ${repo} latest version not found"
-  if [[ "$(type -t "${parseGithubVersionCallback}")" = "function" ]]; then
-    latestVersion="$(${parseGithubVersionCallback} <<<"${latestVersion}")"
-  fi
-  Log::displayInfo "Repo ${repo} latest version found is ${latestVersion}"
-
-  local currentVersion="not existing"
-  if [[ -f "${targetFile}" ]]; then
-    currentVersion="$(${softVersionCallback} "${targetFile}" "${softVersionArg}" 2>&1 || true)"
-  fi
-  if [[ "${currentVersion}" = "${latestVersion}" ]]; then
-    Log::displayInfo "${targetFile} version ${latestVersion} already installed"
-  else
-    if [[ -z "${currentVersion}" ]]; then
-      Log::displayInfo "Installing ${targetFile} with version ${latestVersion}"
-    else
-      Log::displayInfo "Upgrading ${targetFile} from version ${currentVersion} to ${latestVersion}"
+  if [[ -d "${dir}/.git" ]]; then
+    if ! Git::pullIfNoChanges "${dir}"; then
+      return 1
     fi
-    local url
-    url="$(echo "${releaseUrl}" | sed -E "s/@latestVersion@/${latestVersion}/g")"
-    Log::displayInfo "Using url ${url}"
-    newSoftware=$(mktemp -p "${TMPDIR:-/tmp}" -t github.newSoftware.XXXX)
-    Retry::default curl \
-      -L \
-      -o "${newSoftware}" \
-      --fail \
-      "${url}"
-
-    Github::defaultInstall "${newSoftware}" "${targetFile}" "${latestVersion}" "${installCallback}"
+    # shellcheck disable=SC2086
+    if [[ "$(type -t ${pullCallback})" = "function" ]]; then
+      ${pullCallback} "${dir}"
+    fi
+  else
+    Log::displayInfo "cloning ${repo} ..."
+    if ! ${SUDO:-} test -d "${dir%/*}"; then
+      ${SUDO:-} mkdir -p "${dir%/*}"
+    fi
+    # shellcheck disable=SC2086,SC2248
+    if ${SUDO:-} git clone ${GIT_CLONE_OPTIONS} --progress "$@" "${repo}" "${dir}"; then
+      # shellcheck disable=SC2086
+      if [[ "$(type -t ${cloneCallback})" = "function" ]]; then
+        ${cloneCallback} "${dir}"
+      fi
+    else
+      Log::displayError "Cloning '${repo}' on '${dir}' failed"
+      return 1
+    fi
   fi
 }
 
@@ -1245,6 +1235,7 @@ Engine::Config::checkEnv() {
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh
+  checkValidValues ZSH_PREFERRED_THEME powerlevel10k/powerlevel10k sindresorhus/pure starship/starship
 
   checkValidValues SHOW_FORTUNES 0 1
   checkValidValues SHOW_MOTD 0 1
@@ -1312,11 +1303,11 @@ Engine::Config::loadWslVariables() {
   export BASE_MNT_C
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_DIR SystemRoot
-  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C}/Windows}"
+  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C:-/mnt/c}/Windows}"
   export WINDOWS_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_PROFILE_DIR USERPROFILE
-  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C}/Users/${USERNAME}}}"
+  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C:-/mnt/c}/Users/${USERNAME}}"
   export WINDOWS_PROFILE_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 LOCAL_APP_DATA LOCALAPPDATA
@@ -1326,7 +1317,7 @@ Engine::Config::loadWslVariables() {
   Linux::Wsl::cachedWslvar2 WINDOW_PATH PATH
   WINDOW_PATH="${WINDOW_PATH//;/:}"
   WINDOW_PATH="${WINDOW_PATH//\\//}"
-  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C}}"
+  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C:-/mnt/c}}"
 
   deduceBin() {
     local var="$1"
@@ -1567,14 +1558,34 @@ Linux::Apt::install() {
   Retry::default sudo apt-get install -y -q "$@"
 }
 
-# @description extract software version number
-# @arg $1 command:String the command that will be called with --version parameter
-# @arg $2 argVersion:String  allows to override default --version parameter
-Version::getCommandVersionFromPlainText() {
-  local command="$1"
-  local argVersion="${2:---version}"
-  "${command}" "${argVersion}" 2>&1 |
-    Version::parse # keep only version numbers
+# @description pull git directory only if no change has been detected
+# @arg $1 dir:String the git directory to pull
+# @exitcode 0 on successful pulling
+# @exitcode 1 on any other failure
+# @exitcode 2 changes detected, pull avoided
+# @exitcode 3 not a git directory
+# @exitcode 4 not able to update index
+# @stderr diagnostics information is displayed
+# @env SUDO String allows to use custom sudo prefix command
+# @require Git::requireGitCommand
+Git::pullIfNoChanges() {
+  local dir="$1"
+  if [[ ! -d "${dir}/.git" ]]; then
+    return 3
+  fi
+  (
+    cd "${dir}" || return 3
+    if ! ${SUDO:-} git update-index --refresh &>/dev/null; then
+      Log::displayWarning "Impossible to update git index of '${dir}' - check if you have modified file"
+      return 4
+    fi
+    if ! ${SUDO:-} git diff-index --quiet HEAD --; then
+      Log::displayWarning "Pulling git repository '${dir}' avoided as changes detected"
+      return 2
+    fi
+    Log::displayInfo "Pull git repository '${dir}' as no changes detected"
+    ${SUDO:-} git pull --progress
+  )
 }
 
 # @description filter to keep only version number from a string
@@ -1584,95 +1595,12 @@ Version::getCommandVersionFromPlainText() {
 # @stdout the filtered content
 # shellcheck disable=SC2120
 Version::parse() {
-  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
-}
-
-# @description github repository eg: kubernetes-sigs/kind
-# @arg $1 githubUrl:String eg: https://github.com/kubernetes-sigs/kind/releases/download/@latestVersion@/kind-linux-amd64
-# @exitcode 1 if no matching repo found in provided url, 0 otherwise
-# @stdout the repo in the form owner/repo
-Github::extractRepoFromGithubUrl() {
-  local githubUrl="$1"
-  local result
-  result="$(sed -n -E 's#^https://github.com/([^/]+/[^/]+)/.*$#\1#p' <<<"${githubUrl}")"
-  if [[ -z "${result}" ]]; then
-    return 1
-  fi
-  echo "${result}"
-}
-
-# @description Retrieve the latest version number of a github release using Github API using retry
-# repo arg with fchastanet/bash-tools value would match https://github.com/fchastanet/bash-tools
-# @arg $1 repo:String repository in the format fchastanet/bash-tools
-# @arg $2 resultRef:&String reference to a variable that will contain the result of the command
-# @stdout log messages about retry
-Github::getLatestRelease() {
-  local repo="$1"
-  # we need to pass the result through a reference instead of output directly
-  # because retry can output too
-  local -n resultRef=$2
-  resultRef=""
-  local resultFile
-  resultFile="$(mktemp -p "${TMPDIR:-/tmp}" -t githubLatestRelease.XXXX)"
-  # Get latest release from GitHub api
-  if Retry::default curl \
-    -L \
-    -o "${resultFile}" \
-    --fail \
-    --silent \
-    "https://api.github.com/repos/${repo}/releases/latest"; then
-    # shellcheck disable=SC2034
-    resultRef="$(Version::githubApiExtractVersion <"${resultFile}")"
-    return 0
-  fi
-  # display curl result in case of failure
-  cat >&2 "${resultFile}"
-  rm -f "${resultFile}"
-}
-
-# @description Retry a command 5 times with a delay of 15 seconds between each attempt
-# @arg $@ command:String[] the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-Retry::default() {
-  Retry::parameterized 5 15 "" "$@"
-}
-
-# @description intermediate callback that is used by Github::upgradeRelease
-# or Github::installRelease
-# if installCallback is not set, it allows to:
-#   - copy the downloaded file to the right target file
-#   - and set the execution bit
-# else
-#   installCallback is called with newSoftware, targetFile, version arguments
-# fi
-# @warning do not use this function as callback for Github::upgradeRelease or Github::installRelease, as it would result to an infinite loop
-# @arg $1 newSoftware:String the downloaded software file
-# @arg $2 targetFile:String where we want to copy the file
-# @arg $3 version:String the version that has been downloaded
-# @arg $4 installCallback:Function (optional) the callback to call with 3 first arguments
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode * on failure
-# @see Github::upgradeRelease
-# @see Github::installRelease
-# @internal
-Github::defaultInstall() {
-  local newSoftware="$1"
-  local targetFile="$2"
-  local version="$3"
-  local installCallback=$4
-  # shellcheck disable=SC2086
-  if ! ${SUDO:-} test -d "${targetFile%/*}"; then
-    ${SUDO:-} mkdir -p "${targetFile%/*}"
-  fi
-  if [[ "$(type -t "${installCallback}")" = "function" ]]; then
-    ${installCallback} "${newSoftware}" "${targetFile}" "${version}"
-  else
-    ${SUDO:-} mv "${newSoftware}" "${targetFile}"
-    ${SUDO:-} chmod +x "${targetFile}"
-    hash -r
-    ${SUDO:-} rm -f "${newSoftware}" || true
-  fi
+  # match anything, print(p), exit on first match(Q)
+  sed -En \
+    -e 's/\x1b\[[0-9;]*[mGKHF]//g' \
+    -e 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/' \
+    -e '//{p;Q}' \
+    "$@"
 }
 
 # @description check if command specified exists or return 1
@@ -2135,51 +2063,12 @@ EOF
   fi
 }
 
-# @description extract version number from github api
-# @noargs
-# @stdin json result of github API
-# @exitcode 1 if jq or Version::parse fails
-# @stdout the version parsed
-# @require Linux::requireJqCommand
-Version::githubApiExtractVersion() {
-  jq -r ".tag_name"
-}
-
-# @description Retry a command several times depending on parameters
-# @arg $1 maxRetries:int    $1 max retries
-# @arg $2 delay:int between attempt
-# @arg $3 message:String to display to describe the attempt
-# @arg $@ rest of parameters, the command to run
+# @description Retry a command 5 times with a delay of 15 seconds between each attempt
+# @arg $@ command:String[] the command to run
 # @exitcode 0 on success
 # @exitcode 1 if max retries count reached
-# @exitcode 2 if maxRetries invalid value
-Retry::parameterized() {
-  local maxRetries=$1
-  shift || true
-  local delayBetweenTries=$1
-  shift || true
-  local message="$1"
-  shift || true
-  local retriesCount=1
-  if [[ "${maxRetries}" -lt 1 ]]; then
-    Log::displayError "invalid maxRetry value"
-    return 2
-  fi
-
-  while true; do
-    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
-    if "$@"; then
-      break
-    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
-      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
-      ((retriesCount++))
-      sleep "${delayBetweenTries}"
-    else
-      Log::displayError "The command has failed after ${retriesCount} attempts."
-      return 1
-    fi
-  done
-  return 0
+Retry::default() {
+  Retry::parameterized 5 15 "" "$@"
 }
 
 # @description installs file to given directory
@@ -2282,6 +2171,13 @@ Linux::getDistributorId() {
     source /etc/os-release
     echo "${ID}"
   )
+}
+
+# @description ensure command git is available
+# @exitcode 1 if git command not available
+# @stderr diagnostics information is displayed
+Git::requireGitCommand() {
+  Assert::commandExists git
 }
 
 # @description check if argument respects this framework variable naming convention
@@ -2415,6 +2311,43 @@ Log::logSkipped() {
   fi
 }
 
+# @description Retry a command several times depending on parameters
+# @arg $1 maxRetries:int    $1 max retries
+# @arg $2 delay:int between attempt
+# @arg $3 message:String to display to describe the attempt
+# @arg $@ rest of parameters, the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+# @exitcode 2 if maxRetries invalid value
+Retry::parameterized() {
+  local maxRetries=$1
+  shift || true
+  local delayBetweenTries=$1
+  shift || true
+  local message="$1"
+  shift || true
+  local retriesCount=1
+  if [[ "${maxRetries}" -lt 1 ]]; then
+    Log::displayError "invalid maxRetry value"
+    return 2
+  fi
+
+  while true; do
+    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
+    if "$@"; then
+      break
+    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
+      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
+      ((retriesCount++))
+      sleep "${delayBetweenTries}"
+    else
+      Log::displayError "The command has failed after ${retriesCount} attempts."
+      return 1
+    fi
+  done
+  return 0
+}
+
 # @description install callback
 #   set file with root ownership and execution bit
 # @arg $1 fromFile:String
@@ -2511,15 +2444,6 @@ Linux::Wsl::requireWsl() {
   fi
 }
 
-# @description ensure command jq is available
-# @exitcode 1 if jq command not available
-# @stderr diagnostics information is displayed
-Linux::requireJqCommand() {
-  if [[ "${SKIP_REQUIRE_JQ:-0}" = "0" && "${SKIP_REQUIRES:-0}" = "0" ]]; then
-    Assert::commandExists jq
-  fi
-}
-
 # @description call simply original wslpath command
 # @arg $@ args:String[] args to pass to wslpath
 # @exitcode * wslpath exit code
@@ -2566,7 +2490,7 @@ File::garbageCollect() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+3X7U+CQBwHcF77V/zSXtQWD4cc99qEJlvLNnG9Rj2LZejkocn647vTWa41sQm46vd5cxvcJvC974GarlTOEBilciSMGrvjlkIs2zBNajNLHmcWoQrQ6i9NUdI4CZYAyms82zuv6PwvpenaKIif1AnPVB5llayGQ/OnBmsz1lYMQphtYP51+Jp/GCV8GYyTMOPapKTVcHj+tkVNcZxY1MD+12J//tN8uj593G8U5S/S/sjfYkTkbxPxGgCjnFvc75/n3zrTR2Gky5AbrXI1WuD04a7vg+t4/hX4PW8AN96tC93OHVy7MLx3Or7rwIPn9/pDX071um7plyGuY8ATSBcgljM88xWIO56E0WMMQTSBaZrnKxjPXxYznoTzqMGzYAbN8ws5W1Xlk7lsNk6dU1WK+z8Nq+9/e/v+Nwk11/0XA/a/BqL/abxc7wEyaNwDNnvApvvyicAbxPN0OeZ/cwso7n9+bP0P6D/57L9pyf6L/4LY/zrs9D/H+n//CZDLL4BTB4UQQgghhBBCCCGEEEII/cA7kwfvcgAoAAA="
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2WzW7aQBDHOfspJiYVUhKDDf6QqDhQPgQSwShxVKlJhAxeYwvHttY2FFLO7bmHPkr7PnmSru2Q0DQKaQNUbfd38X7Mzo73vzN2vpDZOjxBkaT4KSgSv/pckhFEmS8WJVkR43FFFKQMSNsPLZOJglDHAJlp4Dxpt27+LyVfyA/0wOIMNOGQO9nKbXiu/hKvlBSllOEFQZF5qv8ueKi/7YYI68PQnqC8saHb8Fz9ZV4URblI9BclQaD674Kn9TfnZj6wXrrHGv0FIvyd/lJJJvpLcknMAL+JF1zHf65/dq8wsN1CfAcYBr33PRxC812zX280q2cdrV9Tj4+r3Xolh0fAcabtoIA8LdswkEsaI8cbALuXH9khm1tdX9NOOv375ez+9SNeFyzDJMZqRz05rbCD0WGZE44uGHNUHmF9lrQOy1PLDhFpDzxsIFweOPpwTLqBb7su6fOkbTnlGXIcbxq3kZ6aRfEi2zU94gwhl3R8L7nfZYwM0rvS8fje0MfelR8u97Wcw9iKffRQ1J5GoiXHgOyRFYLMv4ILhuPS+CCwdOwnA44+86IQMJogHKBkaOg5HoZcehzpey9yyUy6P+RuPn2D25E0Wrj58jXpp/HCzcfP7GpU1fhA72LyyW42mkIuJO8MXA2uF/AB4jMBzgWBz/2wlgjR6zS0ttrt19snS12Io6EBfhRYBuArw8aQOHMClvnT95WyWdbX/3j6ZXus+/4rxbT+K7wkiZJI6r8siCVa/3fBav3PbhYmC3UVuqoGjXpbOwKt1T6FZrvTgFq1C28acNarV7VGHd62tZZ6psWm7Vpj42GQOE5RCJEP5DrDGM2AvLFhu6MAdNcAM5rPZzAkxddBoe25jG3C+TnsAflm9apaa8FCpQIH+9ct9bixKOSJk/jIDuDy8jWEFnIZgNiusrQvPzRlGdNmbt1yZuz3fj5JL3bVV5Z8QMinbGih4RgCL8JDVCmQ9Cy4keOQ+XToMS/xNr+q//r8n7/4B3Bt/gvKw/znRZ7m/y4g+R8FOKkBc1oCfi4BcUZvtwDMN5H/899MfwqFQqFQKBQKhUKhUCgUCoXyD/MdyK1k0gAoAAA="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -2578,8 +2502,8 @@ Env::requireLoad
 UI::requireTheme
 Linux::requireUbuntu
 Log::requireLoad
+Git::requireGitCommand
 Linux::Wsl::requireWsl
-Linux::requireJqCommand
 Compiler::Facade::requireCommandBinDir
 
 if Assert::functionExists initFacade; then
@@ -3395,12 +3319,12 @@ breakOnTestFailure() { :; }
 # jscpd:ignore-end
 
 fortunes() {
-  if command -v fzf &>/dev/null; then
-    echo "Fzf -- fzf - Use CTRL-T - Paste the selected file path(s) into the command line"
+  if [[ -f "${HOME}/.fzf/shell/key-bindings.zsh" ]]; then
+    echo "$(scriptName) - Fzf - CTRL-T - Paste the selected file path(s) into the command line"
     echo "%"
-    echo "Fzf -- fzf - Use CTRL-R - search command line from zsh/bash history"
+    echo "$(scriptName) - Fzf - ALT-C - cd into the selected directory"
     echo "%"
-    echo "Fzf -- fzf - Use ALT-C - easily select sub directory of current directory"
+    echo "$(scriptName) - Fzf - CTRL-R - Paste the selected command from history into the command line"
     echo "%"
   fi
 }
@@ -3415,20 +3339,40 @@ install() {
   Linux::Apt::installIfNecessary --no-install-recommends \
     tree # tree command is used by some fzf key binding
 
-  Log::displayInfo "install fzf"
-  SUDO=sudo INSTALL_CALLBACK=fzfInstall Github::upgradeRelease \
-    "/usr/local/bin/fzf" \
-    "https://github.com/junegunn/fzf/releases/download/@latestVersion@/fzf-@latestVersion@-linux_amd64.tar.gz"
+  # shellcheck disable=SC2317
+  installFzf() {
+    rm -f \
+      "${HOME}/.fzf/bin/fzf" \
+      "${HOME}/.fzf."{bash,zsh}
+    "${HOME}/.fzf/install" \
+      --no-update-rc --no-fish \
+      --completion --key-bindings --bin
+    "${HOME}/.fzf/bin/fzf" --bash >"${HOME}/.fzf.bash"
+    "${HOME}/.fzf/bin/fzf" --zsh >"${HOME}/.fzf.zsh"
+  }
+
+  GIT_CLONE_OPTIONS="--depth=1" Git::cloneOrPullIfNoChanges \
+    "${HOME}/.fzf" \
+    "https://github.com/junegunn/fzf.git" \
+    installFzf \
+    installFzf
 }
 
 testInstall() {
   local -i failures=0
-  Version::checkMinimal "fzf" --version "0.44.1" || ((++failures))
+  (
+    PATH="${PATH}:${HOME}/.fzf/bin"
+    Version::checkMinimal "fzf" --version "0.44.1" || return 1
+  ) || {
+    Log::displayError "Impossible to load fzf"
+    ((++failures))
+  }
+
   return "${failures}"
 }
 
 configure() {
-   # shellcheck disable=SC2154
+  # shellcheck disable=SC2154
   Conf::copyStructure \
     "${embed_dir_conf_dir}" \
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
@@ -3437,9 +3381,13 @@ configure() {
 
 testConfigure() {
   local -i failures=0
-  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fzf.bash" || ((++failures))
-  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fzf.fish" || ((++failures))
+  Assert::fileExists "${HOME}/.fzf/shell/key-bindings.zsh" || ((++failures))
+  Assert::fileExists "${HOME}/.fzf/shell/completion.zsh" || ((++failures))
   Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fzf.zsh" || ((++failures))
+  Assert::fileExists "${HOME}/.fzf/shell/key-bindings.bash" || ((++failures))
+  Assert::fileExists "${HOME}/.fzf/shell/completion.bash" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fzf.bash" || ((++failures))
+
   return "${failures}"
 }
 

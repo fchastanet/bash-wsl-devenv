@@ -246,6 +246,10 @@ UPGRADE_UBUNTU_VERSION=0
 # possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
 PREFERRED_SHELL="ShellBash"
 
+# Zsh theme to use
+# possible choices: powerlevel10k/powerlevel10k, sindresorhus/pure, starship/starship
+ZSH_PREFERRED_THEME="powerlevel10k/powerlevel10k"
+
 # Display Fortune tooltip at bash/zsh session open
 SHOW_FORTUNES=1
 
@@ -1152,6 +1156,7 @@ Engine::Config::checkEnv() {
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh
+  checkValidValues ZSH_PREFERRED_THEME powerlevel10k/powerlevel10k sindresorhus/pure starship/starship
 
   checkValidValues SHOW_FORTUNES 0 1
   checkValidValues SHOW_MOTD 0 1
@@ -1219,11 +1224,11 @@ Engine::Config::loadWslVariables() {
   export BASE_MNT_C
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_DIR SystemRoot
-  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C}/Windows}"
+  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C:-/mnt/c}/Windows}"
   export WINDOWS_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_PROFILE_DIR USERPROFILE
-  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C}/Users/${USERNAME}}}"
+  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C:-/mnt/c}/Users/${USERNAME}}"
   export WINDOWS_PROFILE_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 LOCAL_APP_DATA LOCALAPPDATA
@@ -1233,7 +1238,7 @@ Engine::Config::loadWslVariables() {
   Linux::Wsl::cachedWslvar2 WINDOW_PATH PATH
   WINDOW_PATH="${WINDOW_PATH//;/:}"
   WINDOW_PATH="${WINDOW_PATH//\\//}"
-  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C}}"
+  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C:-/mnt/c}}"
 
   deduceBin() {
     local var="$1"
@@ -2330,7 +2335,7 @@ Retry::parameterized() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "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"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "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"
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -3215,7 +3220,8 @@ testConfigure() {
 
   Assert::fileExecutable "/etc/cron.daily/motd" || ((++failures))
 
-  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/motd.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/motd.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/motd.zsh" || ((++failures))
 
   if ! sudo update-motd >/dev/null; then
     Log::displayWarning "motd not working"

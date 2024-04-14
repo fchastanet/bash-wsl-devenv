@@ -224,6 +224,10 @@ UPGRADE_UBUNTU_VERSION=0
 # possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
 PREFERRED_SHELL="ShellBash"
 
+# Zsh theme to use
+# possible choices: powerlevel10k/powerlevel10k, sindresorhus/pure, starship/starship
+ZSH_PREFERRED_THEME="powerlevel10k/powerlevel10k"
+
 # Display Fortune tooltip at bash/zsh session open
 SHOW_FORTUNES=1
 
@@ -693,7 +697,12 @@ Linux::Apt::installIfNecessary() {
 # @stdout the filtered content
 # shellcheck disable=SC2120
 Version::parse() {
-  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
+  # match anything, print(p), exit on first match(Q)
+  sed -En \
+    -e 's/\x1b\[[0-9;]*[mGKHF]//g' \
+    -e 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/' \
+    -e '//{p;Q}' \
+    "$@"
 }
 
 # @description Display message using success color (bg green/fg white)
@@ -985,6 +994,7 @@ Engine::Config::checkEnv() {
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh
+  checkValidValues ZSH_PREFERRED_THEME powerlevel10k/powerlevel10k sindresorhus/pure starship/starship
 
   checkValidValues SHOW_FORTUNES 0 1
   checkValidValues SHOW_MOTD 0 1
@@ -1052,11 +1062,11 @@ Engine::Config::loadWslVariables() {
   export BASE_MNT_C
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_DIR SystemRoot
-  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C}/Windows}"
+  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C:-/mnt/c}/Windows}"
   export WINDOWS_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_PROFILE_DIR USERPROFILE
-  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C}/Users/${USERNAME}}}"
+  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C:-/mnt/c}/Users/${USERNAME}}"
   export WINDOWS_PROFILE_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 LOCAL_APP_DATA LOCALAPPDATA
@@ -1066,7 +1076,7 @@ Engine::Config::loadWslVariables() {
   Linux::Wsl::cachedWslvar2 WINDOW_PATH PATH
   WINDOW_PATH="${WINDOW_PATH//;/:}"
   WINDOW_PATH="${WINDOW_PATH//\\//}"
-  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C}}"
+  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C:-/mnt/c}}"
 
   deduceBin() {
     local var="$1"
@@ -2397,10 +2407,10 @@ runWslCmd() {
 installDistro() {
   Log::displayInfo 'Import Base ubuntu image in Wsl'
   local destDistroPath installTarPath
-  mkdir -p "${BASE_MNT_C}/Programs"
+  mkdir -p "${BASE_MNT_C:-/mnt/c}/Programs"
   local distroImageDir
   distroImageDir="$(getDistroImageDir)"
-  destDistroPath="$(wslpath -w "${BASE_MNT_C}/Programs/${DISTRO_NAME}")"
+  destDistroPath="$(wslpath -w "${BASE_MNT_C:-/mnt/c}/Programs/${DISTRO_NAME}")"
   installTarPath="$(wslpath -w "${distroImageDir}/install.tar")"
   powershell.exe -ExecutionPolicy Bypass -NoProfile \
     -Command "wsl.exe --import \"${DISTRO_NAME}\" \"${destDistroPath}\" \"${installTarPath}\" --version 2"
@@ -2415,8 +2425,8 @@ installDistro() {
 mountDistroFolder() {
   sudo mkdir -p "/mnt/wsl/${DISTRO_NAME}"
   sudo mount -t drvfs "\\\\wsl$\\${DISTRO_NAME}" "/mnt/wsl/${DISTRO_NAME}"
-  mkdir -p "/mnt/wsl/${DISTRO_NAME}/home/wsl/fchastanet"
-  runWslCmd chown -R "${USERNAME}:${USERGROUP}" /home/wsl/fchastanet
+  mkdir -p "/mnt/wsl/${DISTRO_NAME}${HOME}/fchastanet"
+  runWslCmd chown -R "${USERNAME}:${USERGROUP}" "${HOME}/fchastanet"
 }
 
 getDistroImageName() {
@@ -2507,9 +2517,15 @@ run() {
 
   mountDistroFolder
 
-  Log::displayInfo 'Enable automount of / of the distro in /mnt/wsl/<distro> to make distro folder available from other distro'
+  Log::displayInfo "Enable automount of this distro's / in /mnt/wsl/<distro> of the remote distro"
   echo "${AUTO_MOUNT_SCRIPT}" |
-    tee -a "/mnt/wsl/${DISTRO_NAME}/home/wsl/.bashrc" >/dev/null
+    tee -a "/mnt/wsl/${DISTRO_NAME}${HOME}/.bashrc" >/dev/null
+  Log::displayInfo 'Mounting / of this distro in remote distro /mnt/wsl/<distro> folder'
+
+  if [[ ! -d "/mnt/wsl/${DISTRO_NAME}/mnt/wsl/${DISTRO_NAME}" ]]; then
+    runWslCmd mkdir -p "/mnt/wsl/${DISTRO_NAME}"
+    runWslCmd mount --bind / "/mnt/wsl/${DISTRO_NAME}"
+  fi
 
   Log::displayInfo "Delete folder ${DISTRO_BASH_DEV_ENV_TARGET_DIR} in distro ${DISTRO_NAME}"
   runWslCmd rm -Rf "${DISTRO_BASH_DEV_ENV_TARGET_DIR}/"{*,.*} 2>/dev/null || true
@@ -2534,7 +2550,7 @@ run() {
     systemdActivated=1
   fi
   Log::displayInfo 'pre-configure /etc/wsl.conf in order to activate systemd'
-  cp "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/WslDefaultConfig/conf/etc/wsl.conf" "/mnt/wsl/${DISTRO_NAME}/etc/wsl.conf"
+  sudo cp "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/WslDefaultConfig/conf/etc/wsl.conf" "/mnt/wsl/${DISTRO_NAME}/etc/wsl.conf"
 
   # no need to restart the distro if systemd already active
   if [[ "${systemdActivated}" = "0" ]]; then

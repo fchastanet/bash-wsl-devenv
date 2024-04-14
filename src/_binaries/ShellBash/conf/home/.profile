@@ -39,26 +39,19 @@ if [[ -f "${HOME}/fchastanet/bash-dev-env/.env" ]]; then
   source "${HOME}/fchastanet/bash-dev-env/.env"
 fi
 
-# execute bash logout when bash window is closed
-if [[ -f "${HOME}/.bash_logout" ]]; then
-  exitSession() {
-    #shellcheck source=src/_binaries/ShellBash/conf/home/.bash_logout
-    source "${HOME}/.bash_logout"
-  }
-  trap exitSession HUP
-fi
-
 loadConfigFiles() {
   local dir="$1"
-  if [[ -d "${dir}" ]]; then
-    local file
-    while IFS= read -r file ; do
-      if [[ -f "${file}" ]]; then
-        # shellcheck source=src/_binaries/NodeNpm/conf/.bash-dev-env/profile.d/n_path.sh
-        source "${file}"
-      fi
-    done < <(find "${dir}" -type f \( -name \*.sh -o -name \*.bash \) -printf '%p\n' 2>/dev/null | sort -n)
-  fi
+  local script_shell
+  script_shell="$(readlink /proc/$$/exe | sed "s/.*\///")" # bash or zsh
+  local -a extensions=(sh "${script_shell}")
+  local file
+  while IFS= read -r file ; do
+    # shellcheck source=src/_binaries/MandatorySoftwares/conf/.bash-dev-env/aliases.d/bash-dev-env.sh
+    source "${file}"
+  done < <(
+    "${HOME}/.bash-dev-env/loadConfigFiles" \
+      "${dir}" "${extensions[@]}" || echo
+  )
 }
 loadConfigFiles "${HOME}/.bash-dev-env/profile.d"
 

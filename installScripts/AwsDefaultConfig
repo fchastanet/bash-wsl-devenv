@@ -275,6 +275,10 @@ UPGRADE_UBUNTU_VERSION=0
 # possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
 PREFERRED_SHELL="ShellBash"
 
+# Zsh theme to use
+# possible choices: powerlevel10k/powerlevel10k, sindresorhus/pure, starship/starship
+ZSH_PREFERRED_THEME="powerlevel10k/powerlevel10k"
+
 # Display Fortune tooltip at bash/zsh session open
 SHOW_FORTUNES=1
 
@@ -1370,6 +1374,7 @@ Engine::Config::checkEnv() {
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh
+  checkValidValues ZSH_PREFERRED_THEME powerlevel10k/powerlevel10k sindresorhus/pure starship/starship
 
   checkValidValues SHOW_FORTUNES 0 1
   checkValidValues SHOW_MOTD 0 1
@@ -1437,11 +1442,11 @@ Engine::Config::loadWslVariables() {
   export BASE_MNT_C
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_DIR SystemRoot
-  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C}/Windows}"
+  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C:-/mnt/c}/Windows}"
   export WINDOWS_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_PROFILE_DIR USERPROFILE
-  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C}/Users/${USERNAME}}}"
+  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C:-/mnt/c}/Users/${USERNAME}}"
   export WINDOWS_PROFILE_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 LOCAL_APP_DATA LOCALAPPDATA
@@ -1451,7 +1456,7 @@ Engine::Config::loadWslVariables() {
   Linux::Wsl::cachedWslvar2 WINDOW_PATH PATH
   WINDOW_PATH="${WINDOW_PATH//;/:}"
   WINDOW_PATH="${WINDOW_PATH//\\//}"
-  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C}}"
+  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C:-/mnt/c}}"
 
   deduceBin() {
     local var="$1"
@@ -2339,7 +2344,7 @@ Linux::getDistributorId() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2XXWvbMBSGfe1fcdaM9WZK/CULNjrIYnc1K0lJXcoYoyixkpg6drCchLL1v09qk20tdAm0zjp6nht/6Fg+5j3vkdxsGbVjKRil+mgzav15XGPYnm85DvV9X8cxz3ENoPWnZhhzWfESwFjK7K9xm8b/U5qtJl/KeotgO/0pYz6l1Fb3bcthPuq/C1b6D4t8lI5reocW2Pe8h/V36W/9HUfpr7oBM8CqKZ87vHD9vyZixOdZ9c0sxTgtcjgAMSdLIStim/86OaR2lP8HXE5IIhZE5ItaFoLt13/XYYxq/zPqYf/fBff151nKpZDN5AkrYVv9bd+2XKbXf9e3KOq/Cx7WX/Jp5qi9QVNOHvmOTfpT5t363/Md39XrP2W2g+v/Lmi8ag3SvKVrwGw8LWYDgh50ezGEQRS/hfgoOoXD6DiETrsLH0M4OwnacRjAeRQf9c5iHRp1widPw0xHMCymU54nQBawrmt486Glqr6Vz7PsPVQTkZsAN+UPapRkxTjND/Z/Rd9cA5nB3uvv7fPTi5N+T3/LO7LaQF3vASHKOVJtokgyL3mlTg4817EsNZCkkg8yQS7F1XDC03zfHKXPYnv1sP/VR3ey9PHu3+x/Pbb2P7M97X9P93/0f/28BP83QDm3KBNRQlVoI+trdcblEsSwBAKzMl3wSkBSDC9VlP4VklV5da9zbG4at8+ve4eO1/OPRXV7i8y4lEuVieoIq9+tVTcJwsP22XF80Q8/Rb2u6iU/1rms+g6ZS1HmfCpAhavL9UxEVokavztL0Ot8Dvs3k53G/S8XUXD9bBoOgiAIgiAIgiAIgiAIgiA74yc7K6yiACgAAA=="
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2YXW/aMBSGc51fcVam9WaGfDmWNjGJkmyNVpWKBFXTNCGXGIgaEhQHWLX1v8+m0LWVGEhtaKf6uYkdG8fRe87rE+oNrXIMAcFYXk2CjbvXNZrpuIZlYdd15TziWLYGuPqtadqMl7QA0BY8/ee8beP/KfVGnS54tUGwm/6YEBdjbIr7pmERV+m/D1b6D/JsmIwqeoYU2HWczfrb+K/+liX0F25ANDAq2s89Xrn+32M2pLO0/KEXbJTkGTSBzdCC8RKZ+nNvTlE5Iv8vKB+jmM0Ry+aVHAS7nv+ugYVP2DL/5bDy/z3wUH+aJpQzXo+fMBJ21d90TcMm8vy3RSgo/ffBZv05naSWqA3qfPzIZ2zTHxPnpv53XMu15fmPiWmp838f1N40LpKsIWNArz0teg28Dpx2IvC9IHoP0XEQwufgxId26xSOfOidea3I9+A8iI47vUhODdr+k29DT4YwyCcTmsWA5rCOa3j3qSGivpHN0vQjlGOW6QDL8AcxitJ8lGTNw9vZyz6gKRy8/dU6D/tn3Y58lw9oVUBdHwBCInO4KKJQPCtoKRpNx7YMQwzECacXKUOX7Gowpkl2qA+TF1Febc5/8dLtNHl89m/Pfzm2zn9iOjL/Hen/Kv+r5zXkfw1E5uZFzAooc5nIsi9alC+ADQpAMC2SOS0ZxPngUsySn0K8LK4eOMd207j5/do75Hy5/oiVN7fQlHK+EDsRjrD63Fq5ied/bvVOon7X/xJ0ToWX/F7vZeU7aMZZkdEJAzFddNcrIV7GYvz+Kl6n/dXvLhcLo+63fuBdbzKch/k/LfJhkrJnqf+W9T8my/rPJqr+2web9d9f/We45FZ/Yiz9n8j/f5X/V89d/9fZz2lelOAd9cJ+6IehsKK+bLc8ryu6zVvrexGli0KhUCgUCoVCoVAoFIod+QM5fN8nACgAAA=="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/8537ff72412594780cf9f312e8925b1e/talkScript" "cGFyYW0oCiAgICBbUGFyYW1ldGVyKE1hbmRhdG9yeT0kdHJ1ZSwgUG9zaXRpb249MCldCiAgICBbc3RyaW5nXQogICAgJG1zZyA9ICcnCikKCkFkZC1UeXBlIC1Bc3NlbWJseU5hbWUgU3lzdGVtLnNwZWVjaAokc3BlYWsgPSBOZXctT2JqZWN0IFN5c3RlbS5TcGVlY2guU3ludGhlc2lzLlNwZWVjaFN5bnRoZXNpemVyCiRzcGVhay5TcGVhaygkbXNnKQo=" "644"

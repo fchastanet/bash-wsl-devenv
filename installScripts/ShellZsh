@@ -1,0 +1,3353 @@
+#!/usr/bin/env bash
+###############################################################################
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/ShellZsh/ShellZsh.sh
+# DO NOT EDIT IT
+# @generated
+###############################################################################
+# shellcheck disable=SC2288,SC2034
+# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/ShellZsh
+
+# ensure that no user aliases could interfere with
+# commands used in this script
+unalias -a || true
+shopt -u expand_aliases
+
+# shellcheck disable=SC2034
+((failures = 0)) || true
+
+# Bash will remember & return the highest exit code in a chain of pipes.
+# This way you can catch the error inside pipes, e.g. mysqldump | gzip
+set -o pipefail
+set -o errexit
+
+# Command Substitution can inherit errexit option since bash v4.4
+shopt -s inherit_errexit || true
+
+# if set, and job control is not active, the shell runs the last command
+# of a pipeline not executed in the background in the current shell
+# environment.
+shopt -s lastpipe
+
+# a log is generated when a command fails
+set -o errtrace
+
+# use nullglob so that (file*.php) will return an empty array if no file
+# matches the wildcard
+shopt -s nullglob
+
+# ensure regexp are interpreted without accentuated characters
+export LC_ALL=POSIX
+
+export TERM=xterm-256color
+
+# avoid interactive install
+export DEBIAN_FRONTEND=noninteractive
+export DEBCONF_NONINTERACTIVE_SEEN=true
+
+# store command arguments for later usage
+# shellcheck disable=SC2034
+declare -a BASH_FRAMEWORK_ARGV=("$@")
+# shellcheck disable=SC2034
+declare -a ORIGINAL_BASH_FRAMEWORK_ARGV=("$@")
+
+# @see https://unix.stackexchange.com/a/386856
+# shellcheck disable=SC2317
+interruptManagement() {
+  # restore SIGINT handler
+  trap - INT
+  # ensure that Ctrl-C is trapped by this script and not by sub process
+  # report to the parent that we have indeed been interrupted
+  kill -s INT "$$"
+}
+trap interruptManagement INT
+SCRIPT_NAME=${0##*/}
+REAL_SCRIPT_FILE="$(readlink -e "$(realpath "${BASH_SOURCE[0]}")")"
+if [[ -n "${EMBED_CURRENT_DIR}" ]]; then
+  CURRENT_DIR="${EMBED_CURRENT_DIR}"
+else
+  CURRENT_DIR="${REAL_SCRIPT_FILE%/*}"
+fi
+
+################################################
+# Temp dir management
+################################################
+
+KEEP_TEMP_FILES="${KEEP_TEMP_FILES:-0}"
+export KEEP_TEMP_FILES
+
+# PERSISTENT_TMPDIR is not deleted by traps
+PERSISTENT_TMPDIR="${TMPDIR:-/tmp}/bash-framework"
+export PERSISTENT_TMPDIR
+if [[ ! -d "${PERSISTENT_TMPDIR}" ]]; then
+  mkdir -p "${PERSISTENT_TMPDIR}"
+fi
+
+# shellcheck disable=SC2034
+TMPDIR="$(mktemp -d -p "${PERSISTENT_TMPDIR:-/tmp}" -t bash-framework-$$-XXXXXX)"
+export TMPDIR
+
+# temp dir cleaning
+# shellcheck disable=SC2317
+cleanOnExit() {
+  local rc=$?
+  if [[ "${KEEP_TEMP_FILES:-0}" = "1" ]]; then
+    Log::displayInfo "KEEP_TEMP_FILES=1 temp files kept here '${TMPDIR}'"
+  elif [[ -n "${TMPDIR+xxx}" ]]; then
+    Log::displayDebug "KEEP_TEMP_FILES=0 removing temp files '${TMPDIR}'"
+    rm -Rf "${TMPDIR:-/tmp/fake}" >/dev/null 2>&1
+  fi
+  exit "${rc}"
+}
+trap cleanOnExit EXIT HUP QUIT ABRT TERM
+
+# @description Log namespace provides 2 kind of functions
+# - Log::display* allows to display given message with
+#   given display level
+# - Log::log* allows to log given message with
+#   given log level
+# Log::display* functions automatically log the message too
+# @see Env::requireLoad to load the display and log level from .env file
+
+# @description log level off
+export __LEVEL_OFF=0
+# @description log level error
+export __LEVEL_ERROR=1
+# @description log level warning
+export __LEVEL_WARNING=2
+# @description log level info
+export __LEVEL_INFO=3
+# @description log level success
+export __LEVEL_SUCCESS=3
+# @description log level debug
+export __LEVEL_DEBUG=4
+
+# @description verbose level off
+export __VERBOSE_LEVEL_OFF=0
+# @description verbose level info
+export __VERBOSE_LEVEL_INFO=1
+# @description verbose level info
+export __VERBOSE_LEVEL_DEBUG=2
+# @description verbose level info
+export __VERBOSE_LEVEL_TRACE=3
+
+# @description Display message using info color (bg light blue/fg white)
+# @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+Log::displayInfo() {
+  local type="${2:-INFO}"
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    Log::computeDuration
+    echo -e "${__INFO_COLOR}${type}    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logInfo "$1" "${type}"
+}
+
+# @description Display message using debug color (grey)
+# @arg $1 message:String the message to display
+Log::displayDebug() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_DEBUG)); then
+    Log::computeDuration
+    echo -e "${__DEBUG_COLOR}DEBUG   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logDebug "$1"
+}
+
+# @description convert base64 encoded back to target dir
+# it is advised to include the md5sum of the binFile in the path of the target dir
+#
+# @arg $1 targetDir:string the directory in which tar archive will be untarred
+# @arg $2 base64:string the base64 encoded tar czf archive
+# @stderr diagnostics information is displayed
+# @require Linux::requireTarCommand
+Compiler::Embed::extractDirFromBase64() {
+  local targetDir="$1"
+  local base64="$2"
+
+  if [[ ! -d "${targetDir}" ]]; then
+    mkdir -p "${targetDir}"
+    (
+      cd "${targetDir}" || exit 1
+      base64 -d <<<"${base64}" | tar -xzf - 2>/dev/null || {
+        Log::displayError "untar failure, invalid base64 string"
+        exit 1
+      }
+    ) || return 1
+  fi
+}
+
+# @description convert base64 encoded back to target file
+# if target file is executable prepend dir of target
+# file to PATH to make binary available everywhere
+# it is advised to include in the path of the target file
+# the md5sum of the binFile
+#
+# @arg $1 targetFile:String the file to write
+# @arg $2 binFileBase64:String the base64 encoded file
+# @arg $3 fileMode:String the chmod to set on the file
+# @set PATH String prepend target embedded file binary directory to PATH variable if binary executable
+Compiler::Embed::extractFileFromBase64() {
+  local targetFile="$1"
+  local binFileBase64="$2"
+  local fileMode="${3:-+x}"
+  local targetDir="${targetFile%/*}"
+
+  if [[ ! -f "${targetFile}" ]]; then
+    if [[ ! -d "${targetDir}" ]]; then
+      mkdir -p "${targetDir}"
+    fi
+    base64 -d >"${targetFile}" <<<"${binFileBase64}"
+    chmod "${fileMode}" "${targetFile}"
+  fi
+
+  if [[ -x "${targetFile}" ]]; then
+    Env::pathPrepend "${targetDir}"
+  fi
+}
+
+# @description checks if function name provided exists
+# @arg $1 functionName:String
+# @exitcode 1 if function name doesn't exist
+Assert::functionExists() {
+  declare -F "$1" >/dev/null
+}
+
+envFileTemplate="$(
+  cat <<'EOF'
+# shellcheck disable=SC2034
+# wsl username
+USERNAME="wsl"
+USERGROUP="wsl"
+HOME="/home/wsl"
+
+# your login to connect to ssh servers if any
+SSH_LOGIN=""
+
+# your git full name 'FirstName LastName'
+GIT_USERNAME=""
+# email used for git 'ldap@domain.com'
+GIT_USER_MAIL=""
+# email used to connect to aws
+AWS_USER_MAIL="fchastanet@gmail.com"
+# app id to connect to aws account
+AWS_APP_ID=""
+AWS_PROFILE=""
+AWS_DEFAULT_REGION=""
+AWS_TEST_SECRET_ID=""
+AWS_DEFAULT_DOCKER_REGISTRY_ID=""
+
+# KubeDefaultConfig ~/.kube/config generation
+# aws region of the cluster (Eg: us-east-1)
+KUBE_CONFIG_REGION_CODE=
+# aws arn of the cluster arn:aws:ecs:region:aws_account_id:cluster/MyCluster
+KUBE_CONFIG_CLUSTER_ARN=
+
+# hostname of the distro
+DISTRO_HOSTNAME="wslHost"
+
+# overridden conf directory that will be used to override
+# the default configuration that are embedded in binaries
+CONF_OVERRIDE_DIR="${BASH_DEV_ENV_ROOT_DIR}/conf.override"
+
+# where to install bash-tools, ...
+# shellcheck disable=SC2153
+PROJECTS_DIR="${HOME}/projects"
+
+# where overridden config files will be backed up
+BACKUP_DIR="${BASH_DEV_ENV_ROOT_DIR}/backup"
+# backup files/dirs before installing new file (usually 1, but 0 if using distro)
+BACKUP_BEFORE_INSTALL=1
+# logs directory
+LOGS_DIR="${BASH_DEV_ENV_ROOT_DIR}/logs"
+# installScripts dir
+INSTALL_SCRIPTS_DIR="${BASH_DEV_ENV_ROOT_DIR}/installScripts"
+
+# 0   => no upgrade at all
+# lts => UPGRADE to latest ubuntu lts version
+# dev => UPGRADE to latest ubuntu dev version
+# Use if you know what you are doing,
+# could cause some packages to not being available yet
+UPGRADE_UBUNTU_VERSION=0
+
+# -----------------------------------------
+# PROFILES options
+
+# Choose your preferred shell
+# possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
+PREFERRED_SHELL="ShellBash"
+
+# Zsh theme to use
+# possible choices: powerlevel10k/powerlevel10k, sindresorhus/pure, starship/starship
+ZSH_PREFERRED_THEME="powerlevel10k/powerlevel10k"
+
+# Display Fortune tooltip at bash/zsh session open
+SHOW_FORTUNES=1
+
+# Display MOTD at bash/zsh session open
+SHOW_MOTD=1
+
+# Install Docker inside wsl
+DOCKER_INSIDE_WSL=1
+
+# Configuration files are overwritten even if exists
+# !!!! First time initialization: let this value to 1 !!!!
+# Value 0:
+# - If target configuration file exists, displays a message and do not overwrite the file
+# - If target configuration file doesn't exist, installs the file
+# Value 1
+# - install or overwrite the file without checking existence
+OVERWRITE_CONFIG_FILES=1
+
+# Windows files can be overridden if 1
+# if 0
+# - skip changes to %USERPROFILE%/.wslconfig
+# - skip copying fonts
+CHANGE_WINDOWS_FILES=1
+
+# Indicate that install script can warn you using speaker when your input is needed
+CAN_TALK_DURING_INSTALLATION=${CAN_TALK_DURING_INSTALLATION:-1}
+
+# if 0 install script will skip all interactive activity (saml2aws, ...),
+# so dependent installation will be skipped as well
+INSTALL_INTERACTIVE=${INSTALL_INTERACTIVE:-1}
+
+# display elapsed time since last log
+DISPLAY_DURATION=1
+
+# -----------------------------------------
+# WSLCONFIG - these parameters will help to automatically
+# configure %USERPROFILE%/.wslconfig file
+# Adjust these values to your needs
+# @see https://docs.microsoft.com/en-us/windows/wsl/wsl-config
+# Recommended 50% of total memory
+WSLCONFIG_MAX_MEMORY=8GB
+# personally I prefer run out of memory instead of beginning swapping
+# So I know immediately if some processes have to be stopped
+WSLCONFIG_SWAP=0
+
+# -----------------------------------------
+# Hacks
+# on some configurations we have to force path of some windows commands
+#POWERSHELL_BIN=/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
+#IPCONFIG_BIN=/mnt/c/Windows/system32/ipconfig.exe
+#WSL_EXE_BIN=/mnt/c/Windows/system32/wsl.exe
+EOF
+)"
+
+# @description load .env file
+# @arg $1 envFile:String the file to load
+Engine::Config::loadConfig() {
+  if [[ "${BASH_DEV_ENV_CONFIG_LOADED:-0}" = "1" ]]; then
+    return 0
+  fi
+  local envFile="${BASH_DEV_ENV_ROOT_DIR}/.env"
+  Engine::Config::createEnvFileFromTemplate \
+    "${envFile}" "${envFileTemplate}" || exit 1
+  set -o allexport
+  # shellcheck source=/.env.template
+  source <(echo "${envFileTemplate}")
+  # shellcheck source=/.env
+  source "${BASH_DEV_ENV_ROOT_DIR}/.env"
+  set +o allexport
+
+  # load environment variables ID, VERSION_CODENAME
+  Engine::Config::loadOsRelease
+  Engine::Config::loadUserVariables
+
+  if ! Engine::Config::checkEnv "${BASH_DEV_ENV_ROOT_DIR}/.env"; then
+    Log::displayError "one or more variables are invalid, check above logs and fix '${envFile}' file accordingly"
+    return 1
+  fi
+
+  Engine::Config::loadHostIp
+
+  Engine::Config::requireWslu
+
+  #Linux::Wsl::initEnv
+  Engine::Config::loadWslVariables
+
+  Log::requireLoad
+
+  export PATH="${PATH}:${HOME}/.local/bin"
+
+  export BASH_DEV_ENV_CONFIG_LOADED=1
+}
+
+# @description Display message using warning color (yellow)
+# @arg $1 message:String the message to display
+Log::displayWarning() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
+    Log::computeDuration
+    echo -e "${__WARNING_COLOR}WARN    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logWarning "$1"
+}
+
+# @description Display message using error color (red)
+# @arg $1 message:String the message to display
+Log::displayError() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_ERROR)); then
+    Log::computeDuration
+    echo -e "${__ERROR_COLOR}ERROR   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logError "$1"
+}
+
+# @description load colors theme constants
+# @warning if tty not opened, noColor theme will be chosen
+# @arg $1 theme:String the theme to use (default, noColor)
+# @arg $@ args:String[]
+# @set __ERROR_COLOR String indicate error status
+# @set __INFO_COLOR String indicate info status
+# @set __SUCCESS_COLOR String indicate success status
+# @set __WARNING_COLOR String indicate warning status
+# @set __SKIPPED_COLOR String indicate skipped status
+# @set __DEBUG_COLOR String indicate debug status
+# @set __HELP_COLOR String indicate help status
+# @set __TEST_COLOR String not used
+# @set __TEST_ERROR_COLOR String not used
+# @set __HELP_TITLE_COLOR String used to display help title in help strings
+# @set __HELP_OPTION_COLOR String used to display highlight options in help strings
+#
+# @set __RESET_COLOR String reset default color
+#
+# @set __HELP_EXAMPLE String to remove
+# @set __HELP_TITLE String to remove
+# @set __HELP_NORMAL String to remove
+# shellcheck disable=SC2034
+UI::theme() {
+  local theme="${1-default}"
+  if [[ ! "${theme}" =~ -force$ ]] && ! Assert::tty; then
+    theme="noColor"
+  fi
+  case "${theme}" in
+    default | default-force)
+      theme="default"
+      ;;
+    noColor) ;;
+    *)
+      Log::fatal "invalid theme provided"
+      ;;
+  esac
+  if [[ "${theme}" = "default" ]]; then
+    BASH_FRAMEWORK_THEME="default"
+    # check colors applicable https://misc.flogisoft.com/bash/tip_colors_and_formatting
+    __ERROR_COLOR='\e[31m'         # Red
+    __INFO_COLOR='\e[44m'          # white on lightBlue
+    __SUCCESS_COLOR='\e[32m'       # Green
+    __WARNING_COLOR='\e[33m'       # Yellow
+    __SKIPPED_COLOR='\e[33m'       # Yellow
+    __DEBUG_COLOR='\e[37m'         # Grey
+    __HELP_COLOR='\e[7;49;33m'     # Black on Gold
+    __TEST_COLOR='\e[100m'         # Light magenta
+    __TEST_ERROR_COLOR='\e[41m'    # white on red
+    __HELP_TITLE_COLOR="\e[1;37m"  # Bold
+    __HELP_OPTION_COLOR="\e[1;34m" # Blue
+    # Internal: reset color
+    __RESET_COLOR='\e[0m' # Reset Color
+    # shellcheck disable=SC2155,SC2034
+    __HELP_EXAMPLE="$(echo -e "\e[2;97m")"
+    # shellcheck disable=SC2155,SC2034
+    __HELP_TITLE="$(echo -e "\e[1;37m")"
+    # shellcheck disable=SC2155,SC2034
+    __HELP_NORMAL="$(echo -e "\033[0m")"
+  else
+    BASH_FRAMEWORK_THEME="noColor"
+    # check colors applicable https://misc.flogisoft.com/bash/tip_colors_and_formatting
+    __ERROR_COLOR=''
+    __INFO_COLOR=''
+    __SUCCESS_COLOR=''
+    __WARNING_COLOR=''
+    __SKIPPED_COLOR=''
+    __DEBUG_COLOR=''
+    __HELP_COLOR=''
+    __TEST_COLOR=''
+    __TEST_ERROR_COLOR=''
+    __HELP_TITLE_COLOR=''
+    __HELP_OPTION_COLOR=''
+    # Internal: reset color
+    __RESET_COLOR=''
+    __HELP_EXAMPLE=''
+    __HELP_TITLE=''
+    __HELP_NORMAL=''
+  fi
+}
+
+# @description draw a line with the character passed in parameter repeated depending on terminal width
+# @arg $1 character:String character to use as separator (default value #)
+UI::drawLine() {
+  local character="${1:-#}"
+  printf -- "${character}%.0s" $(seq "${COLUMNS:-$([[ -t 0 ]] && tput cols || echo '80')}")
+}
+
+# @description Display message using error color (red) and exit immediately with error status 1
+# @arg $1 message:String the message to display
+Log::fatal() {
+  Log::computeDuration
+  echo -e "${__ERROR_COLOR}FATAL   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  Log::logFatal "$1"
+  exit 1
+}
+
+# @description create a temp file using default TMPDIR variable
+# initialized in _includes/_commonHeader.sh
+# @env TMPDIR String (default value /tmp)
+# @arg $1 templateName:String template name to use(optional)
+Framework::createTempFile() {
+  mktemp -p "${TMPDIR:-/tmp}" -t "${1:-}.XXXXXXXXXXXX"
+}
+
+# @description ensure env files are loaded
+# @arg $@ list of default files to load at the end
+# @exitcode 1 if one of env files fails to load
+# @stderr diagnostics information is displayed
+# shellcheck disable=SC2120
+Env::requireLoad() {
+  local -a defaultFiles=("$@")
+  # get list of possible config files
+  local -a configFiles=()
+  if [[ -n "${BASH_FRAMEWORK_ENV_FILES[0]+1}" ]]; then
+    # BASH_FRAMEWORK_ENV_FILES is an array
+    configFiles+=("${BASH_FRAMEWORK_ENV_FILES[@]}")
+  fi
+  local localFrameworkConfigFile
+  localFrameworkConfigFile="$(pwd)/.framework-config"
+  if [[ -f "${localFrameworkConfigFile}" ]]; then
+    configFiles+=("${localFrameworkConfigFile}")
+  fi
+  if [[ -f "${FRAMEWORK_ROOT_DIR}/.framework-config" ]]; then
+    configFiles+=("${FRAMEWORK_ROOT_DIR}/.framework-config")
+  fi
+  configFiles+=("${optionEnvFiles[@]}")
+  configFiles+=("${defaultFiles[@]}")
+
+  for file in "${configFiles[@]}"; do
+    # shellcheck source=/.framework-config
+    CURRENT_LOADED_ENV_FILE="${file}" source "${file}" || {
+      Log::displayError "while loading config file: ${file}"
+      return 1
+    }
+  done
+}
+
+# @description activate or not Log::display* and Log::log* functions
+# based on BASH_FRAMEWORK_DISPLAY_LEVEL and BASH_FRAMEWORK_LOG_LEVEL
+# environment variables loaded by Env::requireLoad
+# try to create log file and rotate it if necessary
+# @noargs
+# @set BASH_FRAMEWORK_LOG_LEVEL int to OFF level if BASH_FRAMEWORK_LOG_FILE is empty or not writable
+# @env BASH_FRAMEWORK_DISPLAY_LEVEL int
+# @env BASH_FRAMEWORK_LOG_LEVEL int
+# @env BASH_FRAMEWORK_LOG_FILE String
+# @env BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION int do log rotation if > 0
+# @exitcode 0 always successful
+# @stderr diagnostics information about log file is displayed
+# @require Env::requireLoad
+# @require UI::requireTheme
+Log::requireLoad() {
+  if [[ -z "${BASH_FRAMEWORK_LOG_FILE:-}" ]]; then
+    BASH_FRAMEWORK_LOG_LEVEL=${__LEVEL_OFF}
+    export BASH_FRAMEWORK_LOG_LEVEL
+  fi
+
+  if ((BASH_FRAMEWORK_LOG_LEVEL > __LEVEL_OFF)); then
+    if [[ ! -f "${BASH_FRAMEWORK_LOG_FILE}" ]]; then
+      if [[ ! -d "${BASH_FRAMEWORK_LOG_FILE%/*}" ]]; then
+        if ! mkdir -p "${BASH_FRAMEWORK_LOG_FILE%/*}" 2>/dev/null; then
+          BASH_FRAMEWORK_LOG_LEVEL=${__LEVEL_OFF}
+          echo -e "${__ERROR_COLOR}ERROR   - directory ${BASH_FRAMEWORK_LOG_FILE%/*} is not writable${__RESET_COLOR}" >&2
+        fi
+      elif ! touch --no-create "${BASH_FRAMEWORK_LOG_FILE}" 2>/dev/null; then
+        BASH_FRAMEWORK_LOG_LEVEL=${__LEVEL_OFF}
+        echo -e "${__ERROR_COLOR}ERROR   - File ${BASH_FRAMEWORK_LOG_FILE} is not writable${__RESET_COLOR}" >&2
+      fi
+    elif [[ ! -w "${BASH_FRAMEWORK_LOG_FILE}" ]]; then
+      BASH_FRAMEWORK_LOG_LEVEL=${__LEVEL_OFF}
+      echo -e "${__ERROR_COLOR}ERROR   - File ${BASH_FRAMEWORK_LOG_FILE} is not writable${__RESET_COLOR}" >&2
+    fi
+  fi
+
+  if ((BASH_FRAMEWORK_LOG_LEVEL > __LEVEL_OFF)); then
+    # will always be created even if not in info level
+    Log::logMessage "INFO" "Logging to file ${BASH_FRAMEWORK_LOG_FILE} - Log level ${BASH_FRAMEWORK_LOG_LEVEL}"
+    if ((BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION > 0)); then
+      Log::rotate "${BASH_FRAMEWORK_LOG_FILE}" "${BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION}"
+    fi
+  fi
+}
+
+# @description the command launch different actions(install, configure, test)
+# depending on the options selected
+# @see src/_includes/install.skip.options.tpl
+# @env SKIP_INSTALL
+# @env SKIP_CONFIGURE
+# @env SKIP_TEST
+# @env LOGS_DIR
+InstallScripts::command() {
+  local logsDir="${LOGS_DIR:-#}"
+  local scriptName
+  scriptName="$(scriptName)"
+  rm -f "${logsDir}/${scriptName}-.*" || true
+
+  # shellcheck disable=SC2317
+  onInterrupt() {
+    Log::displayError "${scriptName} aborted"
+    exit 1
+  }
+  trap onInterrupt INT TERM ABRT
+
+  local startDate logFile statsFile
+  local installStatus="0"
+  sourceHook() {
+    local hookName="$1"
+    # shellcheck disable=SC2154
+    hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh" "${embed_dir_hooks_dir}/${hookName}.sh")"
+    if [[ -x "${hook}" ]]; then
+      # shellcheck source=src/_binaries/SimpleTest/hooks/preInstall.sh
+      source "${hook}" || exit 1
+    fi
+  }
+  local globalStatsFile="${logsDir}/${scriptName}-global.stat"
+  local hook
+  if [[ "${SKIP_INSTALL}" = "0" ]] && ! InstallScripts::scriptFunctionEmpty install; then
+    LOG_CONTEXT="${scriptName} - " Log::headLine "INSTALL" "Installing ${scriptName}"
+    logFile="${logsDir}/${scriptName}-install.log"
+    statsFile="${logsDir}/${scriptName}-install.stat"
+
+    # break at first install error
+    (
+      startDate="$(date +%s)"
+      # shellcheck disable=SC2317
+      computeStats() {
+        local rc=$?
+        Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
+        Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
+        LOG_CONTEXT="${scriptName} - " Stats::statusLine "${rc}" "${statsFile}" "Installation"
+        exit "${rc}"
+      }
+      trap 'computeStats' EXIT INT TERM ABRT
+
+      local -i failures=0
+      sourceHook preInstall || ((++failures))
+      install || ((++failures))
+      sourceHook postInstall || ((++failures))
+      exit "${failures}"
+    ) 2>&1 | tee "${logFile}"
+  fi
+
+  local testInstallStatus="0"
+  if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" ]] &&
+    ! InstallScripts::scriptFunctionEmpty testInstall; then
+    Log::headLine "TEST" "Testing ${scriptName} installation"
+    logFile="${logsDir}/${scriptName}-test-install.log"
+    statsFile="${logsDir}/${scriptName}-test-install.stat"
+    (
+      startDate="$(date +%s)"
+      # shellcheck disable=SC2317
+      computeStats() {
+        local rc=$?
+        Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
+        Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
+        Stats::statusLine "${rc}" "${statsFile}" "Test Install ${scriptName}"
+        exit "${rc}"
+      }
+      trap 'computeStats' EXIT INT TERM ABRT
+
+      local -i failures=0
+      sourceHook preTestInstall || ((++failures))
+      testInstall || ((++failures))
+      sourceHook postTestInstall || ((++failures))
+      exit "${failures}"
+    ) 2>&1 | tee "${logFile}" || testInstallStatus="$?" || true
+    if [[ "${testInstallStatus}" != "0" ]] && breakOnTestFailure; then
+      # break if test script error
+      exit "${testInstallStatus}"
+    fi
+  fi
+
+  local configStatus="0"
+  if [[ "${SKIP_CONFIGURE}" = "0" && "${installStatus}" = "0" ]] &&
+    ! InstallScripts::scriptFunctionEmpty configure; then
+    Log::headLine "CONFIG" "Configuring ${scriptName}"
+    logFile="${logsDir}/${scriptName}-config.log"
+    statsFile="${logsDir}/${scriptName}-config.stat"
+    (
+      startDate="$(date +%s)"
+      # shellcheck disable=SC2317
+      computeStats() {
+        local rc=$?
+        Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
+        Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
+        Stats::statusLine "${rc}" "${statsFile}" "Configuration ${scriptName}"
+        exit "${rc}"
+      }
+      trap 'computeStats' EXIT INT TERM ABRT
+
+      local -i failures=0
+      sourceHook preConfigure || ((++failures))
+      configure || ((++failures))
+      sourceHook postConfigure || ((++failures))
+      exit "${failures}"
+    ) 2>&1 | tee "${logFile}" || configStatus="$?" || true
+
+    if [[ "${configStatus}" != "0" ]] && breakOnConfigFailure; then
+      # break if config script error
+      exit "${configStatus}"
+    fi
+  fi
+
+  local testConfigStatus="0"
+  if [[ "${SKIP_TEST}" = "0" && "${installStatus}" = "0" && "${configStatus}" = "0" ]] &&
+    ! InstallScripts::scriptFunctionEmpty configure; then
+    Log::headLine "TEST" "Testing ${scriptName} configuration"
+    logFile="${logsDir}/${scriptName}-test-configuration.log"
+    statsFile="${logsDir}/${scriptName}-test-configuration.stat"
+    (
+      startDate="$(date +%s)"
+      # shellcheck disable=SC2317
+      computeStats() {
+        local rc=$?
+        Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
+        Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
+        Stats::statusLine "${rc}" "${statsFile}" "Test Configuration ${scriptName}"
+        exit "${rc}"
+      }
+      trap 'computeStats' EXIT INT TERM ABRT
+
+      local -i failures=0
+      sourceHook preTestConfigure || ((++failures))
+      testConfigure || ((++failures))
+      sourceHook postTestConfigure || ((++failures))
+      exit "${failures}"
+    ) 2>&1 | tee "${logFile}" || testConfigStatus="$?" || true
+    if [[ "${testConfigStatus}" != "0" ]] && breakOnTestFailure; then
+      # break if test script error
+      exit "${testConfigStatus}"
+    fi
+  fi
+}
+
+# @description concat each element of an array with a separator
+# but wrapping text when line length is more than provided argument
+# The algorithm will try not to cut the array element if it can.
+# - if an arg can be placed on current line it will be,
+#   otherwise current line is printed and arg is added to the new
+#   current line
+# - Empty arg is interpreted as a new line.
+# - Add \r to arg in order to force break line and avoid following
+#   arg to be concatenated with current arg.
+#
+# @arg $1 glue:String
+# @arg $2 maxLineLength:int
+# @arg $3 indentNextLine:int
+# @arg $@ array:String[]
+Array::wrap2() {
+  local glue="${1-}"
+  local -i glueLength="${#glue}"
+  shift || true
+  local -i maxLineLength=$1
+  shift || true
+  local -i indentNextLine=$1
+  shift || true
+  local indentStr=""
+  if ((indentNextLine > 0)); then
+    indentStr="$(head -c "${indentNextLine}" </dev/zero | tr '\0' " ")"
+  fi
+  if (($# == 0)); then
+    return 0
+  fi
+
+  printCurrentLine() {
+    if ((isNewline == 0)) || ((previousLineEmpty == 1)); then
+      echo
+    fi
+    ((isNewline = 1))
+    echo -en "${indentStr}"
+    ((currentLineLength = indentNextLine)) || true
+  }
+  appendToCurrentLine() {
+    local text="$1"
+    local -i length=$2
+    ((currentLineLength += length)) || true
+    ((isNewline = 0)) || true
+    if [[ "${text: -1}" = $'\r' ]]; then
+      text="${text:0:-1}"
+      echo -en "${text%%+([[:blank:]])}"
+      printCurrentLine
+    else
+      echo -en "${text%%+([[:blank:]])}"
+    fi
+  }
+
+  (
+    local currentLine
+    local -i currentLineLength=0 isNewline=1 argLength=0
+    local -a additionalLines
+    local -i previousLineEmpty=0
+    local arg=""
+
+    while (($# > 0)); do
+      arg="$1"
+      shift || true
+
+      # replace tab by 2 spaces
+      arg="${arg//$'\t'/  }"
+      # remove trailing spaces
+      arg="${arg%[[:blank:]]}"
+      if [[ "${arg}" = $'\n' || -z "${arg}" ]]; then
+        printCurrentLine
+        ((previousLineEmpty = 1))
+        continue
+      else
+        if ((previousLineEmpty == 1)); then
+          printCurrentLine
+        fi
+        ((previousLineEmpty = 0)) || true
+      fi
+      # convert eol to args
+      mapfile -t additionalLines <<<"${arg}"
+      if ((${#additionalLines[@]} > 1)); then
+        set -- "${additionalLines[@]}" "$@"
+        continue
+      fi
+
+      ((argLength = ${#arg})) || true
+
+      # empty arg
+      if ((argLength == 0)); then
+        if ((isNewline == 0)); then
+          # isNewline = 0 means currentLine is not empty
+          printCurrentLine
+        fi
+        continue
+      fi
+
+      if ((isNewline == 0)); then
+        glueLength="${#glue}"
+      else
+        glueLength="0"
+      fi
+      if ((currentLineLength + argLength + glueLength > maxLineLength)); then
+        if ((argLength + glueLength > maxLineLength)); then
+          # arg is too long to even fit on one line
+          # we have to split the arg on current and next line
+          local -i remainingLineLength
+          ((remainingLineLength = maxLineLength - currentLineLength - glueLength))
+          appendToCurrentLine "${glue:0:${glueLength}}${arg:0:${remainingLineLength}}" "$((glueLength + remainingLineLength))"
+          printCurrentLine
+          arg="${arg:${remainingLineLength}}"
+          # remove leading spaces
+          arg="${arg##[[:blank:]]}"
+
+          set -- "${arg}" "$@"
+        else
+          # the arg can fit on next line
+          printCurrentLine
+          appendToCurrentLine "${arg}" "${argLength}"
+        fi
+      else
+        appendToCurrentLine "${glue:0:${glueLength}}${arg}" "$((glueLength + argLength))"
+      fi
+    done
+    if [[ "${currentLine}" != "" ]] && [[ ! "${currentLine}" =~ ^[\ \t]+$ ]]; then
+      printCurrentLine
+    fi
+  ) | sed -E -e 's/[[:blank:]]+$//'
+}
+
+# @description check if function is empty
+# @arg $1 function:Function
+# @exitcode 0 if function is considered empty (body with : or true)
+InstallScripts::scriptFunctionEmpty() {
+  local pattern="^[ \t]+(:|true)"
+  [[ "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} && "$(declare -f "$1" | sed '4q;d')" = "}" ]]
+}
+
+# @description apt-get install if package is not installed yet
+# @arg $@ packages:String[] list of packages to install
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @env SKIP_APT_GET_UPDATE
+# @stdout diagnostics logs
+Linux::Apt::installIfNecessary() {
+  local -a packages=("$@")
+  local package
+  local -i installNeeded=0
+  for package in "${packages[@]}"; do
+    if [[ "${package}" =~ ^-- ]]; then
+      continue
+    fi
+    if ! Linux::Apt::isPackageInstalled "${package}"; then
+      Log::displayInfo "Package ${package} is not installed"
+      installNeeded=1
+    fi
+  done
+  if ((installNeeded == 1)); then
+    if [[ "${SKIP_APT_GET_UPDATE:-0}" = "0" ]]; then
+      Linux::Apt::update
+    fi
+    Linux::Apt::install "${packages[@]}"
+    for package in "${packages[@]}"; do
+      if [[ "${package}" =~ ^-- ]]; then
+        continue
+      fi
+      if ! Linux::Apt::isPackageInstalled "${package}"; then
+        Log::displayWarning "Package ${package} does not appear to have been installed, check if you could have chosen the wrong package name (Eg: python3.9-distutils instead of python3-distutils)"
+      fi
+    done
+  else
+    Log::displayInfo "Apt install avoided as packages are already installed : ${packages[*]}"
+  fi
+}
+
+# @description check if command specified exists or return 1
+# with error and message if not
+#
+# @arg $1 commandName:String on which existence must be checked
+# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
+#
+# @exitcode 1 if the command specified does not exist
+# @stderr diagnostic information + help if second argument is provided
+Assert::commandExists() {
+  local commandName="$1"
+  local helpIfNotExists="$2"
+
+  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
+    Log::displayError "${commandName} is not installed, please install it"
+    if [[ -n "${helpIfNotExists}" ]]; then
+      Log::displayInfo "${helpIfNotExists}"
+    fi
+    return 1
+  }
+  return 0
+}
+
+# @description Display message using info color (bg light blue/fg white)
+# @arg $1 message:String the message to display
+Log::displayHelp() {
+  local type="${2:-HELP}"
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    Log::computeDuration
+    echo -e "${__HELP_COLOR}${type}    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logHelp "$1" "${type}"
+}
+
+# @description copy folder structure to target directory
+# merge embedDir with overridden directory if provided and available
+# @arg $1 embedDir:String the path embedded
+# @arg $2 overrideDir:String the path overridden
+# @arg $3 subDir:String the sub-directory to copy from embedDir and/or overrideDir
+# @arg $4 targetDir:String the target directory (default: ${HOME}/${subDir})
+# @env SUDO String allows to use custom sudo prefix command
+# @env HOME used for default value of targetDir arg
+# @env OVERWRITE_CONFIG_FILES indicates if target directory should be overwritten if it exists
+# @env PRETTY_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+Conf::copyStructure() {
+  local embedDir="$1"
+  local overrideDir="$2"
+  local subDir="$3"
+  local targetDir="${4:-${HOME}/${subDir}}"
+
+  local configDir
+  # shellcheck disable=SC2154
+  configDir="$(Conf::getOverriddenDir "${embedDir}" "${overrideDir}")"
+  # shellcheck disable=SC2154
+  OVERWRITE_CONFIG_FILES=${OVERWRITE_CONFIG_FILES:-1} \
+    PRETTY_ROOT_DIR="${embedDir%/*}" \
+    Install::structure "${configDir}/${subDir}" "${targetDir}"
+}
+
+# @description installs file to given directory
+#
+# callbacks parameters `${fromFile} ${targetFile} $@`
+# @arg $1 fromFile - original file to copy
+# @arg $2 targetFile - target file
+# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
+# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
+# @arg $5 successCallback:Function the callback to call when file is installed successfully, by default setUserRights callback is called
+# @arg $6 failureCallback:Function the callback to call when file installation has failed, by default unableToCopyCallback callback is called
+# @arg $@ callbacksParams:String[] additional parameters passed to callbacks
+# @exitcode 1 if fromFile is not readable
+# @exitcode 2 if backup file failure
+# @exitcode 3 if copy failure
+# @exitcode 0 on success or if OVERWRITE_CONFIG_FILES=0
+# @exitcode 0 on success or if CHANGE_WINDOWS_FILES=0 and target file is a windows file
+# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
+# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target file is in windows file system, overwrite it
+# @env USERNAME (default: root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @env BASE_MNT_C String windows C drive base PATH
+# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_BEFORE_INSTALL Boolean (default: 1) backup file before installing the file
+Install::file() {
+  local fromFile="$1"
+  local targetFile="$2"
+  local userName="${3:-${USERNAME:-root}}"
+  local userGroup="${4:-${USERGROUP:-root}}"
+  local successCallback=${5:-Install::setUserRightsCallback}
+  local failureCallback=${6:-Install::unableToCopyCallback}
+  shift 6 || true
+
+  if [[ ! -f "${fromFile}" || ! -r "${fromFile}" ]]; then
+    Log::displayError "cannot read source file '${fromFile}'"
+    return 1
+  fi
+
+  # skip if OVERWRITE_CONFIG_FILES is 0 and target file exists
+  if [[ "${OVERWRITE_CONFIG_FILES}" = "0" && -f "${targetFile}" ]]; then
+    Log::displayWarning "File '${targetFile}' exists - Skip install (because OVERWRITE_CONFIG_FILES=0 in .env file)"
+    return 0
+  fi
+
+  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
+  if [[ "${CHANGE_WINDOWS_FILES}" = "0" && "${targetFile}" =~ ^${BASE_MNT_C} ]]; then
+    Log::displayWarning "File '${targetFile}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
+    return 0
+  fi
+
+  local targetDir="${targetFile%/*}"
+  if ! ${SUDO} test -d "${targetDir}"; then
+    ${SUDO:-} mkdir -p "${targetDir}"
+    ${SUDO:-} chown "${userName}":"${userGroup}" "${targetDir}"
+  fi
+  local fromDir="${fromFile%/*}"
+  local fromFilename="${fromFile##*/}"
+
+  local prettyFromDir
+  # shellcheck disable=SC2295
+  prettyFromDir="${fromDir#${PRETTY_ROOT_DIR:-${FRAMEWORK_ROOT_DIR}}/}"
+  if diff -q "${fromFile}" "${targetFile}" &>/dev/null; then
+    Log::displayStatus "No changes detected. No need to update '${targetFile}' from '${prettyFromDir}/${fromFilename}'"
+    return 0
+  fi
+
+  if [[ "${BACKUP_BEFORE_INSTALL:-1}" = "1" ]]; then
+    Backup::file "${targetFile}" || return 2
+  fi
+
+  if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
+    # shellcheck disable=SC2295
+    Log::displaySuccess "Installed file '${targetFile}' from '${prettyFromDir}/${fromFilename}'"
+    ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${prettyFromDir}" "${fromFilename}"
+  else
+    # shellcheck disable=SC2295
+    Log::displayError "unable to copy file '${targetFile}' from '${fromDir#${FRAMEWORK_ROOT_DIR}/}/${fromFilename}'"
+    ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${prettyFromDir}" "${fromFilename}"
+    return 3
+  fi
+}
+
+# @description asserts that first argument is file that exists with specified ownership
+# @arg $1 file:String
+# @arg $2 user:String expected owner user name of the file (default: USERNAME or id -un command)
+# @arg $3 group:String expected owner group name of the file (default: USERGROUP or id -gn command)
+# @env USERNAME String if arg $2 is not provided
+# @env USERGROUP String if arg $3 is not provided
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode 1 if missing file
+# @exitcode 2 if incorrect user ownership
+# @exitcode 3 if incorrect group ownership
+# @stderr diagnostics information is displayed
+Assert::fileExists() {
+  local file="$1"
+  local user="${2:-${USERNAME}}"
+  local group="${3:-${USERGROUP}}"
+  Log::displayInfo "Check ${file} exists with user ${user}:${group}"
+  if ! ${SUDO:-} test -f "${file}" &>/dev/null; then
+    Log::displayError "missing file ${file}"
+    return 1
+  fi
+  if [[ "${user}" != "$(${SUDO:-} stat -c '%U' "${file}")" ]]; then
+    Log::displayError "incorrect user ownership on file ${file}"
+    return 2
+  fi
+  if [[ "${group}" != "$(${SUDO:-} stat -c '%G' "${file}")" ]]; then
+    Log::displayError "incorrect group ownership on file ${file}"
+    return 3
+  fi
+}
+
+# @description ensure COMMAND_BIN_DIR env var is set
+# and PATH correctly prepared
+# @noargs
+# @set COMMAND_BIN_DIR string the directory where to find this command
+# @set PATH string add directory where to find this command binary
+Compiler::Facade::requireCommandBinDir() {
+  COMMAND_BIN_DIR="${CURRENT_DIR}"
+  Env::pathPrepend "${COMMAND_BIN_DIR}"
+}
+
+declare -g FIRST_LOG_DATE LOG_LAST_LOG_DATE LOG_LAST_LOG_DATE_INIT LOG_LAST_DURATION_STR
+FIRST_LOG_DATE="${EPOCHREALTIME/[^0-9]/}"
+LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
+LOG_LAST_LOG_DATE_INIT=1
+LOG_LAST_DURATION_STR=""
+
+# @description Display message using info color (bg light blue/fg white)
+# @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+Log::computeDuration() {
+  if ((DISPLAY_DURATION == 1)); then
+    local -i duration=0
+    local -i delta=0
+    local -i currentLogDate
+    currentLogDate="${EPOCHREALTIME/[^0-9]/}"
+    if ((LOG_LAST_LOG_DATE_INIT == 1)); then
+      LOG_LAST_LOG_DATE_INIT=0
+      LOG_LAST_DURATION_STR="Ref"
+    else
+      duration=$(((currentLogDate - FIRST_LOG_DATE) / 1000000))
+      delta=$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000000))
+      LOG_LAST_DURATION_STR="${duration}s/+${delta}s"
+    fi
+    LOG_LAST_LOG_DATE="${currentLogDate}"
+    # shellcheck disable=SC2034
+    local microSeconds="${EPOCHREALTIME#*.}"
+    LOG_LAST_DURATION_STR="$(printf '%(%T)T.%03.0f\n' "${EPOCHSECONDS}" "${microSeconds:0:3}")(${LOG_LAST_DURATION_STR}) - "
+  else
+    # shellcheck disable=SC2034
+    LOG_LAST_DURATION_STR=""
+  fi
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logInfo() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-INFO}" "$1"
+  fi
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logDebug() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_DEBUG)); then
+    Log::logMessage "${2:-DEBUG}" "$1"
+  fi
+}
+
+# @description prepend directories to the PATH environment variable
+# @arg $@ args:String[] list of directories to prepend
+# @set PATH update PATH with the directories prepended
+Env::pathPrepend() {
+  local arg
+  for arg in "$@"; do
+    if [[ -d "${arg}" && ":${PATH}:" != *":${arg}:"* ]]; then
+      PATH="$(realpath "${arg}"):${PATH}"
+    fi
+  done
+}
+
+# @description if .env does not exist, initialize it with .env.template
+Engine::Config::createEnvFileFromTemplate() {
+  local envFile="$1"
+  local envFileTemplate="$2"
+
+  if [[ ! -f "${envFile}" ]]; then
+    echo "${envFileTemplate}" >"${envFile}"
+    Log::displayError "a default env file has been created, please edit ${envFile}"
+    return 1
+  fi
+}
+
+# @description load /etc/os-release file
+# @set NAME
+# @set VERSION
+# @set ID
+# @set ID_LIKE
+# @set PRETTY_NAME
+# @set VERSION_ID
+# @set HOME_URL
+# @set SUPPORT_URL
+# @set BUG_REPORT_URL
+# @set PRIVACY_POLICY_URL
+# @set VERSION_CODENAME
+# @set UBUNTU_CODENAME
+Engine::Config::loadOsRelease() {
+  if [[ ! -f /etc/os-release ]]; then
+    Log::displayError "file /etc/os-release does not exists"
+    return 1
+  fi
+  # This will load environment variables ID, VERSION_CODENAME, ...
+  set -o allexport
+  source /etc/os-release
+  set +o allexport
+}
+
+# @description deduce HOME, USER_ID, USERGROUP_ID and USERGROUP from USERNAME
+# @env USERNAME String the name of the user
+# @set USER_ID String
+# @set USERGROUP String
+# @set USERGROUP_ID String
+# @set USER_SHELL String current user shell
+# @set HOME String
+Engine::Config::loadUserVariables() {
+  # deduce user home and group
+  local -a split
+  local IFS=':'
+  # shellcheck disable=SC2207
+  split=($(getent passwd "${USERNAME}"))
+  USER_ID="${split[2]}"
+  USERGROUP_ID="${split[3]}"
+  HOME="${split[5]}"
+  USER_SHELL="${split[6]}"
+  # shellcheck disable=SC2207
+  split=($(getent group "${USERNAME}"))
+  USERGROUP="${split[0]}"
+
+  if [[ -z "${USERGROUP}" || -z "${HOME}" ]]; then
+    Log::displayError "USERNAME - unable to deduce USERGROUP, HOME from USERNAME"
+    return 1
+  fi
+
+  export HOME
+  export USER_ID
+  export USERGROUP_ID
+  export USERGROUP
+  export USER_SHELL
+}
+
+# @description check validity of .env variables
+# @env CHECK_ENV int 0 to avoid checking environment
+# @noargs
+Engine::Config::checkEnv() {
+  local envFile="$1"
+  if [[ "${CHECK_ENV:-1}" = "0" ]]; then
+    return 0
+  fi
+  # avoid checks if .env file didn't changed
+  local envFileMd5Cache="${PERSISTENT_TMPDIR:-/tmp}/bash-dev-env-enf-file-checksum"
+  if md5sum -c "${envFileMd5Cache}" &>/dev/null; then
+    return 0
+  else
+    md5sum "${envFile}" >"${envFileMd5Cache}"
+  fi
+  local errorCount=0 || true
+  checkNotEmpty() {
+    local var="$1"
+    if ! Assert::varExistsAndNotEmpty "${var}"; then
+      ((++errorCount))
+      return 1
+    fi
+  }
+  checkVarAndDir() {
+    local var="$1"
+    local mode="${2:-}"
+    local status=0
+    if checkNotEmpty "${var}"; then
+      if [[ ! -d "${!var}" ]] && ! mkdir -p "${!var}"; then
+        Log::displayError "variable ${var} - impossible to create the directory '${!var}'"
+        ((errorCount++))
+        return 1
+      fi
+      if [[ "${mode}" =~ w && ! -w "${!var}" ]]; then
+        Log::displayError "variable ${var} - directory '${!var}' is not writable"
+        ((status++))
+        ((errorCount++))
+      fi
+      if [[ "${mode}" =~ r && ! -r "${!var}" ]]; then
+        Log::displayError "variable ${var} - directory '${!var}' is not accessible"
+        ((status++))
+        ((errorCount++))
+      fi
+    fi
+
+    return "${status}"
+  }
+  checkValidValues() {
+    local var="$1"
+    shift || true
+    local -a validValues=("$@")
+    if ! Array::contains "${!var}" "${validValues[@]}"; then
+      Log::displayError "variable ${var} - value ${!var} is not part of the following values ${validValues[*]}"
+      ((++errorCount))
+    fi
+  }
+
+  if ! echo "${ID}" | grep -qEw 'debian|ubuntu'; then
+    Log::fatal "This script is built to support only Debian or Ubuntu distributions. You are using ${ID}."
+  fi
+
+  if checkNotEmpty USERNAME && ! getent passwd "${USERNAME}" 2>/dev/null >/dev/null; then
+    Log::displayError "USERNAME - user '${USERNAME}' does not exist"
+    ((errorCount++))
+  fi
+
+  if [[ -n "${SSH_LOGIN:-}" ]] && ! Assert::ldapLogin "${SSH_LOGIN}"; then
+    Log::displayError "SSH_LOGIN - invalid ldap login (format expected firstNameLastName) in ${BASH_DEV_ENV_ROOT_DIR}/.env file"
+    ((errorCount++))
+  fi
+
+  if checkNotEmpty "GIT_USERNAME" && ! Assert::firstNameLastName "${GIT_USERNAME}"; then
+    Log::displayError "GIT_USERNAME - invalid format, expected : firstName lastName"
+    ((errorCount++))
+  fi
+
+  if checkNotEmpty "GIT_USER_MAIL" && ! Assert::emailAddress "${GIT_USER_MAIL}"; then
+    Log::displayError "GIT_USER_MAIL - invalid email address"
+    ((errorCount++))
+  fi
+
+  if checkNotEmpty "AWS_USER_MAIL" && ! Assert::emailAddress "${AWS_USER_MAIL}"; then
+    Log::displayError "AWS_USER_MAIL - invalid email address"
+    ((errorCount++))
+  fi
+
+  checkVarAndDir CONF_OVERRIDE_DIR r || true
+  checkVarAndDir PROJECTS_DIR r || true
+  checkVarAndDir BACKUP_DIR rw || true
+  checkVarAndDir LOGS_DIR rw || true
+  checkVarAndDir INSTALL_SCRIPTS_DIR r || true
+  checkVarAndDir HOME rw || true
+
+  checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
+  checkValidValues PREFERRED_SHELL ShellBash ShellZsh
+  checkValidValues ZSH_PREFERRED_THEME powerlevel10k/powerlevel10k sindresorhus/pure starship/starship
+
+  checkValidValues SHOW_FORTUNES 0 1
+  checkValidValues SHOW_MOTD 0 1
+  checkValidValues DOCKER_INSIDE_WSL 0 1
+  checkValidValues OVERWRITE_CONFIG_FILES 0 1
+  checkValidValues CHANGE_WINDOWS_FILES 0 1
+  checkValidValues CAN_TALK_DURING_INSTALLATION 0 1
+  checkValidValues INSTALL_INTERACTIVE 0 1
+
+  checkNotEmpty WSLCONFIG_MAX_MEMORY
+  checkValidValues WSLCONFIG_SWAP 0 1
+  export CHECK_ENV=0
+  return "${errorCount}"
+}
+
+# @description deduce wsl host ip
+# @set HOST_IP exported env containing the IP
+Engine::Config::loadHostIp() {
+  HOST_IP="$(/sbin/ip route | awk '/default/ { print $3 }')"
+
+  export HOST_IP
+}
+
+# @description install apt wslu if necessary providing wslvar, wslpath
+Engine::Config::requireWslu() {
+  if ! command -v wslvar &>/dev/null; then
+    Log::displayInfo "Installing pre-requisite Wslu : wslvar, wslpath, ... commands"
+    Linux::Apt::installIfNecessary --no-install-recommends wslu
+
+    # @see https://github.com/microsoft/WSL/issues/8843#issuecomment-1792256894
+    Log::displayInfo "Fix wsl interoperability due to wsl bug"
+    if [[ ! -f /usr/lib/binfmt.d/WSLInterop.conf &&
+      ! -f /etc/systemd/system/wsl-binfmt.service &&
+      -f /run/systemd/generator.early/wsl-binfmt.service ]]; then
+      sudo sh -c 'echo :WSLInterop:M::MZ::/init:PF > /usr/lib/binfmt.d/WSLInterop.conf'
+      sudo ln -s /run/systemd/generator.early/wsl-binfmt.service /etc/systemd/system/wsl-binfmt.service
+    fi
+  fi
+}
+
+# @description load wsl env variables
+# @set BASE_MNT_C
+# @set WINDOWS_DIR
+# @set WINDOWS_PROFILE_DIR
+# @set LOCAL_APP_DATA
+# @set WINDOW_PATH
+# @set WSL_EXE_BIN
+# @set IPCONFIG_BIN
+# @set POWERSHELL_BIN
+# @env WSL_EXE_BIN
+# @env IPCONFIG_BIN
+# @env POWERSHELL_BIN
+Engine::Config::loadWslVariables() {
+  if ! Assert::wsl; then
+    # skip
+    return 0
+  fi
+
+  local IFS=' '
+  local -a split=()
+  # shellcheck disable=SC2207
+  split=($(grep -m 1 -E 'C:\\[^ ]+ ([^ ]+) ' /proc/mounts 2>/dev/null))
+  # shellcheck disable=SC1003
+  BASE_MNT_C="${split[1]}"
+  export BASE_MNT_C
+
+  Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_DIR SystemRoot
+  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C:-/mnt/c}/Windows}"
+  export WINDOWS_DIR
+
+  Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_PROFILE_DIR USERPROFILE
+  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C:-/mnt/c}/Users/${USERNAME}}"
+  export WINDOWS_PROFILE_DIR
+
+  Linux::Wsl::cachedWslpathFromWslVar2 LOCAL_APP_DATA LOCALAPPDATA
+  export LOCAL_APP_DATA
+
+  # WINDOW_PATH
+  Linux::Wsl::cachedWslvar2 WINDOW_PATH PATH
+  WINDOW_PATH="${WINDOW_PATH//;/:}"
+  WINDOW_PATH="${WINDOW_PATH//\\//}"
+  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C:-/mnt/c}}"
+
+  deduceBin() {
+    local var="$1"
+    local expectedFullPath="$2"
+    local expectedBin="$3"
+    if [[ -z "${!var+xxx}" ]]; then
+      eval "${var}=${expectedFullPath}"
+      if ! command -v "${!var}" >/dev/null 2>&1; then
+        eval "${var}=$(command -v "${expectedBin}" 2>/dev/null)"
+      fi
+    fi
+    if [[ -z "${!var:-}" ]] || ! command -v "${!var}" >/dev/null 2>&1; then
+      Log::fatal "variable ${var} - command ${expectedBin} not found"
+    fi
+    # shellcheck disable=SC2163
+    export "${var}"
+  }
+
+  checkBinary() {
+    local var="$1"
+    if [[ -z "${var}" || ! -x "${!var}" ]]; then
+      Log::displayError "variable ${var} - binary '${!var}' does not exist or not executable"
+      ((errorCount++))
+    fi
+  }
+
+  local errorCount=0
+  # IPCONFIG_BIN - which ipconfig.exe does not work when executed as root
+  deduceBin IPCONFIG_BIN "${WINDOWS_DIR}/System32/ipconfig.exe" "ipconfig.exe"
+  checkBinary IPCONFIG_BIN
+
+  deduceBin WSL_EXE_BIN "${WINDOWS_DIR}/System32/wsl.exe" "wsl.exe"
+  checkBinary WSL_EXE_BIN
+
+  deduceBin POWERSHELL_BIN "${WINDOWS_DIR}/System32/WindowsPowerShell/v1.0/powershell.exe" "powershell.exe"
+  checkBinary POWERSHELL_BIN
+
+  return "${errorCount}"
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logWarning() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_WARNING)); then
+    Log::logMessage "${2:-WARNING}" "$1"
+  fi
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logError() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_ERROR)); then
+    Log::logMessage "${2:-ERROR}" "$1"
+  fi
+}
+
+# @description check if tty (interactive mode) is active
+# @noargs
+# @exitcode 1 if tty not active
+# @env NON_INTERACTIVE if 1 consider as not interactive even if environment is interactive
+# @env INTERACTIVE if 1 consider as interactive even if environment is not interactive
+Assert::tty() {
+  if [[ "${NON_INTERACTIVE:-0}" = "1" ]]; then
+    return 1
+  fi
+  if [[ "${INTERACTIVE:-0}" = "1" ]]; then
+    return 0
+  fi
+  # check if stdout or stderr is connected to terminal
+  [[ -t 1 || -t 2 ]]
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logFatal() {
+  Log::logMessage "${2:-FATAL}" "$1"
+}
+
+# @description Internal: common log message
+# @example text
+#   [date]|[levelMsg]|message
+#
+# @example text
+#   2020-01-19 19:20:21|ERROR  |log error
+#   2020-01-19 19:20:21|SKIPPED|log skipped
+#
+# @arg $1 levelMsg:String message's level description (eg: STATUS, ERROR, ...)
+# @arg $2 msg:String the message to display
+# @env BASH_FRAMEWORK_LOG_FILE String log file to use, do nothing if empty
+# @env BASH_FRAMEWORK_LOG_LEVEL int log level log only if > OFF or fatal messages
+# @stderr diagnostics information is displayed
+# @require Env::requireLoad
+# @require Log::requireLoad
+Log::logMessage() {
+  local levelMsg="$1"
+  local msg="$2"
+  local date
+
+  if [[ -n "${BASH_FRAMEWORK_LOG_FILE}" ]] && ((BASH_FRAMEWORK_LOG_LEVEL > __LEVEL_OFF)); then
+    date="$(date '+%Y-%m-%d %H:%M:%S')"
+    touch "${BASH_FRAMEWORK_LOG_FILE}"
+    printf "%s|%7s|%s\n" "${date}" "${levelMsg}" "${msg}" >>"${BASH_FRAMEWORK_LOG_FILE}"
+  fi
+}
+
+# @description To be called before logging in the log file
+# @arg $1 file:string log file name
+# @arg $2 maxLogFilesCount:int maximum number of log files
+Log::rotate() {
+  local file="$1"
+  local maxLogFilesCount="${2:-5}"
+
+  if [[ ! -f "${file}" ]]; then
+    Log::displaySkipped "Log file ${file} doesn't exist yet"
+    return 0
+  fi
+  local i
+  for ((i = maxLogFilesCount - 1; i > 0; i--)); do
+    Log::displayInfo "Log rotation ${file}.${i} to ${file}.$((i + 1))"
+    mv "${file}."{"${i}","$((i + 1))"} &>/dev/null || true
+  done
+  if cp "${file}" "${file}.1" &>/dev/null; then
+    echo >"${file}" # reset log file
+    Log::displayInfo "Log rotation ${file} to ${file}.1"
+  fi
+}
+
+# @description select right file to load depending if file exists in this order:
+# - from conf.override
+# - from embedded file if provided
+# - from conf dir
+# @arg $1 file:String
+# @arg $2 embedFile:String eventual embedded file
+# @exitcode 1 if file does not exist at all
+Conf::dynamicConfFile() {
+  local file="${1/#\//}" # remove first slash if any
+  local embedFile="${2:-}"
+  if [[ -f "${CONF_OVERRIDE_DIR}/${file}" ]]; then
+    echo "${CONF_OVERRIDE_DIR}/${file}"
+    return 0
+  elif [[ -f "${embedFile}" ]]; then
+    echo "${embedFile}"
+    return 0
+  fi
+  if [[ "${IGNORE_ERROR:-0}" = "0" ]]; then
+    Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
+    return 1
+  fi
+}
+
+# @description Display given text on full line with TEST_COLOR style
+# @arg $1 text:String text to display
+Log::headLine() {
+  local type="$1"
+  local text="$2"
+  local message="${type}   - ${text}"
+  if [[ -z "${type}" ]]; then
+    message="${text}"
+  else
+    Log::computeDuration
+    message="$(printf '%-7s - %s%s' "${type}" "${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}" "${text}")"
+  fi
+  echo -e "${__TEST_COLOR}$(UI::textLine "${message}" " ")${__RESET_COLOR}" >&2
+}
+
+# @description trap function responsible to compute and display stats after each script execution
+# @arg $1 logFile:String
+# @arg $2 statFile:String
+# @arg $3 startDate:String date at which log started
+Stats::computeStatsTrap() {
+  local status="$?"
+  local logFile="$1"
+  local statFile="$2"
+  local startDate="$3"
+  local endDate
+  endDate="$(date +%s)"
+  Stats::computeFromLog "${logFile}" "${status}" "$((endDate - startDate))" >"${statFile}"
+  return "${status}"
+}
+
+# @description display message to reflect last installation status
+Stats::statusLine() {
+  local status="$1"
+  local statFile="$2"
+  local msg="$3"
+  if [[ ! -f "${statFile}" ]]; then
+    return 0
+  fi
+  Log::computeDuration
+  (
+    # shellcheck source=src/Stats/logStats.example
+    source "${statFile}" || exit 1
+
+    local color="${__TEST_ERROR_COLOR}"
+    local statusMsg
+    if [[ "${status}" = "0" ]]; then
+      if [[ "${skipped}" = "0" ]]; then
+        color="${__SUCCESS_COLOR}"
+        statusMsg="SUCCESS - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR}${msg} successful"
+      fi
+    elif [[ "${status}" = "-1" ]]; then
+      statusMsg="ABORTED - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR}${msg} not executed"
+    else
+      statusMsg="ERROR   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR}${msg} in error"
+    fi
+    # overwrite final TEST line
+    echo -e "${color}${statusMsg}${__RESET_COLOR}"
+  )
+}
+
+# @description check if apt package is installed
+# @arg $1 package:String the package name to check
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::isPackageInstalled() {
+  local package="$1"
+  dpkg -l "${package}" | grep -Eq "^ii  ${package}"
+}
+
+# @description update apt packages list
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::update() {
+  Log::displayInfo "Apt update ..."
+  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
+}
+
+# @description apt-get install
+# @arg $@ softwares:String[] list of softwares to install
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::install() {
+  Log::displayInfo "Apt install $*"
+  Retry::default sudo apt-get install -y -q "$@"
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logHelp() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-HELP}" "$1"
+  fi
+}
+
+# @description generate temp directory where default
+# and overridden directories have been merged
+#   - if overridden dir exists, create a new temp folder
+#     - copy all files from default folder
+#     - overwrite with files from overridden folder
+#     - (Later) delete files listed in .remove$$ file
+#     - return the path of this temp folder
+#   - else just return the default folder path
+# Then it is easier to pick overridden or default files/folders
+#
+# @arg $1 defaultDir:String usually the embed directory
+# @arg $2 overriddenDirPath:String the path to the directory
+#   that could be overridden
+# @exitcode 1 if default dir does not exist
+# @exitcode 2 if error during copy
+Conf::getOverriddenDir() {
+  local defaultDir="$1"
+  local overriddenDirPath="$2"
+
+  if [[ ! -d "${defaultDir}" ]]; then
+    Log::displayError "Directory ${defaultDir} does not exists"
+    return 1
+  fi
+  if [[ ! -d "${overriddenDirPath}" || -z "$(ls -A "${overriddenDirPath}")" ]]; then
+    Log::displayInfo "Conf::getOverriddenDir - directory ${overriddenDirPath} does not exist, keep default one ${defaultDir}"
+    echo "${defaultDir}"
+    return 0
+  fi
+  local tempDir
+  tempDir="$(mktemp -d)"
+  (
+    shopt -s dotglob
+    cp -R "${defaultDir}/." "${tempDir}"
+    cp -R "${overriddenDirPath}/." "${tempDir}"
+  ) || return 2
+  echo "${tempDir}"
+}
+
+# @description install dir to given directory but backup it before
+# @arg $1 fromDir:String the source base directory
+# @arg $2 toDir:String the target base directory
+# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing files
+# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target directory is in windows file system, overwrite it
+# @env USERNAME (default: ${USERNAME} if SUDO empty else root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: ${USERGROUP} if SUDO empty else root) the group name that will be used to set target files ownership
+# @env BASE_MNT_C String windows C drive base PATH
+# @env PRETTY_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_BEFORE_INSTALL Boolean (default:1) backup directory before installing the dir
+# @exitcode 1 if source directory is not readable
+# @exitcode 2 if error during structure replication
+# @exitcode 2 if error during file copy
+# @exitcode 0 if copy successful
+# @exitcode 0 with warning message if CHANGE_WINDOWS_FILES=0 and target directory in C drive
+# @stderr diagnostics information is displayed, skipped information if OVERWRITE_CONFIG_FILES or CHANGE_WINDOWS_FILES are set to 1
+Install::structure() {
+  local fromDir="$1"
+  local toDir="$2"
+  local userName="root"
+  local userGroup="root"
+  if [[ -z "${SUDO:-}" ]]; then
+    userName="${USERNAME:-root}"
+    userGroup="${USERGROUP:-root}"
+  fi
+
+  if [[ ! -d "${fromDir}" || ! -r "${fromDir}" ]]; then
+    Log::displayError "Install::structure - cannot read source directory '${fromDir}'"
+    return 1
+  fi
+
+  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
+  if [[ "${CHANGE_WINDOWS_FILES:-0}" = "0" && "${toDir}" =~ ^${BASE_MNT_C} ]]; then
+    Log::displayWarning "Install::structure - Directory '${fromDir}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
+    return 0
+  fi
+
+  # first replicate directory structure
+  # shellcheck disable=SC2317
+  createStructure() {
+    local dir="$1"
+    if ! ${SUDO} test -d "${dir}"; then
+      if ! ${SUDO:-} mkdir -p "${dir}"; then
+        Log::displayError "Install::structure - impossible to create directory '${dir}'"
+        exit 1
+      fi
+    fi
+
+    if ! ${SUDO:-} chown "${userName}":"${userGroup}" "${dir}"; then
+      Log::displayError "Install::structure - impossible to update directory owner '${dir}' with ${userName}:${userGroup}"
+      exit 1
+    fi
+  }
+  local dir
+
+  (
+    local dir
+    shopt -s lastpipe
+    # -links 2 allows to exclude empty directories
+    # %P get file without initial directory
+    ${SUDO:-} find "${fromDir}" -depth -type d -links 2 -printf "%P\0" |
+      while read -rd '' dir; do
+        if ! createStructure "${toDir}/${dir}"; then
+          # error already reported by createStructure
+          exit 1
+        fi
+      done || {
+      if [[ "${PIPESTATUS[0]}" != "0" ]]; then
+        Log::displayError "Install::structure - replicated directory structure - find directories on '${fromDir}' resulted in an error"
+        exit 2
+      fi
+    }
+  ) || return 2
+
+  # for each file, copy it
+  (
+    local file
+    shopt -s lastpipe
+    ${SUDO:-} find "${fromDir}" -depth -type f -printf "%P\0" |
+      while read -rd '' file; do
+        if ! Install::file "${fromDir}/${file}" "${toDir}/${file}"; then
+          # error already reported by Install::file
+          exit 1
+        fi
+      done || {
+      if [[ "${PIPESTATUS[0]}" != "0" ]]; then
+        Log::displayError "Install::structure - replicated file structure - find files on '${fromDir}' resulted in an error"
+        exit 2
+      fi
+    }
+  ) || return 3
+
+  # shellcheck disable=SC2295
+  Log::displaySuccess "Installed directory '${toDir#${PRETTY_ROOT_DIR}/}' from '${fromDir#${PRETTY_ROOT_DIR}/}'"
+}
+
+# @description install callback
+#   set file with root ownership and execution bit
+# @arg $1 fromFile:String
+# @arg $2 targetFile:String
+# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
+# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
+# @env USERNAME (default: root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode 1 on any failure
+# @see Install::file
+Install::setUserRightsCallback() {
+  # shellcheck disable=SC2034 # $1 not used
+  local fromFile="$1"
+  local targetFile="$2"
+  local userName="${3:-${USERNAME:-root}}"
+  local userGroup="${4:-${USERGROUP:-root}}"
+
+  ${SUDO:-} chown "${userName}":"${userGroup}" "${targetFile}"
+}
+
+# @description install callback
+#   default callback used called when file copy has failed
+# @arg $1 fromFile:String
+# @arg $2 targetFile:String
+# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @exitcode 1 always fail
+# @stderr diagnostics information is displayed
+# @see Install::file
+Install::unableToCopyCallback() {
+  local fromDir="$1"
+  local fileName="$2"
+  local targetFile="$3"
+  Log::fatal "unable to copy file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fileName}' to '${targetFile}'"
+}
+
+# @description Display message using info color (blue) but warning level
+# @arg $1 message:String the message to display
+Log::displayStatus() {
+  local type="${2:-STATUS}"
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
+    Log::computeDuration
+    echo -e "${__INFO_COLOR}${type}  - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logStatus "$1" "${type}"
+}
+
+# @description Backup given file in the same directory or in BACKUP_DIR directory
+# backup file name is composed by following fields separated by -:
+#   - if BACKUP_DIR is not empty then escaped dir name separated by @
+#   - filename(without path)
+#   - date with format %Y%m%d_%H:%M:%S (Eg: 20240326_14:45:08)
+# @arg $1 file:String the file to backup
+# @stderr messages about backup file location
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_DIR if not set backup the file in the same directory as original file
+# @exitcode 1 on copy failure
+Backup::file() {
+  local file="$1"
+  if [[ -f "${file}" ]]; then
+    local backupFile fileDirname escapedDirname
+    fileDirname="${file%/*}"
+    escapedDirname=${fileDirname/\//}      # remove first slash
+    escapedDirname=${escapedDirname//\//@} # replace all slashes by @
+    if [[ -z "${BACKUP_DIR:-}" ]]; then
+      backupFile="${fileDirname}/${file##*/}-$(date +"%Y%m%d_%H:%M:%S")"
+    else
+      backupFile="${BACKUP_DIR}/${escapedDirname}@${file##*/}-$(date +"%Y%m%d_%H:%M:%S")"
+    fi
+    Log::displayInfo "Backup file '${file}' to ${backupFile}"
+    ${SUDO:-} cp "${file}" "${backupFile}"
+  fi
+}
+
+# @description Display message using success color (bg green/fg white)
+# @arg $1 message:String the message to display
+Log::displaySuccess() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    Log::computeDuration
+    echo -e "${__SUCCESS_COLOR}SUCCESS - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logSuccess "$1"
+}
+
+# @description ensure command tar is available
+# @exitcode 1 if tar command not available
+# @stderr diagnostics information is displayed
+Linux::requireTarCommand() {
+  Assert::commandExists tar
+}
+
+# @description load color theme
+# @noargs
+# @env BASH_FRAMEWORK_THEME String theme to use
+# @env LOAD_THEME int 0 to avoid loading theme
+# @exitcode 0 always successful
+UI::requireTheme() {
+  if [[ "${LOAD_THEME:-1}" = "1" ]]; then
+    UI::theme "${BASH_FRAMEWORK_THEME-default}"
+  fi
+}
+
+# @description ensure linux distribution is ubuntu
+# @exitcode 1 if linux distribution is not ubuntu
+Linux::requireUbuntu() {
+  if ! Array::contains "$(Linux::getDistributorId)" "ubuntu" "debian"; then
+    Log::fatal "this script should be executed under Ubuntu or Debian OS"
+  fi
+}
+
+# @description checks if variable name provided exists
+# @arg $1 varName:String
+# @exitcode 1 if variable doesn't exist
+# @exitcode 2 if variable value empty
+# @exitcode 3 if variable name invalid
+# @see Assert::validVariableName
+# @stderr diagnostics information is displayed
+Assert::varExistsAndNotEmpty() {
+  local varName="$1"
+  if ! Assert::validVariableName "${varName}"; then
+    Log::displayError "${varName} - invalid variable name"
+    return 3
+  fi
+  if [[ -z "${!varName+unset}" ]]; then
+    Log::displayError "${varName} - not defined"
+    return 1
+  elif [[ -z "${!varName}" ]]; then
+    Log::displayError "${varName} - please provide a value"
+    return 2
+  fi
+}
+
+# @description check if an element is contained in an array
+#
+# @arg $1 needle:String
+# @arg $@ array:String[]
+# @exitcode 0 if found
+# @exitcode 1 otherwise
+# @example
+#   Array::contains "${libPath}" "${__BASH_FRAMEWORK_IMPORTED_FILES[@]}"
+Array::contains() {
+  local element
+  for element in "${@:2}"; do
+    [[ "${element}" = "$1" ]] && return 0
+  done
+  return 1
+}
+
+# @description check if argument respects ldap login naming convention
+# only using lowercase characters a-z
+# @arg $1 ldapLogin:String
+# @exitcode 1 if regexp not matches
+Assert::ldapLogin() {
+  [[ $1 =~ ^[a-z]+$ ]]
+}
+
+# @description check if argument respects 2 or more words separated by a space
+# it supports accentuated characters and names with hyphen(-)
+# @arg $1 firstNameLastName:String
+# @exitcode 1 if regexp not matches
+# @see https://regex101.com/r/JyyfOM/1
+Assert::firstNameLastName() {
+  local regexp="^[^ ]+([ ][^ ]+)+$"
+  [[ $1 =~ ${regexp} ]]
+}
+
+# @description check if param is valid email address
+# @warning it is a very simple check, no RFC validation
+# @arg $1 emailAddress:String the full email address
+# @exitcode 1 if invalid email address
+Assert::emailAddress() {
+  local expectedRegexp="^\S+@\S+$"
+
+  [[ "$1" =~ ${expectedRegexp} ]]
+}
+
+# @description determine if the script is executed under WSL
+# cspell:disable
+# @example text
+#   uname GitBash windows (with wsl) => MINGW64_NT-10.0 ZOXFL-6619QN2 2.10.0(0.325/5/3) 2018-06-13 23:34 x86_64 Msys
+#   uname GitBash windows (wo wsl)   => MINGW64_NT-10.0 frsa02-j5cbkc2 2.9.0(0.318/5/3) 2018-01-12 23:37 x86_64 Msys
+#   uname wsl => Linux ZOXFL-6619QN2 4.4.0-17134-Microsoft #112-Microsoft Thu Jun 07 22:57:00 PST 2018 x86_64 x86_64 x86_64 GNU/Linux
+# cspell:enable
+#
+# @exitcode 1 on error
+Assert::wsl() {
+  [[ "$(uname -o)" = "GNU/Linux" ]]
+}
+
+# @description retrieve path from wslvar and then use wslpath to resolve it
+# using cache (cache is refreshed every day)
+# @arg $1 var:String the var to retrieve using wslvar
+# @arg $@ args:String[] (optional) additional arguments to pass to wslvar
+# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
+# @exitcode * if Linux::Wsl::originalWslpath cannot find the path or Linux::Wsl::originalWslvar cannot find the var
+# @stderr diagnostics information is displayed
+# @require Linux::Wsl::requireWsl
+# @feature cache
+Linux::Wsl::cachedWslpathFromWslVar2() {
+  # shellcheck disable=SC2034
+  local -n cachedWslpathFromWslVar2_value=$1
+  shift || true
+  local value
+  Linux::Wsl::cachedWslvar2 value "$@"
+  Linux::Wsl::cachedWslpath2 cachedWslpathFromWslVar2_value "${value}" || return 1
+}
+
+declare -Agx bash_tools_wslvar=()
+# @description retrieve wslvar using cache (cache is refreshed every day)
+# @arg $1 cachedWslvar2_var:&String the variable to set by reference if the value is found
+# @arg $@ args:String[] arguments to pass to wslvar
+# @env WSL_TMPDIR String temp directory to store the wslvar cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
+# @exitcode * if Linux::Wsl::originalWslvar cannot find the variable
+# @stderr diagnostics information is displayed
+# @require Linux::Wsl::requireWsl
+# @feature cache
+Linux::Wsl::cachedWslvar2() {
+  # shellcheck disable=SC2034
+  local -n cachedWslvar2_var="$1"
+  shift || true
+  local -a args=("$@")
+  local tempWslvarFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslvar"
+  local key
+  key="$(Linux::Wsl::getKeyFromWslpathOptions "${args[@]}")"
+  Cache::getPropertyValue2 \
+    "${tempWslvarFile}" \
+    bash_tools_wslvar \
+    cachedWslvar2_var \
+    "${key}" \
+    Linux::Wsl::originalWslvar "${args[@]}"
+}
+
+# @description Display message using skip color (yellow)
+# @arg $1 message:String the message to display
+Log::displaySkipped() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    Log::computeDuration
+    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logSkipped "$1"
+}
+
+# @description Display given text and complete the rest of the line with given character
+# @arg $1 text:String text to display
+# @arg $2 character:String (default:#) character to use to complete the line
+UI::textLine() {
+  local text="$1"
+  local character="${2:-#}"
+  ((textSize = ${#text}))
+  ((fullWith = $(tput cols)))
+  ((remainingWidth = $((fullWith - textSize))))
+  echo -n "${text}"
+  printf '%*s\n' "${remainingWidth}" '' | tr ' ' "${character}"
+}
+
+# @description extract stats form log
+# @arg $1 logFile:String the log file to parse
+# @arg $2 status:int the status of the command associated to that log file
+# @arg $3 duration:int the duration  of the command associated to that log file
+# @stdout output with the format provided by this example src/Stats/aggregateStats.example
+# @see src/Stats/aggregateStats.example
+Stats::computeFromLog() {
+  local logFile="$1"
+  local status="$2"
+  local duration="$3"
+
+  local logStatsAwkScript
+  logStatsAwkScript="$(
+    cat <<'EOF'
+BEGIN {
+  error=0
+  warning=0
+  skipped=0
+  help=0
+  success=0
+}
+{
+  buffer = substr($0, 1, 20)
+  if(match(buffer, /(ERROR)[ ]+- /, arr) != 0) {
+    error+=1
+  } else if(match(buffer, /(WARNING)[ ]+- /, arr) != 0) {
+    warning+=1
+  } else if(match(buffer, /(SKIPPED)[ ]+- /, arr) != 0) {
+    skipped+=1
+  } else if(match(buffer, /(ERROR)[ ]+- /, arr) != 0) {
+    error+=1
+  } else if(match(buffer, /(HELP)[ ]+- /, arr) != 0) {
+    help+=1
+  } else if(match(buffer, /(SUCCESS)[ ]+- /, arr) != 0) {
+    success+=1
+  }
+
+}
+END {
+  print "error=" error
+  print "warning=" warning
+  print "skipped=" skipped
+  print "help=" help
+  print "success=" success
+}
+EOF
+  )"
+
+  if [[ -f "${logFile}" ]]; then
+    awk --source "${logStatsAwkScript}" "${logFile}"
+    echo "status=${status}"
+    echo "duration=${duration}"
+  else
+    # not executed
+    echo "status=-1"
+  fi
+}
+
+# @description Retry a command 5 times with a delay of 15 seconds between each attempt
+# @arg $@ command:String[] the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+Retry::default() {
+  Retry::parameterized 5 15 "" "$@"
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logStatus() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_WARNING)); then
+    Log::logMessage "${2:-STATUS}" "$1"
+  fi
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logSuccess() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SUCCESS}" "$1"
+  fi
+}
+
+# @description retrieve linux distributor id
+# @noargs
+# @exitcode 1 if lsb_release fails or not found
+# @stdout the linux distributor id
+Linux::getDistributorId() {
+  (
+    source /etc/os-release
+    echo "${ID}"
+  )
+}
+
+# @description check if argument respects this framework variable naming convention
+# - if variable begins with an uppercase or underscore, following letters have to be uppercase or underscore
+# - variable name can includes ':' or '_' or digits but not as first letter
+# here valid variable name examples
+#
+# @arg $1 variableName:String
+# @exitcode 1 if regexp not matches
+# @see https://regex101.com/r/BUlPXS/1
+Assert::validVariableName() {
+  [[ "$1" =~ (^[a-z][A-Za-z_0-9:]+$)|(^[A-Z_][A-Z_0-9:]+$) ]]
+}
+
+declare -Agx bash_tools_wslpath=()
+# @description retrieve wslpath using cache (cache is refreshed every day)
+# @arg $@ args:String[] arguments to pass to wslpath
+# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
+# @exitcode * if Linux::Wsl::originalWslpath cannot find the path
+# @stderr diagnostics information is displayed
+# @require Linux::Wsl::requireWsl
+# @feature cache
+Linux::Wsl::cachedWslpath2() {
+  # shellcheck disable=SC2034
+  local -n cachedWslpath2_value=$1
+  shift || true
+  local tempEnvFile key
+  tempEnvFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslpath"
+
+  key="$(Linux::Wsl::getKeyFromWslpathOptions "$@")"
+  Cache::getPropertyValue2 \
+    "${tempEnvFile}" \
+    bash_tools_wslpath \
+    cachedWslpath2_value \
+    "${key}" \
+    Linux::Wsl::originalWslpath "$@"
+}
+
+# @description Compute a cache from wslpath options
+# @arg $@ args:String[] arguments passed to wslpath
+# @stderr diagnostics information is displayed
+# @stdout the cache key deduced from the options
+# @require Linux::Wsl::requireWsl
+# @feature cache
+# @internal
+Linux::Wsl::getKeyFromWslpathOptions() {
+  local options
+  options=$(getopt -o "auwm" -- "$@" 2>/dev/null) || {
+    Log::displayError "invalid options specified"
+    return 1
+  }
+  local key="wslpath"
+  eval set -- "${options}"
+  while true; do
+    case "$1" in
+      -a | -u | -w | -m)
+        key="${key}$1"
+        ;;
+      --)
+        shift || true
+        break
+        ;;
+      *)
+        shift || true
+        Log::displayWarning "Unknown key $1"
+        ;;
+    esac
+    shift || true
+  done
+  key="${key}_$1"
+  # replace some characters \:/
+  key="${key//\\//}"
+  key="${key//:/_}"
+  key="${key////_}"
+  echo "${key}"
+}
+
+# @description get property value from file
+# if not present compute it using propertyNotFoundCallback (if provided) and store it in property file
+# @arg $1 propertyFile:String the file in which the property will be searched
+# @arg $2 key:String the property key to search in property file
+# @arg $3 propertyNotFoundCallback:Function (optional) a callback to call if property key is not found in property file
+# @arg $@ args:String[] (optional) the arguments to pass to the propertyNotFoundCallback
+# @exitcode 1 if value is not found
+# @exitcode * if propertyNotFoundCallback fails
+# @stdout the property value given by property file or by the propertyNotFoundCallback
+Cache::getPropertyValue2() {
+  local propertyFile="$1"
+  local -n propertiesMap=$2
+  local -n getPropertyValue2_val=$3
+  local key="$4"
+  local propertyNotFoundCallback=$5
+  shift 5 || true
+  local -a args=("$@")
+
+  if [[ "${#propertiesMap[@]}" = "0" && -s "${propertyFile}" ]]; then
+    local line
+    while IFS="" read -r line; do
+      if [[ "${line}" =~ ^([^=]+)=(.+)$ ]]; then
+        propertiesMap["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
+      fi
+    done <"${propertyFile}"
+  fi
+
+  if [[ -n "${propertiesMap[${key}]+abc}" ]]; then
+    getPropertyValue2_val="${propertiesMap[${key}]}"
+    return 0
+  elif [[ "$(type -t "${propertyNotFoundCallback}")" = "function" ]]; then
+    getPropertyValue2_val="$("${propertyNotFoundCallback}" "${args[@]}")" || return $?
+    propertiesMap["${key}"]="${getPropertyValue2_val}"
+    echo "${key}=${getPropertyValue2_val}" >>"${propertyFile}"
+    return 0
+  fi
+  return 1
+}
+
+# @description call simply original wslvar command
+# @arg $@ args:String[] args to pass to wslvar
+# @exitcode * wslvar exit code
+# @stdout wslvar stdout
+# @require Linux::Wsl::requireWsl
+Linux::Wsl::originalWslvar() {
+  wslvar "$@" | sed -z '$ s/[\r\n]$//'
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logSkipped() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SKIPPED}" "$1"
+  fi
+}
+
+# @description Retry a command several times depending on parameters
+# @arg $1 maxRetries:int    $1 max retries
+# @arg $2 delay:int between attempt
+# @arg $3 message:String to display to describe the attempt
+# @arg $@ rest of parameters, the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+# @exitcode 2 if maxRetries invalid value
+Retry::parameterized() {
+  local maxRetries=$1
+  shift || true
+  local delayBetweenTries=$1
+  shift || true
+  local message="$1"
+  shift || true
+  local retriesCount=1
+  if [[ "${maxRetries}" -lt 1 ]]; then
+    Log::displayError "invalid maxRetry value"
+    return 2
+  fi
+
+  while true; do
+    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
+    if "$@"; then
+      break
+    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
+      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
+      ((retriesCount++))
+      sleep "${delayBetweenTries}"
+    else
+      Log::displayError "The command has failed after ${retriesCount} attempts."
+      return 1
+    fi
+  done
+  return 0
+}
+
+# @description ensure linux runs under wsl
+# @env WSL_GARBAGE_COLLECT int 0 to disable garbage collect of cache files
+# @exitcode 1 if linux does not run under wsl
+Linux::Wsl::requireWsl() {
+  Assert::wsl || return 1
+  if [[ "${WSL_GARBAGE_COLLECT:-1}" = "1" ]]; then
+    local tempEnvDir
+    tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
+    File::garbageCollect "${tempEnvDir}/bash_tools_wslpath_${USER_ID:-$(id -un)}" "1"
+    tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
+    File::garbageCollect "${tempEnvDir}/bash_tools_wslvar_${USER_ID:-$(id -un)}" "1"
+  fi
+}
+
+# @description call simply original wslpath command
+# @arg $@ args:String[] args to pass to wslpath
+# @exitcode * wslpath exit code
+# @stdout wslpath stdout
+# @require Linux::Wsl::requireWsl
+Linux::Wsl::originalWslpath() {
+  wslpath "$@" | sed -z '$ s/[\r\n]$//'
+}
+
+# @description delete files older than n days in given path
+# @warning use this function with caution as it will delete all files in given path without any prompt
+# @arg $1 path:String the directory in which files will be deleted or the file to delete
+# @arg $2 mtime:String expiration time in days (eg: 1 means 1 day) (default value: 1). Eg: +1 match files that have been accessed at least two days ago (rounding effect)
+# @arg $3 maxdepth:int Descend at most levels (a non-negative integer) levels of directories below the starting-points. (default value: 1)
+# @exitcode 1 if path not provided or empty
+# @exitcode * find command failure code
+# @stderr find output on error or diagnostics logs
+# @see man find atime
+File::garbageCollect() {
+  local path="$1"
+  local mtime="$2"
+  local maxdepth="${3:-1}"
+
+  if [[ -z "${path}" ]]; then
+    return 1
+  fi
+
+  if [[ ! -e "${path}" ]]; then
+    # path already removed
+    return 0
+  fi
+
+  Log::displayInfo "Garbage collect files older than ${mtime} days in path ${path} with max depth ${maxdepth}"
+  find "${path}" -depth -maxdepth "${maxdepth}" -type f -mtime "${mtime}" -print -delete
+}
+
+# FUNCTIONS
+
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "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"
+
+declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
+Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/470af763a3d37d01ca080461f727513a/loadConfigFiles" "IyEvdXNyL2Jpbi9lbnYgYmFzaAojIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjCiMgR0VORVJBVEVEIEZBQ0FERSBGUk9NIGh0dHBzOi8vZ2l0aHViLmNvbS9mY2hhc3RhbmV0L2Jhc2gtZGV2LWVudi90cmVlL21hc3Rlci9zcmMvX2JpbmFyaWVzL190b29scy9sb2FkQ29uZmlnRmlsZXMuc2gKIyBETyBOT1QgRURJVCBJVAojIEBnZW5lcmF0ZWQKIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIwojIHNoZWxsY2hlY2sgZGlzYWJsZT1TQzIyODgsU0MyMDM0CiMgQklOX0ZJTEU9JHtCQVNIX0RFVl9FTlZfUk9PVF9ESVJ9L2Jpbi9sb2FkQ29uZmlnRmlsZXMKIyBWQVJfUkVMQVRJVkVfRlJBTUVXT1JLX0RJUl9UT19DVVJSRU5UX0RJUj0KIyBWQVJfTE9BRF9SRVFVSVJFUz0wCiMgVkFSX0xPQURfQ09ORklHPTAKIyBGQUNBREUKCiMgZW5zdXJlIHRoYXQgbm8gdXNlciBhbGlhc2VzIGNvdWxkIGludGVyZmVyZSB3aXRoCiMgY29tbWFuZHMgdXNlZCBpbiB0aGlzIHNjcmlwdAp1bmFsaWFzIC1hIHx8IHRydWUKc2hvcHQgLXUgZXhwYW5kX2FsaWFzZXMKCiMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMjAzNAooKGZhaWx1cmVzID0gMCkpIHx8IHRydWUKCiMgQmFzaCB3aWxsIHJlbWVtYmVyICYgcmV0dXJuIHRoZSBoaWdoZXN0IGV4aXQgY29kZSBpbiBhIGNoYWluIG9mIHBpcGVzLgojIFRoaXMgd2F5IHlvdSBjYW4gY2F0Y2ggdGhlIGVycm9yIGluc2lkZSBwaXBlcywgZS5nLiBteXNxbGR1bXAgfCBnemlwCnNldCAtbyBwaXBlZmFpbApzZXQgLW8gZXJyZXhpdAoKIyBDb21tYW5kIFN1YnN0aXR1dGlvbiBjYW4gaW5oZXJpdCBlcnJleGl0IG9wdGlvbiBzaW5jZSBiYXNoIHY0LjQKc2hvcHQgLXMgaW5oZXJpdF9lcnJleGl0IHx8IHRydWUKCiMgaWYgc2V0LCBhbmQgam9iIGNvbnRyb2wgaXMgbm90IGFjdGl2ZSwgdGhlIHNoZWxsIHJ1bnMgdGhlIGxhc3QgY29tbWFuZAojIG9mIGEgcGlwZWxpbmUgbm90IGV4ZWN1dGVkIGluIHRoZSBiYWNrZ3JvdW5kIGluIHRoZSBjdXJyZW50IHNoZWxsCiMgZW52aXJvbm1lbnQuCnNob3B0IC1zIGxhc3RwaXBlCgojIGEgbG9nIGlzIGdlbmVyYXRlZCB3aGVuIGEgY29tbWFuZCBmYWlscwpzZXQgLW8gZXJydHJhY2UKCiMgdXNlIG51bGxnbG9iIHNvIHRoYXQgKGZpbGUqLnBocCkgd2lsbCByZXR1cm4gYW4gZW1wdHkgYXJyYXkgaWYgbm8gZmlsZQojIG1hdGNoZXMgdGhlIHdpbGRjYXJkCnNob3B0IC1zIG51bGxnbG9iCgojIGVuc3VyZSByZWdleHAgYXJlIGludGVycHJldGVkIHdpdGhvdXQgYWNjZW50dWF0ZWQgY2hhcmFjdGVycwpleHBvcnQgTENfQUxMPVBPU0lYCgpleHBvcnQgVEVSTT14dGVybS0yNTZjb2xvcgoKIyBhdm9pZCBpbnRlcmFjdGl2ZSBpbnN0YWxsCmV4cG9ydCBERUJJQU5fRlJPTlRFTkQ9bm9uaW50ZXJhY3RpdmUKZXhwb3J0IERFQkNPTkZfTk9OSU5URVJBQ1RJVkVfU0VFTj10cnVlCgojIHN0b3JlIGNvbW1hbmQgYXJndW1lbnRzIGZvciBsYXRlciB1c2FnZQojIHNoZWxsY2hlY2sgZGlzYWJsZT1TQzIwMzQKZGVjbGFyZSAtYSBCQVNIX0ZSQU1FV09SS19BUkdWPSgiJEAiKQojIHNoZWxsY2hlY2sgZGlzYWJsZT1TQzIwMzQKZGVjbGFyZSAtYSBPUklHSU5BTF9CQVNIX0ZSQU1FV09SS19BUkdWPSgiJEAiKQoKIyBAc2VlIGh0dHBzOi8vdW5peC5zdGFja2V4Y2hhbmdlLmNvbS9hLzM4Njg1NgojIHNoZWxsY2hlY2sgZGlzYWJsZT1TQzIzMTcKaW50ZXJydXB0TWFuYWdlbWVudCgpIHsKICAjIHJlc3RvcmUgU0lHSU5UIGhhbmRsZXIKICB0cmFwIC0gSU5UCiAgIyBlbnN1cmUgdGhhdCBDdHJsLUMgaXMgdHJhcHBlZCBieSB0aGlzIHNjcmlwdCBhbmQgbm90IGJ5IHN1YiBwcm9jZXNzCiAgIyByZXBvcnQgdG8gdGhlIHBhcmVudCB0aGF0IHdlIGhhdmUgaW5kZWVkIGJlZW4gaW50ZXJydXB0ZWQKICBraWxsIC1zIElOVCAiJCQiCn0KdHJhcCBpbnRlcnJ1cHRNYW5hZ2VtZW50IElOVApTQ1JJUFRfTkFNRT0kezAjIyovfQpSRUFMX1NDUklQVF9GSUxFPSIkKHJlYWRsaW5rIC1lICIkKHJlYWxwYXRoICIke0JBU0hfU09VUkNFWzBdfSIpIikiCmlmIFtbIC1uICIke0VNQkVEX0NVUlJFTlRfRElSfSIgXV07IHRoZW4KICBDVVJSRU5UX0RJUj0iJHtFTUJFRF9DVVJSRU5UX0RJUn0iCmVsc2UKICBDVVJSRU5UX0RJUj0iJHtSRUFMX1NDUklQVF9GSUxFJS8qfSIKZmkKCiMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIwojIFRlbXAgZGlyIG1hbmFnZW1lbnQKIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjCgpLRUVQX1RFTVBfRklMRVM9IiR7S0VFUF9URU1QX0ZJTEVTOi0wfSIKZXhwb3J0IEtFRVBfVEVNUF9GSUxFUwoKIyBQRVJTSVNURU5UX1RNUERJUiBpcyBub3QgZGVsZXRlZCBieSB0cmFwcwpQRVJTSVNURU5UX1RNUERJUj0iJHtUTVBESVI6LS90bXB9L2Jhc2gtZnJhbWV3b3JrIgpleHBvcnQgUEVSU0lTVEVOVF9UTVBESVIKaWYgW1sgISAtZCAiJHtQRVJTSVNURU5UX1RNUERJUn0iIF1dOyB0aGVuCiAgbWtkaXIgLXAgIiR7UEVSU0lTVEVOVF9UTVBESVJ9IgpmaQoKIyBzaGVsbGNoZWNrIGRpc2FibGU9U0MyMDM0ClRNUERJUj0iJChta3RlbXAgLWQgLXAgIiR7UEVSU0lTVEVOVF9UTVBESVI6LS90bXB9IiAtdCBiYXNoLWZyYW1ld29yay0kJC1YWFhYWFgpIgpleHBvcnQgVE1QRElSCgojIHRlbXAgZGlyIGNsZWFuaW5nCiMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMjMxNwpjbGVhbk9uRXhpdCgpIHsKICBsb2NhbCByYz0kPwogIGlmIFtbICIke0tFRVBfVEVNUF9GSUxFUzotMH0iID0gIjEiIF1dOyB0aGVuCiAgICBMb2c6OmRpc3BsYXlJbmZvICJLRUVQX1RFTVBfRklMRVM9MSB0ZW1wIGZpbGVzIGtlcHQgaGVyZSAnJHtUTVBESVJ9JyIKICBlbGlmIFtbIC1uICIke1RNUERJUit4eHh9IiBdXTsgdGhlbgogICAgTG9nOjpkaXNwbGF5RGVidWcgIktFRVBfVEVNUF9GSUxFUz0wIHJlbW92aW5nIHRlbXAgZmlsZXMgJyR7VE1QRElSfSciCiAgICBybSAtUmYgIiR7VE1QRElSOi0vdG1wL2Zha2V9IiA+L2Rldi9udWxsIDI+JjEKICBmaQogIGV4aXQgIiR7cmN9Igp9CnRyYXAgY2xlYW5PbkV4aXQgRVhJVCBIVVAgUVVJVCBBQlJUIFRFUk0KCiMgQGRlc2NyaXB0aW9uIExvZyBuYW1lc3BhY2UgcHJvdmlkZXMgMiBraW5kIG9mIGZ1bmN0aW9ucwojIC0gTG9nOjpkaXNwbGF5KiBhbGxvd3MgdG8gZGlzcGxheSBnaXZlbiBtZXNzYWdlIHdpdGgKIyAgIGdpdmVuIGRpc3BsYXkgbGV2ZWwKIyAtIExvZzo6bG9nKiBhbGxvd3MgdG8gbG9nIGdpdmVuIG1lc3NhZ2Ugd2l0aAojICAgZ2l2ZW4gbG9nIGxldmVsCiMgTG9nOjpkaXNwbGF5KiBmdW5jdGlvbnMgYXV0b21hdGljYWxseSBsb2cgdGhlIG1lc3NhZ2UgdG9vCiMgQHNlZSBFbnY6OnJlcXVpcmVMb2FkIHRvIGxvYWQgdGhlIGRpc3BsYXkgYW5kIGxvZyBsZXZlbCBmcm9tIC5lbnYgZmlsZQoKIyBAZGVzY3JpcHRpb24gbG9nIGxldmVsIG9mZgpleHBvcnQgX19MRVZFTF9PRkY9MAojIEBkZXNjcmlwdGlvbiBsb2cgbGV2ZWwgZXJyb3IKZXhwb3J0IF9fTEVWRUxfRVJST1I9MQojIEBkZXNjcmlwdGlvbiBsb2cgbGV2ZWwgd2FybmluZwpleHBvcnQgX19MRVZFTF9XQVJOSU5HPTIKIyBAZGVzY3JpcHRpb24gbG9nIGxldmVsIGluZm8KZXhwb3J0IF9fTEVWRUxfSU5GTz0zCiMgQGRlc2NyaXB0aW9uIGxvZyBsZXZlbCBzdWNjZXNzCmV4cG9ydCBfX0xFVkVMX1NVQ0NFU1M9MwojIEBkZXNjcmlwdGlvbiBsb2cgbGV2ZWwgZGVidWcKZXhwb3J0IF9fTEVWRUxfREVCVUc9NAoKIyBAZGVzY3JpcHRpb24gdmVyYm9zZSBsZXZlbCBvZmYKZXhwb3J0IF9fVkVSQk9TRV9MRVZFTF9PRkY9MAojIEBkZXNjcmlwdGlvbiB2ZXJib3NlIGxldmVsIGluZm8KZXhwb3J0IF9fVkVSQk9TRV9MRVZFTF9JTkZPPTEKIyBAZGVzY3JpcHRpb24gdmVyYm9zZSBsZXZlbCBpbmZvCmV4cG9ydCBfX1ZFUkJPU0VfTEVWRUxfREVCVUc9MgojIEBkZXNjcmlwdGlvbiB2ZXJib3NlIGxldmVsIGluZm8KZXhwb3J0IF9fVkVSQk9TRV9MRVZFTF9UUkFDRT0zCgojIEBkZXNjcmlwdGlvbiBEaXNwbGF5IG1lc3NhZ2UgdXNpbmcgaW5mbyBjb2xvciAoYmcgbGlnaHQgYmx1ZS9mZyB3aGl0ZSkKIyBAYXJnICQxIG1lc3NhZ2U6U3RyaW5nIHRoZSBtZXNzYWdlIHRvIGRpc3BsYXkKIyBAZW52IERJU1BMQVlfRFVSQVRJT04gaW50IChkZWZhdWx0IDApIGlmIDEgZGlzcGxheSBlbGFwc2VkIHRpbWUgaW5mb3JtYXRpb24gYmV0d2VlbiAyIGluZm8gbG9ncwpMb2c6OmRpc3BsYXlJbmZvKCkgewogIGxvY2FsIHR5cGU9IiR7MjotSU5GT30iCiAgaWYgKChCQVNIX0ZSQU1FV09SS19ESVNQTEFZX0xFVkVMID49IF9fTEVWRUxfSU5GTykpOyB0aGVuCiAgICBMb2c6OmNvbXB1dGVEdXJhdGlvbgogICAgZWNobyAtZSAiJHtfX0lORk9fQ09MT1J9JHt0eXBlfSAgICAtICR7TE9HX0NPTlRFWFQ6LX0ke0xPR19MQVNUX0RVUkFUSU9OX1NUUjotfSR7MX0ke19fUkVTRVRfQ09MT1J9IiA+JjIKICBmaQogIExvZzo6bG9nSW5mbyAiJDEiICIke3R5cGV9Igp9CgojIEBkZXNjcmlwdGlvbiBEaXNwbGF5IG1lc3NhZ2UgdXNpbmcgZGVidWcgY29sb3IgKGdyZXkpCiMgQGFyZyAkMSBtZXNzYWdlOlN0cmluZyB0aGUgbWVzc2FnZSB0byBkaXNwbGF5CkxvZzo6ZGlzcGxheURlYnVnKCkgewogIGlmICgoQkFTSF9GUkFNRVdPUktfRElTUExBWV9MRVZFTCA+PSBfX0xFVkVMX0RFQlVHKSk7IHRoZW4KICAgIExvZzo6Y29tcHV0ZUR1cmF0aW9uCiAgICBlY2hvIC1lICIke19fREVCVUdfQ09MT1J9REVCVUcgICAtICR7TE9HX0NPTlRFWFQ6LX0ke0xPR19MQVNUX0RVUkFUSU9OX1NUUjotfSR7MX0ke19fUkVTRVRfQ09MT1J9IiA+JjIKICBmaQogIExvZzo6bG9nRGVidWcgIiQxIgp9CgojIEBkZXNjcmlwdGlvbiBjaGVja3MgaWYgZnVuY3Rpb24gbmFtZSBwcm92aWRlZCBleGlzdHMKIyBAYXJnICQxIGZ1bmN0aW9uTmFtZTpTdHJpbmcKIyBAZXhpdGNvZGUgMSBpZiBmdW5jdGlvbiBuYW1lIGRvZXNuJ3QgZXhpc3QKQXNzZXJ0OjpmdW5jdGlvbkV4aXN0cygpIHsKICBkZWNsYXJlIC1GICIkMSIgPi9kZXYvbnVsbAp9CgojIEBkZXNjcmlwdGlvbiBlbnN1cmUgQ09NTUFORF9CSU5fRElSIGVudiB2YXIgaXMgc2V0CiMgYW5kIFBBVEggY29ycmVjdGx5IHByZXBhcmVkCiMgQG5vYXJncwojIEBzZXQgQ09NTUFORF9CSU5fRElSIHN0cmluZyB0aGUgZGlyZWN0b3J5IHdoZXJlIHRvIGZpbmQgdGhpcyBjb21tYW5kCiMgQHNldCBQQVRIIHN0cmluZyBhZGQgZGlyZWN0b3J5IHdoZXJlIHRvIGZpbmQgdGhpcyBjb21tYW5kIGJpbmFyeQpDb21waWxlcjo6RmFjYWRlOjpyZXF1aXJlQ29tbWFuZEJpbkRpcigpIHsKICBDT01NQU5EX0JJTl9ESVI9IiR7Q1VSUkVOVF9ESVJ9IgogIEVudjo6cGF0aFByZXBlbmQgIiR7Q09NTUFORF9CSU5fRElSfSIKfQoKZGVjbGFyZSAtZyBGSVJTVF9MT0dfREFURSBMT0dfTEFTVF9MT0dfREFURSBMT0dfTEFTVF9MT0dfREFURV9JTklUIExPR19MQVNUX0RVUkFUSU9OX1NUUgpGSVJTVF9MT0dfREFURT0iJHtFUE9DSFJFQUxUSU1FL1teMC05XS99IgpMT0dfTEFTVF9MT0dfREFURT0iJHtGSVJTVF9MT0dfREFURX0iCkxPR19MQVNUX0xPR19EQVRFX0lOSVQ9MQpMT0dfTEFTVF9EVVJBVElPTl9TVFI9IiIKCiMgQGRlc2NyaXB0aW9uIERpc3BsYXkgbWVzc2FnZSB1c2luZyBpbmZvIGNvbG9yIChiZyBsaWdodCBibHVlL2ZnIHdoaXRlKQojIEBhcmcgJDEgbWVzc2FnZTpTdHJpbmcgdGhlIG1lc3NhZ2UgdG8gZGlzcGxheQojIEBlbnYgRElTUExBWV9EVVJBVElPTiBpbnQgKGRlZmF1bHQgMCkgaWYgMSBkaXNwbGF5IGVsYXBzZWQgdGltZSBpbmZvcm1hdGlvbiBiZXR3ZWVuIDIgaW5mbyBsb2dzCkxvZzo6Y29tcHV0ZUR1cmF0aW9uKCkgewogIGlmICgoRElTUExBWV9EVVJBVElPTiA9PSAxKSk7IHRoZW4KICAgIGxvY2FsIC1pIGR1cmF0aW9uPTAKICAgIGxvY2FsIC1pIGRlbHRhPTAKICAgIGxvY2FsIC1pIGN1cnJlbnRMb2dEYXRlCiAgICBjdXJyZW50TG9nRGF0ZT0iJHtFUE9DSFJFQUxUSU1FL1teMC05XS99IgogICAgaWYgKChMT0dfTEFTVF9MT0dfREFURV9JTklUID09IDEpKTsgdGhlbgogICAgICBMT0dfTEFTVF9MT0dfREFURV9JTklUPTAKICAgICAgTE9HX0xBU1RfRFVSQVRJT05fU1RSPSJSZWYiCiAgICBlbHNlCiAgICAgIGR1cmF0aW9uPSQoKChjdXJyZW50TG9nRGF0ZSAtIEZJUlNUX0xPR19EQVRFKSAvIDEwMDAwMDApKQogICAgICBkZWx0YT0kKCgoY3VycmVudExvZ0RhdGUgLSBMT0dfTEFTVF9MT0dfREFURSkgLyAxMDAwMDAwKSkKICAgICAgTE9HX0xBU1RfRFVSQVRJT05fU1RSPSIke2R1cmF0aW9ufXMvKyR7ZGVsdGF9cyIKICAgIGZpCiAgICBMT0dfTEFTVF9MT0dfREFURT0iJHtjdXJyZW50TG9nRGF0ZX0iCiAgICAjIHNoZWxsY2hlY2sgZGlzYWJsZT1TQzIwMzQKICAgIGxvY2FsIG1pY3JvU2Vjb25kcz0iJHtFUE9DSFJFQUxUSU1FIyoufSIKICAgIExPR19MQVNUX0RVUkFUSU9OX1NUUj0iJChwcmludGYgJyUoJVQpVC4lMDMuMGZcbicgIiR7RVBPQ0hTRUNPTkRTfSIgIiR7bWljcm9TZWNvbmRzOjA6M30iKSgke0xPR19MQVNUX0RVUkFUSU9OX1NUUn0pIC0gIgogIGVsc2UKICAgICMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMjAzNAogICAgTE9HX0xBU1RfRFVSQVRJT05fU1RSPSIiCiAgZmkKfQoKIyBAZGVzY3JpcHRpb24gbG9nIG1lc3NhZ2UgdG8gZmlsZQojIEBhcmcgJDEgbWVzc2FnZTpTdHJpbmcgdGhlIG1lc3NhZ2UgdG8gZGlzcGxheQpMb2c6OmxvZ0luZm8oKSB7CiAgaWYgKChCQVNIX0ZSQU1FV09SS19MT0dfTEVWRUwgPj0gX19MRVZFTF9JTkZPKSk7IHRoZW4KICAgIExvZzo6bG9nTWVzc2FnZSAiJHsyOi1JTkZPfSIgIiQxIgogIGZpCn0KCiMgQGRlc2NyaXB0aW9uIGxvZyBtZXNzYWdlIHRvIGZpbGUKIyBAYXJnICQxIG1lc3NhZ2U6U3RyaW5nIHRoZSBtZXNzYWdlIHRvIGRpc3BsYXkKTG9nOjpsb2dEZWJ1ZygpIHsKICBpZiAoKEJBU0hfRlJBTUVXT1JLX0xPR19MRVZFTCA+PSBfX0xFVkVMX0RFQlVHKSk7IHRoZW4KICAgIExvZzo6bG9nTWVzc2FnZSAiJHsyOi1ERUJVR30iICIkMSIKICBmaQp9CgojIEBkZXNjcmlwdGlvbiBwcmVwZW5kIGRpcmVjdG9yaWVzIHRvIHRoZSBQQVRIIGVudmlyb25tZW50IHZhcmlhYmxlCiMgQGFyZyAkQCBhcmdzOlN0cmluZ1tdIGxpc3Qgb2YgZGlyZWN0b3JpZXMgdG8gcHJlcGVuZAojIEBzZXQgUEFUSCB1cGRhdGUgUEFUSCB3aXRoIHRoZSBkaXJlY3RvcmllcyBwcmVwZW5kZWQKRW52OjpwYXRoUHJlcGVuZCgpIHsKICBsb2NhbCBhcmcKICBmb3IgYXJnIGluICIkQCI7IGRvCiAgICBpZiBbWyAtZCAiJHthcmd9IiAmJiAiOiR7UEFUSH06IiAhPSAqIjoke2FyZ306IiogXV07IHRoZW4KICAgICAgUEFUSD0iJChyZWFscGF0aCAiJHthcmd9Iik6JHtQQVRIfSIKICAgIGZpCiAgZG9uZQp9CgojIEBkZXNjcmlwdGlvbiBJbnRlcm5hbDogY29tbW9uIGxvZyBtZXNzYWdlCiMgQGV4YW1wbGUgdGV4dAojICAgW2RhdGVdfFtsZXZlbE1zZ118bWVzc2FnZQojCiMgQGV4YW1wbGUgdGV4dAojICAgMjAyMC0wMS0xOSAxOToyMDoyMXxFUlJPUiAgfGxvZyBlcnJvcgojICAgMjAyMC0wMS0xOSAxOToyMDoyMXxTS0lQUEVEfGxvZyBza2lwcGVkCiMKIyBAYXJnICQxIGxldmVsTXNnOlN0cmluZyBtZXNzYWdlJ3MgbGV2ZWwgZGVzY3JpcHRpb24gKGVnOiBTVEFUVVMsIEVSUk9SLCAuLi4pCiMgQGFyZyAkMiBtc2c6U3RyaW5nIHRoZSBtZXNzYWdlIHRvIGRpc3BsYXkKIyBAZW52IEJBU0hfRlJBTUVXT1JLX0xPR19GSUxFIFN0cmluZyBsb2cgZmlsZSB0byB1c2UsIGRvIG5vdGhpbmcgaWYgZW1wdHkKIyBAZW52IEJBU0hfRlJBTUVXT1JLX0xPR19MRVZFTCBpbnQgbG9nIGxldmVsIGxvZyBvbmx5IGlmID4gT0ZGIG9yIGZhdGFsIG1lc3NhZ2VzCiMgQHN0ZGVyciBkaWFnbm9zdGljcyBpbmZvcm1hdGlvbiBpcyBkaXNwbGF5ZWQKIyBAcmVxdWlyZSBFbnY6OnJlcXVpcmVMb2FkCiMgQHJlcXVpcmUgTG9nOjpyZXF1aXJlTG9hZApMb2c6OmxvZ01lc3NhZ2UoKSB7CiAgbG9jYWwgbGV2ZWxNc2c9IiQxIgogIGxvY2FsIG1zZz0iJDIiCiAgbG9jYWwgZGF0ZQoKICBpZiBbWyAtbiAiJHtCQVNIX0ZSQU1FV09SS19MT0dfRklMRX0iIF1dICYmICgoQkFTSF9GUkFNRVdPUktfTE9HX0xFVkVMID4gX19MRVZFTF9PRkYpKTsgdGhlbgogICAgZGF0ZT0iJChkYXRlICcrJVktJW0tJWQgJUg6JU06JVMnKSIKICAgIHRvdWNoICIke0JBU0hfRlJBTUVXT1JLX0xPR19GSUxFfSIKICAgIHByaW50ZiAiJXN8JTdzfCVzXG4iICIke2RhdGV9IiAiJHtsZXZlbE1zZ30iICIke21zZ30iID4+IiR7QkFTSF9GUkFNRVdPUktfTE9HX0ZJTEV9IgogIGZpCn0KCiMgQGRlc2NyaXB0aW9uIGVuc3VyZSBlbnYgZmlsZXMgYXJlIGxvYWRlZAojIEBhcmcgJEAgbGlzdCBvZiBkZWZhdWx0IGZpbGVzIHRvIGxvYWQgYXQgdGhlIGVuZAojIEBleGl0Y29kZSAxIGlmIG9uZSBvZiBlbnYgZmlsZXMgZmFpbHMgdG8gbG9hZAojIEBzdGRlcnIgZGlhZ25vc3RpY3MgaW5mb3JtYXRpb24gaXMgZGlzcGxheWVkCiMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMjEyMApFbnY6OnJlcXVpcmVMb2FkKCkgewogIGxvY2FsIC1hIGRlZmF1bHRGaWxlcz0oIiRAIikKICAjIGdldCBsaXN0IG9mIHBvc3NpYmxlIGNvbmZpZyBmaWxlcwogIGxvY2FsIC1hIGNvbmZpZ0ZpbGVzPSgpCiAgaWYgW1sgLW4gIiR7QkFTSF9GUkFNRVdPUktfRU5WX0ZJTEVTWzBdKzF9IiBdXTsgdGhlbgogICAgIyBCQVNIX0ZSQU1FV09SS19FTlZfRklMRVMgaXMgYW4gYXJyYXkKICAgIGNvbmZpZ0ZpbGVzKz0oIiR7QkFTSF9GUkFNRVdPUktfRU5WX0ZJTEVTW0BdfSIpCiAgZmkKICBsb2NhbCBsb2NhbEZyYW1ld29ya0NvbmZpZ0ZpbGUKICBsb2NhbEZyYW1ld29ya0NvbmZpZ0ZpbGU9IiQocHdkKS8uZnJhbWV3b3JrLWNvbmZpZyIKICBpZiBbWyAtZiAiJHtsb2NhbEZyYW1ld29ya0NvbmZpZ0ZpbGV9IiBdXTsgdGhlbgogICAgY29uZmlnRmlsZXMrPSgiJHtsb2NhbEZyYW1ld29ya0NvbmZpZ0ZpbGV9IikKICBmaQogIGlmIFtbIC1mICIke0ZSQU1FV09SS19ST09UX0RJUn0vLmZyYW1ld29yay1jb25maWciIF1dOyB0aGVuCiAgICBjb25maWdGaWxlcys9KCIke0ZSQU1FV09SS19ST09UX0RJUn0vLmZyYW1ld29yay1jb25maWciKQogIGZpCiAgY29uZmlnRmlsZXMrPSgiJHtvcHRpb25FbnZGaWxlc1tAXX0iKQogIGNvbmZpZ0ZpbGVzKz0oIiR7ZGVmYXVsdEZpbGVzW0BdfSIpCgogIGZvciBmaWxlIGluICIke2NvbmZpZ0ZpbGVzW0BdfSI7IGRvCiAgICAjIHNoZWxsY2hlY2sgc291cmNlPS8uZnJhbWV3b3JrLWNvbmZpZwogICAgQ1VSUkVOVF9MT0FERURfRU5WX0ZJTEU9IiR7ZmlsZX0iIHNvdXJjZSAiJHtmaWxlfSIgfHwgewogICAgICBMb2c6OmRpc3BsYXlFcnJvciAid2hpbGUgbG9hZGluZyBjb25maWcgZmlsZTogJHtmaWxlfSIKICAgICAgcmV0dXJuIDEKICAgIH0KICBkb25lCn0KCiMgQGRlc2NyaXB0aW9uIGFjdGl2YXRlIG9yIG5vdCBMb2c6OmRpc3BsYXkqIGFuZCBMb2c6OmxvZyogZnVuY3Rpb25zCiMgYmFzZWQgb24gQkFTSF9GUkFNRVdPUktfRElTUExBWV9MRVZFTCBhbmQgQkFTSF9GUkFNRVdPUktfTE9HX0xFVkVMCiMgZW52aXJvbm1lbnQgdmFyaWFibGVzIGxvYWRlZCBieSBFbnY6OnJlcXVpcmVMb2FkCiMgdHJ5IHRvIGNyZWF0ZSBsb2cgZmlsZSBhbmQgcm90YXRlIGl0IGlmIG5lY2Vzc2FyeQojIEBub2FyZ3MKIyBAc2V0IEJBU0hfRlJBTUVXT1JLX0xPR19MRVZFTCBpbnQgdG8gT0ZGIGxldmVsIGlmIEJBU0hfRlJBTUVXT1JLX0xPR19GSUxFIGlzIGVtcHR5IG9yIG5vdCB3cml0YWJsZQojIEBlbnYgQkFTSF9GUkFNRVdPUktfRElTUExBWV9MRVZFTCBpbnQKIyBAZW52IEJBU0hfRlJBTUVXT1JLX0xPR19MRVZFTCBpbnQKIyBAZW52IEJBU0hfRlJBTUVXT1JLX0xPR19GSUxFIFN0cmluZwojIEBlbnYgQkFTSF9GUkFNRVdPUktfTE9HX0ZJTEVfTUFYX1JPVEFUSU9OIGludCBkbyBsb2cgcm90YXRpb24gaWYgPiAwCiMgQGV4aXRjb2RlIDAgYWx3YXlzIHN1Y2Nlc3NmdWwKIyBAc3RkZXJyIGRpYWdub3N0aWNzIGluZm9ybWF0aW9uIGFib3V0IGxvZyBmaWxlIGlzIGRpc3BsYXllZAojIEByZXF1aXJlIEVudjo6cmVxdWlyZUxvYWQKIyBAcmVxdWlyZSBVSTo6cmVxdWlyZVRoZW1lCkxvZzo6cmVxdWlyZUxvYWQoKSB7CiAgaWYgW1sgLXogIiR7QkFTSF9GUkFNRVdPUktfTE9HX0ZJTEU6LX0iIF1dOyB0aGVuCiAgICBCQVNIX0ZSQU1FV09SS19MT0dfTEVWRUw9JHtfX0xFVkVMX09GRn0KICAgIGV4cG9ydCBCQVNIX0ZSQU1FV09SS19MT0dfTEVWRUwKICBmaQoKICBpZiAoKEJBU0hfRlJBTUVXT1JLX0xPR19MRVZFTCA+IF9fTEVWRUxfT0ZGKSk7IHRoZW4KICAgIGlmIFtbICEgLWYgIiR7QkFTSF9GUkFNRVdPUktfTE9HX0ZJTEV9IiBdXTsgdGhlbgogICAgICBpZiBbWyAhIC1kICIke0JBU0hfRlJBTUVXT1JLX0xPR19GSUxFJS8qfSIgXV07IHRoZW4KICAgICAgICBpZiAhIG1rZGlyIC1wICIke0JBU0hfRlJBTUVXT1JLX0xPR19GSUxFJS8qfSIgMj4vZGV2L251bGw7IHRoZW4KICAgICAgICAgIEJBU0hfRlJBTUVXT1JLX0xPR19MRVZFTD0ke19fTEVWRUxfT0ZGfQogICAgICAgICAgZWNobyAtZSAiJHtfX0VSUk9SX0NPTE9SfUVSUk9SICAgLSBkaXJlY3RvcnkgJHtCQVNIX0ZSQU1FV09SS19MT0dfRklMRSUvKn0gaXMgbm90IHdyaXRhYmxlJHtfX1JFU0VUX0NPTE9SfSIgPiYyCiAgICAgICAgZmkKICAgICAgZWxpZiAhIHRvdWNoIC0tbm8tY3JlYXRlICIke0JBU0hfRlJBTUVXT1JLX0xPR19GSUxFfSIgMj4vZGV2L251bGw7IHRoZW4KICAgICAgICBCQVNIX0ZSQU1FV09SS19MT0dfTEVWRUw9JHtfX0xFVkVMX09GRn0KICAgICAgICBlY2hvIC1lICIke19fRVJST1JfQ09MT1J9RVJST1IgICAtIEZpbGUgJHtCQVNIX0ZSQU1FV09SS19MT0dfRklMRX0gaXMgbm90IHdyaXRhYmxlJHtfX1JFU0VUX0NPTE9SfSIgPiYyCiAgICAgIGZpCiAgICBlbGlmIFtbICEgLXcgIiR7QkFTSF9GUkFNRVdPUktfTE9HX0ZJTEV9IiBdXTsgdGhlbgogICAgICBCQVNIX0ZSQU1FV09SS19MT0dfTEVWRUw9JHtfX0xFVkVMX09GRn0KICAgICAgZWNobyAtZSAiJHtfX0VSUk9SX0NPTE9SfUVSUk9SICAgLSBGaWxlICR7QkFTSF9GUkFNRVdPUktfTE9HX0ZJTEV9IGlzIG5vdCB3cml0YWJsZSR7X19SRVNFVF9DT0xPUn0iID4mMgogICAgZmkKICBmaQoKICBpZiAoKEJBU0hfRlJBTUVXT1JLX0xPR19MRVZFTCA+IF9fTEVWRUxfT0ZGKSk7IHRoZW4KICAgICMgd2lsbCBhbHdheXMgYmUgY3JlYXRlZCBldmVuIGlmIG5vdCBpbiBpbmZvIGxldmVsCiAgICBMb2c6OmxvZ01lc3NhZ2UgIklORk8iICJMb2dnaW5nIHRvIGZpbGUgJHtCQVNIX0ZSQU1FV09SS19MT0dfRklMRX0gLSBMb2cgbGV2ZWwgJHtCQVNIX0ZSQU1FV09SS19MT0dfTEVWRUx9IgogICAgaWYgKChCQVNIX0ZSQU1FV09SS19MT0dfRklMRV9NQVhfUk9UQVRJT04gPiAwKSk7IHRoZW4KICAgICAgTG9nOjpyb3RhdGUgIiR7QkFTSF9GUkFNRVdPUktfTE9HX0ZJTEV9IiAiJHtCQVNIX0ZSQU1FV09SS19MT0dfRklMRV9NQVhfUk9UQVRJT059IgogICAgZmkKICBmaQp9CgojIEBkZXNjcmlwdGlvbiBEaXNwbGF5IG1lc3NhZ2UgdXNpbmcgZXJyb3IgY29sb3IgKHJlZCkKIyBAYXJnICQxIG1lc3NhZ2U6U3RyaW5nIHRoZSBtZXNzYWdlIHRvIGRpc3BsYXkKTG9nOjpkaXNwbGF5RXJyb3IoKSB7CiAgaWYgKChCQVNIX0ZSQU1FV09SS19ESVNQTEFZX0xFVkVMID49IF9fTEVWRUxfRVJST1IpKTsgdGhlbgogICAgTG9nOjpjb21wdXRlRHVyYXRpb24KICAgIGVjaG8gLWUgIiR7X19FUlJPUl9DT0xPUn1FUlJPUiAgIC0gJHtMT0dfQ09OVEVYVDotfSR7TE9HX0xBU1RfRFVSQVRJT05fU1RSOi19JHsxfSR7X19SRVNFVF9DT0xPUn0iID4mMgogIGZpCiAgTG9nOjpsb2dFcnJvciAiJDEiCn0KCiMgQGRlc2NyaXB0aW9uIFRvIGJlIGNhbGxlZCBiZWZvcmUgbG9nZ2luZyBpbiB0aGUgbG9nIGZpbGUKIyBAYXJnICQxIGZpbGU6c3RyaW5nIGxvZyBmaWxlIG5hbWUKIyBAYXJnICQyIG1heExvZ0ZpbGVzQ291bnQ6aW50IG1heGltdW0gbnVtYmVyIG9mIGxvZyBmaWxlcwpMb2c6OnJvdGF0ZSgpIHsKICBsb2NhbCBmaWxlPSIkMSIKICBsb2NhbCBtYXhMb2dGaWxlc0NvdW50PSIkezI6LTV9IgoKICBpZiBbWyAhIC1mICIke2ZpbGV9IiBdXTsgdGhlbgogICAgTG9nOjpkaXNwbGF5U2tpcHBlZCAiTG9nIGZpbGUgJHtmaWxlfSBkb2Vzbid0IGV4aXN0IHlldCIKICAgIHJldHVybiAwCiAgZmkKICBsb2NhbCBpCiAgZm9yICgoaSA9IG1heExvZ0ZpbGVzQ291bnQgLSAxOyBpID4gMDsgaS0tKSk7IGRvCiAgICBMb2c6OmRpc3BsYXlJbmZvICJMb2cgcm90YXRpb24gJHtmaWxlfS4ke2l9IHRvICR7ZmlsZX0uJCgoaSArIDEpKSIKICAgIG12ICIke2ZpbGV9LiJ7IiR7aX0iLCIkKChpICsgMSkpIn0gJj4vZGV2L251bGwgfHwgdHJ1ZQogIGRvbmUKICBpZiBjcCAiJHtmaWxlfSIgIiR7ZmlsZX0uMSIgJj4vZGV2L251bGw7IHRoZW4KICAgIGVjaG8gPiIke2ZpbGV9IiAjIHJlc2V0IGxvZyBmaWxlCiAgICBMb2c6OmRpc3BsYXlJbmZvICJMb2cgcm90YXRpb24gJHtmaWxlfSB0byAke2ZpbGV9LjEiCiAgZmkKfQoKIyBAZGVzY3JpcHRpb24gbG9hZCBjb2xvciB0aGVtZQojIEBub2FyZ3MKIyBAZW52IEJBU0hfRlJBTUVXT1JLX1RIRU1FIFN0cmluZyB0aGVtZSB0byB1c2UKIyBAZW52IExPQURfVEhFTUUgaW50IDAgdG8gYXZvaWQgbG9hZGluZyB0aGVtZQojIEBleGl0Y29kZSAwIGFsd2F5cyBzdWNjZXNzZnVsClVJOjpyZXF1aXJlVGhlbWUoKSB7CiAgaWYgW1sgIiR7TE9BRF9USEVNRTotMX0iID0gIjEiIF1dOyB0aGVuCiAgICBVSTo6dGhlbWUgIiR7QkFTSF9GUkFNRVdPUktfVEhFTUUtZGVmYXVsdH0iCiAgZmkKfQoKIyBAZGVzY3JpcHRpb24gbG9nIG1lc3NhZ2UgdG8gZmlsZQojIEBhcmcgJDEgbWVzc2FnZTpTdHJpbmcgdGhlIG1lc3NhZ2UgdG8gZGlzcGxheQpMb2c6OmxvZ0Vycm9yKCkgewogIGlmICgoQkFTSF9GUkFNRVdPUktfTE9HX0xFVkVMID49IF9fTEVWRUxfRVJST1IpKTsgdGhlbgogICAgTG9nOjpsb2dNZXNzYWdlICIkezI6LUVSUk9SfSIgIiQxIgogIGZpCn0KCiMgQGRlc2NyaXB0aW9uIERpc3BsYXkgbWVzc2FnZSB1c2luZyBza2lwIGNvbG9yICh5ZWxsb3cpCiMgQGFyZyAkMSBtZXNzYWdlOlN0cmluZyB0aGUgbWVzc2FnZSB0byBkaXNwbGF5CkxvZzo6ZGlzcGxheVNraXBwZWQoKSB7CiAgaWYgKChCQVNIX0ZSQU1FV09SS19ESVNQTEFZX0xFVkVMID49IF9fTEVWRUxfSU5GTykpOyB0aGVuCiAgICBMb2c6OmNvbXB1dGVEdXJhdGlvbgogICAgZWNobyAtZSAiJHtfX1NLSVBQRURfQ09MT1J9U0tJUFBFRCAtICR7TE9HX0NPTlRFWFQ6LX0ke0xPR19MQVNUX0RVUkFUSU9OX1NUUjotfSR7MX0ke19fUkVTRVRfQ09MT1J9IiA+JjIKICBmaQogIExvZzo6bG9nU2tpcHBlZCAiJDEiCn0KCiMgQGRlc2NyaXB0aW9uIGxvYWQgY29sb3JzIHRoZW1lIGNvbnN0YW50cwojIEB3YXJuaW5nIGlmIHR0eSBub3Qgb3BlbmVkLCBub0NvbG9yIHRoZW1lIHdpbGwgYmUgY2hvc2VuCiMgQGFyZyAkMSB0aGVtZTpTdHJpbmcgdGhlIHRoZW1lIHRvIHVzZSAoZGVmYXVsdCwgbm9Db2xvcikKIyBAYXJnICRAIGFyZ3M6U3RyaW5nW10KIyBAc2V0IF9fRVJST1JfQ09MT1IgU3RyaW5nIGluZGljYXRlIGVycm9yIHN0YXR1cwojIEBzZXQgX19JTkZPX0NPTE9SIFN0cmluZyBpbmRpY2F0ZSBpbmZvIHN0YXR1cwojIEBzZXQgX19TVUNDRVNTX0NPTE9SIFN0cmluZyBpbmRpY2F0ZSBzdWNjZXNzIHN0YXR1cwojIEBzZXQgX19XQVJOSU5HX0NPTE9SIFN0cmluZyBpbmRpY2F0ZSB3YXJuaW5nIHN0YXR1cwojIEBzZXQgX19TS0lQUEVEX0NPTE9SIFN0cmluZyBpbmRpY2F0ZSBza2lwcGVkIHN0YXR1cwojIEBzZXQgX19ERUJVR19DT0xPUiBTdHJpbmcgaW5kaWNhdGUgZGVidWcgc3RhdHVzCiMgQHNldCBfX0hFTFBfQ09MT1IgU3RyaW5nIGluZGljYXRlIGhlbHAgc3RhdHVzCiMgQHNldCBfX1RFU1RfQ09MT1IgU3RyaW5nIG5vdCB1c2VkCiMgQHNldCBfX1RFU1RfRVJST1JfQ09MT1IgU3RyaW5nIG5vdCB1c2VkCiMgQHNldCBfX0hFTFBfVElUTEVfQ09MT1IgU3RyaW5nIHVzZWQgdG8gZGlzcGxheSBoZWxwIHRpdGxlIGluIGhlbHAgc3RyaW5ncwojIEBzZXQgX19IRUxQX09QVElPTl9DT0xPUiBTdHJpbmcgdXNlZCB0byBkaXNwbGF5IGhpZ2hsaWdodCBvcHRpb25zIGluIGhlbHAgc3RyaW5ncwojCiMgQHNldCBfX1JFU0VUX0NPTE9SIFN0cmluZyByZXNldCBkZWZhdWx0IGNvbG9yCiMKIyBAc2V0IF9fSEVMUF9FWEFNUExFIFN0cmluZyB0byByZW1vdmUKIyBAc2V0IF9fSEVMUF9USVRMRSBTdHJpbmcgdG8gcmVtb3ZlCiMgQHNldCBfX0hFTFBfTk9STUFMIFN0cmluZyB0byByZW1vdmUKIyBzaGVsbGNoZWNrIGRpc2FibGU9U0MyMDM0ClVJOjp0aGVtZSgpIHsKICBsb2NhbCB0aGVtZT0iJHsxLWRlZmF1bHR9IgogIGlmIFtbICEgIiR7dGhlbWV9IiA9fiAtZm9yY2UkIF1dICYmICEgQXNzZXJ0Ojp0dHk7IHRoZW4KICAgIHRoZW1lPSJub0NvbG9yIgogIGZpCiAgY2FzZSAiJHt0aGVtZX0iIGluCiAgICBkZWZhdWx0IHwgZGVmYXVsdC1mb3JjZSkKICAgICAgdGhlbWU9ImRlZmF1bHQiCiAgICAgIDs7CiAgICBub0NvbG9yKSA7OwogICAgKikKICAgICAgTG9nOjpmYXRhbCAiaW52YWxpZCB0aGVtZSBwcm92aWRlZCIKICAgICAgOzsKICBlc2FjCiAgaWYgW1sgIiR7dGhlbWV9IiA9ICJkZWZhdWx0IiBdXTsgdGhlbgogICAgQkFTSF9GUkFNRVdPUktfVEhFTUU9ImRlZmF1bHQiCiAgICAjIGNoZWNrIGNvbG9ycyBhcHBsaWNhYmxlIGh0dHBzOi8vbWlzYy5mbG9naXNvZnQuY29tL2Jhc2gvdGlwX2NvbG9yc19hbmRfZm9ybWF0dGluZwogICAgX19FUlJPUl9DT0xPUj0nXGVbMzFtJyAgICAgICAgICMgUmVkCiAgICBfX0lORk9fQ09MT1I9J1xlWzQ0bScgICAgICAgICAgIyB3aGl0ZSBvbiBsaWdodEJsdWUKICAgIF9fU1VDQ0VTU19DT0xPUj0nXGVbMzJtJyAgICAgICAjIEdyZWVuCiAgICBfX1dBUk5JTkdfQ09MT1I9J1xlWzMzbScgICAgICAgIyBZZWxsb3cKICAgIF9fU0tJUFBFRF9DT0xPUj0nXGVbMzNtJyAgICAgICAjIFllbGxvdwogICAgX19ERUJVR19DT0xPUj0nXGVbMzdtJyAgICAgICAgICMgR3JleQogICAgX19IRUxQX0NPTE9SPSdcZVs3OzQ5OzMzbScgICAgICMgQmxhY2sgb24gR29sZAogICAgX19URVNUX0NPTE9SPSdcZVsxMDBtJyAgICAgICAgICMgTGlnaHQgbWFnZW50YQogICAgX19URVNUX0VSUk9SX0NPTE9SPSdcZVs0MW0nICAgICMgd2hpdGUgb24gcmVkCiAgICBfX0hFTFBfVElUTEVfQ09MT1I9IlxlWzE7MzdtIiAgIyBCb2xkCiAgICBfX0hFTFBfT1BUSU9OX0NPTE9SPSJcZVsxOzM0bSIgIyBCbHVlCiAgICAjIEludGVybmFsOiByZXNldCBjb2xvcgogICAgX19SRVNFVF9DT0xPUj0nXGVbMG0nICMgUmVzZXQgQ29sb3IKICAgICMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMjE1NSxTQzIwMzQKICAgIF9fSEVMUF9FWEFNUExFPSIkKGVjaG8gLWUgIlxlWzI7OTdtIikiCiAgICAjIHNoZWxsY2hlY2sgZGlzYWJsZT1TQzIxNTUsU0MyMDM0CiAgICBfX0hFTFBfVElUTEU9IiQoZWNobyAtZSAiXGVbMTszN20iKSIKICAgICMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMjE1NSxTQzIwMzQKICAgIF9fSEVMUF9OT1JNQUw9IiQoZWNobyAtZSAiXDAzM1swbSIpIgogIGVsc2UKICAgIEJBU0hfRlJBTUVXT1JLX1RIRU1FPSJub0NvbG9yIgogICAgIyBjaGVjayBjb2xvcnMgYXBwbGljYWJsZSBodHRwczovL21pc2MuZmxvZ2lzb2Z0LmNvbS9iYXNoL3RpcF9jb2xvcnNfYW5kX2Zvcm1hdHRpbmcKICAgIF9fRVJST1JfQ09MT1I9JycKICAgIF9fSU5GT19DT0xPUj0nJwogICAgX19TVUNDRVNTX0NPTE9SPScnCiAgICBfX1dBUk5JTkdfQ09MT1I9JycKICAgIF9fU0tJUFBFRF9DT0xPUj0nJwogICAgX19ERUJVR19DT0xPUj0nJwogICAgX19IRUxQX0NPTE9SPScnCiAgICBfX1RFU1RfQ09MT1I9JycKICAgIF9fVEVTVF9FUlJPUl9DT0xPUj0nJwogICAgX19IRUxQX1RJVExFX0NPTE9SPScnCiAgICBfX0hFTFBfT1BUSU9OX0NPTE9SPScnCiAgICAjIEludGVybmFsOiByZXNldCBjb2xvcgogICAgX19SRVNFVF9DT0xPUj0nJwogICAgX19IRUxQX0VYQU1QTEU9JycKICAgIF9fSEVMUF9USVRMRT0nJwogICAgX19IRUxQX05PUk1BTD0nJwogIGZpCn0KCiMgQGRlc2NyaXB0aW9uIGxvZyBtZXNzYWdlIHRvIGZpbGUKIyBAYXJnICQxIG1lc3NhZ2U6U3RyaW5nIHRoZSBtZXNzYWdlIHRvIGRpc3BsYXkKTG9nOjpsb2dTa2lwcGVkKCkgewogIGlmICgoQkFTSF9GUkFNRVdPUktfTE9HX0xFVkVMID49IF9fTEVWRUxfSU5GTykpOyB0aGVuCiAgICBMb2c6OmxvZ01lc3NhZ2UgIiR7MjotU0tJUFBFRH0iICIkMSIKICBmaQp9CgojIEBkZXNjcmlwdGlvbiBjaGVjayBpZiB0dHkgKGludGVyYWN0aXZlIG1vZGUpIGlzIGFjdGl2ZQojIEBub2FyZ3MKIyBAZXhpdGNvZGUgMSBpZiB0dHkgbm90IGFjdGl2ZQojIEBlbnYgTk9OX0lOVEVSQUNUSVZFIGlmIDEgY29uc2lkZXIgYXMgbm90IGludGVyYWN0aXZlIGV2ZW4gaWYgZW52aXJvbm1lbnQgaXMgaW50ZXJhY3RpdmUKIyBAZW52IElOVEVSQUNUSVZFIGlmIDEgY29uc2lkZXIgYXMgaW50ZXJhY3RpdmUgZXZlbiBpZiBlbnZpcm9ubWVudCBpcyBub3QgaW50ZXJhY3RpdmUKQXNzZXJ0Ojp0dHkoKSB7CiAgaWYgW1sgIiR7Tk9OX0lOVEVSQUNUSVZFOi0wfSIgPSAiMSIgXV07IHRoZW4KICAgIHJldHVybiAxCiAgZmkKICBpZiBbWyAiJHtJTlRFUkFDVElWRTotMH0iID0gIjEiIF1dOyB0aGVuCiAgICByZXR1cm4gMAogIGZpCiAgIyBjaGVjayBpZiBzdGRvdXQgb3Igc3RkZXJyIGlzIGNvbm5lY3RlZCB0byB0ZXJtaW5hbAogIFtbIC10IDEgfHwgLXQgMiBdXQp9CgojIEBkZXNjcmlwdGlvbiBEaXNwbGF5IG1lc3NhZ2UgdXNpbmcgZXJyb3IgY29sb3IgKHJlZCkgYW5kIGV4aXQgaW1tZWRpYXRlbHkgd2l0aCBlcnJvciBzdGF0dXMgMQojIEBhcmcgJDEgbWVzc2FnZTpTdHJpbmcgdGhlIG1lc3NhZ2UgdG8gZGlzcGxheQpMb2c6OmZhdGFsKCkgewogIExvZzo6Y29tcHV0ZUR1cmF0aW9uCiAgZWNobyAtZSAiJHtfX0VSUk9SX0NPTE9SfUZBVEFMICAgLSAke0xPR19DT05URVhUOi19JHtMT0dfTEFTVF9EVVJBVElPTl9TVFI6LX0kezF9JHtfX1JFU0VUX0NPTE9SfSIgPiYyCiAgTG9nOjpsb2dGYXRhbCAiJDEiCiAgZXhpdCAxCn0KCiMgQGRlc2NyaXB0aW9uIGxvZyBtZXNzYWdlIHRvIGZpbGUKIyBAYXJnICQxIG1lc3NhZ2U6U3RyaW5nIHRoZSBtZXNzYWdlIHRvIGRpc3BsYXkKTG9nOjpsb2dGYXRhbCgpIHsKICBMb2c6OmxvZ01lc3NhZ2UgIiR7MjotRkFUQUx9IiAiJDEiCn0KCiMgRlVOQ1RJT05TCgpmYWNhZGVfbWFpbl9sb2FkQ29uZmlnRmlsZXNzaCgpIHsKCmlmIEFzc2VydDo6ZnVuY3Rpb25FeGlzdHMgaW5pdEZhY2FkZTsgdGhlbgogIGluaXRGYWNhZGUKZmkKCiMgQHJlcXVpcmUgQ29tcGlsZXI6OkZhY2FkZTo6cmVxdWlyZUNvbW1hbmRCaW5EaXIKCmRlY2xhcmUgZGlyPSIkMSIKaWYgW1sgISAtZCAiJHtkaXJ9IiBdXTsgdGhlbgogIHJldHVybiAxCmZpCnNoaWZ0IHx8IHRydWUKZGVjbGFyZSAtYSBleHRlbnNpb25zPSgiJEAiKQppZiAoKCR7I2V4dGVuc2lvbnNbQF19IDwgMSkpOyB0aGVuCiAgZXhpdCAyCmZpCmRlY2xhcmUgLWEgZmluZENtZD0oCiAgZmluZCAiJHtkaXJ9IiAtdHlwZSBmICcoJwopCmZvciBleHQgaW4gIiR7ZXh0ZW5zaW9uc1tAXX0iOyBkbwogIGZpbmRDbWQrPSgtbmFtZSBcKi4iJHtleHR9IiAtbykKZG9uZQp1bnNldCAnZmluZENtZFstMV0nCmZpbmRDbWQrPSgnKScgLXByaW50ZiAnJXBcbicpCgoiJHtmaW5kQ21kW0BdfSIgMj4vZGV2L251bGwgfCBhd2sgLXYgZXh0PSIkKHByaW50ZiAnJXN8JyAiJHtleHRlbnNpb25zW0BdfSIpIiAnCiAgQkVHSU4gewogICAgRlM9Ii4iOwogICAgc3BsaXQoZXh0LCBleHRBcnIsICJ8Iik7CiAgICBmb3IgKGkgaW4gZXh0QXJyKSB7CiAgICAgIGV4dEluZGV4W2V4dEFycltpXV0gPSBpOwogICAgfQogIH0KICBmdW5jdGlvbiBiYXNlbmFtZVdpdGhvdXRFeHRlbnNpb24oZmlsZSkgewogICAgc3ViKCIuKi8iLCAiIiwgZmlsZSkKICAgIHN1YigvXC5bXi5dKyQvLCAiIiwgZmlsZSkKICAgIHJldHVybiBmaWxlCiAgfQogIHsKICAgIGlmICgkTkYgaW4gZXh0SW5kZXgpIHsKICAgICAgZmlsZUJhc2U9YmFzZW5hbWVXaXRob3V0RXh0ZW5zaW9uKCQwKQogICAgICBwcmludCBmaWxlQmFzZSAiXHQiIGV4dEluZGV4WyRORl0gIlx0IiAkMDsKICAgIH0KICB9CicgfCBzb3J0IC10JCdcdCcgLWsxLDEgLWsyLDIgfCBjdXQgLWYzLQoKfQoKZmFjYWRlX21haW5fbG9hZENvbmZpZ0ZpbGVzc2ggIiRAIgo=" "755"
+
+declare -gx embed_file_loadConfigFiles="${PERSISTENT_TMPDIR:-/tmp}/470af763a3d37d01ca080461f727513a/loadConfigFiles"
+Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/8537ff72412594780cf9f312e8925b1e/talkScript" "cGFyYW0oCiAgICBbUGFyYW1ldGVyKE1hbmRhdG9yeT0kdHJ1ZSwgUG9zaXRpb249MCldCiAgICBbc3RyaW5nXQogICAgJG1zZyA9ICcnCikKCkFkZC1UeXBlIC1Bc3NlbWJseU5hbWUgU3lzdGVtLnNwZWVjaAokc3BlYWsgPSBOZXctT2JqZWN0IFN5c3RlbS5TcGVlY2guU3ludGhlc2lzLlNwZWVjaFN5bnRoZXNpemVyCiRzcGVhay5TcGVhaygkbXNnKQo=" "644"
+
+declare -gx embed_file_talkScript="${PERSISTENT_TMPDIR:-/tmp}/8537ff72412594780cf9f312e8925b1e/talkScript"
+
+facade_main_ShellZshsh() {
+
+# REQUIRES
+Linux::requireTarCommand
+Env::requireLoad
+UI::requireTheme
+Linux::requireUbuntu
+Log::requireLoad
+Linux::Wsl::requireWsl
+Compiler::Facade::requireCommandBinDir
+
+if Assert::functionExists initFacade; then
+  initFacade
+fi
+Engine::Config::loadConfig
+# @description create sudoer file and add traps to remove it at the end
+# @arg $1 sudoerFile:String the file path to create
+# @env USERNAME
+# shellcheck disable=SC2317
+local sudoerFile="${SUDOER_FILE_PREFIX}/etc/sudoers.d/bash-dev-env-no-password"
+if [[ -f "${sudoerFile}" ]]; then
+  # sudoerFile probably already managed by parent script
+  true
+else
+  cleanSudoer() {
+    local rc=$?
+    if [[ -f "${sudoerFile}" ]]; then
+      ${SUDO:-sudo} rm -f "${sudoerFile}" || true
+    fi
+    exit "${rc}"
+  }
+  trap cleanSudoer EXIT HUP QUIT ABRT TERM
+
+  Log::displayInfo "Creating sudoer file"
+  echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" |
+    ${SUDO:-sudo} tee "${sudoerFile}" >/dev/null
+  ${SUDO:-sudo} chmod 0440 "${sudoerFile}"
+fi
+
+# @require Compiler::Facade::requireCommandBinDir
+# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
+# FACADE
+# IMPLEMENT InstallScripts::interface
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/ShellZsh/conf" as conf_dir
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/bin/loadConfigFiles" as loadConfigFiles
+# EMBED "${FRAMEWORK_ROOT_DIR}/src/UI/talk.ps1" as talkScript
+
+declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
+
+copyrightCallback() {
+  if [[ -z "${copyrightBeginYear}" ]]; then
+    copyrightBeginYear="$(date +%Y)"
+  fi
+  echo "Copyright (c) ${copyrightBeginYear}-now François Chastanet"
+}
+
+# shellcheck disable=SC2317 # if function is overridden
+updateArgListInfoVerboseCallback() {
+  BASH_FRAMEWORK_ARGV_FILTERED+=(--verbose)
+}
+# shellcheck disable=SC2317 # if function is overridden
+updateArgListDebugVerboseCallback() {
+  BASH_FRAMEWORK_ARGV_FILTERED+=(-vv)
+}
+# shellcheck disable=SC2317 # if function is overridden
+updateArgListTraceVerboseCallback() {
+  BASH_FRAMEWORK_ARGV_FILTERED+=(-vvv)
+}
+# shellcheck disable=SC2317 # if function is overridden
+updateArgListEnvFileCallback() { :; }
+# shellcheck disable=SC2317 # if function is overridden
+updateArgListLogLevelCallback() { :; }
+# shellcheck disable=SC2317 # if function is overridden
+updateArgListDisplayLevelCallback() { :; }
+# shellcheck disable=SC2317 # if function is overridden
+updateArgListNoColorCallback() {
+  BASH_FRAMEWORK_ARGV_FILTERED+=(--no-color)
+}
+# shellcheck disable=SC2317 # if function is overridden
+updateArgListThemeCallback() { :; }
+# shellcheck disable=SC2317 # if function is overridden
+updateArgListQuietCallback() { :; }
+
+# shellcheck disable=SC2317 # if function is overridden
+optionHelpCallback() {
+  installScriptCommand help
+  exit 0
+}
+
+# shellcheck disable=SC2317 # if function is overridden
+optionVersionCallback() {
+  echo "${SCRIPT_NAME} version 1.0"
+  exit 0
+}
+
+# shellcheck disable=SC2317 # if function is overridden
+optionEnvFileCallback() {
+  local envFile="$2"
+  Log::displayWarning "Command ${SCRIPT_NAME} - Option --env-file is deprecated and will be removed in the future"
+  if [[ ! -f "${envFile}" || ! -r "${envFile}" ]]; then
+    Log::displayError "Command ${SCRIPT_NAME} - Option --env-file - File '${envFile}' doesn't exist"
+    exit 1
+  fi
+}
+
+# shellcheck disable=SC2317 # if function is overridden
+optionInfoVerboseCallback() {
+  BASH_FRAMEWORK_ARGS_VERBOSE_OPTION='--verbose'
+  BASH_FRAMEWORK_ARGS_VERBOSE=${__VERBOSE_LEVEL_INFO}
+  echo "BASH_FRAMEWORK_DISPLAY_LEVEL=${__LEVEL_INFO}" >> "${overrideEnvFile}"
+}
+
+# shellcheck disable=SC2317 # if function is overridden
+optionDebugVerboseCallback() {
+  BASH_FRAMEWORK_ARGS_VERBOSE_OPTION='-vv'
+  BASH_FRAMEWORK_ARGS_VERBOSE=${__VERBOSE_LEVEL_DEBUG}
+  echo "BASH_FRAMEWORK_DISPLAY_LEVEL=${__LEVEL_DEBUG}" >> "${overrideEnvFile}"
+}
+
+# shellcheck disable=SC2317 # if function is overridden
+optionTraceVerboseCallback() {
+  BASH_FRAMEWORK_ARGS_VERBOSE_OPTION='-vvv'
+  BASH_FRAMEWORK_ARGS_VERBOSE=${__VERBOSE_LEVEL_TRACE}
+  echo "BASH_FRAMEWORK_DISPLAY_LEVEL=${__LEVEL_DEBUG}" >> "${overrideEnvFile}"
+}
+
+getLevel() {
+  local levelName="$1"
+  case "${levelName^^}" in
+    OFF)
+      echo "${__LEVEL_OFF}"
+      ;;
+    ERR | ERROR)
+      echo "${__LEVEL_ERROR}"
+      ;;
+    WARN | WARNING)
+      echo "${__LEVEL_WARNING}"
+      ;;
+    INFO)
+      echo "${__LEVEL_INFO}"
+      ;;
+    DEBUG | TRACE)
+      echo "${__LEVEL_DEBUG}"
+      ;;
+    *)
+      Log::displayError "Command ${SCRIPT_NAME} - Invalid level ${level}"
+      return 1
+  esac
+}
+
+getVerboseLevel() {
+  local levelName="$1"
+  case "${levelName^^}" in
+    OFF)
+      echo "${__VERBOSE_LEVEL_OFF}"
+      ;;
+    ERR | ERROR | WARN | WARNING | INFO)
+      echo "${__VERBOSE_LEVEL_INFO}"
+      ;;
+    DEBUG)
+      echo "${__VERBOSE_LEVEL_DEBUG}"
+      ;;
+    TRACE)
+      echo "${__VERBOSE_LEVEL_TRACE}"
+      ;;
+    *)
+      Log::displayError "Command ${SCRIPT_NAME} - Invalid level ${level}"
+      return 1
+  esac
+}
+
+# shellcheck disable=SC2317 # if function is overridden
+optionDisplayLevelCallback() {
+  local level="$2"
+  local logLevel verboseLevel
+  logLevel="$(getLevel "${level}")"
+  verboseLevel="$(getVerboseLevel "${level}")"
+  BASH_FRAMEWORK_ARGS_VERBOSE=${verboseLevel}
+  echo "BASH_FRAMEWORK_DISPLAY_LEVEL=${logLevel}" >> "${overrideEnvFile}"
+}
+
+# shellcheck disable=SC2317 # if function is overridden
+optionLogLevelCallback() {
+  local level="$2"
+  local logLevel verboseLevel
+  logLevel="$(getLevel "${level}")"
+  verboseLevel="$(getVerboseLevel "${level}")"
+  BASH_FRAMEWORK_ARGS_VERBOSE=${verboseLevel}
+  echo "BASH_FRAMEWORK_LOG_LEVEL=${logLevel}" >> "${overrideEnvFile}"
+}
+
+# shellcheck disable=SC2317 # if function is overridden
+optionLogFileCallback() {
+  local logFile="$2"
+  echo "BASH_FRAMEWORK_LOG_FILE='${logFile}'" >> "${overrideEnvFile}"
+}
+
+# shellcheck disable=SC2317 # if function is overridden
+optionQuietCallback() {
+  echo "BASH_FRAMEWORK_QUIET_MODE=1" >> "${overrideEnvFile}"
+}
+
+# shellcheck disable=SC2317 # if function is overridden
+optionNoColorCallback() {
+  UI::theme "noColor"
+}
+
+# shellcheck disable=SC2317 # if function is overridden
+optionThemeCallback() {
+  UI::theme "$2"
+}
+
+displayConfig() {
+  echo "Config"
+  UI::drawLine "-"
+  local var
+  while read -r var; do
+    printf '%-40s = %s\n' "${var}" "$(declare -p "${var}" | sed -E -e 's/^[^=]+=(.*)/\1/')"
+  done < <(typeset -p | awk 'match($3, "^(BASH_FRAMEWORK_[^=]+)=", m) { print m[1] }' | sort)
+  exit 0
+}
+
+optionBashFrameworkConfigCallback() {
+  if [[ ! -f "$2" ]]; then
+    Log::fatal "Command ${SCRIPT_NAME} - Bash framework config file '$2' does not exists"
+  fi
+}
+
+defaultFrameworkConfig="$(
+  cat <<'EOF'
+# copied from src/_includes/.framework-config.default
+# shellcheck disable=SC2034
+
+REAL_SCRIPT_FILE="${REAL_SCRIPT_FILE:-$(readlink -e "$(realpath "${BASH_SOURCE[0]}")")}"
+FRAMEWORK_ROOT_DIR="${FRAMEWORK_ROOT_DIR:-${REAL_SCRIPT_FILE%/*/*}}"
+FRAMEWORK_SRC_DIR="${FRAMEWORK_SRC_DIR:-${FRAMEWORK_ROOT_DIR}/src}"
+FRAMEWORK_BIN_DIR="${FRAMEWORK_BIN_DIR:-${FRAMEWORK_ROOT_DIR}/bin}"
+FRAMEWORK_VENDOR_DIR="${FRAMEWORK_VENDOR_DIR:-${FRAMEWORK_ROOT_DIR}/vendor}"
+FRAMEWORK_VENDOR_BIN_DIR="${FRAMEWORK_VENDOR_BIN_DIR:-${FRAMEWORK_ROOT_DIR}/vendor/bin}"
+
+# describe the functions that will be skipped from being imported
+FRAMEWORK_FUNCTIONS_IGNORE_REGEXP="${FRAMEWORK_FUNCTIONS_IGNORE_REGEXP:-^(Namespace::functions|Functions::myFunction|Namespace::requireSomething|Acquire::ForceIPv4)$}"
+# describe the files that do not contain function to be imported
+NON_FRAMEWORK_FILES_REGEXP="${NON_FRAMEWORK_FILES_REGEXP:-(^bin/|.framework-config|.bats$|/testsData/|^manualTests/|/_.sh$|/ZZZ.sh$|/__all.sh$|^src/_binaries|^src/_includes|^src/batsHeaders.sh$|^src/_standalone)}"
+# describe the files that are allowed to not have an associated bats file
+BATS_FILE_NOT_NEEDED_REGEXP="${BATS_FILE_NOT_NEEDED_REGEXP:-(^bin/|.framework-config|.bats$|/testsData/|^manualTests/|/_.sh$|/ZZZ.sh$|/__all.sh$|^src/batsHeaders.sh$|^src/_includes)}"
+# describe the files that are allowed to not have a function matching the filename
+FRAMEWORK_FILES_FUNCTION_MATCHING_IGNORE_REGEXP="${FRAMEWORK_FILES_FUNCTION_MATCHING_IGNORE_REGEXP:-^bin/|^\.framework-config$|\.tpl$|/testsData/|^manualTests/|\.bats$}"
+# Source directories
+if [[ ! -v FRAMEWORK_SRC_DIRS ]]; then
+  FRAMEWORK_SRC_DIRS=(
+    "${FRAMEWORK_ROOT_DIR}/src"
+  )
+fi
+
+# export here all the variables that will be used in your templates
+export REPOSITORY_URL="${REPOSITORY_URL:-https://github.com/fchastanet/bash-tools-framework}"
+
+BASH_FRAMEWORK_THEME="${BASH_FRAMEWORK_THEME:-default}"
+BASH_FRAMEWORK_LOG_LEVEL="${BASH_FRAMEWORK_LOG_LEVEL:-0}"
+BASH_FRAMEWORK_DISPLAY_LEVEL="${BASH_FRAMEWORK_DISPLAY_LEVEL:-3}"
+BASH_FRAMEWORK_LOG_FILE="${BASH_FRAMEWORK_LOG_FILE:-${FRAMEWORK_ROOT_DIR}/logs/${0##*/}.log}"
+BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION="${BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION:-5}"
+EOF
+)"
+
+overrideEnvFile="$(Framework::createTempFile "overrideEnvFile")"
+
+commandOptionParseFinished() {
+  # load default template framework config
+  defaultEnvFile="${PERSISTENT_TMPDIR}/.framework-config"
+  echo "${defaultFrameworkConfig}" > "${defaultEnvFile}"
+  local -a files=("${defaultEnvFile}")
+  if [[ -f "${envFile}" ]]; then
+    files+=("${envFile}")
+  fi
+  # shellcheck disable=SC2154
+  if [[ -f "${optionBashFrameworkConfig}" ]]; then
+    files+=("${optionBashFrameworkConfig}")
+  fi
+  files+=("${overrideEnvFile}")
+  Env::requireLoad "${files[@]}"
+  Log::requireLoad
+  # shellcheck disable=SC2154
+  if [[ "${optionConfig}" = "1" ]]; then
+    displayConfig
+  fi
+}
+
+export SKIP_INSTALL
+export SKIP_CONFIGURE
+export SKIP_TEST
+export SKIP_DEPENDENCIES
+
+installScriptCommand() {
+  local options_parse_cmd="$1"
+  shift || true
+
+  if [[ "${options_parse_cmd}" = "parse" ]]; then
+    SKIP_CONFIGURE="0"
+    local -i options_parse_optionParsedCountSKIP_CONFIGURE
+    ((options_parse_optionParsedCountSKIP_CONFIGURE = 0)) || true
+    SKIP_INSTALL="0"
+    local -i options_parse_optionParsedCountSKIP_INSTALL
+    ((options_parse_optionParsedCountSKIP_INSTALL = 0)) || true
+    SKIP_TEST="0"
+    local -i options_parse_optionParsedCountSKIP_TEST
+    ((options_parse_optionParsedCountSKIP_TEST = 0)) || true
+    SKIP_DEPENDENCIES="0"
+    local -i options_parse_optionParsedCountSKIP_DEPENDENCIES
+    ((options_parse_optionParsedCountSKIP_DEPENDENCIES = 0)) || true
+    local -i options_parse_optionParsedCountOptionBashFrameworkConfig
+    ((options_parse_optionParsedCountOptionBashFrameworkConfig = 0)) || true
+    optionConfig="0"
+    local -i options_parse_optionParsedCountOptionConfig
+    ((options_parse_optionParsedCountOptionConfig = 0)) || true
+    optionInfoVerbose="0"
+    local -i options_parse_optionParsedCountOptionInfoVerbose
+    ((options_parse_optionParsedCountOptionInfoVerbose = 0)) || true
+    optionDebugVerbose="0"
+    local -i options_parse_optionParsedCountOptionDebugVerbose
+    ((options_parse_optionParsedCountOptionDebugVerbose = 0)) || true
+    optionTraceVerbose="0"
+    local -i options_parse_optionParsedCountOptionTraceVerbose
+    ((options_parse_optionParsedCountOptionTraceVerbose = 0)) || true
+    optionNoColor="0"
+    local -i options_parse_optionParsedCountOptionNoColor
+    ((options_parse_optionParsedCountOptionNoColor = 0)) || true
+    optionTheme="default"
+    local -i options_parse_optionParsedCountOptionTheme
+    ((options_parse_optionParsedCountOptionTheme = 0)) || true
+    optionHelp="0"
+    local -i options_parse_optionParsedCountOptionHelp
+    ((options_parse_optionParsedCountOptionHelp = 0)) || true
+    optionVersion="0"
+    local -i options_parse_optionParsedCountOptionVersion
+    ((options_parse_optionParsedCountOptionVersion = 0)) || true
+    optionQuiet="0"
+    local -i options_parse_optionParsedCountOptionQuiet
+    ((options_parse_optionParsedCountOptionQuiet = 0)) || true
+    local -i options_parse_optionParsedCountOptionLogLevel
+    ((options_parse_optionParsedCountOptionLogLevel = 0)) || true
+    local -i options_parse_optionParsedCountOptionLogFile
+    ((options_parse_optionParsedCountOptionLogFile = 0)) || true
+    local -i options_parse_optionParsedCountOptionDisplayLevel
+    ((options_parse_optionParsedCountOptionDisplayLevel = 0)) || true
+    # shellcheck disable=SC2034
+    local -i options_parse_parsedArgIndex=0
+    while (($# > 0)); do
+      local options_parse_arg="$1"
+      local argOptDefaultBehavior=0
+      case "${options_parse_arg}" in
+        # Option 1/18
+        # Option SKIP_CONFIGURE --skip-config|--skip-configure|--skip-configuration variableType Boolean min 0 max 1 authorizedValues '' regexp ''
+        --skip-config | --skip-configure | --skip-configuration)
+          # shellcheck disable=SC2034
+          SKIP_CONFIGURE="1"
+          if ((options_parse_optionParsedCountSKIP_CONFIGURE >= 1)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+            return 1
+          fi
+          ((++options_parse_optionParsedCountSKIP_CONFIGURE))
+          ;;
+        # Option 2/18
+        # Option SKIP_INSTALL --skip-install|--skip-installation variableType Boolean min 0 max 1 authorizedValues '' regexp ''
+        --skip-install | --skip-installation)
+          # shellcheck disable=SC2034
+          SKIP_INSTALL="1"
+          if ((options_parse_optionParsedCountSKIP_INSTALL >= 1)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+            return 1
+          fi
+          ((++options_parse_optionParsedCountSKIP_INSTALL))
+          ;;
+        # Option 3/18
+        # Option SKIP_TEST --skip-test|--skip-tests variableType Boolean min 0 max 1 authorizedValues '' regexp ''
+        --skip-test | --skip-tests)
+          # shellcheck disable=SC2034
+          SKIP_TEST="1"
+          if ((options_parse_optionParsedCountSKIP_TEST >= 1)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+            return 1
+          fi
+          ((++options_parse_optionParsedCountSKIP_TEST))
+          ;;
+        # Option 4/18
+        # Option SKIP_DEPENDENCIES --skip-dependencies|--skip-deps variableType Boolean min 0 max 1 authorizedValues '' regexp ''
+        --skip-dependencies | --skip-deps)
+          # shellcheck disable=SC2034
+          SKIP_DEPENDENCIES="1"
+          if ((options_parse_optionParsedCountSKIP_DEPENDENCIES >= 1)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+            return 1
+          fi
+          ((++options_parse_optionParsedCountSKIP_DEPENDENCIES))
+          ;;
+        # Option 5/18
+        # Option optionBashFrameworkConfig --bash-framework-config variableType String min 0 max 1 authorizedValues '' regexp ''
+        --bash-framework-config)
+          shift
+          if (($# == 0)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - a value needs to be specified"
+            return 1
+          fi
+          if ((options_parse_optionParsedCountOptionBashFrameworkConfig >= 1)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+            return 1
+          fi
+          ((++options_parse_optionParsedCountOptionBashFrameworkConfig))
+          # shellcheck disable=SC2034
+          optionBashFrameworkConfig="$1"
+          optionBashFrameworkConfigCallback "${options_parse_arg}" "${optionBashFrameworkConfig}"
+          ;;
+        # Option 6/18
+        # Option optionConfig --config variableType Boolean min 0 max 1 authorizedValues '' regexp ''
+        --config)
+          # shellcheck disable=SC2034
+          optionConfig="1"
+          if ((options_parse_optionParsedCountOptionConfig >= 1)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+            return 1
+          fi
+          ((++options_parse_optionParsedCountOptionConfig))
+          ;;
+        # Option 7/18
+        # Option optionInfoVerbose --verbose|-v variableType Boolean min 0 max 1 authorizedValues '' regexp ''
+        --verbose | -v)
+          # shellcheck disable=SC2034
+          optionInfoVerbose="1"
+          if ((options_parse_optionParsedCountOptionInfoVerbose >= 1)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+            return 1
+          fi
+          ((++options_parse_optionParsedCountOptionInfoVerbose))
+          optionInfoVerboseCallback "${options_parse_arg}"
+          updateArgListInfoVerboseCallback "${options_parse_arg}"
+          ;;
+        # Option 8/18
+        # Option optionDebugVerbose -vv variableType Boolean min 0 max 1 authorizedValues '' regexp ''
+        -vv)
+          # shellcheck disable=SC2034
+          optionDebugVerbose="1"
+          if ((options_parse_optionParsedCountOptionDebugVerbose >= 1)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+            return 1
+          fi
+          ((++options_parse_optionParsedCountOptionDebugVerbose))
+          optionDebugVerboseCallback "${options_parse_arg}"
+          updateArgListDebugVerboseCallback "${options_parse_arg}"
+          ;;
+        # Option 9/18
+        # Option optionTraceVerbose -vvv variableType Boolean min 0 max 1 authorizedValues '' regexp ''
+        -vvv)
+          # shellcheck disable=SC2034
+          optionTraceVerbose="1"
+          if ((options_parse_optionParsedCountOptionTraceVerbose >= 1)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+            return 1
+          fi
+          ((++options_parse_optionParsedCountOptionTraceVerbose))
+          optionTraceVerboseCallback "${options_parse_arg}"
+          updateArgListTraceVerboseCallback "${options_parse_arg}"
+          ;;
+        # Option 10/18
+        # Option optionEnvFiles --env-file variableType StringArray min 0 max -1 authorizedValues '' regexp ''
+        --env-file)
+          shift
+          if (($# == 0)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - a value needs to be specified"
+            return 1
+          fi
+          ((++options_parse_optionParsedCountOptionEnvFiles))
+          optionEnvFiles+=("$1")
+          optionEnvFileCallback "${options_parse_arg}" "${optionEnvFiles[@]}"
+          updateArgListEnvFileCallback "${options_parse_arg}" "${optionEnvFiles[@]}"
+          ;;
+        # Option 11/18
+        # Option optionNoColor --no-color variableType Boolean min 0 max 1 authorizedValues '' regexp ''
+        --no-color)
+          # shellcheck disable=SC2034
+          optionNoColor="1"
+          if ((options_parse_optionParsedCountOptionNoColor >= 1)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+            return 1
+          fi
+          ((++options_parse_optionParsedCountOptionNoColor))
+          optionNoColorCallback "${options_parse_arg}"
+          updateArgListNoColorCallback "${options_parse_arg}"
+          ;;
+        # Option 12/18
+        # Option optionTheme --theme variableType String min 0 max 1 authorizedValues 'default|default-force|noColor' regexp ''
+        --theme)
+          shift
+          if (($# == 0)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - a value needs to be specified"
+            return 1
+          fi
+          if [[ ! "$1" =~ default|default-force|noColor ]]; then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - value '$1' is not part of authorized values(default|default-force|noColor)"
+            return 1
+          fi
+          if ((options_parse_optionParsedCountOptionTheme >= 1)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+            return 1
+          fi
+          ((++options_parse_optionParsedCountOptionTheme))
+          # shellcheck disable=SC2034
+          optionTheme="$1"
+          optionThemeCallback "${options_parse_arg}" "${optionTheme}"
+          updateArgListThemeCallback "${options_parse_arg}" "${optionTheme}"
+          ;;
+        # Option 13/18
+        # Option optionHelp --help|-h variableType Boolean min 0 max 1 authorizedValues '' regexp ''
+        --help | -h)
+          # shellcheck disable=SC2034
+          optionHelp="1"
+          if ((options_parse_optionParsedCountOptionHelp >= 1)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+            return 1
+          fi
+          ((++options_parse_optionParsedCountOptionHelp))
+          optionHelpCallback "${options_parse_arg}"
+          ;;
+        # Option 14/18
+        # Option optionVersion --version variableType Boolean min 0 max 1 authorizedValues '' regexp ''
+        --version)
+          # shellcheck disable=SC2034
+          optionVersion="1"
+          if ((options_parse_optionParsedCountOptionVersion >= 1)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+            return 1
+          fi
+          ((++options_parse_optionParsedCountOptionVersion))
+          optionVersionCallback "${options_parse_arg}"
+          ;;
+        # Option 15/18
+        # Option optionQuiet --quiet|-q variableType Boolean min 0 max 1 authorizedValues '' regexp ''
+        --quiet | -q)
+          # shellcheck disable=SC2034
+          optionQuiet="1"
+          if ((options_parse_optionParsedCountOptionQuiet >= 1)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+            return 1
+          fi
+          ((++options_parse_optionParsedCountOptionQuiet))
+          optionQuietCallback "${options_parse_arg}"
+          updateArgListQuietCallback "${options_parse_arg}"
+          ;;
+        # Option 16/18
+        # Option optionLogLevel --log-level variableType String min 0 max 1 authorizedValues 'OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE' regexp ''
+        --log-level)
+          shift
+          if (($# == 0)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - a value needs to be specified"
+            return 1
+          fi
+          if [[ ! "$1" =~ OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE ]]; then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - value '$1' is not part of authorized values(OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE)"
+            return 1
+          fi
+          if ((options_parse_optionParsedCountOptionLogLevel >= 1)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+            return 1
+          fi
+          ((++options_parse_optionParsedCountOptionLogLevel))
+          # shellcheck disable=SC2034
+          optionLogLevel="$1"
+          optionLogLevelCallback "${options_parse_arg}" "${optionLogLevel}"
+          updateArgListLogLevelCallback "${options_parse_arg}" "${optionLogLevel}"
+          ;;
+        # Option 17/18
+        # Option optionLogFile --log-file variableType String min 0 max 1 authorizedValues '' regexp ''
+        --log-file)
+          shift
+          if (($# == 0)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - a value needs to be specified"
+            return 1
+          fi
+          if ((options_parse_optionParsedCountOptionLogFile >= 1)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+            return 1
+          fi
+          ((++options_parse_optionParsedCountOptionLogFile))
+          # shellcheck disable=SC2034
+          optionLogFile="$1"
+          optionLogFileCallback "${options_parse_arg}" "${optionLogFile}"
+          updateArgListLogFileCallback "${options_parse_arg}" "${optionLogFile}"
+          ;;
+        # Option 18/18
+        # Option optionDisplayLevel --display-level variableType String min 0 max 1 authorizedValues 'OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE' regexp ''
+        --display-level)
+          shift
+          if (($# == 0)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - a value needs to be specified"
+            return 1
+          fi
+          if [[ ! "$1" =~ OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE ]]; then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - value '$1' is not part of authorized values(OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE)"
+            return 1
+          fi
+          if ((options_parse_optionParsedCountOptionDisplayLevel >= 1)); then
+            Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+            return 1
+          fi
+          ((++options_parse_optionParsedCountOptionDisplayLevel))
+          # shellcheck disable=SC2034
+          optionDisplayLevel="$1"
+          optionDisplayLevelCallback "${options_parse_arg}" "${optionDisplayLevel}"
+          updateArgListDisplayLevelCallback "${options_parse_arg}" "${optionDisplayLevel}"
+          ;;
+        -*)
+          if [[ "${argOptDefaultBehavior}" = "0" ]]; then
+            Log::displayError "Command ${SCRIPT_NAME} - Invalid option ${options_parse_arg}"
+            return 1
+          fi
+          ;;
+        *)
+          if [[ "${argOptDefaultBehavior}" = "0" ]]; then
+            Log::displayError "Command ${SCRIPT_NAME} - Argument - too much arguments provided"
+            return 1
+          fi
+          ;;
+      esac
+      shift || true
+    done
+    commandOptionParseFinished
+    InstallScripts::command
+    Log::displayDebug "Command ${SCRIPT_NAME} - parse arguments: ${BASH_FRAMEWORK_ARGV[*]}"
+    Log::displayDebug "Command ${SCRIPT_NAME} - parse filtered arguments: ${BASH_FRAMEWORK_ARGV_FILTERED[*]}"
+  elif [[ "${options_parse_cmd}" = "help" ]]; then
+    Array::wrap2 ' ' 80 0 "\e[1;37mDESCRIPTION:\e[0m" "$(helpDescriptionCallback)"
+    echo
+
+    echo -e "$(Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" "${SCRIPT_NAME}" "[OPTIONS]")"
+    echo -e "$(Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" \
+      "${SCRIPT_NAME}" \
+      "[--skip-config|--skip-configure|--skip-configuration]" "[--skip-install|--skip-installation]" "[--skip-test|--skip-tests]" "[--skip-dependencies|--skip-deps]" "[--bash-framework-config <String>]" "[--config]" "[--verbose|-v]" "[-vv]" "[-vvv]" "[--env-file <String>]" "[--no-color]" "[--theme <String>]" "[--help|-h]" "[--version]" "[--quiet|-q]" "[--log-level <String>]" "[--log-file <String>]" "[--display-level <String>]")"
+    echo
+    echo -e "${__HELP_TITLE_COLOR}OPTIONS:${__RESET_COLOR}"
+    echo -e "  ${__HELP_OPTION_COLOR}--skip-config${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}--skip-configure${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}--skip-configuration${__HELP_NORMAL} {single}"
+    local -a helpArray
+    # shellcheck disable=SC2054
+    helpArray=(skip\ software\ configuration)
+    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
+    echo -e "  ${__HELP_OPTION_COLOR}--skip-install${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}--skip-installation${__HELP_NORMAL} {single}"
+    local -a helpArray
+    # shellcheck disable=SC2054
+    helpArray=(skip\ software\ installation)
+    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
+    echo -e "  ${__HELP_OPTION_COLOR}--skip-test${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}--skip-tests${__HELP_NORMAL} {single}"
+    local -a helpArray
+    # shellcheck disable=SC2054
+    helpArray=(skip\ software\ installation\ test)
+    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
+    echo -e "  ${__HELP_OPTION_COLOR}--skip-dependencies${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}--skip-deps${__HELP_NORMAL} {single}"
+    local -a helpArray
+    # shellcheck disable=SC2054
+    helpArray=(install\ the\ software\ requested\ without\ resolving\ dependencies)
+    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
+    echo
+    echo -e "${__HELP_TITLE_COLOR}GLOBAL OPTIONS:${__RESET_COLOR}"
+    echo -e "  ${__HELP_OPTION_COLOR}--bash-framework-config <String>${__HELP_NORMAL} {single}"
+    local -a helpArray
+    # shellcheck disable=SC2054
+    helpArray=(use\ alternate\ bash\ framework\ configuration.)
+    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
+    echo -e "  ${__HELP_OPTION_COLOR}--config${__HELP_NORMAL} {single}"
+    local -a helpArray
+    # shellcheck disable=SC2054
+    helpArray=(Display\ configuration)
+    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
+    echo -e "  ${__HELP_OPTION_COLOR}--verbose${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-v${__HELP_NORMAL} {single}"
+    local -a helpArray
+    # shellcheck disable=SC2054
+    helpArray=(info\ level\ verbose\ mode\ \(alias\ of\ --display-level\ INFO\))
+    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
+    echo -e "  ${__HELP_OPTION_COLOR}-vv${__HELP_NORMAL} {single}"
+    local -a helpArray
+    # shellcheck disable=SC2054
+    helpArray=(debug\ level\ verbose\ mode\ \(alias\ of\ --display-level\ DEBUG\))
+    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
+    echo -e "  ${__HELP_OPTION_COLOR}-vvv${__HELP_NORMAL} {single}"
+    local -a helpArray
+    # shellcheck disable=SC2054
+    helpArray=(trace\ level\ verbose\ mode\ \(alias\ of\ --display-level\ TRACE\))
+    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
+    echo -e "  ${__HELP_OPTION_COLOR}--env-file <String>${__HELP_NORMAL} {list} (optional)"
+    local -a helpArray
+    # shellcheck disable=SC2054
+    helpArray=(Load\ the\ specified\ env\ file\ \(deprecated\,\ please\ use\ --bash-framework-config\ option\ instead\))
+    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
+    echo -e "  ${__HELP_OPTION_COLOR}--no-color${__HELP_NORMAL} {single}"
+    local -a helpArray
+    # shellcheck disable=SC2054
+    helpArray=(Produce\ monochrome\ output.\ alias\ of\ --theme\ noColor.)
+    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
+    echo -e "  ${__HELP_OPTION_COLOR}--theme <String>${__HELP_NORMAL} {single}"
+    local -a helpArray
+    # shellcheck disable=SC2054
+    helpArray=(choose\ color\ theme\ -\ default-force\ means\ colors\ will\ be\ produced\ even\ if\ command\ is\ piped)
+    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
+    echo '    Default value: default'
+    echo '    Possible values: default|default-force|noColor'
+    echo -e "  ${__HELP_OPTION_COLOR}--help${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-h${__HELP_NORMAL} {single}"
+    local -a helpArray
+    # shellcheck disable=SC2054
+    helpArray=(Display\ this\ command\ help)
+    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
+    echo -e "  ${__HELP_OPTION_COLOR}--version${__HELP_NORMAL} {single}"
+    local -a helpArray
+    # shellcheck disable=SC2054
+    helpArray=(Print\ version\ information\ and\ quit)
+    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
+    echo -e "  ${__HELP_OPTION_COLOR}--quiet${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-q${__HELP_NORMAL} {single}"
+    local -a helpArray
+    # shellcheck disable=SC2054
+    helpArray=(quiet\ mode\,\ doesn\'t\ display\ any\ output)
+    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
+    echo -e "  ${__HELP_OPTION_COLOR}--log-level <String>${__HELP_NORMAL} {single}"
+    local -a helpArray
+    # shellcheck disable=SC2054
+    helpArray=(Set\ log\ level)
+    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
+    echo '    Possible values: OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE'
+    echo -e "  ${__HELP_OPTION_COLOR}--log-file <String>${__HELP_NORMAL} {single}"
+    local -a helpArray
+    # shellcheck disable=SC2054
+    helpArray=(Set\ log\ file)
+    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
+    echo -e "  ${__HELP_OPTION_COLOR}--display-level <String>${__HELP_NORMAL} {single}"
+    local -a helpArray
+    # shellcheck disable=SC2054
+    helpArray=(set\ display\ level)
+    echo -e "    $(Array::wrap2 " " 76 4 "${helpArray[@]}")"
+    echo '    Possible values: OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE'
+    Array::wrap2 ' ' 76 0 "$(helpLongDescriptionCallback)"
+    echo
+    echo -n -e "${__HELP_TITLE_COLOR}VERSION: ${__RESET_COLOR}"
+    echo '1.0'
+    echo
+    echo -e "${__HELP_TITLE_COLOR}AUTHOR:${__RESET_COLOR}"
+    echo '[François Chastanet](https://github.com/fchastanet)'
+    echo
+    echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/ShellZsh/ShellZsh.sh'
+    echo
+    echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
+    echo 'MIT License'
+    echo
+    Array::wrap2 ' ' 76 4 "$(copyrightCallback)"
+  else
+    Log::displayError "Command ${SCRIPT_NAME} - Option command invalid: '${options_parse_cmd}'"
+    return 1
+  fi
+}
+
+# default action called by the facade if no interface action recognized
+defaultFacadeAction() {
+  installScriptCommand parse "${BASH_FRAMEWORK_ARGV[@]}"
+}
+
+stringOrNone() {
+  local string="$1"
+  echo -e "${string:-${__HELP_EXAMPLE}None${__HELP_NORMAL}}"
+}
+
+helpDescriptionCallback() {
+  helpDescription
+  echo
+}
+
+helpLongDescriptionCallback() {
+  helpDescription
+  echo
+
+  echo -e "${__HELP_TITLE}List of needed variables:${__HELP_NORMAL}"
+  stringOrNone "$(helpVariables)"
+
+  echo -e "${__HELP_TITLE}List of dependencies:${__HELP_NORMAL}"
+  stringOrNone "$(dependencies)"
+}
+
+isInstallImplemented() {
+  ! InstallScripts::scriptFunctionEmpty install
+}
+
+isTestInstallImplemented() {
+  ! InstallScripts::scriptFunctionEmpty testInstall
+}
+
+isConfigureImplemented() {
+  ! InstallScripts::scriptFunctionEmpty configure
+}
+
+isTestConfigureImplemented() {
+  ! InstallScripts::scriptFunctionEmpty testConfigure
+}
+
+scriptName() {
+  echo "ShellZsh"
+}
+
+helpDescription() {
+  echo "Default Zsh configuration"
+}
+
+dependencies() {
+  echo ShellBash
+}
+
+listVariables() {
+  echo "HOME"
+  echo "USERNAME"
+  echo "USERGROUP"
+}
+
+fortunes() {
+  if [[ "${USER_SHELL}" = "/usr/bin/zsh" ]]; then
+    echo "$(scriptName) - Zsh ref card manual <http://www.bash2zsh.com/zsh_refcard/refcard.pdf>"
+    echo "%"
+    if [[ "${ZSH_PREFERRED_THEME:-${ZSH_DEFAULT_THEME}}" != "powerlevel10k/powerlevel10k" ]]; then
+      echo "$(scriptName) - Powerlevel10k - use this command 'p10k configure' to customize shell prompt"
+      echo "%"
+    fi
+  else
+    if command -v zsh &>/dev/null; then
+      echo "$(scriptName) - ${USER_SHELL} is set as default shell, you can switch to zsh using 'chsh -s /usr/bin/zsh'"
+      echo "%"
+    else
+      echo "$(scriptName) - Zsh is not set as your default shell, you can give it a try using 'installAndConfigure ZshProfile'"
+      echo "%"
+    fi
+  fi
+}
+
+# jscpd:ignore-start
+helpVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
+# jscpd:ignore-end
+
+install() {
+  Linux::Apt::installIfNecessary --no-install-recommends \
+    zsh
+
+  Log::displayInfo "install plugin manager"
+  if command -v zinit &>/dev/null; then
+    zinit self-update
+    zinit update --parallel
+  else
+    bash -c "$(
+      NO_EDIT=1 NO_INPUT=1 curl \
+        --fail --show-error --silent \
+        --location https://raw.githubusercontent.com/zdharma-continuum/zinit/HEAD/scripts/install.sh
+    )"
+  fi
+}
+
+assertZshFunctionExists() {
+  local functionName="$1"
+  zsh -i -c "typeset -f '${functionName}' &>/dev/null" || {
+    Log::displayError "Zsh function ${functionName} does not exist"
+    return 1
+  }
+}
+
+testInstall() {
+  local -i failures=0
+  Assert::commandExists zsh || ((++failures))
+  assertZshFunctionExists zinit || ((++failures))
+  return "${failures}"
+}
+
+configure() {
+  if [[ "${PREFERRED_SHELL}" = "ShellZsh" ]]; then
+    if [[ "${USER_SHELL}" != "/usr/bin/zsh" ]]; then
+      sudo usermod --shell /usr/bin/zsh "${USERNAME}"
+      USER_SHELL="/usr/bin/zsh"
+      Log::displayHelp "You have to log in/log out to make zsh by default"
+    fi
+    Log::displayHelp "Zsh is set as default shell, you can switch back to bash using 'chsh -s /usr/bin/bash'"
+  fi
+  # shellcheck disable=SC2154
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-dev-env"
+
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    "home" \
+    "${HOME}"
+
+  # shellcheck disable=SC2154
+  OVERWRITE_CONFIG_FILES=1 Install::file \
+    "${embed_file_loadConfigFiles}" \
+    "${HOME}/.bash-dev-env/loadConfigFiles"
+}
+
+declare -a confFiles=(
+  "${HOME}/.bash-dev-env/interactive.d/zsh-autosuggestions.zsh"
+  "${HOME}/.bash-dev-env/interactive.d/zsh-beep.zsh"
+  "${HOME}/.bash-dev-env/interactive.d/zsh-history.zsh"
+  "${HOME}/.bash-dev-env/interactive.d/zsh-ls-colors.zsh"
+  "${HOME}/.bash-dev-env/interactive.d/zsh-ssh.zsh"
+  "${HOME}/.bash-dev-env/interactive.d/zsh-syntax-highlighting.zsh"
+  "${HOME}/.bash-dev-env/interactive.d/zsh-z.zsh"
+  "${HOME}/.bash-dev-env/themes.d/powerlevel10k.zsh"
+  "${HOME}/.bash-dev-env/themes.d/pure.zsh"
+  "${HOME}/.bash-dev-env/themes.d/starship.zsh"
+  "${HOME}/.bash-dev-env/loadConfigFiles"
+  "${HOME}/.zshrc"
+  "${HOME}/.zprofile"
+  "${HOME}/.p10k.zsh"
+)
+testConfigure() {
+  local -i failures=0
+  local file
+  for file in "${confFiles[@]}"; do
+    Assert::fileExists "${file}" || ((++failures))
+  done
+  Log::displayInfo "Try to load .zshrc"
+  (zsh -i -c 'echo "Hello Zsh"' || exit 1) || {
+    Log::displayError "something goes bad while loading ~/.zshrc"
+    ((++failures))
+  }
+
+  return "${failures}"
+}
+
+local action=$1
+shift || true
+case ${action} in
+  scriptName)
+    scriptName "$@"
+    ;;
+  helpDescription)
+    helpDescription "$@"
+    ;;
+  helpVariables)
+    helpVariables "$@"
+    ;;
+  listVariables)
+    listVariables "$@"
+    ;;
+  defaultVariables)
+    defaultVariables "$@"
+    ;;
+  checkVariables)
+    checkVariables "$@"
+    ;;
+  fortunes)
+    fortunes "$@"
+    ;;
+  dependencies)
+    dependencies "$@"
+    ;;
+  breakOnTestFailure)
+    breakOnTestFailure "$@"
+    ;;
+  breakOnConfigFailure)
+    breakOnConfigFailure "$@"
+    ;;
+  install)
+    install "$@"
+    ;;
+  isInstallImplemented)
+    isInstallImplemented "$@"
+    ;;
+  testInstall)
+    testInstall "$@"
+    ;;
+  isTestInstallImplemented)
+    isTestInstallImplemented "$@"
+    ;;
+  configure)
+    configure "$@"
+    ;;
+  isConfigureImplemented)
+    isConfigureImplemented "$@"
+    ;;
+  testConfigure)
+    testConfigure "$@"
+    ;;
+  isTestConfigureImplemented)
+    isTestConfigureImplemented "$@"
+    ;;
+  *)
+    if Assert::functionExists defaultFacadeAction; then
+      defaultFacadeAction "$1" "$@"
+    else
+      Log::displayError "invalid action requested: ${action}"
+      exit 1
+    fi
+    ;;
+esac
+exit 0
+}
+
+facade_main_ShellZshsh "$@"

@@ -246,6 +246,10 @@ UPGRADE_UBUNTU_VERSION=0
 # possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
 PREFERRED_SHELL="ShellBash"
 
+# Zsh theme to use
+# possible choices: powerlevel10k/powerlevel10k, sindresorhus/pure, starship/starship
+ZSH_PREFERRED_THEME="powerlevel10k/powerlevel10k"
+
 # Display Fortune tooltip at bash/zsh session open
 SHOW_FORTUNES=1
 
@@ -1236,6 +1240,7 @@ Engine::Config::checkEnv() {
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh
+  checkValidValues ZSH_PREFERRED_THEME powerlevel10k/powerlevel10k sindresorhus/pure starship/starship
 
   checkValidValues SHOW_FORTUNES 0 1
   checkValidValues SHOW_MOTD 0 1
@@ -1303,11 +1308,11 @@ Engine::Config::loadWslVariables() {
   export BASE_MNT_C
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_DIR SystemRoot
-  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C}/Windows}"
+  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C:-/mnt/c}/Windows}"
   export WINDOWS_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_PROFILE_DIR USERPROFILE
-  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C}/Users/${USERNAME}}}"
+  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C:-/mnt/c}/Users/${USERNAME}}"
   export WINDOWS_PROFILE_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 LOCAL_APP_DATA LOCALAPPDATA
@@ -1317,7 +1322,7 @@ Engine::Config::loadWslVariables() {
   Linux::Wsl::cachedWslvar2 WINDOW_PATH PATH
   WINDOW_PATH="${WINDOW_PATH//;/:}"
   WINDOW_PATH="${WINDOW_PATH//\\//}"
-  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C}}"
+  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C:-/mnt/c}}"
 
   deduceBin() {
     local var="$1"
@@ -2362,7 +2367,7 @@ File::garbageCollect() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+3Sz2vbMBQHcJ/9V7w5IW0I+hXL9qH0sEPLTiusKzukSVFtGRscOVhOSlj6v09eWwhjpGtpMkrf5yIjS7z3+Ioyb++4k0RRt4ok4tvrE0/ImEuehJyHbj+RXHoQ7b81z1vaVjUA3p2tdp577v87RRm9VbYgmV4RbVZ7eQ3/mv9YiDCO3b4QiQwx/0P4M//StLpRaVuuNM3e6DW8KP9EuvxlxBPM/xB255+VdlGp9XndtEujLbXFa2o8l790mXf5h6GMo8Ttj/k4GnvA33rYv/ng+fc+sdvSsO4N+H6Zw2QCJAem25TlD6mTQlcLktbzuTKZhcFg9wGaqbY7FPR/Xn65+HFzfvHt+9XXs8v7AE4hEAFMpyfQFtr4AI27UM8/m3KuqtOgf5yXJgO2tA2zhWo0S+s7q9a/FyDteqEhhw3YYpkDMSC6b50BOQOi4cj2ZnTEjiczRqej4TV1t/q9a9E7Ggau1GOvuybbwEO9bj7X/XZzrvkNVHWVutmIhZhzPy/9/50dQgghhBBCCCGEEEIIIYQQQggh9OQXsrPTWAAoAAA="
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2W32/aMBDH88xfcQuIQivHdnDih4lJe2i1p1VaV+2B0ikFR4kUAooTKlr6v88EonaoglIVqnX3ebFkfy/n8/0Ah1p7hxmk5y1WLj32dK2wuPCZYLLDWMfsS8GEBd7+r2ZZhc6DDMC61clG3bbzfxSHOjeBjshQTYlKp3uphpfm35e+6/rCYpxLn2P+D8F6/uM0V1kwyOOpcoZvVA0vzb/scCmF6X8uPC4x/4dgc/6HsZ4kwexsnOVFqrSjo9f42JJ/zpi/yr/LXWl0LnOF6X/21sE+x3+e//onehOndFEDtdpaulttuK8BxCH0ekBCoCof0HB5SCKVTMhgPBoF6VBDs2mEsFnkDIO8EtqN+4tv579+n53/+Hn5/fTiwYYu2NyuzhsEul04jo+h36/2Vt8BMoXV96H5hZrCpWmRJM+oBuNbHcy2iJJxMljc61H0GfJIpaUuM6Lx6Gsaj4KkazdaYWyMaKEzqqMgU3TpoVyA5LOJghDmpSWAjooQSAoc5qCV8XUKRMGRrl87J7TVu6ZO/6R95RjbRv2K14/admlYhbbhsSsPq/jMo5vnfHpV85rzKjCiwWestChSrfK/YjLbYVx7qL13FSLvxW7zfyHd3cfW3/+Ot5z/zPOEJxbz3zPHOP8PwKb5j2Ph47Nb/9+96g/g9v4X6/0vOj72/yFY9f8dtj+CIAiCIAiCIAiCIAiCIMjH4g9E5sThACgAAA=="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -3244,6 +3249,8 @@ testConfigure() {
     fi
   fi
   Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/displayFortunes.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/displayFortunes.zsh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/displayFortunes.bash" || ((++failures))
   return "${failures}"
 }
 

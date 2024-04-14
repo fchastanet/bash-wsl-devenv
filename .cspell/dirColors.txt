@@ -21,3 +21,11 @@ svgz
 webm
 webp
 xspf
+sqlite
+debian
+linux
+unicode
+kterm
+konsole
+ansi
+alacritty

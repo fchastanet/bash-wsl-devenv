@@ -246,6 +246,10 @@ UPGRADE_UBUNTU_VERSION=0
 # possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
 PREFERRED_SHELL="ShellBash"
 
+# Zsh theme to use
+# possible choices: powerlevel10k/powerlevel10k, sindresorhus/pure, starship/starship
+ZSH_PREFERRED_THEME="powerlevel10k/powerlevel10k"
+
 # Display Fortune tooltip at bash/zsh session open
 SHOW_FORTUNES=1
 
@@ -836,11 +840,15 @@ InstallScripts::scriptFunctionEmpty() {
 # @env SKIP_APT_GET_UPDATE
 # @stdout diagnostics logs
 Linux::Apt::addRepository() {
-  Log::displayInfo "Apt add repository $1"
-  if [[ "${SKIP_APT_GET_UPDATE:-0}" = "0" ]]; then
-    Retry::default sudo add-apt-repository -y --update "$1"
+  if ! Linux::Apt::repositoryExists "$1"; then
+    Log::displayInfo "Apt add repository $1"
+    if [[ "${SKIP_APT_GET_UPDATE:-0}" = "0" ]]; then
+      Retry::default sudo add-apt-repository -y --update "$1"
+    else
+      Retry::default sudo add-apt-repository -y "$1"
+    fi
   else
-    Retry::default sudo add-apt-repository -y "$1"
+    Log::displayInfo "Repository $1 is already installed"
   fi
 }
 
@@ -1202,6 +1210,7 @@ Engine::Config::checkEnv() {
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh
+  checkValidValues ZSH_PREFERRED_THEME powerlevel10k/powerlevel10k sindresorhus/pure starship/starship
 
   checkValidValues SHOW_FORTUNES 0 1
   checkValidValues SHOW_MOTD 0 1
@@ -1269,11 +1278,11 @@ Engine::Config::loadWslVariables() {
   export BASE_MNT_C
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_DIR SystemRoot
-  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C}/Windows}"
+  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C:-/mnt/c}/Windows}"
   export WINDOWS_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_PROFILE_DIR USERPROFILE
-  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C}/Users/${USERNAME}}}"
+  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C:-/mnt/c}/Users/${USERNAME}}"
   export WINDOWS_PROFILE_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 LOCAL_APP_DATA LOCALAPPDATA
@@ -1283,7 +1292,7 @@ Engine::Config::loadWslVariables() {
   Linux::Wsl::cachedWslvar2 WINDOW_PATH PATH
   WINDOW_PATH="${WINDOW_PATH//;/:}"
   WINDOW_PATH="${WINDOW_PATH//\\//}"
-  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C}}"
+  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C:-/mnt/c}}"
 
   deduceBin() {
     local var="$1"
@@ -1494,6 +1503,22 @@ Stats::statusLine() {
   )
 }
 
+# @description check if apt repository is added to apt sources
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::repositoryExists() {
+  local aptRepoName="$1"
+  local regexp
+  if [[ "${aptRepoName}" =~ https?:// ]]; then
+    regexp="^[[:space:]]*deb ${aptRepoName}"
+  else
+    regexp="^[[:space:]]*deb .*${aptRepoName}"
+  fi
+  [[ -n "$(find /etc/apt/ -name '*.list' -print0 |
+    xargs -0 -P 10 -L 1 grep "${regexp}" || true)" ]]
+}
+
 # @description Retry a command 5 times with a delay of 15 seconds between each attempt
 # @arg $@ command:String[] the command to run
 # @exitcode 0 on success
@@ -1674,7 +1699,12 @@ Install::structure() {
 # @stdout the filtered content
 # shellcheck disable=SC2120
 Version::parse() {
-  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
+  # match anything, print(p), exit on first match(Q)
+  sed -En \
+    -e 's/\x1b\[[0-9;]*[mGKHF]//g' \
+    -e 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/' \
+    -e '//{p;Q}' \
+    "$@"
 }
 
 # @description check if command specified exists or return 1
@@ -2414,7 +2444,7 @@ File::garbageCollect() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+3UXUuDUBwGcK/9FP9cV6Op57ijMNjFmoZCzUGOLsaIrRkOZMq0VbR997QXiKhtkFtEz+/moD7o0eccVU3aO71gCVGOzBL6x/GdxJqmzrmwGDOK81aT6RKJ/U9Nku6yfLwgku6zeGNu2/U/StXUyTiLGtNw2Qjny72shp37Z4xzg0s6Y5Yh0P8hfO4/XSS3szhUpxWuhF37ZyYXghU5ZpiGgf4P4fv+08c8SubX6TiP1Cz6yTO29S909rr/mxYXern/TcGL/79e1Utu8s/7rx1pk9lcK9eAXKuWXCPbp54fkGN7wQkFrndJZ965Q91Oj04dGvTtTuDYdOUFrj8IyqjXdSqfhjwcUuv4qd8J3HWL2m2qK8Wh6184a02Nk5txXH6CllKn0YhWKyqDbeWLxNs9FDl8SJNF/hKUf7tAAAAAAAAAAAAAAAAAAACAwjO9ksudACgAAA=="
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+3TTU+DMBgHcM79FI/Mk3FAYYU4w2E6zEjULZHFg/GArARiAwuwqXF+d8vUzBh1M24a4/O7ENonffu3mq5snCE5jNVf6jDj9feFQlu2YZrModSS7U6LGgqwzS9NUSZlFRYAyk0pPq1b1v9Habp2FZZJc8SnTZ5NN3IbVs6fUtO0TMWg1LEY5v8T3uY/LvI4FVwbrfEmrJq/bTBT9sj8Ldt0MP+f8HH+47sqyTOtTL49x7L8Hdua5+8YjLVYS+bPmGkrYKxhf0v98/wbW/pVmun1HSCN9SIN6PbhtB+A1/WDXQh6/hkc+cceHHZO4cCD4aDbCbwunPtBrz8M6lL/0Fv7MsjFBbS37wedoPfQBteFHVX+9von3oOuiTwKRX0EbXUHLi9hNoO60FXfqXgeQyX8dpwX1byQyF2KPBxBlaQlTNOimoRCPiSSxiDnbcawGGnRWz6/Lkvbmx9/GFXpNKy4KpewL4fiGQFoQJlwIaKER9dQ5pMi4q4u36meTYSQ/U9NXxufxCn57SuHEEIIIYQQQgghhBBCCCGEEEJoAx4Br0hwxwAoAAA="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -3286,7 +3316,7 @@ testInstall() {
   # since virtualenv is not loaded python 3.9 is not yet available
   Version::checkMinimal "python" "--version" "3.8.10" || ((++failures))
   Version::checkMinimal "virtualenv" "--version" "20.25.1" || ((++failures))
-  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/python_path.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/python.sh" || ((++failures))
   return "${failures}"
 }
 

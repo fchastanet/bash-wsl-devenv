@@ -4,4 +4,11 @@
 ###############################################################################
 
 # Set up fzf key bindings and fuzzy completion
-eval "$(fzf --bash)"
+if [[ ! "${PATH}" == *${HOME}/.fzf/bin* ]]; then
+  PATH="${PATH}:${HOME}/.fzf/bin"
+fi
+
+if [[ -f "${HOME}/.fzf.bash" ]]; then
+  # shellcheck source=/dev/null
+  source "${HOME}/.fzf.bash"
+fi

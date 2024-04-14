@@ -13,3 +13,13 @@ setupsh
 wekyb
 xdebug
 xdebugini
+pageup
+pagedown
+USERPROFILE
+USERGROUP
+USERID
+linux
+sudoer
+errexit
+pipefail
+virtualbox

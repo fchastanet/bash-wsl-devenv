@@ -246,6 +246,10 @@ UPGRADE_UBUNTU_VERSION=0
 # possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
 PREFERRED_SHELL="ShellBash"
 
+# Zsh theme to use
+# possible choices: powerlevel10k/powerlevel10k, sindresorhus/pure, starship/starship
+ZSH_PREFERRED_THEME="powerlevel10k/powerlevel10k"
+
 # Display Fortune tooltip at bash/zsh session open
 SHOW_FORTUNES=1
 
@@ -1214,6 +1218,7 @@ Engine::Config::checkEnv() {
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh
+  checkValidValues ZSH_PREFERRED_THEME powerlevel10k/powerlevel10k sindresorhus/pure starship/starship
 
   checkValidValues SHOW_FORTUNES 0 1
   checkValidValues SHOW_MOTD 0 1
@@ -1281,11 +1286,11 @@ Engine::Config::loadWslVariables() {
   export BASE_MNT_C
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_DIR SystemRoot
-  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C}/Windows}"
+  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C:-/mnt/c}/Windows}"
   export WINDOWS_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_PROFILE_DIR USERPROFILE
-  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C}/Users/${USERNAME}}}"
+  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C:-/mnt/c}/Users/${USERNAME}}"
   export WINDOWS_PROFILE_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 LOCAL_APP_DATA LOCALAPPDATA
@@ -1295,7 +1300,7 @@ Engine::Config::loadWslVariables() {
   Linux::Wsl::cachedWslvar2 WINDOW_PATH PATH
   WINDOW_PATH="${WINDOW_PATH//;/:}"
   WINDOW_PATH="${WINDOW_PATH//\\//}"
-  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C}}"
+  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C:-/mnt/c}}"
 
   deduceBin() {
     local var="$1"
@@ -1523,7 +1528,12 @@ Version::getCommandVersionFromPlainText() {
 # @stdout the filtered content
 # shellcheck disable=SC2120
 Version::parse() {
-  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
+  # match anything, print(p), exit on first match(Q)
+  sed -En \
+    -e 's/\x1b\[[0-9;]*[mGKHF]//g' \
+    -e 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/' \
+    -e '//{p;Q}' \
+    "$@"
 }
 
 # @description github repository eg: kubernetes-sigs/kind
@@ -2573,7 +2583,7 @@ File::garbageCollect() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2WbYvaQBDH8zqfYnoe9Q4uMat5gIKl9rQolLPQHH29MdsksGYlmyjetd+9k/Tsg1BtId7Rdn5v1mR2Z0f+M39i94yT4yCB59UrCzznx3WHwVzf8Ry/7wxcfB+4TmCAd/rSDKPSJS8AjI2WB/cdi/+l2D074jq1YrG2RL4+STf8tv4D5jPPNxyG4QHp/xjs689lxrXQdtxiJ/yJ/n2fof4Dn5H+j8Kv9Y94aeu0jTuO6e+57k7/gPUD1N8N+p4BThuXH+M/17/zrBdlea/uAbPTLmYHxnO4mYcwGc/CKwins/fwZvZ2AtejG3g9gdt341E4GcOHWTid34b11tn1pPUysI6RlGqjoVQQKziHVMgVLFagit1DkpWwUMtlVtpmMwKA7T/FyLCLP8CyVpJnOa6S50nFEzGsj3XN9OIS7k2As/NXZxhtcvVfPmfwaZfA/Gw+tcaHODz/d60YwJH5Z+gA3/x/UH//MY/V3380/6fnYf7v/unxV7ncwkecdvybV7BVFSx4DlxqBZUWkEgVcQkPrV+7hFqLoshiAVYKPI93ky3yMiuE3GJKDMSZ5pEUMaBbaLUUoFZlpnINvGgObrIyVVUJkcjyBPiirLjEOppMFyJ5AVLjtkuz89VwrASvwRfDLp797iH7noPPutxKMWwcqWv+dLgpExPsG9GRJE/dhARBEARBEARBEARBEARBEARBEERrfAFGUs65ACgAAA=="
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2WYYvaQBCG8zm/Ynoe9Q4uMavZBAqW2tOiUM5Cc/TzxmyTwJoVN1G8tv+9Y3rSVqi2ED3azvNlTWZ3duSdd4jbsU6Oh4Scb1cWcu/HdYfF/MDjXtD1ej6+D30vtICfvjTLqkwplgDW2qiD+47F/1LcjhsLkzmJXDmyWJ2kG35b/x4LGA8sj2G4R/qfg339hcqFkcZNGuyEP9G/GzDUvxcw0v8s/Fr/WJSuyZq445j+3Pd3+oesG6L+ftjlFnhNXH6M/1z/1rNOnBedbQ/YrWaxWzCcwt00gtFwEt1ANJ68hzeTtyO4HdzB6xHcvxsOotEQPkyi8fQ+2m6d3I4aLwPrGCil1wZKDYmGS8ikWsBsAXq5e0jzEmZ6Ps9L164tANj+Y4z02/gDHGehRF7gqkSRViKV/e2xtp1dXcMnG+Di8tUFRutc3ZfPGXzeJbC/2E+t8SEO+/+hkQFwxP/M84La/6HHuc/x+49xxsj/Z+HR/w//tP11oTbwEd2Of/MGNrqCmShAKKOhMhJSpWOh4LH1t1NCr+RymScSnAxEkeycLYsyX0q1wZQYSHIjYiUTwGlh9FyCXpS5LgyIZX1wnZeZrkqIZV6kIGZlJRTWUWe6kukLUAa3XdutbwPHSfEafNFv49nvM2R/5uCzKTdK9uuJ1LZ/OlyXiQn2B9GxJE/dhQRBEARBEARBEARBEARBEARBEERTfAX48BvtACgAAA=="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -3397,13 +3407,13 @@ scriptName() {
 
 fortunes() {
   if command -v bat &>/dev/null; then
-    echo "$(scripName) - Use bat command to pre-visualize one or multiple files"
+    echo "$(scriptName) - Use bat command to pre-visualize one or multiple files"
     echo "%"
-    echo "$(scripName) - alias h allows to display command help using bat, try 'h cp'"
+    echo "$(scriptName) - alias h allows to display command help using bat, try 'h cp'"
     echo "%"
 
     if [[ "${USER_SHELL}" = "/usr/bin/zsh" ]]; then
-      echo "$(scripName) - command with --help will automatically be displayed with bat"
+      echo "$(scriptName) - command with --help will automatically be displayed with bat"
       echo "%"
     fi
   else

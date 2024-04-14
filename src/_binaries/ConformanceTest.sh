@@ -11,7 +11,7 @@ scriptName() {
 }
 
 helpDescription() {
-  echo "ConformanceTest checks that environnement prerequisites are set correctly"
+  echo "ConformanceTest checks that environment prerequisites are set correctly"
   echo "It checks also validity of .env file content"
 }
 
