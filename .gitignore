@@ -24,8 +24,6 @@ megalinter-reports
 vendor
 
 TODO.local.md
+commit-msg.md
 
 tmp
-
-/downloadedDistros/
-!/downloadedDistros/.gitkeep

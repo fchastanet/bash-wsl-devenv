@@ -14,6 +14,16 @@
 
 # If running interactively
 if [[ "$-" =~ .*i.* ]]; then
+
+  # execute bash logout when bash window is closed
+  if [[ -f "${HOME}/.bash_logout" ]]; then
+    exitSession() {
+      #shellcheck source=src/_binaries/ShellBash/conf/home/.bash_logout
+      source "${HOME}/.bash_logout"
+    }
+    trap exitSession HUP
+  fi
+
   # make less more friendly for non-text input files, see lesspipe(1)
   [[ -x /usr/bin/lesspipe ]] && eval "$(SHELL=/bin/sh lesspipe)"
 
@@ -54,17 +64,14 @@ if [[ "$-" =~ .*i.* ]]; then
   if [[ "${TERM}" =~ xterm*|rxvt* ]]; then
     PS1="\[\e]0;${debian_chroot:+(${debian_chroot})}\u@\h: \w\a\]${PS1}"
   fi
+
   loadConfigFiles() {
     local dir="$1"
-    if [[ -d "${dir}" ]]; then
-      local file
-      while IFS= read -r file ; do
-        if [[ -f "${file}" ]]; then
-          # shellcheck source=src/_binaries/MandatorySoftwares/conf/.bash-dev-env/aliases.d/bash-dev-env.sh
-          source "${file}"
-        fi
-      done < <(find "${dir}" -type f \( -name \*.sh -o -name \*.bash \) -printf '%p\n' 2>/dev/null | sort -n)
-    fi
+    local file
+    while IFS= read -r file ; do
+      # shellcheck source=src/_binaries/MandatorySoftwares/conf/.bash-dev-env/aliases.d/bash-dev-env.sh
+      source "${file}"
+    done < <("${HOME}/.bash-dev-env/loadConfigFiles" "${dir}" sh bash || echo)
   }
 
   loadConfigFiles "${HOME}/.bash-dev-env/aliases.d"
@@ -92,7 +99,9 @@ if [[ "$-" =~ .*i.* ]]; then
 fi
 
 # shellcheck disable=SC2046
-eval $(ssh-agent)
-if [[ -f "${HOME}/.ssh/id_rsa" ]]; then
-  ssh-add "${HOME}/.ssh/id_rsa"
+if ! pgrep ssh-agent &>/dev/null; then
+  eval $(ssh-agent)
+  if [[ -f "${HOME}/.ssh/id_rsa" ]]; then
+    ssh-add "${HOME}/.ssh/id_rsa"
+  fi
 fi

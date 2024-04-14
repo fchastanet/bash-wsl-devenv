@@ -246,6 +246,10 @@ UPGRADE_UBUNTU_VERSION=0
 # possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
 PREFERRED_SHELL="ShellBash"
 
+# Zsh theme to use
+# possible choices: powerlevel10k/powerlevel10k, sindresorhus/pure, starship/starship
+ZSH_PREFERRED_THEME="powerlevel10k/powerlevel10k"
+
 # Display Fortune tooltip at bash/zsh session open
 SHOW_FORTUNES=1
 
@@ -836,11 +840,15 @@ InstallScripts::scriptFunctionEmpty() {
 # @env SKIP_APT_GET_UPDATE
 # @stdout diagnostics logs
 Linux::Apt::addRepository() {
-  Log::displayInfo "Apt add repository $1"
-  if [[ "${SKIP_APT_GET_UPDATE:-0}" = "0" ]]; then
-    Retry::default sudo add-apt-repository -y --update "$1"
+  if ! Linux::Apt::repositoryExists "$1"; then
+    Log::displayInfo "Apt add repository $1"
+    if [[ "${SKIP_APT_GET_UPDATE:-0}" = "0" ]]; then
+      Retry::default sudo add-apt-repository -y --update "$1"
+    else
+      Retry::default sudo add-apt-repository -y "$1"
+    fi
   else
-    Retry::default sudo add-apt-repository -y "$1"
+    Log::displayInfo "Repository $1 is already installed"
   fi
 }
 
@@ -1182,6 +1190,7 @@ Engine::Config::checkEnv() {
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh
+  checkValidValues ZSH_PREFERRED_THEME powerlevel10k/powerlevel10k sindresorhus/pure starship/starship
 
   checkValidValues SHOW_FORTUNES 0 1
   checkValidValues SHOW_MOTD 0 1
@@ -1249,11 +1258,11 @@ Engine::Config::loadWslVariables() {
   export BASE_MNT_C
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_DIR SystemRoot
-  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C}/Windows}"
+  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C:-/mnt/c}/Windows}"
   export WINDOWS_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_PROFILE_DIR USERPROFILE
-  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C}/Users/${USERNAME}}}"
+  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C:-/mnt/c}/Users/${USERNAME}}"
   export WINDOWS_PROFILE_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 LOCAL_APP_DATA LOCALAPPDATA
@@ -1263,7 +1272,7 @@ Engine::Config::loadWslVariables() {
   Linux::Wsl::cachedWslvar2 WINDOW_PATH PATH
   WINDOW_PATH="${WINDOW_PATH//;/:}"
   WINDOW_PATH="${WINDOW_PATH//\\//}"
-  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C}}"
+  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C:-/mnt/c}}"
 
   deduceBin() {
     local var="$1"
@@ -1472,6 +1481,22 @@ Stats::statusLine() {
     # overwrite final TEST line
     echo -e "${color}${statusMsg}${__RESET_COLOR}"
   )
+}
+
+# @description check if apt repository is added to apt sources
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::repositoryExists() {
+  local aptRepoName="$1"
+  local regexp
+  if [[ "${aptRepoName}" =~ https?:// ]]; then
+    regexp="^[[:space:]]*deb ${aptRepoName}"
+  else
+    regexp="^[[:space:]]*deb .*${aptRepoName}"
+  fi
+  [[ -n "$(find /etc/apt/ -name '*.list' -print0 |
+    xargs -0 -P 10 -L 1 grep "${regexp}" || true)" ]]
 }
 
 # @description Retry a command 5 times with a delay of 15 seconds between each attempt
@@ -2300,7 +2325,7 @@ File::garbageCollect() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+1YbW/aSBDmM79i6tCA0RljwKATdXVcIApSEqKEqDqFHHLsJVh1bMraaY+E/36z6xcMFNLqCNGpng94mZ2d3dlndmdmS3Lm1amM1FBV9lUaajn5jSij1OrlSkWtNxQm16gpjQyor7+0TMannj4FyHyl9la5l/r/p1SSS3c6HUsmeZSI8/gq3vCj+KvlhlJXlUxZwW4lxX8ftIq/4T5MbOJZrkNL5o684Wfwr9ZRTqmp1RT/vdB2/Ec6NXn/f5qDAVyv1TbhX6mUGwH+1YpSrbHzX6806hko78jGrfSL43/wTr6zHJlhnM0eAPsC+sCD7pjw4JoEFg6RHTJ3GDKRofFgDsMeUhDhKQtwEImSWIE+8sgUBIkI2G+7hm6D4U+13NNR7+xi+Kl32b664c0j1r6do5Q1gpsb2CAhKbdz0DSQigRub5vgjYmDY9jcdExs2xgT4zOYFtXvbKJdHTHP4v1MxWXn4vQvrQC5AlvnPXFAasUrFXJPuLK5IILIB0yJ50+Z7pG1bJpPLeceTDLSfdtDMd20LYcs+iOTWwK47Ntmphs6JVttsgIzpNaz1BaBt182aqNZbry+HBqFJjUjlbFZjJpN3igyiwnVDW7oPfESkOMAinpoaDb5NsHNIgisbaFJNEY1EFv5q+UKfALmNSBJ8RYJIR8CNSBNlvZmDpWPMl5HsuPbNjxHSwegOLHkgDDIUfnvUjE/GBRKxcFAzMuDgSJPELtQzWn3vHNQhLmQHA3wdWzZhEMG0hQYbE0w3YQAwBff9cgwRhW9gn1R0dKSnmGwNGoytRxvBO+/bBgAh4ffHzEYOAm26TqE/xXjjeweX2m5/MDJN5exvuxcXZ/2UXCePJRj1/38vZM5Qk9ENnoZ5IqxzTEe0jFsONnoPw9mNlzZnN0PxGFe+MPXxNqKAmfQgYIJI8AmHcEMZrO3vgZ/WVqN/+HJ3lnux+in8v86i//VOpaBaf63B9qM/25yP0Yv5H/oG40I/womgYi/Wk3zv/3QUv4XxGNdywchW8+HHBpxqBWzzAXPjJmjBXMUMWPBWCyWQhmMKSPfMXiy4bmYYRDDxzBx51u2J2HAMswsDyeGGQYzTBALGAEP4MMHDRQQxUQayLUKuT9YzkVsGkTTIJIGQQnzH86L/2mYjARrIZCP4jjNcyWiwGWDjFSaseAej8MIv5SALqVWPGeMB5ovDDTWBDDBCJeSf08x+K/0L+bAn3m4p7NgT3GfEhs9W+KCZOXX8F89/zgtmeqIxyN5g/ofb4lKUP8raf2/F9qO/+7q/y34KyrW/Bx/tVFR6rWg/lfT+38flLz/D3ZLeLW3e3De60On3e3/Bv2T7hUcd087cNQ6hz87cH3RbvU7bfjU7Z/0rvtMtHvU2fkyWIhBP87ifRyVLNJjECsOF1VafCcHF6aOZTcGh6eT3llnLpcYE8OR5Ulsp4T4oULgZXdSpyhgkeqxK3uhKLjT32FYXOMvBYOwUmbzwMSl1jcpuMf5CWW1VNAyWDWVaOIAdGIsND8+r6hfPGAknhKo608NosWWY3/AWl0cdvgOJV5iS7LZKHhOpjizN2TBO4zMm18syrU67yePGImF0EpUYEAUfSWqo9HWDEvOwtiinjv9B4P7M6/5BSz3b+C2eFOWfsdfbMmyIOI+J9BD9fMsN1Q3zaA8ZfsVvb2gYReXWED3h1hGn7XO27jz4ZtLcc2corh4GoHlYZqwJt1cV81H8xcV3Py3PuAppZRSSimllFJKKaWUUkoh/QvKpzSPACgAAA=="
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+1YbW/aSBDms3/F1NCA0RljE4xOOaqmgShIeVNCVZ0Chxx7CVYdm7Im7ZHw32921zYGmpDTJUR35+cDXmZnx/OyuzPjipZ7dVQRjXqdPfVGvZp+xsjpu2bVMOpmQ2d8jV29kYP666uWy01paE0Act+p9yTfpvl/KSpa5dqiI9Uhdyrx715lNzw3/vVqQzfreq6q47SexX8bWI2/HdyOPRK6gU8rzgvthufGv1E1jVrNwPjv1o16Fv9t4On4Dy3q8Pl/9I4N8TeMminib5hmrWpi/M2abuag+kI2Pon/efzz77Rr19dYjCUpD+wJuAduLd+B28AhsNgQ0oBthwFjGdi3ziCaISUF7iWAfMxKEgHWMCQTkFUi47wX2JYH9nTSLNwfnJ2cD76cXbQur/jwgI37c+Ryh3B1BY9wgAp6fw7NJqhlAv3+HoQj4uMq9nY6Ip5nj4j9FRyXWtceaV4eGEa1weeZkIv2+fHvzVKhxBS9IT6o+4mqcuEeVZvLisLZJyScTpjkobts2pS6/g04ZGhNvRDZLMdzfbKYj03elyFgzxYz3bYo2WCTK8xAjR5AbQklNlv1mF1BouGKXSnLGPb2+KCsiBGhls3NvSFhKvC4hqIsGhlPfozRYwTD67loGE1iK9gkiAbNQolLZ7sGVDVxkRzRQQgAdcy0TDnnY38ug/FBwztJ86eeBw8RPwDF16o+yL0C1f6olIu9XqlS7vWUotbr6dpY5oxK7Ovjzmk7XwaUFkv4PnI9wsMG6gRY6PbACRLx36ZBSAZJVFEt9lzVZqEOwHji+uEQ3n97hHlnZ52514v97wQ+waGSuLBzeNksFHt+UXoq+Ka0HPh74fC5Is3Th3QUBF9/dlKHuDORjHsOlf4oJx5IIqQewiNnne+nW2fOHM2Vn7Nbg/hMt2dfHmt6iS1iAQUHhoBDOoQZzGbSW9+O/32s5v/oTL9Y7cfwt+p/k9X/NVPP6r+t4PH4v0ztx7Ap/o16Q9R/u4gaq//qu3otq/+2gaX6T+Rjq1kUKdsqRhQaU6ibkJwFzUmIwwVxGBMTxoQt4UIezB7DqW/zMiMMsLYg9hQTwvXU9UIVE5TtSDxx2E6UvLBALJWgkIffmqCDoqRqQC6UZTRWyniUcKLIqyL7YO3Dacm/JtYiQhUCxTiV0yIXoohiQhSk6oxlvmQdJvml6nOprOIlY7LQ2bDQXmN4eIgLheJ7iqXAyvziHfgzj1w6Ey5FN6X8PFuigorBW4v/6vnH95KJhfG4I2/a/2MbmN3/W8DT8d9K/4+3vbESf9MwG9n9vw2k7//8ywKv9tYZnJ51od3qdH+B7lHnEg47x2042D+FT234fN7a77Zb8KXTPTr73GWsnYP2i6vBUgzuYwkv5Lg5Ue9EsthZdGrJpSxuTAvbLswO90dnJ+25VmFETEduqDJPycmHCpk33WmZiowNKu+7F4LEpf4O0+IafSkbRJ0yew+MA+r+UMVFzk8o65rEyGZ9U2qIC3ATY7P54WFF/OIDRqqVpMF0YpNmYjnOC9Kqcjgx9SkJUy6RpDh7jif45nDAkneUmR/vWKu7Jp8nd5iK5chKFGBDnH5VaqHR7owgZeTSMJj8idn9gff7Mrb6V9AvX1XVX/EXR5omK+jnVPRQ/FzihlqOIxpR5q/42wsadn6BDXN3gG3zyf5pCz0ffXEpr5kTfw3h30WWlzXlNe69n4hefExB77/1Cc+QIUOGDBkyZMiQIUMGgb8AyEuytAAoAAA="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -3157,7 +3182,7 @@ testInstall() {
 }
 
 configure() {
-    # shellcheck disable=SC2154
+  # shellcheck disable=SC2154
   Conf::copyStructure \
     "${embed_dir_conf_dir}" \
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \

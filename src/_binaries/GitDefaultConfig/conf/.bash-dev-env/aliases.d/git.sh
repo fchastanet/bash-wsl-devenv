@@ -26,7 +26,7 @@ UI::askYesNo() {
 # this will create an "alternate reality" for people who have already fetch/pulled/cloned from the remote repository.
 gitUndoLastPushedCommit() {
   echo -e '\e[33m!!! use it with care\e[0m'
-  echo -e '\e[33mthis will create an "alternate reality" for people who have already fetch/pulled/cloned from the remote repository.\e[0m'
+  echo -e '\e[33mThis will create an "alternate reality" for people who have already fetch/pulled/cloned from the remote repository.\e[0m'
   UI::askYesNo "do you confirm" && {
     git reset HEAD^ && git push origin +HEAD
   }

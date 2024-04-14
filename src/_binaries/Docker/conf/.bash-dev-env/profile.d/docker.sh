@@ -5,4 +5,7 @@
 
 if command -v docker &>/dev/null; then
   export DOCKER_HOST='unix:///run/docker.sock'
+  # enable docker build kit
+  export DOCKER_BUILDKIT=1
+  export BUILDKIT_PROGRESS=plain
 fi

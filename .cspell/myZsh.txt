@@ -1,0 +1,16 @@
+OMZP
+OMZL
+blockf
+zstyle
+atload
+autocd
+zhistory
+dircolors
+atpull
+atload'zstyle
+atinit
+zicompinit
+zicdreplay
+precmd
+nocd
+atclone

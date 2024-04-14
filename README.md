@@ -59,9 +59,7 @@
 
 - [1. Excerpt](#1-excerpt)
 - [2. Install \& Configuration](#2-install--configuration)
-  - [2.1. Windows (Recommended)](#21-windows-recommended)
-  - [2.2. Virtualbox](#22-virtualbox)
-  - [2.3. Dev-env install](#23-dev-env-install)
+  - [2.1. Dev-env install](#21-dev-env-install)
 - [3. Features presentation](#3-features-presentation)
   - [3.1. Periodical updates](#31-periodical-updates)
   - [3.2. config files backup](#32-config-files-backup)
@@ -87,15 +85,7 @@ virtual box or native installation).
 
 ## 2. Install & Configuration
 
-### 2.1. Windows (Recommended)
-
-TODO
-
-### 2.2. Virtualbox
-
-TODO
-
-### 2.3. Dev-env install
+### 2.1. Dev-env install
 
 please follow [Dev-env Installation instructions](docs/Install.md)
 
@@ -136,7 +126,7 @@ dependencies:
   - default variables PATH, ...
   - completions
   - very powerful and efficient prompt powerlevel10k
-  - oh-my-zsh plugins/themes manager
+  - zinit plugins/themes manager
   - Fzf (search history)
 - Fortune (display help message at each bash/zsh login based on the installed
   softwares)
@@ -241,7 +231,6 @@ personal like `.bashrc` but don't worry these files are backed up in the
 
 - [Contribute](docs/Contribute.md)
 - [How does it work ?](docs/HowDoesItWork.md)
-- [FAQ](docs/FAQ.md)
 - [TODO](docs/TODO.md)
 
 ## 5. github page

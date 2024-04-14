@@ -246,6 +246,10 @@ UPGRADE_UBUNTU_VERSION=0
 # possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
 PREFERRED_SHELL="ShellBash"
 
+# Zsh theme to use
+# possible choices: powerlevel10k/powerlevel10k, sindresorhus/pure, starship/starship
+ZSH_PREFERRED_THEME="powerlevel10k/powerlevel10k"
+
 # Display Fortune tooltip at bash/zsh session open
 SHOW_FORTUNES=1
 
@@ -1157,6 +1161,7 @@ Engine::Config::checkEnv() {
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh
+  checkValidValues ZSH_PREFERRED_THEME powerlevel10k/powerlevel10k sindresorhus/pure starship/starship
 
   checkValidValues SHOW_FORTUNES 0 1
   checkValidValues SHOW_MOTD 0 1
@@ -1224,11 +1229,11 @@ Engine::Config::loadWslVariables() {
   export BASE_MNT_C
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_DIR SystemRoot
-  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C}/Windows}"
+  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C:-/mnt/c}/Windows}"
   export WINDOWS_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_PROFILE_DIR USERPROFILE
-  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C}/Users/${USERNAME}}}"
+  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C:-/mnt/c}/Users/${USERNAME}}"
   export WINDOWS_PROFILE_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 LOCAL_APP_DATA LOCALAPPDATA
@@ -1238,7 +1243,7 @@ Engine::Config::loadWslVariables() {
   Linux::Wsl::cachedWslvar2 WINDOW_PATH PATH
   WINDOW_PATH="${WINDOW_PATH//;/:}"
   WINDOW_PATH="${WINDOW_PATH//\\//}"
-  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C}}"
+  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C:-/mnt/c}}"
 
   deduceBin() {
     local var="$1"
@@ -1628,7 +1633,12 @@ Install::structure() {
 # @stdout the filtered content
 # shellcheck disable=SC2120
 Version::parse() {
-  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
+  # match anything, print(p), exit on first match(Q)
+  sed -En \
+    -e 's/\x1b\[[0-9;]*[mGKHF]//g' \
+    -e 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/' \
+    -e '//{p;Q}' \
+    "$@"
 }
 
 # @description check if command specified exists or return 1
@@ -2399,7 +2409,7 @@ File::garbageCollect() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+3T7WuCQBwHcF/7V/xmexVLPR8h6EVLQ2HL2IwNIsLIrcCZVGuD6n+frskeYCuYNbZ9P4iHd7/jTr+nKHF7J6dMXc9aZury2zbHMc2QFUU3ZUNN+02NaRzp+98ax93P5sGUiHuYRV/WbRv/pURJHASzUWUYLiphvNjLadg5f8YURdE4mTFTNZD/IXzMP5lObsZRKA4LPAm75s+M9M7SOqYaqoL8D+Hz/ON+EsxH4mz07TW25a+byub/18z0SvuZrqXDJBfwflv98/xLR9JgHEvZGeBLxeJLZHnU8nyyLdc/Id9xL6npntnUqLfo1KZO26r7tkVXru94HT8rdRt24dvgw8dkMp1Tq9++sJvudU04Xjreub2WYoHvdql6vGzXfWddpVqNykL6mFeus29TFcrU69FqRVlVNvn98MtsIV8mr9osIcbJXeU2mgyC6PlDv5b/dPIAAAAAAAAAAAAAAAAAAPCXPAHJ2UaOACgAAA=="
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+3U7WuCQBwHcF/7V/xmexVLvfIBgl60NBS2jM3YICKM3AqcSbU2qP73nW2yB9gKZo1t3w/i4d1PTu97KivC3qmcqetpy0xdfdtmBKYZarmsm6pR4f2mxjSB9P0/miDcz+bBlEh4mEVf1m0b/6VkRR4Es1FpGC5KYbzYy27YNX9DM5hqlgWV8eEy8j+Ej/kn08nNOArlYY47Ydf8mcHPjNexilFB/gfxef5xPwnmI3k2+vYc2/LX+Te/+f9rJj94P9M1PkxqDu+31T/Pv3CkDMaxku4BsZAvsUCWRy3PJ9ty/RPyHfeSmu6ZTY16i05t6rStum9bdOX6jtfx01K3Yef+GGL4mEymc2r12xd2072uScdLxzu310osid0uVY+X7brvrKtUq1FR4pdZ5Tpdm6pUpF6PVitKq9Kb3w+/3C1l02RVz1PIcXJXuo0mgyDaLPRr+U8nDwAAAAAAAAAAAAAAAAAAf8kTOt1VzgAoAAA="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -3225,8 +3235,14 @@ install() {
     Retry::default curl --fail -L https://git.io/n-install |
       N_PREFIX="${HOME}/n" bash -s -- -y -n latest
   else
-    # update node
-    N_PREFIX="${HOME}/n" "${HOME}/n/bin/n" latest
+    (
+      # shellcheck disable=SC2030
+      PATH="${PATH}":"${HOME}/n/bin"
+      # update n
+      N_PREFIX="${HOME}/n" n-update -y
+      # update node
+      N_PREFIX="${HOME}/n" "${HOME}/n/bin/n" latest
+    ) || return 1
   fi
 
   # shellcheck disable=SC2154
@@ -3240,7 +3256,7 @@ testInstall() {
   local -i failures=0
   Assert::fileExists "${HOME}/.bash-dev-env/profile.d/n_path.sh" || ((++failures))
   # shellcheck source=src/_binaries/NodeNpm/conf/.bash-dev-env/profile.d/n_path.sh
-  HOME="${HOME}" source "${HOME}/.bash-dev-env/profile.d/n_path.sh" || ((++failures))
+  source "${HOME}/.bash-dev-env/profile.d/n_path.sh" || ((++failures))
   Version::checkMinimal "node" "-v" "20.6.1" || ((++failures))
   Version::checkMinimal "npm" "-v" "10.3.0" || ((++failures))
   return "${failures}"

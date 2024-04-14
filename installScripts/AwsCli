@@ -223,6 +223,10 @@ UPGRADE_UBUNTU_VERSION=0
 # possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
 PREFERRED_SHELL="ShellBash"
 
+# Zsh theme to use
+# possible choices: powerlevel10k/powerlevel10k, sindresorhus/pure, starship/starship
+ZSH_PREFERRED_THEME="powerlevel10k/powerlevel10k"
+
 # Display Fortune tooltip at bash/zsh session open
 SHOW_FORTUNES=1
 
@@ -1089,6 +1093,7 @@ Engine::Config::checkEnv() {
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh
+  checkValidValues ZSH_PREFERRED_THEME powerlevel10k/powerlevel10k sindresorhus/pure starship/starship
 
   checkValidValues SHOW_FORTUNES 0 1
   checkValidValues SHOW_MOTD 0 1
@@ -1156,11 +1161,11 @@ Engine::Config::loadWslVariables() {
   export BASE_MNT_C
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_DIR SystemRoot
-  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C}/Windows}"
+  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C:-/mnt/c}/Windows}"
   export WINDOWS_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_PROFILE_DIR USERPROFILE
-  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C}/Users/${USERNAME}}}"
+  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C:-/mnt/c}/Users/${USERNAME}}"
   export WINDOWS_PROFILE_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 LOCAL_APP_DATA LOCALAPPDATA
@@ -1170,7 +1175,7 @@ Engine::Config::loadWslVariables() {
   Linux::Wsl::cachedWslvar2 WINDOW_PATH PATH
   WINDOW_PATH="${WINDOW_PATH//;/:}"
   WINDOW_PATH="${WINDOW_PATH//\\//}"
-  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C}}"
+  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C:-/mnt/c}}"
 
   deduceBin() {
     local var="$1"
@@ -1433,7 +1438,12 @@ Retry::parameterized() {
 # @stdout the filtered content
 # shellcheck disable=SC2120
 Version::parse() {
-  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
+  # match anything, print(p), exit on first match(Q)
+  sed -En \
+    -e 's/\x1b\[[0-9;]*[mGKHF]//g' \
+    -e 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/' \
+    -e '//{p;Q}' \
+    "$@"
 }
 
 # @description check if command specified exists or return 1

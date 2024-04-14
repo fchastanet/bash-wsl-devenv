@@ -69,10 +69,10 @@ runWslCmd() {
 installDistro() {
   Log::displayInfo 'Import Base ubuntu image in Wsl'
   local destDistroPath installTarPath
-  mkdir -p "${BASE_MNT_C}/Programs"
+  mkdir -p "${BASE_MNT_C:-/mnt/c}/Programs"
   local distroImageDir
   distroImageDir="$(getDistroImageDir)"
-  destDistroPath="$(wslpath -w "${BASE_MNT_C}/Programs/${DISTRO_NAME}")"
+  destDistroPath="$(wslpath -w "${BASE_MNT_C:-/mnt/c}/Programs/${DISTRO_NAME}")"
   installTarPath="$(wslpath -w "${distroImageDir}/install.tar")"
   powershell.exe -ExecutionPolicy Bypass -NoProfile \
     -Command "wsl.exe --import \"${DISTRO_NAME}\" \"${destDistroPath}\" \"${installTarPath}\" --version 2"
@@ -87,8 +87,8 @@ installDistro() {
 mountDistroFolder() {
   sudo mkdir -p "/mnt/wsl/${DISTRO_NAME}"
   sudo mount -t drvfs "\\\\wsl$\\${DISTRO_NAME}" "/mnt/wsl/${DISTRO_NAME}"
-  mkdir -p "/mnt/wsl/${DISTRO_NAME}/home/wsl/fchastanet"
-  runWslCmd chown -R "${USERNAME}:${USERGROUP}" /home/wsl/fchastanet
+  mkdir -p "/mnt/wsl/${DISTRO_NAME}${HOME}/fchastanet"
+  runWslCmd chown -R "${USERNAME}:${USERGROUP}" "${HOME}/fchastanet"
 }
 
 getDistroImageName() {
@@ -179,9 +179,15 @@ run() {
 
   mountDistroFolder
 
-  Log::displayInfo 'Enable automount of / of the distro in /mnt/wsl/<distro> to make distro folder available from other distro'
+  Log::displayInfo "Enable automount of this distro's / in /mnt/wsl/<distro> of the remote distro"
   echo "${AUTO_MOUNT_SCRIPT}" |
-    tee -a "/mnt/wsl/${DISTRO_NAME}/home/wsl/.bashrc" >/dev/null
+    tee -a "/mnt/wsl/${DISTRO_NAME}${HOME}/.bashrc" >/dev/null
+  Log::displayInfo 'Mounting / of this distro in remote distro /mnt/wsl/<distro> folder'
+
+  if [[ ! -d "/mnt/wsl/${DISTRO_NAME}/mnt/wsl/${DISTRO_NAME}" ]]; then
+    runWslCmd mkdir -p "/mnt/wsl/${DISTRO_NAME}"
+    runWslCmd mount --bind / "/mnt/wsl/${DISTRO_NAME}"
+  fi
 
   Log::displayInfo "Delete folder ${DISTRO_BASH_DEV_ENV_TARGET_DIR} in distro ${DISTRO_NAME}"
   runWslCmd rm -Rf "${DISTRO_BASH_DEV_ENV_TARGET_DIR}/"{*,.*} 2>/dev/null || true
@@ -206,7 +212,7 @@ run() {
     systemdActivated=1
   fi
   Log::displayInfo 'pre-configure /etc/wsl.conf in order to activate systemd'
-  cp "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/WslDefaultConfig/conf/etc/wsl.conf" "/mnt/wsl/${DISTRO_NAME}/etc/wsl.conf"
+  sudo cp "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/WslDefaultConfig/conf/etc/wsl.conf" "/mnt/wsl/${DISTRO_NAME}/etc/wsl.conf"
 
   # no need to restart the distro if systemd already active
   if [[ "${systemdActivated}" = "0" ]]; then

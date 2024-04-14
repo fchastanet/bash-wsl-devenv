@@ -57,13 +57,13 @@ configure() {
     git config --global user.email "${GIT_USER_MAIL}"
   fi
 
-  if [[ -f "${BASE_MNT_C}/Program Files (x86)/Meld/Meld.exe" ]]; then
+  if [[ -f "${BASE_MNT_C:-/mnt/c}/Program Files (x86)/Meld/Meld.exe" ]]; then
     Log::displayInfo "Configuring meld as default diff tool"
     git config --global diff.tool meld
     git config --global alias.dt 'difftool -d'
-    sudo ln -sf "${BASE_MNT_C}/Program Files (x86)/Meld/Meld.exe" /usr/local/bin/meld
+    sudo ln -sf "${BASE_MNT_C:-/mnt/c}/Program Files (x86)/Meld/Meld.exe" /usr/local/bin/meld
   else
-    Log::displayHelp "GitDefaultConfig - windows meld is not installed, it could have been linked into wsl as git diff"
+    Log::displayHelp "File ${BASE_MNT_C:-/mnt/c}/Program Files (x86)/Meld/Meld.exe does not exist - windows meld is not installed, it could have been linked into wsl as git diff"
   fi
 
   # add github.com to the list of known hosts

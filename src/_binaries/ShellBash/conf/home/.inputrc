@@ -28,7 +28,7 @@ set colored-completion-prefix on
 # Ignore case when completing.
 set completion-ignore-case on
 
-# Treat hypens and underscores as equivalent when completing.
+# Treat hyphens and underscores as equivalent when completing.
 set completion-map-case on
 
 # Append the / character to the end of symlinked directories when completing.

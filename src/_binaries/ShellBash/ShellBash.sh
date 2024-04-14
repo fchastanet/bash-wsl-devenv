@@ -4,6 +4,7 @@
 # FACADE
 # IMPLEMENT InstallScripts::interface
 # EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/ShellBash/conf" as conf_dir
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/bin/loadConfigFiles" as loadConfigFiles
 
 .INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
 
@@ -92,6 +93,10 @@ configure() {
     "${configDir}/home/.vimrc" "/root/.vimrc" root root
   SUDO=sudo Install::file \
     "${configDir}/home/.inputrc" "/root/.inputrc" root root
+  # shellcheck disable=SC2154
+  OVERWRITE_CONFIG_FILES=1 Install::file \
+    "${embed_file_loadConfigFiles}" \
+    "${HOME}/.bash-dev-env/loadConfigFiles"
 
   # disable bell
   sudo sed -i -e 's/;set bell-style none/set bell-style none/g' /etc/inputrc
@@ -113,6 +118,7 @@ testConfigure() {
   SUDO=sudo Assert::fileExists /root/.vimrc root root || ((++failures))
   SUDO=sudo Assert::fileExists /root/.inputrc root root || ((++failures))
 
+  Assert::fileExists "${HOME}/.bash-dev-env/loadConfigFiles" || ((++failures))
   Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/colors.sh" || ((++failures))
   Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/filesDirectory.sh" || ((++failures))
   Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/miscellaneous.sh" || ((++failures))
@@ -120,11 +126,12 @@ testConfigure() {
   Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/xserver.sh" || ((++failures))
   Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/DISCLAIMER.md" || ((++failures))
 
-  Assert::fileExists "${HOME}/.bash-dev-env/completions.d/makeTargets.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/completions.d/makeTargets.bash" || ((++failures))
   Assert::fileExists "${HOME}/.bash-dev-env/completions.d/DISCLAIMER.md" || ((++failures))
 
-  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/zzz_bash_prompt.sh" || ((++failures))
-  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/bash_navigation.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/zzz_bash_prompt.bash" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/bash_navigation.bash" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/dir_colors.bash" || ((++failures))
   Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/DISCLAIMER.md" || ((++failures))
 
   Assert::fileExists "${HOME}/.bash-dev-env/profile.d/DISCLAIMER.md" || ((++failures))
@@ -143,7 +150,7 @@ testConfigure() {
       Log::displayHelp "Please change your terminal settings(${terminalConfFilePath}) to use font 'MesloLGS NF' for wsl profile"
     fi
   else
-    Log::displayHelp "please use windows terminal for better shell display results"
+    Log::displayHelp "File ${terminalConfFile} does not exist - please use windows terminal for better shell display results"
   fi
 
   return "${failures}"

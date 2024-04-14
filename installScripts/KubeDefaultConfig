@@ -246,6 +246,10 @@ UPGRADE_UBUNTU_VERSION=0
 # possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
 PREFERRED_SHELL="ShellBash"
 
+# Zsh theme to use
+# possible choices: powerlevel10k/powerlevel10k, sindresorhus/pure, starship/starship
+ZSH_PREFERRED_THEME="powerlevel10k/powerlevel10k"
+
 # Display Fortune tooltip at bash/zsh session open
 SHOW_FORTUNES=1
 
@@ -882,7 +886,12 @@ Linux::Apt::installIfNecessary() {
 # @stdout the filtered content
 # shellcheck disable=SC2120
 Version::parse() {
-  sed -En 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/p' "$@" | head -n1
+  # match anything, print(p), exit on first match(Q)
+  sed -En \
+    -e 's/\x1b\[[0-9;]*[mGKHF]//g' \
+    -e 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/' \
+    -e '//{p;Q}' \
+    "$@"
 }
 
 # @description Display message using skip color (yellow)
@@ -995,6 +1004,13 @@ Git::cloneOrPullIfNoChanges() {
       return 1
     fi
   fi
+}
+
+# @description Install debian package (with .deb extension)
+# @arg $1 debFile:String
+Linux::installDeb() {
+  sudo dpkg -i "$1"
+  sudo rm -f "$1"
 }
 
 # @description Check that command version is greater than expected minimal version
@@ -1368,6 +1384,7 @@ Engine::Config::checkEnv() {
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
   checkValidValues PREFERRED_SHELL ShellBash ShellZsh
+  checkValidValues ZSH_PREFERRED_THEME powerlevel10k/powerlevel10k sindresorhus/pure starship/starship
 
   checkValidValues SHOW_FORTUNES 0 1
   checkValidValues SHOW_MOTD 0 1
@@ -1435,11 +1452,11 @@ Engine::Config::loadWslVariables() {
   export BASE_MNT_C
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_DIR SystemRoot
-  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C}/Windows}"
+  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C:-/mnt/c}/Windows}"
   export WINDOWS_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_PROFILE_DIR USERPROFILE
-  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C}/Users/${USERNAME}}}"
+  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C:-/mnt/c}/Users/${USERNAME}}"
   export WINDOWS_PROFILE_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 LOCAL_APP_DATA LOCALAPPDATA
@@ -1449,7 +1466,7 @@ Engine::Config::loadWslVariables() {
   Linux::Wsl::cachedWslvar2 WINDOW_PATH PATH
   WINDOW_PATH="${WINDOW_PATH//;/:}"
   WINDOW_PATH="${WINDOW_PATH//\\//}"
-  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C}}"
+  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C:-/mnt/c}}"
 
   deduceBin() {
     local var="$1"
@@ -2676,7 +2693,7 @@ File::garbageCollect() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+3T8WuCQBQH8PvZv+INgzaYeqed/jCCtXIkjAoy+iFjlF0oiUVq+/d3LgYxWAtmjW3v88vJvYeefN/pBjk7KjmclytzOD1c3xHWsKnFKGO03HcshxHg5z8aIUWWz7YA5CVLjvZ9Vf+ldEOfz7JIW4idJtLdWabh1PxNxkxmMSKnwLEszP8SPuYfp7nYzsI83gl9UdE0nJy/aVvUsWX+Dc7w/l/E8fxXxVxom4zpWfSNb3yVP7f5Pv+GY1rymTKbM0qAVvaXR/zz/NUrYx6nRjkDilotRYVOH3p9H9yO59+C3/WG8Og9udBu9eDBhdGg0/LdDow9v9sf+WWr13YrP4YSL2EyAW0JxnqTv820HOnD2Ybp9A7ySKQKgJpFIknCSIQryNbFNhRNQ14OIy2SRJb3W5++SXYMhqxZnwTFfRBBMIbadVl+luWbaVCDurKMlZ8OHSGEEEIIIYQQQgghhBBCCCGE0J/zCtE4YJQAKAAA"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2X/WvaQBjH83P+imdVUMc0uZgXaCesq44KXS3UUphKOJNzCV4T8RI7Wvq/75KlVBxTWa3t2PP5IS93z72E7/NyaWjKi6NLHMvK7sSx9OX7Iwoxbb1JdEL0rN1pOkQB6+W3piipSOgcQLkVfK3dpv5/lIbWGFMR1H22qLNo8SLesK3+tuEYumMr0gscy0b998Gq/l58M+MsCeNINPwdecP2+tuEGETqb1oGxv9eWK//NB0zL+GNOxE8Y41N+hPDzPV3dMsyLVPqbzukqYC+s69cw3+uf+mdNg4jTQqsquEEBgMoSxe4oZEvBoX6IxiNjiAJWKQCiDideww+VotOeHIYkJPU1EmovvY3IduzGv9hlLA59ZJwwV4h/2f138jzP8H8vxfW658FeX0mSG7z12ts0t+yrVx/w3SMpnyWvTrm//1Q5P9MX7W0W9QStHtw3utDp93tf4D+afcSvnTPOnByfA6fO3B10T7ud9pw3e2f9q76mWn3pLPzbRR1rT4BLZ4luU9Ll37ybREsF7iSCBjnXsC8aVHsWpoMDi1KOX+qf3+aSVpcXJJWZTBMPw0DGF5DOa+UruyujYZlqLyxArk5/p95+FM2x78p//ny81/TIE07O//bxDEx/vfB8vmvBH4MUZyAYAlQHlLBhCrogrnFS6tczZ+gflZTXfcujMLE/eXePP0eRi6Pqc9816Ocj6k3rdbgXkZEGhWjbqDyvnIEbEE5lO+XZ344klbZssuN2xw3H9R8F3BL5YWnXujDJJ7DUI7tff12cXj4ODBroUm2wYMtdn7w2ww/VlqygH9LgYwgCIIgCIIgCIIgCIIgCLLCT6ikOH4AKAAA"
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -3490,6 +3507,7 @@ dependencies() {
   echo "ShellBash"
   echo "Saml2Aws"
   echo "Docker"
+  echo "Go"
 }
 
 # jscpd:ignore-start
@@ -3498,8 +3516,22 @@ listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
 fortunes() {
-  echo "$(scriptName) - these kubernetes tools are available helm, kubectl, kind, minikube, kubeps1, kubectx, kubens"
+  echo "$(scriptName) - these kubernetes tools are available helm, kubectl, kind, minikube, kubeps1, kubectx, kubens, lazydocker"
   echo "%"
+  if command -v lazydocker &>/dev/null; then
+    echo "$(scriptName) - you can use lazydocker to navigate through your containers"
+    echo "A simple terminal UI for both docker and docker-compose, written in Go"
+    echo "%"
+  fi
+  if command -v k9s &>/dev/null; then
+    echo "$(scriptName) - you can use k9s to navigate through your pods"
+    echo "K9s provides a terminal UI to interact with your Kubernetes clusters."
+    echo "The aim of this project is to make it easier to navigate, observe"
+    echo "and manage your applications in the wild. K9s continually watches"
+    echo "Kubernetes for changes and offers subsequent commands to interact"
+    echo "with your observed resources."
+    echo "%"
+  fi
 }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
@@ -3565,6 +3597,21 @@ installKubectx() {
   sudo ln -sf /opt/kubectx/kubens /usr/local/bin/kubens
 }
 
+installLazydocker() {
+  (
+    # shellcheck source=/dev/null
+    source "${HOME}/.bash-dev-env/profile.d/golang.sh" || exit 1
+    go install github.com/jesseduffield/lazydocker@latest || exit 1
+  ) || return 1
+}
+
+installK9s() {
+  SUDO=sudo INSTALL_CALLBACK=Linux::installDeb Github::upgradeRelease \
+    /usr/bin/k9s \
+    "https://github.com/derailed/k9s/releases/download/v@latestVersion@/k9s_linux_amd64.deb" \
+    version
+}
+
 install() {
   installHelm || {
     Log::displayError "Error during helm install"
@@ -3590,6 +3637,14 @@ install() {
     Log::displayError "Error during kubectx install"
     return 1
   }
+  installLazydocker || {
+    Log::displayError "Error during lazydocker install"
+    return 1
+  }
+  installK9s || {
+    Log::displayError "Error during k9s install"
+    return 1
+  }
 }
 
 testInstall() {
@@ -3598,6 +3653,12 @@ testInstall() {
   Version::checkMinimal "kubectl" "version" "1.29.1" || ((++failures))
   Version::checkMinimal "kind" "--version" "0.16.0" || ((++failures))
   Version::checkMinimal "minikube" "version" "1.27.1" || ((++failures))
+  Version::checkMinimal "k9s" "version" "0.28.2" || ((++failures))
+  (
+    # shellcheck source=/dev/null
+    source "${HOME}/.bash-dev-env/profile.d/golang.sh" || exit 1
+    Assert::commandExists "lazydocker" || exit 1
+  ) || ((++failures))
   Assert::commandExists kubectx || ((++failures))
   Assert::commandExists kubens || ((++failures))
   Assert::fileExists /opt/kubeps1/kube-ps1.sh root root || ((++failures))
@@ -3653,7 +3714,9 @@ testConfigure() {
   Assert::dirExists "${HOME}/.bash_completion.d" || ((++failures))
   Assert::fileExists "${HOME}/.bash_completion.d/kubens" || ((++failures))
   Assert::fileExists "${HOME}/.bash_completion.d/kubectx" || ((++failures))
-  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/kube-ps1.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/completions.d/kubectl.zsh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/kube-ps1.bash" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/kube.zsh" || ((++failures))
   if isKubeConfigGenerationAvailable "test"; then
     Assert::fileExists "${HOME}/.kube/config" || ((++failures))
   fi

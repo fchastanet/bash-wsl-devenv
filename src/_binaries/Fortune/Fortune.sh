@@ -89,5 +89,7 @@ testConfigure() {
     fi
   fi
   Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/displayFortunes.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/displayFortunes.zsh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/displayFortunes.bash" || ((++failures))
   return "${failures}"
 }

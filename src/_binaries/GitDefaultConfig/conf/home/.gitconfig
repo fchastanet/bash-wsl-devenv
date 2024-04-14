@@ -4,7 +4,7 @@
 
 [core]
   eol = lf
-  autocrlf = input
+  autocrlf = false
   excludesFile = ~/.bash-dev-env/GitDefaultConfig/gitignore
   # Don't consider trailing space change as a cause for merge conflicts
   whitespace = -trailing-space
@@ -70,15 +70,19 @@ undoLastNotPushedCommit = reset --soft HEAD~
 rm-keep = rm --cached
 
 # List commits in short form, with colors and branch/tag annotations
+# cspell:disable-next-line
 ls = log --pretty=format:"%C(yellow)%h%Cred%d\\ %Creset%s%Cblue\\ [%cn]" --decorate
 
 # List commits showing changed files
+# cspell:disable-next-line
 ll = log --pretty=format:"%C(yellow)%h%Cred%d\\ %Creset%s%Cblue\\ [%cn]" --decorate --numstat
 
 # List one-line commits showing relative dates:
+# cspell:disable-next-line
 ld = log --pretty=format:"%C(yellow)%h\\ %ad%Cred%d\\ %Creset%s%Cblue\\ [%cn]" --decorate --date=relative
 
 # get logs since my last commit
+# cspell:disable-next-line
 lg = "!me=$(git config --get user.name); \
     git log --since $(git log --pretty=format:'%ct' --author \"$me\" -1)"
 

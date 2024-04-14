@@ -22,6 +22,11 @@
   "markdown.extension.toc.omittedFromToc": {
     "*.md": ["# %%"]
   },
+  "editor.detectIndentation": false,
+  "editor.insertSpaces": true,
+  "editor.indentSize": "tabSize",
+  "editor.tabSize": 2,
+  "files.trimTrailingWhitespace": true,
   "markdown.extension.toc.levels": "2..6",
   "shellcheck.customArgs": ["--source-path=SCRIPTDIR", "--external-sources"]
 }
