@@ -9,7 +9,7 @@ alias f='fasd -f'
 
 # function to execute built-in cd
 fasd_cd() {
-  if (( $# <= 1 )); then
+  if (($# <= 1)); then
     fasd "$@"
   else
     local _fasd_ret

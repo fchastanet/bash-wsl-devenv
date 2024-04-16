@@ -12,3 +12,6 @@ if [[ -f "${HOME}/.fzf.zsh" ]]; then
   # shellcheck source=/dev/null
   source "${HOME}/.fzf.zsh"
 fi
+
+zinit ice wait"1" lucid
+zinit light wookayin/fzf-fasd

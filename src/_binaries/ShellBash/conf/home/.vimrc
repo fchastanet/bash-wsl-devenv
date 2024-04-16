@@ -1,5 +1,4 @@
 call plug#begin()
-Plug 'zdharma-continuum/zinit-vim-syntax'
 Plug 'junegunn/fzf', { 'do': { -> fzf#install() } }
 
 colorscheme desert

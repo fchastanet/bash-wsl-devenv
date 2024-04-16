@@ -37,6 +37,7 @@ jobs:
       - name: Install vendors
         run: |
           set -exo pipefail
+          cp .env.template .env
           ./bin/installRequirements
 
       # only if pre-commit
