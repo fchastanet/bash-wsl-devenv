@@ -15,7 +15,7 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "Java"
+  echo "SdkManager"
 }
 
 # jscpd:ignore-start
@@ -44,6 +44,9 @@ install() {
 }
 
 testInstall() {
+  # ensure java binary is available
+  # shellcheck source=/dev/null
+  source "${HOME}/.sdkman/bin/sdkman-init.sh"
   Version::checkMinimal "plantumlVersionCallback" -version "1.2023.10" cat || return 1
 }
 
