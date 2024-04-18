@@ -18,6 +18,7 @@ CONFIG_LIST+=(
   "MotdDefaultConfig"
   "AwsDefaultConfig"
   "KubeDefaultConfig"
+  "SdkManagerDependencies"
   "Fortune"
   "Saml2Aws"
   "ShellZsh"

@@ -66,6 +66,8 @@ install() {
     software-properties-common
     unzip
     wget
+    # zip is a dependency of sdkmanager installer
+    zip
   )
   Linux::Apt::installIfNecessary --no-install-recommends "${PACKAGES[@]}"
 }

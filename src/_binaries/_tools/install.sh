@@ -102,41 +102,42 @@ executeScript() {
   LOG_CONTEXT="${configName} - " "${installCmd[@]}"
 }
 
-declare -g currentConfigName
+declare -g currentConfigName="init"
 executeScripts() {
-  (
-    # sudoersFile is initialized in _includes/_installScript.tpl
-    .INCLUDE "$(dynamicTemplateDir _includes/sudoerFileManagement.tpl)"
-    local -i configIndex=1
-    local -i configCount=${#CONFIG_LIST[@]}
+  # sudoersFile is initialized in _includes/_installScript.tpl
+  .INCLUDE "$(dynamicTemplateDir _includes/sudoerFileManagement.tpl)"
 
-    # compute number of config for each step
-    local -i installConfigCount=0
-    local -i installTestConfigCount=0
-    local -i configConfigCount=0
-    local -i configTestConfigCount=0
-    local configName
-    for configName in "${CONFIG_LIST[@]}"; do
-      if [[ "${SKIP_INSTALL}" = "0" ]] &&
-        SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isInstallImplemented; then
-        ((++installConfigCount))
+  local -i configIndex=1
+  local -i configCount=${#CONFIG_LIST[@]}
+
+  # compute number of config for each step
+  local -i installConfigCount=0
+  local -i installTestConfigCount=0
+  local -i configConfigCount=0
+  local -i configTestConfigCount=0
+  local configName
+  for configName in "${CONFIG_LIST[@]}"; do
+    if [[ "${SKIP_INSTALL}" = "0" ]] &&
+      SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isInstallImplemented; then
+      ((++installConfigCount))
+    fi
+    if [[ "${SKIP_CONFIGURE}" = "0" ]] &&
+      SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isConfigureImplemented; then
+      ((++configConfigCount))
+    fi
+    if [[ "${SKIP_TEST}" = "0" ]]; then
+      if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isTestInstallImplemented; then
+        ((++installTestConfigCount))
       fi
-      if [[ "${SKIP_CONFIGURE}" = "0" ]] &&
-        SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isConfigureImplemented; then
-        ((++configConfigCount))
+      if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isTestConfigureImplemented; then
+        ((++configTestConfigCount))
       fi
-      if [[ "${SKIP_TEST}" = "0" ]]; then
-        if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isTestInstallImplemented; then
-          ((++installTestConfigCount))
-        fi
-        if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isTestConfigureImplemented; then
-          ((++configTestConfigCount))
-        fi
-      fi
-    done
-    # shellcheck disable=SC2317
-    for currentConfigName in "${CONFIG_LIST[@]}"; do
-      installStatus="0"
+    fi
+  done
+  # shellcheck disable=SC2317
+  for currentConfigName in "${CONFIG_LIST[@]}"; do
+    (
+      local installStatus="0"
       (
         aggregateStat() {
           local rc=$?
@@ -167,7 +168,7 @@ executeScripts() {
         trap 'aggregateStat' EXIT INT TERM ABRT
 
         rm -f \
-          "${LOGS_DIR:-#}/${currentConfigName}"-{install,config,test-install,test-configuration,global}.stat \
+          "${LOGS_DIR:-#}/${currentConfigName}"-{install,config,test-install,test-configuration,global,current}.stat \
           &>/dev/null || true
 
         UI::drawLineWithMsg "Installing ${currentConfigName} (${configIndex}/${configCount})" '#'
@@ -177,9 +178,9 @@ executeScripts() {
         Log::displayError "Aborted after ${currentConfigName} failure"
         exit "${installStatus}"
       fi
-      ((++configIndex))
-    done
-  ) 2>&1 | tee >(sed -r 's/\x1b\[[0-9;]*m//g' >>"${LOGS_DIR}/lastInstall.log")
+    ) 2>&1 | tee >(sed -r 's/\x1b\[[0-9;]*m//g' >>"${LOGS_DIR}/lastInstall.log")
+    ((++configIndex))
+  done
 }
 # we need non root user to be sure that all variables will be correctly deduced
 # @require Linux::requireExecutedAsUser
@@ -210,6 +211,7 @@ run() {
   export INTERACTIVE=1
 
   executeScripts || return 1
+  currentConfigName="executeScripts"
 }
 
 if [[ "${BASH_FRAMEWORK_QUIET_MODE:-0}" = "1" ]]; then
