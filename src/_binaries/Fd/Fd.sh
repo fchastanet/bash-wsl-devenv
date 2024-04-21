@@ -3,6 +3,7 @@
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/Fd/conf" as conf_dir
 
 .INCLUDE "$(dynamicTemplateDir "_includes/_githubReleaseScript.tpl")"
 
@@ -25,4 +26,18 @@ install() {
 
 testInstall() {
   Version::checkMinimal "fd" --version "8.4.0" || return 1
+}
+
+configure() {
+  # shellcheck disable=SC2154
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-dev-env"
+}
+
+testConfigure() {
+  local -i failures=0
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fd.zsh" || ((++failures))
+  return "${failures}"
 }

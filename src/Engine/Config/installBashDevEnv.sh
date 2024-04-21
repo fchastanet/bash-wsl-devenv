@@ -15,4 +15,5 @@ Engine::Config::installBashDevEnv() {
     echo "export BASH_DEV_ENV_ROOT_DIR='${BASH_DEV_ENV_ROOT_DIR}'"
     echo "export WINDOWS_PROFILE_DIR='${WINDOWS_PROFILE_DIR}'"
   ) | ${SUDO:-} tee "${HOME}/.bash-dev-env/profile.d/00_init.sh" >/dev/null
+  ${SUDO:-} chmod +x "${HOME}/.bash-dev-env/profile.d/00_init.sh"
 }

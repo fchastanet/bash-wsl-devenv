@@ -29,6 +29,8 @@ breakOnTestFailure() { :; }
 # jscpd:ignore-end
 
 plantumlVersionCallback() {
+  # shellcheck source=/dev/null
+  source "${HOME}/.sdkman/bin/sdkman-init.sh"
   java -jar /opt/java/plantuml.jar -version | head -1 | Version::parse
 }
 

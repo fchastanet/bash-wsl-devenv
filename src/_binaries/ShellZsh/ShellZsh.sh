@@ -61,7 +61,7 @@ install() {
   Log::displayInfo "install plugin manager"
   if command -v zinit &>/dev/null; then
     zinit self-update
-    zinit update --parallel
+    zinit update --all --parallel
   else
     bash -c "$(
       NO_EDIT=1 NO_INPUT=1 curl \

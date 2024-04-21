@@ -10,12 +10,18 @@ scriptName() {
   echo "SdkManagerDependencies"
 }
 
+dependencies() {
+  echo "SdkManager"
+}
+
 install() {
+  # shellcheck source=/dev/null
+  source "${HOME}/.sdkman/bin/sdkman-init.sh"
   sdk install gradle
 }
 
 testInstall() {
- (
+  (
     local -i failures=0
     # shellcheck source=/dev/null
     source "${HOME}/.sdkman/bin/sdkman-init.sh"

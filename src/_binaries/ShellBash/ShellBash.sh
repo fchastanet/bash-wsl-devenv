@@ -5,6 +5,7 @@
 # IMPLEMENT InstallScripts::interface
 # EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/ShellBash/conf" as conf_dir
 # EMBED "${BASH_DEV_ENV_ROOT_DIR}/bin/loadConfigFiles" as loadConfigFiles
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/bin/fixWslDate" as fixWslDate
 
 .INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
 
@@ -67,6 +68,7 @@ configure() {
   mkdir -p "${HOME}/.bash-dev-env/interactive.d" || return 1
   Retry::default curl -o "${HOME}/.bash-dev-env/interactive.d/git-prompt.sh" \
     https://raw.githubusercontent.com/git/git/master/contrib/completion/git-prompt.sh || return 1
+  chmod +x "${HOME}/.bash-dev-env/interactive.d/git-prompt.sh"
 
   # shellcheck disable=SC2154
   Conf::copyStructure \
@@ -97,8 +99,17 @@ configure() {
   OVERWRITE_CONFIG_FILES=1 Install::file \
     "${embed_file_loadConfigFiles}" \
     "${HOME}/.bash-dev-env/loadConfigFiles"
+  # shellcheck disable=SC2154
+  OVERWRITE_CONFIG_FILES=1 Install::file \
+    "${embed_file_fixWslDate}" \
+    "${HOME}/.bash-dev-env/fixWslDate"
+  Log::displayInfo "Creating sudoer file for fixWslDate command ..."
+  local sudoerFile="/etc/sudoers.d/bash-dev-env-fixWslDate-no-password"
+  echo "${USERNAME} ALL=(ALL) NOPASSWD: ${HOME}/.bash-dev-env/fixWslDate" |
+    sudo tee "${sudoerFile}" >/dev/null
+  sudo chmod 0440 "${sudoerFile}"
 
-  # disable bell
+  Log::displayInfo "disable bell"
   sudo sed -i -e 's/;set bell-style none/set bell-style none/g' /etc/inputrc
 
 }

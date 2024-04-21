@@ -30,8 +30,13 @@
   ff = only
   rebase = true
 
+# diff default values: https://github.com/git/git/blob/master/Documentation/config/diff.txt
 [diff]
   tool = vscode
+  # The basic greedy diff algorithm. Currently, this is the default.
+  # algorithm = myers
+  # This algorithm extends the patience algorithm to "support low-occurrence common elements".
+  algorithm = histogram
 
 [difftool "vscode"]
   cmd = code --wait --diff $LOCAL $REMOTE
@@ -63,6 +68,8 @@ co = checkout
 cob = checkout -b
 st = status
 dt = difftool -d
+# @see https://adamj.eu/tech/2023/10/31/git-force-push-safely
+pf = push --force-with-lease --force-if-includes
 master = !git checkout master && git pull origin
 undoLastNotPushedCommit = reset --soft HEAD~
 

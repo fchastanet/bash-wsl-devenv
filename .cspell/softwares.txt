@@ -185,3 +185,6 @@ redis
 GRYPE
 linux
 dotnet
+gitfast
+sdkman
+sdkmanager

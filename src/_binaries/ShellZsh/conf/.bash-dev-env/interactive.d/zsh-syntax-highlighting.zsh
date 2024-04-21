@@ -3,7 +3,8 @@
 # DO NOT EDIT, THIS FILE CAN BE UPDATED WITHOUT NOTICE
 ###############################################################################
 
-zinit wait lucid for \
-  atinit"zicompinit; zicdreplay"  \
-  zdharma-continuum/fast-syntax-highlighting \
-  OMZP::colored-man-pages
+if typeset -f zinit >/dev/null; then
+  zinit lucid depth=1 load light-mode for \
+    wait atinit"zicompinit; zicdreplay" zdharma-continuum/fast-syntax-highlighting \
+    wait OMZP::colored-man-pages
+fi

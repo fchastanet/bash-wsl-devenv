@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 
 # in zsh motd is not triggered automatically as in bash we have to manage it manually
 # don't display Motd if .hushlogin exists or MOTD was shown recently

@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 
 # skip if non interactive mode
 if [[ $- != *i* ]]; then
@@ -21,7 +21,7 @@ if [ -f "${ZINIT_HOME}/zinit.zsh" ]; then
   source "${ZINIT_HOME}/zinit.zsh"
   autoload -Uz _zinit
   (( ${+_comps} )) && _comps[zinit]=_zinit
-  zinit light-mode for \
+  zinit lucid depth=1 light-mode for \
     zdharma-continuum/zinit-annex-as-monitor \
     zdharma-continuum/zinit-annex-bin-gem-node \
     zdharma-continuum/zinit-annex-patch-dl \
@@ -44,7 +44,7 @@ loadConfigFiles() {
   done < <("${HOME}/.bash-dev-env/loadConfigFiles" "${dir}" sh zsh || echo)
 }
 
+loadConfigFiles "${HOME}/.bash-dev-env/themes.d"
 loadConfigFiles "${HOME}/.bash-dev-env/interactive.d"
 loadConfigFiles "${HOME}/.bash-dev-env/aliases.d"
 loadConfigFiles "${HOME}/.bash-dev-env/completions.d"
-loadConfigFiles "${HOME}/.bash-dev-env/themes.d"

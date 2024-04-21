@@ -572,9 +572,12 @@ InstallScripts::command() {
     local hookName="$1"
     # shellcheck disable=SC2154
     hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh" "${embed_dir_hooks_dir}/${hookName}.sh")"
-    if [[ -x "${hook}" ]]; then
+    if [[ -n "${hook}" && -f "${hook}" && -x "${hook}" ]]; then
       # shellcheck source=src/_binaries/SimpleTest/hooks/preInstall.sh
-      source "${hook}" || exit 1
+      source "${hook}" || {
+        Log::displayError "${scriptName} - unable to load hook '${hook}'"
+        exit 1
+      }
     fi
   }
   local globalStatsFile="${logsDir}/${scriptName}-global.stat"
@@ -1428,7 +1431,7 @@ Log::rotate() {
   local maxLogFilesCount="${2:-5}"
 
   if [[ ! -f "${file}" ]]; then
-    Log::displaySkipped "Log file ${file} doesn't exist yet"
+    Log::displayDebug "Log file ${file} doesn't exist yet"
     return 0
   fi
   local i
@@ -1984,16 +1987,6 @@ Linux::Wsl::cachedWslvar2() {
     Linux::Wsl::originalWslvar "${args[@]}"
 }
 
-# @description Display message using skip color (yellow)
-# @arg $1 message:String the message to display
-Log::displaySkipped() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    Log::computeDuration
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logSkipped "$1"
-}
-
 # @description Display given text and complete the rest of the line with given character
 # @arg $1 text:String text to display
 # @arg $2 character:String (default:#) character to use to complete the line
@@ -2280,14 +2273,6 @@ Linux::Wsl::originalWslvar() {
   wslvar "$@" | sed -z '$ s/[\r\n]$//'
 }
 
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logSkipped() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SKIPPED}" "$1"
-  fi
-}
-
 # @description install callback
 #   set file with root ownership and execution bit
 # @arg $1 fromFile:String
@@ -2422,7 +2407,7 @@ File::garbageCollect() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2XUW/aMBDH85xPcSvSeFlInMSJxMSkFrIRtWsQBE3aSxWIEVaDEyWBVv30dShsU7YCU0M2hH8vlnyWMfrf/e/SUqWjo3FsjIsV2Vj7dd0iIdPSdB1btqbzfdtEhgT4+E+TpGWWBymA9JBFO8/ti58oLbU1CbK5EpKVQtjqKNlwqP6WbiNb5/ojHhb610JZ/yCiQUayVlhhJhyqP7IQDyCuv2FpptC/Dl7XP4yn9yRtZfM3/8Y+/bGx8X+TO4BR1D82dSSBVsH/28uZ6994p04oU4sckBvVIjeg58Gt54PTc/0P4PfdEXx2bxzoXt7ClQPjQe/Sd3rwzfX73tgvjrpdp/JnyHQG03ixCFgIygpe8lrhO0mcEXj/SeW5r7JlFH2EfE6YDLAugtJBJYwfmBIzomQkXdEp6TRLN6ULUGagZE15RuV/reuhlOufspykwTSnK1JZD/ir/m8YvP5NjIT/18Ju/Tc94OltTWCf/sg01vrbGsYmNrn+Fi7mf+H/x2fj/1xhWX6ijObArQ2C7KJwtYjkNGYXm0DGaJKQHLyv3wft9ktq7AhtffFkrPAsKdd/ksYzGlXn/QWH+r/NO4Cxnv8My0DC/+vgdf3rm/8tHZf0x6apC/+vg3Od//8495PHJE5z/urutTO863sjv9NcMvrYVlU1XbIfJcGXJj/eAMKCSUS2V06WNArhnua/XXU1dm96167fQT9D2727wdD7MnRGo04SBZSd0seDQCAQCAQCgUAgEAgEAoHgv+cZSuda4QAoAAA="
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2WXW/aMBSGc82vOINp3CwkzqfUiUktZCNqVypINamahAIxwyI4UexA12n/fQ6UdWJtYStN1dXPRSLZJ7aj95z3uKEpj44ucG27eCPX1n9/r1GQ5eiGYTuubohx10KmAvbjH01RcsbDDEBZsPjeuG3zz5SG1hiGbKJGeK5iOn+UbNhVf8dwkWsI/ZGYlvqXwqb+YUxChlkj2mMm7Ko/cpCYQEJ/09EtqX8Z3K1/lIymOGuwyYP32Ka/bV77vyUcwCzq37YMpIC+h//bygvXv/ZKGxKqFTlQqe2XSg3aXTjtBuC1/eAtBB2/Dx/8Ew9ah6dw5MH5Wfsw8Nrw2Q863fOgCPVb3t6PUSFjGCWzWUgjUOewymtVjKQJw/DmvSZyX6N5HL8DPsG0ArAsgo1ANUoWVE0oVhnO5mSEm/WNlbIZqGNQWb0yJpWn1nVXNuufUI6zcMTJHO+tB/xV/zdNUf+WjaT/l8L9+l/3gKuHNYFt+luOU+iPkGFYyCr837F1R/p/GQj/z1m27AFCfhBKL/2Sf0sxw7wwtCtCCYdbXHI2jUgGagrV198v+p1B67DV8QZtv/dDKywxxpwklFVFJE/y0eT+MG2wyrUifLXjIhSPOB+RCCKc8kkTQZyEEcTk64SrsyTCME4y+CI+EGcJp7i+su3ls1mHkFVv1q9C99PF2cHBapN/+mjt88/J3bezWf9ploxJvD/vL9jV/13RAczl/c90TCT9vwzu1r+8+79j2Bv625ZoA9L/S+Cl3v9vvffjyzTJuDh169jrDTrdftCs55RcHmialuX0V0mIV12E1wDTcBjj9ZLDnMQRTAn/Y6mjc/+kfewHTXQztR4bnPW6H3tev99M45DQ/6u9SCQSiUQikUgkEolEIpFInpifcJzTigAoAAA="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -3330,8 +3315,8 @@ configure() {
 
 testConfigure() {
   local -i failures=0
-  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/docker.sh"
-  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/docker.sh"
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/docker.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/docker.sh" || ((++failures))
   Log::displayInfo "check if docker-compose binary is working"
   if ! docker-compose version &>/dev/null; then
     Log::displayError "docker-compose failure"

@@ -64,6 +64,8 @@ install() {
     pv
     # add add-apt-repository
     software-properties-common
+    # needed by some zinit packages
+    subversion
     unzip
     wget
     # zip is a dependency of sdkmanager installer
@@ -80,6 +82,8 @@ testInstall() {
   Assert::commandExists "jq" || ((++failures))
   Assert::commandExists "make" || ((++failures))
   Assert::commandExists "unzip" || ((++failures))
+  Assert::commandExists "svn" || ((++failures))
+  Assert::commandExists "parallel" || ((++failures))
   if ! PAGER=/usr/bin/cat dpkg -l cron &>/dev/null; then
     Log::displayError "cron is not installed"
     ((++failures))

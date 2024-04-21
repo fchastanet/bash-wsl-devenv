@@ -15,7 +15,7 @@ if ((${#extensions[@]} < 1)); then
   exit 2
 fi
 declare -a findCmd=(
-  find "${dir}" -type 'f,l' '('
+  find "${dir}" -executable -type 'f,l' '('
 )
 for ext in "${extensions[@]}"; do
   findCmd+=(-name \*."${ext}" -o)

@@ -15,5 +15,7 @@ if [[	"${ZSH_PREFERRED_THEME:-${ZSH_DEFAULT_THEME}}" = "powerlevel10k/powerlevel
   zstyle :omz:plugins:ssh-agent lazy yes
 fi
 
-zinit wait lucid for \
-  OMZP::ssh
+if typeset -f zinit >/dev/null; then
+  zinit wait lucid depth=1 load light-mode for \
+    OMZP::ssh
+fi
