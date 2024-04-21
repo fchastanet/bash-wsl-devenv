@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 ###############################################################################
 # DO NOT EDIT, THIS FILE CAN BE UPDATED WITHOUT NOTICE
 ###############################################################################
@@ -14,14 +14,7 @@ fi
 # A glance at the new for-syntax – load all of the above
 # plugins with a single command. For more information see:
 # https://zdharma-continuum.github.io/zinit/wiki/For-Syntax/
-zinit for \
-    light-mode \
-  zsh-users/zsh-autosuggestions \
-    light-mode \
-  zdharma-continuum/history-search-multi-word \
-    light-mode \
-    pick"async.zsh" \
-    src"pure.zsh" \
-  sindresorhus/pure
-zinit light sindresorhus/pure
-typeset -g ZSH_THEME="sindresorhus/pure"
+zinit wait'!' lucid depth=1 load nocd for \
+  light-mode zsh-users/zsh-autosuggestions \
+  light-mode zdharma-continuum/history-search-multi-word \
+  light-mode pick"async.zsh" src"pure.zsh" sindresorhus/pure

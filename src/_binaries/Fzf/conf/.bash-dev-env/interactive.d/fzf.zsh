@@ -13,5 +13,7 @@ if [[ -f "${HOME}/.fzf.zsh" ]]; then
   source "${HOME}/.fzf.zsh"
 fi
 
-zinit ice wait"1" lucid
-zinit light wookayin/fzf-fasd
+if typeset -f zinit >/dev/null; then
+  zinit wait"1" lucid depth=1 load light-mode for \
+    wookayin/fzf-fasd
+fi

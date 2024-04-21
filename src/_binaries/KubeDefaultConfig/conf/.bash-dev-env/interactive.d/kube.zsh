@@ -1,13 +1,8 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 
-# do not set aliases
-save_aliases=$(alias -L)
-__zinit_kube_plugin_loaded_callback() {
-  unalias -m '*'; eval ${save_aliases}; unset save_aliases
-  source <(kubectl completion zsh)
-}
-zinit wait lucid for \
-  OMZP::kubectl \
-  atload"__zinit_kube_plugin_loaded_callback" \
-  OMZP::kubectx \
-  OMZP::kube-ps1
+if typeset -f zinit >/dev/null; then
+  zinit lucid depth=1 load light-mode for \
+    make'!!alias alias=' OMZP::kubectl \
+    make'!!alias alias=' atload"source <(kubectl completion zsh)" OMZP::kubectx \
+    OMZP::kube-ps1
+fi

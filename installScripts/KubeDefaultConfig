@@ -572,9 +572,12 @@ InstallScripts::command() {
     local hookName="$1"
     # shellcheck disable=SC2154
     hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh" "${embed_dir_hooks_dir}/${hookName}.sh")"
-    if [[ -x "${hook}" ]]; then
+    if [[ -n "${hook}" && -f "${hook}" && -x "${hook}" ]]; then
       # shellcheck source=src/_binaries/SimpleTest/hooks/preInstall.sh
-      source "${hook}" || exit 1
+      source "${hook}" || {
+        Log::displayError "${scriptName} - unable to load hook '${hook}'"
+        exit 1
+      }
     fi
   }
   local globalStatsFile="${logsDir}/${scriptName}-global.stat"
@@ -906,60 +909,41 @@ Log::displaySkipped() {
 
 # @description upgrade given binary to latest github release using retry
 #
-# releaseUrl argument : the placeholder @latestVersion@ will be replaced by the latest release version
+# downloadReleaseUrl argument : the placeholder @latestVersion@ will be replaced by the latest release version
 # @arg $1 targetFile:String target binary file (eg: /usr/local/bin/kind)
-# @arg $2 releaseUrl:String github release url (eg: https://github.com/kubernetes-sigs/kind/releases/download/@latestVersion@/kind-linux-amd64)
+# @arg $2 downloadReleaseUrl:String github release url (eg: https://github.com/kubernetes-sigs/kind/releases/download/@latestVersion@/kind-linux-amd64)
 # @arg $3 softVersionArg:String parameter to add to existing command to compute current version
 # @arg $4 softVersionCallback:Function function called to get software version (default: Version::getCommandVersionFromPlainText will call software with argument --version)
 # @arg $5 installCallback:Function function called to install the file retrieved on github (default copy as is and set execution bit)
-# @arg $6 parseGithubVersionCallback:Function function to call to filter the version retrieved from github (Default: Version::parse)
+# @arg $6 softVersionCallback:Function function to call to filter the version retrieved from github (Default: Version::parse)
 # @stdout log messages about retry, install, upgrade
 # @env SOFT_VERSION_CALLBACK pass softVersionCallback by env variable instead of passing it by arg
-# @env PARSE_VERSION_CALLBACK pass parseGithubVersionCallback by env variable instead of passing it by arg
 # @env INSTALL_CALLBACK pass installCallback by env variable instead of passing it by arg
+# @env CURL_CONNECT_TIMEOUT number of seconds before giving up host connection
 Github::upgradeRelease() {
   local targetFile="$1"
-  local releaseUrl="$2"
+  local downloadReleaseUrl="$2"
   local softVersionArg="${3:---version}"
   local softVersionCallback="${4:-${SOFT_VERSION_CALLBACK:-Version::getCommandVersionFromPlainText}}"
   # shellcheck disable=SC2034
   local installCallback="${5:-${INSTALL_CALLBACK:-}}"
   local parseGithubVersionCallback="${6:-${PARSE_VERSION_CALLBACK:-Version::parse}}"
-  local latestVersion
+
   local repo
+  repo="$(Github::extractRepoFromGithubUrl "${downloadReleaseUrl}")"
+  local releasesUrl="https://api.github.com/repos/${repo}/releases/latest"
 
-  repo="$(Github::extractRepoFromGithubUrl "${releaseUrl}")"
-  Github::getLatestRelease "${repo}" latestVersion ||
-    Log::fatal "Repo ${repo} latest version not found"
-  if [[ "$(type -t "${parseGithubVersionCallback}")" = "function" ]]; then
-    latestVersion="$(${parseGithubVersionCallback} <<<"${latestVersion}")"
-  fi
-  Log::displayInfo "Repo ${repo} latest version found is ${latestVersion}"
-
-  local currentVersion="not existing"
-  if [[ -f "${targetFile}" ]]; then
-    currentVersion="$(${softVersionCallback} "${targetFile}" "${softVersionArg}" 2>&1 || true)"
-  fi
-  if [[ "${currentVersion}" = "${latestVersion}" ]]; then
-    Log::displayInfo "${targetFile} version ${latestVersion} already installed"
-  else
-    if [[ -z "${currentVersion}" ]]; then
-      Log::displayInfo "Installing ${targetFile} with version ${latestVersion}"
-    else
-      Log::displayInfo "Upgrading ${targetFile} from version ${currentVersion} to ${latestVersion}"
-    fi
-    local url
-    url="$(echo "${releaseUrl}" | sed -E "s/@latestVersion@/${latestVersion}/g")"
-    Log::displayInfo "Using url ${url}"
-    newSoftware=$(mktemp -p "${TMPDIR:-/tmp}" -t github.newSoftware.XXXX)
-    Retry::default curl \
-      -L \
-      -o "${newSoftware}" \
-      --fail \
-      "${url}"
-
-    Github::defaultInstall "${newSoftware}" "${targetFile}" "${latestVersion}" "${installCallback}"
-  fi
+  # shellcheck disable=SC2317
+  extractVersion() {
+    Version::githubApiExtractVersion | "${parseGithubVersionCallback}"
+  }
+  FILTER_LAST_VERSION_CALLBACK=${FILTER_LAST_VERSION_CALLBACK:-extractVersion} \
+    SOFT_VERSION_CALLBACK="${softVersionCallback}" \
+    Web::upgradeRelease \
+    "${targetFile}" \
+    "${releasesUrl}" \
+    "${downloadReleaseUrl}" \
+    "${softVersionArg}"
 }
 
 # @description clone the repository if not done yet, else pull it if no change in it
@@ -1580,7 +1564,7 @@ Log::rotate() {
   local maxLogFilesCount="${2:-5}"
 
   if [[ ! -f "${file}" ]]; then
-    Log::displaySkipped "Log file ${file} doesn't exist yet"
+    Log::displayDebug "Log file ${file} doesn't exist yet"
     return 0
   fi
   local i
@@ -1776,69 +1760,69 @@ Github::extractRepoFromGithubUrl() {
   echo "${result}"
 }
 
-# @description Retrieve the latest version number of a github release using Github API using retry
-# repo arg with fchastanet/bash-tools value would match https://github.com/fchastanet/bash-tools
-# @arg $1 repo:String repository in the format fchastanet/bash-tools
-# @arg $2 resultRef:&String reference to a variable that will contain the result of the command
-# @stdout log messages about retry
-Github::getLatestRelease() {
-  local repo="$1"
-  # we need to pass the result through a reference instead of output directly
-  # because retry can output too
-  local -n resultRef=$2
-  resultRef=""
-  local resultFile
-  resultFile="$(mktemp -p "${TMPDIR:-/tmp}" -t githubLatestRelease.XXXX)"
-  # Get latest release from GitHub api
-  if Retry::default curl \
-    -L \
-    -o "${resultFile}" \
-    --fail \
-    --silent \
-    "https://api.github.com/repos/${repo}/releases/latest"; then
-    # shellcheck disable=SC2034
-    resultRef="$(Version::githubApiExtractVersion <"${resultFile}")"
-    return 0
-  fi
-  # display curl result in case of failure
-  cat >&2 "${resultFile}"
-  rm -f "${resultFile}"
+# @description extract version number from github api
+# @noargs
+# @stdin json result of github API
+# @exitcode 1 if jq or Version::parse fails
+# @stdout the version parsed
+# @require Linux::requireJqCommand
+Version::githubApiExtractVersion() {
+  jq -r ".tag_name"
 }
 
-# @description intermediate callback that is used by Github::upgradeRelease
-# or Github::installRelease
-# if installCallback is not set, it allows to:
-#   - copy the downloaded file to the right target file
-#   - and set the execution bit
-# else
-#   installCallback is called with newSoftware, targetFile, version arguments
-# fi
-# @warning do not use this function as callback for Github::upgradeRelease or Github::installRelease, as it would result to an infinite loop
-# @arg $1 newSoftware:String the downloaded software file
-# @arg $2 targetFile:String where we want to copy the file
-# @arg $3 version:String the version that has been downloaded
-# @arg $4 installCallback:Function (optional) the callback to call with 3 first arguments
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode * on failure
-# @see Github::upgradeRelease
-# @see Github::installRelease
-# @internal
-Github::defaultInstall() {
-  local newSoftware="$1"
-  local targetFile="$2"
-  local version="$3"
-  local installCallback=$4
-  # shellcheck disable=SC2086
-  if ! ${SUDO:-} test -d "${targetFile%/*}"; then
-    ${SUDO:-} mkdir -p "${targetFile%/*}"
+# @description upgrade given binary to latest release using retry
+#
+# releasesUrl argument : the placeholder @latestVersion@ will be replaced by the latest release version
+# @arg $1 targetFile:String target binary file (eg: /usr/local/bin/kind)
+# @arg $2 releasesUrl:String url on which we can query all available versions (eg: "https://go.dev/dl/?mode=json")
+# @arg $3 downloadReleaseUrl:String url from which the software will be downloaded (eg: https://storage.googleapis.com/golang/go@latestVersion@.linux-amd64.tar.gz)
+# @arg $4 softVersionArg:String parameter to add to existing command to compute current version
+# @stdout log messages about retry, install, upgrade
+# @env FILTER_LAST_VERSION_CALLBACK a callback to filter the latest version from releasesUrl
+# @env SOFT_VERSION_CALLBACK a callback to execute command version
+# @env PARSE_VERSION_CALLBACK a callback to parse the version of the existing command
+# @env INSTALL_CALLBACK a callback to install the software downloaded
+# @env CURL_CONNECT_TIMEOUT number of seconds before giving up host connection
+Web::upgradeRelease() {
+  local targetFile="$1"
+  local releasesUrl="$2"
+  local downloadReleaseUrl="$3"
+  local softVersionArg="${4:---version}"
+  # options from env variables
+  local filterLastVersionCallback="${FILTER_LAST_VERSION_CALLBACK:-Version::parse}"
+  local softVersionCallback="${SOFT_VERSION_CALLBACK:-Version::getCommandVersionFromPlainText}"
+  local installCallback="${INSTALL_CALLBACK:-}"
+  local latestVersion
+  latestVersion="$(Web::getReleases "${releasesUrl}" | ${filterLastVersionCallback})" || {
+    Log::displayError "latest version not found on ${releasesUrl}"
+    return 1
+  }
+  Log::displayInfo "Latest version found is ${latestVersion}"
+
+  local currentVersion="not existing"
+  if [[ -f "${targetFile}" ]]; then
+    currentVersion="$(${softVersionCallback} "${targetFile}" "${softVersionArg}" 2>&1 || true)"
   fi
-  if [[ "$(type -t "${installCallback}")" = "function" ]]; then
-    ${installCallback} "${newSoftware}" "${targetFile}" "${version}"
+  if [[ "${currentVersion}" = "${latestVersion}" ]]; then
+    Log::displayInfo "${targetFile} version ${latestVersion} already installed"
   else
-    ${SUDO:-} mv "${newSoftware}" "${targetFile}"
-    ${SUDO:-} chmod +x "${targetFile}"
-    hash -r
-    ${SUDO:-} rm -f "${newSoftware}" || true
+    if [[ -z "${currentVersion}" ]]; then
+      Log::displayInfo "Installing ${targetFile} with version ${latestVersion}"
+    else
+      Log::displayInfo "Upgrading ${targetFile} from version ${currentVersion} to ${latestVersion}"
+    fi
+    local url
+    url="$(echo "${downloadReleaseUrl}" | sed -E "s/@latestVersion@/${latestVersion}/g")"
+    Log::displayInfo "Using url ${url}"
+    newSoftware=$(mktemp -p "${TMPDIR:-/tmp}" -t web.newSoftware.XXXX)
+    Retry::default curl \
+      -L \
+      --connect-timeout "${CURL_CONNECT_TIMEOUT:-5}" \
+      -o "${newSoftware}" \
+      --fail \
+      "${url}"
+
+    Github::defaultInstall "${newSoftware}" "${targetFile}" "${latestVersion}" "${installCallback}"
   fi
 }
 
@@ -2300,14 +2284,56 @@ EOF
   fi
 }
 
-# @description extract version number from github api
-# @noargs
-# @stdin json result of github API
-# @exitcode 1 if jq or Version::parse fails
-# @stdout the version parsed
-# @require Linux::requireJqCommand
-Version::githubApiExtractVersion() {
-  jq -r ".tag_name"
+# @description Retrieve the latest version number of a web release
+# @arg $1 releaseListUrl:String the url from which version list can be retrieved
+# @stdout log messages about retry
+# @env CURL_CONNECT_TIMEOUT number of seconds before giving up host connection
+Web::getReleases() {
+  local releaseListUrl="$1"
+  # Get latest release from GitHub api
+  Retry::default curl \
+    -L \
+    --connect-timeout "${CURL_CONNECT_TIMEOUT:-5}" \
+    --fail \
+    --silent \
+    "${releaseListUrl}"
+}
+
+# @description intermediate callback that is used by Github::upgradeRelease
+# or Github::installRelease
+# if installCallback is not set, it allows to:
+#   - copy the downloaded file to the right target file
+#   - and set the execution bit
+# else
+#   installCallback is called with newSoftware, targetFile, version arguments
+# fi
+# @warning do not use this function as callback for Github::upgradeRelease or Github::installRelease, as it would result to an infinite loop
+# @arg $1 newSoftware:String the downloaded software file
+# @arg $2 targetFile:String where we want to copy the file
+# @arg $3 version:String the version that has been downloaded
+# @arg $4 installCallback:Function (optional) the callback to call with 3 first arguments
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode * on failure
+# @see Github::upgradeRelease
+# @see Github::installRelease
+# @internal
+Github::defaultInstall() {
+  local newSoftware="$1"
+  local targetFile="$2"
+  local version="$3"
+  local installCallback=$4
+  # shellcheck disable=SC2086
+  if ! ${SUDO:-} test -d "${targetFile%/*}"; then
+    ${SUDO:-} mkdir -p "${targetFile%/*}"
+  fi
+  if [[ "$(type -t "${installCallback}")" = "function" ]]; then
+    ${installCallback} "${newSoftware}" "${targetFile}" "${version}"
+  else
+    ${SUDO:-} mv "${newSoftware}" "${targetFile}"
+    ${SUDO:-} chmod +x "${targetFile}"
+    hash -r
+    ${SUDO:-} rm -f "${newSoftware}" || true
+  fi
 }
 
 # @description installs file to given directory
@@ -2410,6 +2436,15 @@ Linux::getDistributorId() {
     source /etc/os-release
     echo "${ID}"
   )
+}
+
+# @description ensure command jq is available
+# @exitcode 1 if jq command not available
+# @stderr diagnostics information is displayed
+Linux::requireJqCommand() {
+  if [[ "${SKIP_REQUIRE_JQ:-0}" = "0" && "${SKIP_REQUIRES:-0}" = "0" ]]; then
+    Assert::commandExists jq
+  fi
 }
 
 # @description ensure command git is available
@@ -2638,15 +2673,6 @@ Linux::Wsl::requireWsl() {
   fi
 }
 
-# @description ensure command jq is available
-# @exitcode 1 if jq command not available
-# @stderr diagnostics information is displayed
-Linux::requireJqCommand() {
-  if [[ "${SKIP_REQUIRE_JQ:-0}" = "0" && "${SKIP_REQUIRES:-0}" = "0" ]]; then
-    Assert::commandExists jq
-  fi
-}
-
 # @description call simply original wslpath command
 # @arg $@ args:String[] args to pass to wslpath
 # @exitcode * wslpath exit code
@@ -2693,7 +2719,7 @@ File::garbageCollect() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2X/WvaQBjH83P+imdVUMc0uZgXaCesq44KXS3UUphKOJNzCV4T8RI7Wvq/75KlVBxTWa3t2PP5IS93z72E7/NyaWjKi6NLHMvK7sSx9OX7Iwoxbb1JdEL0rN1pOkQB6+W3piipSOgcQLkVfK3dpv5/lIbWGFMR1H22qLNo8SLesK3+tuEYumMr0gscy0b998Gq/l58M+MsCeNINPwdecP2+tuEGETqb1oGxv9eWK//NB0zL+GNOxE8Y41N+hPDzPV3dMsyLVPqbzukqYC+s69cw3+uf+mdNg4jTQqsquEEBgMoSxe4oZEvBoX6IxiNjiAJWKQCiDideww+VotOeHIYkJPU1EmovvY3IduzGv9hlLA59ZJwwV4h/2f138jzP8H8vxfW658FeX0mSG7z12ts0t+yrVx/w3SMpnyWvTrm//1Q5P9MX7W0W9QStHtw3utDp93tf4D+afcSvnTPOnByfA6fO3B10T7ud9pw3e2f9q76mWn3pLPzbRR1rT4BLZ4luU9Ll37ybREsF7iSCBjnXsC8aVHsWpoMDi1KOX+qf3+aSVpcXJJWZTBMPw0DGF5DOa+UruyujYZlqLyxArk5/p95+FM2x78p//ny81/TIE07O//bxDEx/vfB8vmvBH4MUZyAYAlQHlLBhCrogrnFS6tczZ+gflZTXfcujMLE/eXePP0eRi6Pqc9816Ocj6k3rdbgXkZEGhWjbqDyvnIEbEE5lO+XZ344klbZssuN2xw3H9R8F3BL5YWnXujDJJ7DUI7tff12cXj4ODBroUm2wYMtdn7w2ww/VlqygH9LgYwgCIIgCIIgCIIgCIIgCLLCT6ikOH4AKAAA"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2W8WvaUBDH83P+irMWXGGavJi8QDfHuuqosFWhKYWpjJg8l2BMxPfitv71ey+ztSvUlFVtx+7zQwJ5xyXhe9+7axjazjElruOoO3Ed8+79Bo3Y1GwSkxBTPXebLtHA2f2naVrOhb8A0L7zZGNc2fk/SsNojH0e1UO2rLN0uZNqeKz+1HIt06WarALXoaj/Privf5DN5gkTcZbyRrilani8/pQQi0j9bcdC/++FzfpP8zELRNK45tET3lGmP2naSn9iOq7lujKOUNkINDC39pcb+M/1r1aMnC+McZwaUn6QQut6PIHBAA5lKcz8NOSDVRWMYDR6AyJiqQ7As3wRMHj7anUI68JRSY70Saw/978h5dz3f5wKtvADES/ZM/R/Nf+tov8T7P97YbP+ytz1OSdFzF+/o0x/hzqF/pbtWk2q+r8rZwL2/30g+7/q/Upfvbpd9Cq0e3De86DT7nqvwTvrXsDH7qcOnJ6cw4cOXPbbJ16nDVdd76x36anQ7mln65+xmmf1CRjZXBQ1LUt6Xds8ujvYqjxiSRJELJiuhlzLkOYw0jxJ1nPvoUwyon9BWrXBMH8/jGB4BYfFhPwqj49Gw0OovbDBWO7/Jy5/Wrn/m5QW+x+xLJvYqv9TQm30/z54YP8TP+eMM6FMcx2nsYB3tya4dcrvgyQP4hBCNhdRi0CS+SEk8bdI1GdZyGCSLWAoYwFm/pTVKhU/iX0OxbVVg97nL/3j45sVckOgL1Tmg7Kt8+CPjD9WGdfPlEtfmAERBEEQBEEQBEEQBEEQBEF2xC/BWaLWACgAAA=="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -2705,9 +2731,9 @@ Env::requireLoad
 UI::requireTheme
 Linux::requireUbuntu
 Log::requireLoad
+Linux::requireJqCommand
 Git::requireGitCommand
 Linux::Wsl::requireWsl
-Linux::requireJqCommand
 Compiler::Facade::requireCommandBinDir
 
 if Assert::functionExists initFacade; then
@@ -3602,7 +3628,10 @@ installLazydocker() {
     # shellcheck source=/dev/null
     source "${HOME}/.bash-dev-env/profile.d/golang.sh" || exit 1
     go install github.com/jesseduffield/lazydocker@latest || exit 1
-  ) || return 1
+  ) || {
+    Log::displayError "Failure during lazydocker installation"
+    return 1
+  }
 }
 
 installK9s() {

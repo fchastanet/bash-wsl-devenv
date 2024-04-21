@@ -114,7 +114,10 @@ installLazydocker() {
     # shellcheck source=/dev/null
     source "${HOME}/.bash-dev-env/profile.d/golang.sh" || exit 1
     go install github.com/jesseduffield/lazydocker@latest || exit 1
-  ) || return 1
+  ) || {
+    Log::displayError "Failure during lazydocker installation"
+    return 1
+  }
 }
 
 installK9s() {

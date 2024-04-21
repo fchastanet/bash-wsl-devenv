@@ -12,6 +12,8 @@
 - [3. Bash-dev-env](#3-bash-dev-env)
   - [3.1. ~/.bash-dev-env directory structure](#31-bash-dev-env-directory-structure)
 - [Going further](#going-further)
+  - [Zsh](#zsh-1)
+  - [Zinit](#zinit)
 
 ## 1. Sources
 
@@ -61,16 +63,16 @@ Here are some common operations and shell modes they result in:
 
 In order of activation:
 
-1. `/etc/zshenv`
+1. `/etc/zsh/zshenv`
 2. `~/.zshenv`
 3. **login** mode:
-4. `/etc/zprofile`
+4. `/etc/zsh/zprofile`
 5. `~/.zprofile`
 6. **interactive**:
-7. `/etc/zshrc`
+7. `/etc/zsh/zshrc`
 8. `~/.zshrc`
 9. **login** mode:
-10. `/etc/zlogin`
+10. `/etc/zsh/zlogin`
 11. `~/.zlogin`
 
 ### 2.3. Startup files order
@@ -168,6 +170,7 @@ Rules:
 
 - Each directory can be overridden in `conf.override/<profile>/.bash-dev-env`
 - Each file installed from `conf/**/.bash-dev-env` will be copied as read only
+- you can use chmod -x on a script to avoid the file from being loaded
 - (Later) `conf.override/**/.remove` allows to list files not needed
 - (Later) All the files will be sourced and concatenated to one cache file
   (could use bash-tpl)
@@ -175,4 +178,14 @@ Rules:
 
 ## Going further
 
+### Zsh
+
 [faster zsh](https://htr3n.github.io/2018/07/faster-zsh/)
+[Zsh plugins doc](https://zdharma-continuum.github.io/Zsh-100-Commits-Club/Zsh-Plugin-Standard.html)
+
+### Zinit
+
+[Zinit](https://github.com/zdharma-continuum/zinit)
+[Zinit for-syntax](https://zdharma-continuum.github.io/zinit/wiki/For-Syntax/)
+[zinit wiki](https://zdharma-continuum.github.io/zinit/wiki)
+[Oh-My-Zsh plugin list](https://github.com/ohmyzsh/ohmyzsh/tree/master/plugins/git)

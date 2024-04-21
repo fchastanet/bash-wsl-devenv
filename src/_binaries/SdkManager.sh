@@ -8,6 +8,9 @@
 
 scriptName() {
   echo "SdkManager"
+}
+
+dependencies() {
   echo "ShellBash"
 }
 
@@ -20,12 +23,23 @@ fortunes() {
 }
 
 install() {
-  curl -s "https://get.sdkman.io?rcupdate=false" | sudo bash
+  curl -s "https://get.sdkman.io?rcupdate=false" | bash
   (
     # shellcheck source=/dev/null
     source "${HOME}/.sdkman/bin/sdkman-init.sh"
-    sdk install java
-  )
+    sdk selfupdate force
+    local output
+    local exitCode=0
+    output="$(yes | sdk install java)" || exitCode=$?
+    echo "${output}"
+    # exit code can be different than 0 when java already installed
+    if [[ "${exitCode}" != "0" && ! "${output}" =~ java\ .*\ is\ already\ installed\. ]]; then
+      exit 1
+    fi
+  ) || {
+    Log::displayError "Error while installing java"
+    return 1
+  }
 }
 
 testInstall() {
@@ -42,6 +56,7 @@ testInstall() {
 
 configure() {
   ln -sf "${HOME}/.sdkman/bin/sdkman-init.sh" "${HOME}/.bash-dev-env/profile.d/sdkman-init.sh"
+  chmod +x "${HOME}/.sdkman/bin/sdkman-init.sh"
 }
 
 testConfigure() {

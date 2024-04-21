@@ -572,9 +572,12 @@ InstallScripts::command() {
     local hookName="$1"
     # shellcheck disable=SC2154
     hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh" "${embed_dir_hooks_dir}/${hookName}.sh")"
-    if [[ -x "${hook}" ]]; then
+    if [[ -n "${hook}" && -f "${hook}" && -x "${hook}" ]]; then
       # shellcheck source=src/_binaries/SimpleTest/hooks/preInstall.sh
-      source "${hook}" || exit 1
+      source "${hook}" || {
+        Log::displayError "${scriptName} - unable to load hook '${hook}'"
+        exit 1
+      }
     fi
   }
   local globalStatsFile="${logsDir}/${scriptName}-global.stat"
@@ -1436,7 +1439,7 @@ Log::rotate() {
   local maxLogFilesCount="${2:-5}"
 
   if [[ ! -f "${file}" ]]; then
-    Log::displaySkipped "Log file ${file} doesn't exist yet"
+    Log::displayDebug "Log file ${file} doesn't exist yet"
     return 0
   fi
   local i
@@ -1866,16 +1869,6 @@ Linux::Wsl::cachedWslvar2() {
     Linux::Wsl::originalWslvar "${args[@]}"
 }
 
-# @description Display message using skip color (yellow)
-# @arg $1 message:String the message to display
-Log::displaySkipped() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    Log::computeDuration
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logSkipped "$1"
-}
-
 # @description Display given text and complete the rest of the line with given character
 # @arg $1 text:String text to display
 # @arg $2 character:String (default:#) character to use to complete the line
@@ -2180,14 +2173,6 @@ Linux::Wsl::originalWslvar() {
   wslvar "$@" | sed -z '$ s/[\r\n]$//'
 }
 
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logSkipped() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SKIPPED}" "$1"
-  fi
-}
-
 # @description Retry a command several times depending on parameters
 # @arg $1 maxRetries:int    $1 max retries
 # @arg $2 delay:int between attempt
@@ -2367,7 +2352,7 @@ File::garbageCollect() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2W32/aMBDH88xfcQuIQivHdnDih4lJe2i1p1VaV+2B0ikFR4kUAooTKlr6v88EonaoglIVqnX3ebFkfy/n8/0Ah1p7hxmk5y1WLj32dK2wuPCZYLLDWMfsS8GEBd7+r2ZZhc6DDMC61clG3bbzfxSHOjeBjshQTYlKp3uphpfm35e+6/rCYpxLn2P+D8F6/uM0V1kwyOOpcoZvVA0vzb/scCmF6X8uPC4x/4dgc/6HsZ4kwexsnOVFqrSjo9f42JJ/zpi/yr/LXWl0LnOF6X/21sE+x3+e//onehOndFEDtdpaulttuK8BxCH0ekBCoCof0HB5SCKVTMhgPBoF6VBDs2mEsFnkDIO8EtqN+4tv579+n53/+Hn5/fTiwYYu2NyuzhsEul04jo+h36/2Vt8BMoXV96H5hZrCpWmRJM+oBuNbHcy2iJJxMljc61H0GfJIpaUuM6Lx6Gsaj4KkazdaYWyMaKEzqqMgU3TpoVyA5LOJghDmpSWAjooQSAoc5qCV8XUKRMGRrl87J7TVu6ZO/6R95RjbRv2K14/admlYhbbhsSsPq/jMo5vnfHpV85rzKjCiwWestChSrfK/YjLbYVx7qL13FSLvxW7zfyHd3cfW3/+Ot5z/zPOEJxbz3zPHOP8PwKb5j2Ph47Nb/9+96g/g9v4X6/0vOj72/yFY9f8dtj+CIAiCIAiCIAiCIAiCIMjH4g9E5sThACgAAA=="
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2XQW/aMBTHc+ZTvAVEoZVjOzjxYWLSDq12WqV10w6UTik4SqQQUJxQ0dLvPicQrasqKFWhWvd+F0v233m2/34P41Br7zCD9Lyy5dJjD9saiwufCSZ7jPVMvxRMWODtf2mWVeg8yACsG51s1G0b/0dxqHMd6IiM1ZyodL6X2/Bc/33pu64vLMa59Dn6fwge+x+nucqCUR7PlTN+pdvwXP9lj0spTP5z4XGJ/h+Czf6PYz1LgsXZNMuLVGlHRy+JscV/zpi/9t/lrjQ6l7nC5D977c0+xX/uf/MDvY5TWt6BRuOR3Z0u3DUA4hAGAyAhUJWPaLgaJJFKZmQ0nUyCdKyh3TZC2CxyxkFeC+3W3cWX85+/zs6/ff/x9fTi3oY+2Nyux1sE+n04jo9hOKz71t8BMof196H9iZqLS9MiSZ5QjaY3OlhsESXTZFSu64/oI+SRSitdZkTTyec0ngRJ3251wthMooXOqI6CTNFVhKoBki9mCkJYVjMBdFSEQFLgsAStTKxTIAqOdPPKOaGdwRV1hifdS8fMbTUvefOoa1cT661tOOw6wnp/5tDNcT5cqjnNZb0xosFnrJpRpFrlf+3JdIdx477x1rcQeSt2q/+ldPcYW3//e96q/jPPE54o679nhrH+H4BN9R/Lwvtnt/y/fdEDcGv+C1HmP2eedOXq/SfM3wDM/wNg8r98zpQ1wNgPt1gGEARBEARBEARBEARBEARB3ge/AfZKJf0AKAAA"
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 

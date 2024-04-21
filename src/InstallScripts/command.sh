@@ -26,9 +26,12 @@ InstallScripts::command() {
     local hookName="$1"
     # shellcheck disable=SC2154
     hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh" "${embed_dir_hooks_dir}/${hookName}.sh")"
-    if [[ -x "${hook}" ]]; then
+    if [[ -n "${hook}" && -f "${hook}" && -x "${hook}" ]]; then
       # shellcheck source=src/_binaries/SimpleTest/hooks/preInstall.sh
-      source "${hook}" || exit 1
+      source "${hook}" || {
+        Log::displayError "${scriptName} - unable to load hook '${hook}'"
+        exit 1
+      }
     fi
   }
   local globalStatsFile="${logsDir}/${scriptName}-global.stat"

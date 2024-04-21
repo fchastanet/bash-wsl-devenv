@@ -572,9 +572,12 @@ InstallScripts::command() {
     local hookName="$1"
     # shellcheck disable=SC2154
     hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh" "${embed_dir_hooks_dir}/${hookName}.sh")"
-    if [[ -x "${hook}" ]]; then
+    if [[ -n "${hook}" && -f "${hook}" && -x "${hook}" ]]; then
       # shellcheck source=src/_binaries/SimpleTest/hooks/preInstall.sh
-      source "${hook}" || exit 1
+      source "${hook}" || {
+        Log::displayError "${scriptName} - unable to load hook '${hook}'"
+        exit 1
+      }
     fi
   }
   local globalStatsFile="${logsDir}/${scriptName}-global.stat"
@@ -1431,7 +1434,7 @@ Log::rotate() {
   local maxLogFilesCount="${2:-5}"
 
   if [[ ! -f "${file}" ]]; then
-    Log::displaySkipped "Log file ${file} doesn't exist yet"
+    Log::displayDebug "Log file ${file} doesn't exist yet"
     return 0
   fi
   local i
@@ -1982,16 +1985,6 @@ Linux::Wsl::cachedWslvar2() {
     Linux::Wsl::originalWslvar "${args[@]}"
 }
 
-# @description Display message using skip color (yellow)
-# @arg $1 message:String the message to display
-Log::displaySkipped() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    Log::computeDuration
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logSkipped "$1"
-}
-
 # @description Display given text and complete the rest of the line with given character
 # @arg $1 text:String text to display
 # @arg $2 character:String (default:#) character to use to complete the line
@@ -2303,14 +2296,6 @@ Linux::Wsl::originalWslvar() {
   wslvar "$@" | sed -z '$ s/[\r\n]$//'
 }
 
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logSkipped() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SKIPPED}" "$1"
-  fi
-}
-
 # @description Retry a command several times depending on parameters
 # @arg $1 maxRetries:int    $1 max retries
 # @arg $2 delay:int between attempt
@@ -2490,7 +2475,7 @@ File::garbageCollect() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2WzW7TQBCAc/ZTTF1QpLZO7MY/UlAOIUnVSGldta6QKKhy7HW8imtba7shKTnDmQOPAu/TJ2Fs9ydARYqaFgH7XfZvdnZ2Z2d2a/XKoyMjhqblpWJo8mJ5TUVRdXl7W9MNNe83VEWrgPb4plUqWZLaDKAySYJfyi0b/0up1WtDO/Ell5xLJDx/lNtwX/9rstEwjEZFVhRDl7n/n4If/U/DlDDbSek5qbkrug339b8uq6qqb6P/VU1RuP+fgl/735t5tcR/6BpL/K+g42/8rzV09L+mN9QKyKvY4DL+c/+vr9WHNKznd0AQyLs4YinsvN457fZ22scD67Rj7u2197utKhuBJHk0IAmWPnVdEmJlFERDENdqI5qK1cX5HetwcHo7XXx2cYfWuSgIhbA5MA+PWuJwtNmUlK03gjdqjpg9LWqbzYlPU4L1YcRcwprDwHbG2ExiGobYlrHuB80pCYJokteJXYpl+SQaehEqIyTERhwV97vJiIutM5uNbwVjFp3F6fW6frCZS4l3Hop5YKG1eAyEjvwUdPk5vBEkqbQPEt9mcdER2NMoS4GRc8ISUnQ5URAxqJbHUe57Xi1GyvWhevnxK1z1lNbC5ecvRbu0Fy4/fBIXrWrnB3pjU4yrUTKBaop7BqkDF3N4D/mZgBSCIle/m4uOOBj0rL65f9rtH177BRU5LsRZ4rvAzlzKoFAWJKLwp+8rZ7Usz//58MPWWPb+G9tl/jdkTVM1FfO/rqgNnv+fgsX8v75ahHXomrBvWtDr9q0tsHb7R7DTH/Sg096Hlz04Pui2rV4XXvWtXfPYykX7nd7KzUA7jkgKWQx4nWFMpoA7dmk4SsAOXfCy2WwKDibfgKQ0CgXqwckJrAG+WQdta3cuQqsFG88uds293rxeQyX5kW3A27cvIPVJKADkcq1r+eaPoqLgUeFKreTlem/Hi/ASF3Wt4wOCT5njE2cMSZQxh7TqGJ71MAsCHC+77tKSL/O7/l8e/7MHfwCX/v9kvYx//PY1tPz/p8sNjcf/U4DxnyWsyAEzngJ+TgF5RD9uApitIv5nV+EvzGhIU6AoMLHxT66IEGQOda/6g+K/OomisT1Fj+NMybMTl//qOBwOh8PhcDgcDofD4XA4nH+Sb4hDbIQAKAAA"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2XX2/iRhDAefanmDhXIV3OYIP/SFRUokAUJBJHiaNKvZwiY6/xCse21nYopDy3z324j3L9PvkknbXzh16j49oQqqr7e2H/zM7M7uyMl0az9uqoiGUY/FezDHX994Gapptqq2WYls7HLV0zamC8vmu1WpHlLgOozbPoi3Kb5v+jNJqNiZuFik9uFBLfvMpt+Nr4G6rVtqx2TdU0y1RF/HfB5/GncU6Y6+X0hjT8Ld2Gr42/qeq6brYw/rqhaSL+u+DL8Q+WQSMLX2pjQ/w1DPxj/I22ifE3zLZeA3UbG9zE/zz++3vNCY2b/A5IEvkpTVgOhz8eXg2Gh72LsXPVt4+PeyeDbp1NQVECGpEMf0Pq+yTGxjRKJiDvNaY0l+vr6/vO2fjqabn85vYZrStZkkphe2yfnXflyfSgo2jvLqVg2pkyd1G2DjrzkOYE25OE+YR1JpHrzbCbpTSOsa9iO4w6CxJFyZy3iVuJFXwRjYMElRESYydNyvvdYcTH3rXLZk+CKUuu0/zBbhgdcCn52UOxTx30Fo+B0GmYg6l+A5eSolT+QRa6LC0HIneRFDkwckNYRsohL4kSBvXqOKp9r+rlTGUf6ne//g73I5W3cPfxU9mv/IW7X36T173q8QN99ClFa5TMoZ7jnkHpw+0KfgZ+JqDEoKn1P63FQJyOh87IPrkajM4e4oKKPB/SIgt9YNc+ZVAqizJZ+rfvq2C7bK7/fPplNjZ9/61WVf8t1TB0Q8f6b2p6W9T/XbBe//e3i7QPAxtObAeGg5HzDpyj0TkcjsZD6PdO4PshXJwOes5wAD+MnCP7wuGio/5w626gH+ckhyIFvM4wIwvAHfs0nmbgxj4ExXK5AA+Lb0RymsQSDeD9e9gD/Gad9pyjlQzdLrx9c3tkHw9XzQYq4Uf2Fj58+BbykMQSAJfrPsh3PheVpYBK92qVgOt9mi/TS17XtY8fEPyUeSHxZpAlBfNIt4np2YyLKML5aug5LdzM343/5vxfvvgBuOn9p6ktnv8a/u03rJbF819tqyL/dwHmf5GxsgYsRQn4awngGf26BWC5jfxf3qc/N5IvUpLhbtHSksY0h+8elz8aqSbmLj7bNRmiwqM++CTNw64GUYJvxYi/bJXrxCcQ4IP1EtcAzJNk5i7wqqBJJXAz/59UHIFAIBAIBAKBQCAQCAQCgUCwK/4AKrJI5gAoAAA="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 

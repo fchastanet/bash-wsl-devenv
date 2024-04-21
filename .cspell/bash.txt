@@ -119,3 +119,4 @@ CWORD
 ccomp
 grey
 Ecma
+selfupdate

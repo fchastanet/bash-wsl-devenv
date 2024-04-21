@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 
 # zsh history
 export HISTFILE="${HOME}/.zhistory"    # History filepath
@@ -15,11 +15,11 @@ setopt EXTENDED_HISTORY  # record command start time
 setopt HIST_REDUCE_BLANKS  # remove unnecessary blanks
 setopt APPEND_HISTORY  # Immediately append history instead of overwriting
 
-__zinit_plugin_loaded_callback() {
-  bindkey "\ek" history-substring-search-up
-  bindkey "\ej" history-substring-search-down
-}
-zinit wait lucid depth=1  \
-  atload='__zinit_plugin_loaded_callback' \
-  for \
-    zsh-users/zsh-history-substring-search
+if typeset -f zinit >/dev/null; then
+  __zinit_plugin_loaded_callback() {
+    bindkey "\ek" history-substring-search-up
+    bindkey "\ej" history-substring-search-down
+  }
+  zinit lucid depth=1 load light-mode for \
+    atload='__zinit_plugin_loaded_callback' zsh-users/zsh-history-substring-search
+fi

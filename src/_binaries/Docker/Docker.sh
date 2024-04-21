@@ -115,8 +115,8 @@ configure() {
 
 testConfigure() {
   local -i failures=0
-  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/docker.sh"
-  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/docker.sh"
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/docker.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/docker.sh" || ((++failures))
   Log::displayInfo "check if docker-compose binary is working"
   if ! docker-compose version &>/dev/null; then
     Log::displayError "docker-compose failure"

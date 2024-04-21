@@ -572,9 +572,12 @@ InstallScripts::command() {
     local hookName="$1"
     # shellcheck disable=SC2154
     hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh" "${embed_dir_hooks_dir}/${hookName}.sh")"
-    if [[ -x "${hook}" ]]; then
+    if [[ -n "${hook}" && -f "${hook}" && -x "${hook}" ]]; then
       # shellcheck source=src/_binaries/SimpleTest/hooks/preInstall.sh
-      source "${hook}" || exit 1
+      source "${hook}" || {
+        Log::displayError "${scriptName} - unable to load hook '${hook}'"
+        exit 1
+      }
     fi
   }
   local globalStatsFile="${logsDir}/${scriptName}-global.stat"
@@ -1351,7 +1354,7 @@ Log::rotate() {
   local maxLogFilesCount="${2:-5}"
 
   if [[ ! -f "${file}" ]]; then
-    Log::displaySkipped "Log file ${file} doesn't exist yet"
+    Log::displayDebug "Log file ${file} doesn't exist yet"
     return 0
   fi
   local i
@@ -1817,16 +1820,6 @@ Linux::Wsl::cachedWslvar2() {
     Linux::Wsl::originalWslvar "${args[@]}"
 }
 
-# @description Display message using skip color (yellow)
-# @arg $1 message:String the message to display
-Log::displaySkipped() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    Log::computeDuration
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logSkipped "$1"
-}
-
 # @description Display given text and complete the rest of the line with given character
 # @arg $1 text:String text to display
 # @arg $2 character:String (default:#) character to use to complete the line
@@ -2194,14 +2187,6 @@ Linux::Wsl::originalWslvar() {
   wslvar "$@" | sed -z '$ s/[\r\n]$//'
 }
 
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logSkipped() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SKIPPED}" "$1"
-  fi
-}
-
 # @description install callback
 #   set file with root ownership and execution bit
 # @arg $1 fromFile:String
@@ -2415,7 +2400,7 @@ Retry::parameterized() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "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"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "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"
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
