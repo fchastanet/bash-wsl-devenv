@@ -55,8 +55,12 @@ breakOnTestFailure() { :; }
 # jscpd:ignore-end
 
 install() {
-  Linux::Apt::installIfNecessary --no-install-recommends \
+  local -a packages=(
     zsh
+    # needed by some zinit packages
+    subversion
+  )
+  Linux::Apt::installIfNecessary --no-install-recommends "${packages[@]}"
 
   Log::displayInfo "install plugin manager"
   if command -v zinit &>/dev/null; then
@@ -82,6 +86,7 @@ assertZshFunctionExists() {
 testInstall() {
   local -i failures=0
   Assert::commandExists zsh || ((++failures))
+  Assert::commandExists "svn" || ((++failures))
   assertZshFunctionExists zinit || ((++failures))
   return "${failures}"
 }
@@ -114,12 +119,11 @@ configure() {
 }
 
 declare -a confFiles=(
-  "${HOME}/.bash-dev-env/interactive.d/zsh-autosuggestions.zsh"
+  "${HOME}/.bash-dev-env/interactive.d/zsh-syntax-complete-suggest.zsh"
   "${HOME}/.bash-dev-env/interactive.d/zsh-beep.zsh"
   "${HOME}/.bash-dev-env/interactive.d/zsh-history.zsh"
   "${HOME}/.bash-dev-env/interactive.d/zsh-ls-colors.zsh"
   "${HOME}/.bash-dev-env/interactive.d/zsh-ssh.zsh"
-  "${HOME}/.bash-dev-env/interactive.d/zsh-syntax-highlighting.zsh"
   "${HOME}/.bash-dev-env/interactive.d/zsh-z.zsh"
   "${HOME}/.bash-dev-env/themes.d/powerlevel10k.zsh"
   "${HOME}/.bash-dev-env/themes.d/pure.zsh"

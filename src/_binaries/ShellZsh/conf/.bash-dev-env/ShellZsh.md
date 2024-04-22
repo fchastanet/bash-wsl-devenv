@@ -14,6 +14,7 @@
 - [Going further](#going-further)
   - [Zsh](#zsh-1)
   - [Zinit](#zinit)
+  - [find keyboard key](#find-keyboard-key)
 
 ## 1. Sources
 
@@ -77,23 +78,18 @@ In order of activation:
 
 ### 2.3. Startup files order
 
-+----------------+-----------+-----------+------+ |
-|Interactive|Interactive|Script| | |login |non-login | |
-+----------------+-----------+-----------+------+ |/etc/zshenv | A | A | A |
-+----------------+-----------+-----------+------+ |~/.zshenv | B | B | B |
-+----------------+-----------+-----------+------+ |/etc/zprofile | C | | |
-+----------------+-----------+-----------+------+ |~/.zprofile | D | | |
-+----------------+-----------+-----------+------+ |/etc/zshrc | E | C | |
-+----------------+-----------+-----------+------+ |~/.zshrc | F | D | |
-+----------------+-----------+-----------+------+ |/etc/zlogin | G | | |
-+----------------+-----------+-----------+------+ |~/.zlogin | H | | |
-+----------------+-----------+-----------+------+ | | | | |
-+----------------+-----------+-----------+------+ | | | | |
-+----------------+-----------+-----------+------+ |~/.zlogout | I | | |
-+----------------+-----------+-----------+------+ |/etc/zlogout | J | | |
-+----------------+-----------+-----------+------+
-
-Moral: put stuff in ~/.zshrc, which is always executed.
+|               | Interactive<br>login | Interactive<br>non-login | Script |
+| ------------- | -------------------- | ------------------------ | ------ |
+| /etc/zshenv   | A                    | A                        | A      |
+| ~/.zshenv     | B                    | B                        | B      |
+| /etc/zprofile | C                    |                          |        |
+| ~/.zprofile   | D                    |                          |        |
+| /etc/zshrc    | E                    | C                        |        |
+| ~/.zshrc      | F                    | D                        |        |
+| /etc/zlogin   | G                    |                          |        |
+| ~/.zlogin     | H                    |                          |        |
+| ~/.zlogout    | I                    |                          |        |
+| /etc/zlogout  | J                    |                          |        |
 
 ### 2.4. Practical guide to which files get sourced when
 
@@ -189,3 +185,11 @@ Rules:
 [Zinit for-syntax](https://zdharma-continuum.github.io/zinit/wiki/For-Syntax/)
 [zinit wiki](https://zdharma-continuum.github.io/zinit/wiki)
 [Oh-My-Zsh plugin list](https://github.com/ohmyzsh/ohmyzsh/tree/master/plugins/git)
+
+### find keyboard key
+
+run this command so `Alt+V` allows to describe a type key
+
+```bash
+bindkey '^[v' .describe-key-briefly
+```

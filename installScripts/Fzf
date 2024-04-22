@@ -960,6 +960,28 @@ Version::checkMinimal() {
 
 }
 
+# @description check if command specified exists or return 1
+# with error and message if not
+#
+# @arg $1 commandName:String on which existence must be checked
+# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
+#
+# @exitcode 1 if the command specified does not exist
+# @stderr diagnostic information + help if second argument is provided
+Assert::commandExists() {
+  local commandName="$1"
+  local helpIfNotExists="$2"
+
+  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
+    Log::displayError "${commandName} is not installed, please install it"
+    if [[ -n "${helpIfNotExists}" ]]; then
+      Log::displayInfo "${helpIfNotExists}"
+    fi
+    return 1
+  }
+  return 0
+}
+
 # @description copy folder structure to target directory
 # merge embedDir with overridden directory if provided and available
 # @arg $1 embedDir:String the path embedded
@@ -1604,28 +1626,6 @@ Version::parse() {
     -e 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/' \
     -e '//{p;Q}' \
     "$@"
-}
-
-# @description check if command specified exists or return 1
-# with error and message if not
-#
-# @arg $1 commandName:String on which existence must be checked
-# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
-#
-# @exitcode 1 if the command specified does not exist
-# @stderr diagnostic information + help if second argument is provided
-Assert::commandExists() {
-  local commandName="$1"
-  local helpIfNotExists="$2"
-
-  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
-    Log::displayError "${commandName} is not installed, please install it"
-    if [[ -n "${helpIfNotExists}" ]]; then
-      Log::displayInfo "${helpIfNotExists}"
-    fi
-    return 1
-  }
-  return 0
 }
 
 # @description ignore exit code 141 from simple command pipes
@@ -2475,7 +2475,7 @@ File::garbageCollect() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2XX2/iRhDAefanmDhXIV3OYIP/SFRUokAUJBJHiaNKvZwiY6/xCse21nYopDy3z324j3L9PvkknbXzh16j49oQqqr7e2H/zM7M7uyMl0az9uqoiGUY/FezDHX994Gapptqq2WYls7HLV0zamC8vmu1WpHlLgOozbPoi3Kb5v+jNJqNiZuFik9uFBLfvMpt+Nr4G6rVtqx2TdU0y1RF/HfB5/GncU6Y6+X0hjT8Ld2Gr42/qeq6brYw/rqhaSL+u+DL8Q+WQSMLX2pjQ/w1DPxj/I22ifE3zLZeA3UbG9zE/zz++3vNCY2b/A5IEvkpTVgOhz8eXg2Gh72LsXPVt4+PeyeDbp1NQVECGpEMf0Pq+yTGxjRKJiDvNaY0l+vr6/vO2fjqabn85vYZrStZkkphe2yfnXflyfSgo2jvLqVg2pkyd1G2DjrzkOYE25OE+YR1JpHrzbCbpTSOsa9iO4w6CxJFyZy3iVuJFXwRjYMElRESYydNyvvdYcTH3rXLZk+CKUuu0/zBbhgdcCn52UOxTx30Fo+B0GmYg6l+A5eSolT+QRa6LC0HIneRFDkwckNYRsohL4kSBvXqOKp9r+rlTGUf6ne//g73I5W3cPfxU9mv/IW7X36T173q8QN99ClFa5TMoZ7jnkHpw+0KfgZ+JqDEoKn1P63FQJyOh87IPrkajM4e4oKKPB/SIgt9YNc+ZVAqizJZ+rfvq2C7bK7/fPplNjZ9/61WVf8t1TB0Q8f6b2p6W9T/XbBe//e3i7QPAxtObAeGg5HzDpyj0TkcjsZD6PdO4PshXJwOes5wAD+MnCP7wuGio/5w626gH+ckhyIFvM4wIwvAHfs0nmbgxj4ExXK5AA+Lb0RymsQSDeD9e9gD/Gad9pyjlQzdLrx9c3tkHw9XzQYq4Uf2Fj58+BbykMQSAJfrPsh3PheVpYBK92qVgOt9mi/TS17XtY8fEPyUeSHxZpAlBfNIt4np2YyLKML5aug5LdzM343/5vxfvvgBuOn9p6ktnv8a/u03rJbF819tqyL/dwHmf5GxsgYsRQn4awngGf26BWC5jfxf3qc/N5IvUpLhbtHSksY0h+8elz8aqSbmLj7bNRmiwqM++CTNw64GUYJvxYi/bJXrxCcQ4IP1EtcAzJNk5i7wqqBJJXAz/59UHIFAIBAIBAKBQCAQCAQCgUCwK/4AKrJI5gAoAAA="
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2X3W7iRhSAufZTnDhbIW3WYIN/JCoqUSAKEomjxFGlblaRscd4hGNbYzsUUq7b617so2zfJ0/SM3Z+6DZatg2hqjrfjef3nDNz5pwZN5q1V0dFLMPgX80y1PXvAzVNN9VWyzAtnbdbumbUwHh902q1IstdBlCbZ9EXx23q/4/SaDYmbhYqPrlRSHzzKqfha/1vqFbbsto1VdMsUxX+3wWf+5/GOWGul9Mb0vC3dBq+1v+mquu62UL/64amCf/vgi/7P1gGjSx8qY4N/tfQ8dz/mmZYpqHq6H/DbGP+V7exwE38z/2/v9ec0LjJz4AkkZ/ShOVw+OPh1WB42LsYO1d9+/i4dzLo1tkUFCWgEcnwG1LfJzEWplEyAXmvMaW5XF+f33fOxldP0+U3t89IXcmSVA62x/bZeVeeTA86ivbuUgqmnSlzF2XpoDMPaU6wPEmYT1hnErneDKtZSuMY6yqWw6izIFGUzHmZuNWwgk+icZCgMEJirKRJeb47jPhYu3bZ7GlgypLrNH/QG0YHfJT87KbYpw5ai9tA6DTMwVS/gUtJUSr7IAtdlpYNkbtIihwYuSEsI2WTl0QJg3q1HdW6V/Wyp9IP9btff4f7lspauPv4qaxX9sLdL7/J61b1+IY+2pSiNkrmUM9xzaD04XYFPwPfE1Bi0NT6n+aiI07HQ2dkn1wNRmcPfkFBng9pkYU+sGufMiiFRZks/dvnVbBdNud/3v0yHZvuf6tV3f+Wahi6wfO/qeltkf93wXr+398u0j4MbDixHRgORs47cI5G53A4Gg+h3zuB74dwcTroOcMB/DByjuwLhw8d9YdbNwPtOCc5FCngcYYZWQCu2KfxNAM39iEolssFeJh8I5LTJJZoAO/fwx7gnXXac45WMnS78PbN7ZF9PFw1GyiEb9lb+PDhW8hDEksAfFz3YXzn86GyFFDpXqwScLlP/WV4yeuy9vECwavMC4k3gywpmEe6TQzPZlxEEfZXTc9J4Wr+rv83x//yxQ/ATe8/TW2V7z/87TeslsXjX22rIv53AcZ/kbEyByxFCvhrCuAR/boJYLmN+F/ehz9Xki9SkuFqUdOSxjSH7x6nPyqpOuYuPts1GaLCoz74JM3DrgZRgm/FiL9slevEJxDgg/US5wDMk2TmLvCooEolcDP/n2QcgUAgEAgEAoFAIBAIBAKBQLAr/gDE8sBIACgAAA=="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -3321,8 +3321,13 @@ fzfInstall() {
 }
 
 install() {
-  Linux::Apt::installIfNecessary --no-install-recommends \
-    tree # tree command is used by some fzf key binding
+  local -a packages=(
+    # tree command is used by some fzf key binding
+    tree
+    # ripgrep or rg command
+    ripgrep
+  )
+  Linux::Apt::installIfNecessary --no-install-recommends "${packages[@]}"
 
   # shellcheck disable=SC2317
   installFzf() {
@@ -3352,6 +3357,8 @@ testInstall() {
     Log::displayError "Impossible to load fzf"
     ((++failures))
   }
+  Assert::commandExists "rg" || ((++failures))
+  Assert::commandExists "tree" || ((++failures))
 
   return "${failures}"
 }

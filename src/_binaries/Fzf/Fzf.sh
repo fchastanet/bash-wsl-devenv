@@ -52,8 +52,13 @@ fzfInstall() {
 }
 
 install() {
-  Linux::Apt::installIfNecessary --no-install-recommends \
-    tree # tree command is used by some fzf key binding
+  local -a packages=(
+    # tree command is used by some fzf key binding
+    tree
+    # ripgrep or rg command
+    ripgrep
+  )
+  Linux::Apt::installIfNecessary --no-install-recommends "${packages[@]}"
 
   # shellcheck disable=SC2317
   installFzf() {
@@ -83,6 +88,8 @@ testInstall() {
     Log::displayError "Impossible to load fzf"
     ((++failures))
   }
+  Assert::commandExists "rg" || ((++failures))
+  Assert::commandExists "tree" || ((++failures))
 
   return "${failures}"
 }
