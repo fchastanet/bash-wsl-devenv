@@ -3191,7 +3191,7 @@ testInstall() { :; }
 configure() {
   local configDir
   # shellcheck disable=SC2154
-  configDir="$(Conf::getOverriddenDir "${embed_dir_conf_dir}" "${CONF_OVERRIDE_DIR}/AwsConfig")"
+  configDir="$(Conf::getOverriddenDir "${embed_dir_conf_dir}" "${CONF_OVERRIDE_DIR}/${scriptName}")"
   # install default configuration
   # shellcheck disable=SC2317
   configureAwsConfig() {
@@ -3200,7 +3200,7 @@ configure() {
       "${HOME}/.aws/config"
     Install::setUserRightsCallback "$@"
   }
-  OVERWRITE_CONFIG_FILES=0 Install::file \
+  Install::file \
     "${configDir}/.aws/config" "${HOME}/.aws/config" \
     "${USERNAME}" "${USERGROUP}" configureAwsConfig
   # shellcheck disable=SC2154

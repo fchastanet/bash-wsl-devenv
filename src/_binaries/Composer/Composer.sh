@@ -32,7 +32,7 @@ breakOnTestFailure() { :; }
 install() {
   if command -v composer; then
     # upgrade
-    composer global self-update
+    sudo composer global self-update
   else
     # install composer last version
     (

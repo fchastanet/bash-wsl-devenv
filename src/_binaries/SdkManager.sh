@@ -23,6 +23,7 @@ fortunes() {
 }
 
 install() {
+  Linux::Apt::installIfNecessary --no-install-recommends zip
   curl -s "https://get.sdkman.io?rcupdate=false" | bash
   (
     # shellcheck source=/dev/null
@@ -48,6 +49,7 @@ testInstall() {
     # shellcheck source=/dev/null
     source "${HOME}/.sdkman/bin/sdkman-init.sh"
 
+    Assert::commandExists "zip" || ((++failures))
     Version::checkMinimal "sdk" version "5.18.2" || ((++failures))
     Version::checkMinimal "java" --version "21.0.2" || ((++failures))
     return "${failures}"
