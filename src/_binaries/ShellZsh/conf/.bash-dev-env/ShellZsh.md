@@ -11,10 +11,10 @@
   - [2.7. Detect Interactive/Non interactive](#27-detect-interactivenon-interactive)
 - [3. Bash-dev-env](#3-bash-dev-env)
   - [3.1. ~/.bash-dev-env directory structure](#31-bash-dev-env-directory-structure)
-- [Going further](#going-further)
-  - [Zsh](#zsh-1)
-  - [Zinit](#zinit)
-  - [find keyboard key](#find-keyboard-key)
+- [4. Going further](#4-going-further)
+  - [4.1. Zsh](#41-zsh)
+  - [4.2. Zinit](#42-zinit)
+  - [4.3. find keyboard key](#43-find-keyboard-key)
 
 ## 1. Sources
 
@@ -79,7 +79,7 @@ In order of activation:
 ### 2.3. Startup files order
 
 |               | Interactive<br>login | Interactive<br>non-login | Script |
-| ------------- | -------------------- | ------------------------ | ------ |
+|---------------|----------------------|--------------------------|--------|
 | /etc/zshenv   | A                    | A                        | A      |
 | ~/.zshenv     | B                    | B                        | B      |
 | /etc/zprofile | C                    |                          |        |
@@ -172,21 +172,21 @@ Rules:
   (could use bash-tpl)
   - Cache will be invalidated based on find last modified file.
 
-## Going further
+## 4. Going further
 
-### Zsh
+### 4.1. Zsh
 
 [faster zsh](https://htr3n.github.io/2018/07/faster-zsh/)
 [Zsh plugins doc](https://zdharma-continuum.github.io/Zsh-100-Commits-Club/Zsh-Plugin-Standard.html)
 
-### Zinit
+### 4.2. Zinit
 
 [Zinit](https://github.com/zdharma-continuum/zinit)
 [Zinit for-syntax](https://zdharma-continuum.github.io/zinit/wiki/For-Syntax/)
 [zinit wiki](https://zdharma-continuum.github.io/zinit/wiki)
 [Oh-My-Zsh plugin list](https://github.com/ohmyzsh/ohmyzsh/tree/master/plugins/git)
 
-### find keyboard key
+### 4.3. find keyboard key
 
 run this command so `Alt+V` allows to describe a type key
 
