@@ -29,8 +29,8 @@ trap 'err_report $LINENO' ERR
 # shellcheck disable=SC2317
 declare -g summaryDisplayed="0"
 summary() {
-  local installResultCode=$?
-  local startDate="$1"
+  local installResultCode="$1"
+  local startDate="$2"
   if [[ "${summaryDisplayed}" = "1" ]]; then
     return "${rc}"
   fi
@@ -82,7 +82,7 @@ summary() {
   rm -f "${HOME}/.motd_shown" &>/dev/null || true
   exit "${installResultCode}"
 }
-trap 'summary "${INSTALL_START}"' EXIT INT TERM ABRT
+trap 'summary "$?" "${INSTALL_START}"' EXIT INT TERM ABRT
 
 executeScript() {
   local configName="$1"
@@ -140,7 +140,7 @@ executeScripts() {
       local installStatus="0"
       (
         aggregateStat() {
-          local rc=$?
+          local rc="$1"
           local -a statFiles=()
           if [[ "${SKIP_INSTALL}" = "0" ]] &&
             SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${currentConfigName}" isInstallImplemented; then
@@ -165,7 +165,7 @@ executeScripts() {
           Stats::aggregateGlobalStats "${LOGS_DIR:-#}/global.stat" "${configCount}" "${statFiles[@]}"
           exit "${rc}"
         }
-        trap 'aggregateStat' EXIT INT TERM ABRT
+        trap 'aggregateStat "$?"' EXIT INT TERM ABRT
 
         rm -f \
           "${LOGS_DIR:-#}/${currentConfigName}"-{install,config,test-install,test-configuration,global,current}.stat \
@@ -178,7 +178,7 @@ executeScripts() {
         Log::displayError "Aborted after ${currentConfigName} failure"
         exit "${installStatus}"
       fi
-    ) 2>&1 | tee >(sed -r 's/\x1b\[[0-9;]*m//g' >>"${LOGS_DIR}/lastInstall.log")
+    ) 2>&1 | tee >(sed -r 's/\x1b\[[0-9;]*m//g' >>"${LOGS_DIR}/lastInstall.log") || exit 1
     ((++configIndex))
   done
 }

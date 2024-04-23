@@ -49,7 +49,7 @@ Stats::aggregateGlobalStats() {
     if ((globalStatus == 0)); then
       ((statusSuccess++)) || true
     fi
-    if ((globalError > 0)); then
+    if ((globalStatus > 0 || globalError > 0)); then
       ((error++)) || true
     fi
     if ((globalWarning > 0)); then

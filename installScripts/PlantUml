@@ -570,9 +570,9 @@ InstallScripts::command() {
       # shellcheck disable=SC2317
       computeStats() {
         local rc=$?
-        Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
-        Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
-        LOG_CONTEXT="${scriptName} - " Stats::statusLine "${rc}" "${statsFile}" "Installation"
+        Stats::computeStatsTrap "${rc}" "${logFile}" "${statsFile}" "${startDate}"
+        Stats::computeStatsTrap "${rc}" "${logFile}" "${globalStatsFile}" "${startDate}"
+        LOG_CONTEXT="${scriptName} - " Stats::statusLine "${statsFile}" "Installation"
         exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
@@ -596,9 +596,9 @@ InstallScripts::command() {
       # shellcheck disable=SC2317
       computeStats() {
         local rc=$?
-        Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
-        Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
-        Stats::statusLine "${rc}" "${statsFile}" "Test Install ${scriptName}"
+        Stats::computeStatsTrap "${rc}" "${logFile}" "${statsFile}" "${startDate}"
+        Stats::computeStatsTrap "${rc}" "${logFile}" "${globalStatsFile}" "${startDate}"
+        Stats::statusLine "${statsFile}" "Test Install ${scriptName}"
         exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
@@ -626,9 +626,9 @@ InstallScripts::command() {
       # shellcheck disable=SC2317
       computeStats() {
         local rc=$?
-        Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
-        Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
-        Stats::statusLine "${rc}" "${statsFile}" "Configuration ${scriptName}"
+        Stats::computeStatsTrap "${rc}" "${logFile}" "${statsFile}" "${startDate}"
+        Stats::computeStatsTrap "${rc}" "${logFile}" "${globalStatsFile}" "${startDate}"
+        Stats::statusLine "${statsFile}" "Configuration ${scriptName}"
         exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
@@ -657,9 +657,9 @@ InstallScripts::command() {
       # shellcheck disable=SC2317
       computeStats() {
         local rc=$?
-        Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
-        Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
-        Stats::statusLine "${rc}" "${statsFile}" "Test Configuration ${scriptName}"
+        Stats::computeStatsTrap "${rc}" "${logFile}" "${statsFile}" "${startDate}"
+        Stats::computeStatsTrap "${rc}" "${logFile}" "${globalStatsFile}" "${startDate}"
+        Stats::statusLine "${statsFile}" "Test Configuration ${scriptName}"
         exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
@@ -1419,14 +1419,15 @@ Log::headLine() {
 }
 
 # @description trap function responsible to compute and display stats after each script execution
-# @arg $1 logFile:String
-# @arg $2 statFile:String
-# @arg $3 startDate:String date at which log started
+# @arg $1 status:int
+# @arg $2 logFile:String
+# @arg $3 statFile:String
+# @arg $4 startDate:String date at which log started
 Stats::computeStatsTrap() {
-  local status="$?"
-  local logFile="$1"
-  local statFile="$2"
-  local startDate="$3"
+  local status="$1"
+  local logFile="$2"
+  local statFile="$3"
+  local startDate="$4"
   local endDate
   endDate="$(date +%s)"
   Stats::computeFromLog "${logFile}" "${status}" "$((endDate - startDate))" >"${statFile}"
@@ -1434,10 +1435,11 @@ Stats::computeStatsTrap() {
 }
 
 # @description display message to reflect last installation status
+# @arg $1:statFile
+# @arg $2:msg
 Stats::statusLine() {
-  local status="$1"
-  local statFile="$2"
-  local msg="$3"
+  local statFile="$1"
+  local msg="$2"
   if [[ ! -f "${statFile}" ]]; then
     return 0
   fi
