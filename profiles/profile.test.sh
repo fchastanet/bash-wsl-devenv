@@ -5,7 +5,5 @@ if [[ -z "${CONFIG_LIST+xxx}" ]]; then
 fi
 
 CONFIG_LIST=(
-  Fzf
-  ShellBash
-  ShellZsh
+  SimpleTest
 )

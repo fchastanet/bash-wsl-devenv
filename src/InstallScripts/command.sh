@@ -47,9 +47,9 @@ InstallScripts::command() {
       # shellcheck disable=SC2317
       computeStats() {
         local rc=$?
-        Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
-        Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
-        LOG_CONTEXT="${scriptName} - " Stats::statusLine "${rc}" "${statsFile}" "Installation"
+        Stats::computeStatsTrap "${rc}" "${logFile}" "${statsFile}" "${startDate}"
+        Stats::computeStatsTrap "${rc}" "${logFile}" "${globalStatsFile}" "${startDate}"
+        LOG_CONTEXT="${scriptName} - " Stats::statusLine "${statsFile}" "Installation"
         exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
@@ -73,9 +73,9 @@ InstallScripts::command() {
       # shellcheck disable=SC2317
       computeStats() {
         local rc=$?
-        Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
-        Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
-        Stats::statusLine "${rc}" "${statsFile}" "Test Install ${scriptName}"
+        Stats::computeStatsTrap "${rc}" "${logFile}" "${statsFile}" "${startDate}"
+        Stats::computeStatsTrap "${rc}" "${logFile}" "${globalStatsFile}" "${startDate}"
+        Stats::statusLine "${statsFile}" "Test Install ${scriptName}"
         exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
@@ -103,9 +103,9 @@ InstallScripts::command() {
       # shellcheck disable=SC2317
       computeStats() {
         local rc=$?
-        Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
-        Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
-        Stats::statusLine "${rc}" "${statsFile}" "Configuration ${scriptName}"
+        Stats::computeStatsTrap "${rc}" "${logFile}" "${statsFile}" "${startDate}"
+        Stats::computeStatsTrap "${rc}" "${logFile}" "${globalStatsFile}" "${startDate}"
+        Stats::statusLine "${statsFile}" "Configuration ${scriptName}"
         exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT
@@ -134,9 +134,9 @@ InstallScripts::command() {
       # shellcheck disable=SC2317
       computeStats() {
         local rc=$?
-        Stats::computeStatsTrap "${logFile}" "${statsFile}" "${startDate}"
-        Stats::computeStatsTrap "${logFile}" "${globalStatsFile}" "${startDate}"
-        Stats::statusLine "${rc}" "${statsFile}" "Test Configuration ${scriptName}"
+        Stats::computeStatsTrap "${rc}" "${logFile}" "${statsFile}" "${startDate}"
+        Stats::computeStatsTrap "${rc}" "${logFile}" "${globalStatsFile}" "${startDate}"
+        Stats::statusLine "${statsFile}" "Test Configuration ${scriptName}"
         exit "${rc}"
       }
       trap 'computeStats' EXIT INT TERM ABRT

@@ -35,7 +35,7 @@ Stats::aggregateStats() {
       if ((newStatus == 0)); then
         ((statusSuccess++)) || true
       fi
-      if ((newError > 0)); then
+      if ((newStatus > 0 || newError > 0)); then
         ((error++)) || true
       fi
       if ((newWarning > 0)); then
