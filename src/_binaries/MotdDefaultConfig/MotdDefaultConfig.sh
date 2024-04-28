@@ -16,7 +16,7 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "Anacron"
+  echo "installScripts/Anacron"
 }
 
 fortunes() {

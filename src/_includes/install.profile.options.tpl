@@ -54,7 +54,7 @@ commandCallback() {
     # check if each Softwares exists
     local software
     for software in "${CONFIG_LIST[@]}"; do
-      if [[ ! -f "${INSTALL_SCRIPTS_DIR}/${software}" ]]; then
+      if [[ ! -f "${INSTALL_SCRIPTS_ROOT_DIR}/${software}" ]]; then
         Log::fatal "Software installScripts/${software} configuration does not exists"
       fi
     done
@@ -79,7 +79,7 @@ commandCallback() {
     declare -Ag allDepsResultSeen=()
 
     Profiles::allDepsRecursive \
-      "${INSTALL_SCRIPTS_DIR}" "${rootDependency}" "${CONFIG_LIST[@]}"
+      "${INSTALL_SCRIPTS_ROOT_DIR}" "${rootDependency}" "${CONFIG_LIST[@]}"
 
     CONFIG_LIST=("${allDepsResult[@]}")
   fi

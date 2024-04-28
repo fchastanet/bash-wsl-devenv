@@ -72,7 +72,7 @@ This function is responsible for:
   - LOGS_DIR => defaults to ${BASH_DEV_ENV_ROOT_DIR}/logs
   - PROJECTS_DIR => defaults to ${HOME}/projects
   - BACKUP_DIR => defaults to ${BASH_DEV_ENV_ROOT_DIR}/backup
-  - INSTALL_SCRIPTS_DIR => defaults to ${BASH_DEV_ENV_ROOT_DIR}/scripts
+  - INSTALL_SCRIPTS_ROOT_DIR => defaults to "${BASH_DEV_ENV_ROOT_DIR}"
 
 - setting sudoer without password temporarily
 

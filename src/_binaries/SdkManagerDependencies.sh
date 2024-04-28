@@ -11,7 +11,7 @@ scriptName() {
 }
 
 dependencies() {
-  echo "SdkManager"
+  echo "installScripts/SdkManager"
 }
 
 install() {

@@ -6,31 +6,31 @@ fi
 
 # Mandatory packages
 CONFIG_LIST+=(
-  "ConformanceTest"
-  "MandatorySoftwares"
-  "WslDefaultConfig"
-  "Upgrade"
+  "installScripts/ConformanceTest"
+  "installScripts/MandatorySoftwares"
+  "installScripts/WslDefaultConfig"
+  "installScripts/Upgrade"
 )
 
 # optional packages
 CONFIG_LIST+=(
-  "Docker"
-  "MotdDefaultConfig"
-  "AwsDefaultConfig"
-  "KubeDefaultConfig"
-  "SdkManagerDependencies"
-  "Fortune"
-  "Saml2Aws"
-  "ShellZsh"
-  "BashTools"
-  "PreCommitDefaultConfig"
-  "CodeCheckers"
-  "Oq"
-  "PlantUml"
+  "installScripts/Docker"
+  "installScripts/MotdDefaultConfig"
+  "installScripts/AwsDefaultConfig"
+  "installScripts/KubeDefaultConfig"
+  "installScripts/SdkManagerDependencies"
+  "installScripts/Fortune"
+  "installScripts/Saml2Aws"
+  "installScripts/ShellZsh"
+  "installScripts/BashTools"
+  "installScripts/PreCommitDefaultConfig"
+  "installScripts/CodeCheckers"
+  "installScripts/Oq"
+  "installScripts/PlantUml"
 )
 
 # Mandatory packages
 CONFIG_LIST+=(
-  "Clean"
-  "Export"
+  "installScripts/Clean"
+  "installScripts/Export"
 )

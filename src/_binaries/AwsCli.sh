@@ -15,7 +15,7 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "Xvsb"
+  echo "installScripts/Xvsb"
 }
 
 # jscpd:ignore-start

@@ -16,8 +16,8 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "ShellBash"
-  echo "Tig"
+  echo "installScripts/ShellBash"
+  echo "installScripts/Tig"
 }
 
 fortunes() {

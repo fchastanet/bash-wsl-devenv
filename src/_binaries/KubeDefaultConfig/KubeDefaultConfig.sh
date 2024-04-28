@@ -16,10 +16,10 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "ShellBash"
-  echo "Saml2Aws"
-  echo "Docker"
-  echo "Go"
+  echo "installScripts/ShellBash"
+  echo "installScripts/Saml2Aws"
+  echo "installScripts/Docker"
+  echo "installScripts/Go"
 }
 
 # jscpd:ignore-start

@@ -30,7 +30,7 @@ fortunes() {
 }
 
 dependencies() {
-  echo "PreCommitDefaultConfig"
+  echo "installScripts/PreCommitDefaultConfig"
 }
 
 helpVariables() { :; }

@@ -15,13 +15,13 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "Hadolint"
+  echo "installScripts/Hadolint"
   # Go is needed by shfmt
-  echo "Go"
+  echo "installScripts/Go"
   # Python is needed by shfmt-py
-  echo "Python"
-  echo "NodeDependencies"
-  echo "Composer"
+  echo "installScripts/Python"
+  echo "installScripts/NodeDependencies"
+  echo "installScripts/Composer"
 }
 
 # jscpd:ignore-start

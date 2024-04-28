@@ -16,8 +16,8 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "PreCommit"
-  echo "GitDefaultConfig"
+  echo "installScripts/PreCommit"
+  echo "installScripts/GitDefaultConfig"
 }
 
 fortunes() {

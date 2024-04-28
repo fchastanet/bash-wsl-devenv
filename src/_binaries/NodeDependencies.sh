@@ -15,7 +15,7 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "NodeNpm"
+  echo "installScripts/NodeNpm"
 }
 
 # jscpd:ignore-start

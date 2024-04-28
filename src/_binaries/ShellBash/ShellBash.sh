@@ -18,12 +18,12 @@ helpDescription() {
 }
 
 dependencies() {
-  echo Bat
-  echo Fasd
+  echo "installScripts/Bat"
+  echo "installScripts/Fasd"
   # font needed for displaying bash prompt
-  echo Font
-  echo Fzf
-  echo Vim
+  echo "installScripts/Font"
+  echo "installScripts/Fzf"
+  echo "installScripts/Vim"
 }
 
 # jscpd:ignore-start

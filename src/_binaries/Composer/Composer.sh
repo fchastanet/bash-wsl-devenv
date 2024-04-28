@@ -16,7 +16,7 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "Php"
+  echo "installScripts/Php"
 }
 
 # jscpd:ignore-start

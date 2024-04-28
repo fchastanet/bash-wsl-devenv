@@ -229,8 +229,8 @@ BACKUP_DIR="${BASH_DEV_ENV_ROOT_DIR}/backup"
 BACKUP_BEFORE_INSTALL=1
 # logs directory
 LOGS_DIR="${BASH_DEV_ENV_ROOT_DIR}/logs"
-# installScripts dir
-INSTALL_SCRIPTS_DIR="${BASH_DEV_ENV_ROOT_DIR}/installScripts"
+# installScripts root dir
+INSTALL_SCRIPTS_ROOT_DIR="${BASH_DEV_ENV_ROOT_DIR}"
 
 # 0   => no upgrade at all
 # lts => UPGRADE to latest ubuntu lts version
@@ -1053,7 +1053,7 @@ Engine::Config::checkEnv() {
   checkVarAndDir PROJECTS_DIR r || true
   checkVarAndDir BACKUP_DIR rw || true
   checkVarAndDir LOGS_DIR rw || true
-  checkVarAndDir INSTALL_SCRIPTS_DIR r || true
+  checkVarAndDir INSTALL_SCRIPTS_ROOT_DIR r || true
   checkVarAndDir HOME rw || true
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev

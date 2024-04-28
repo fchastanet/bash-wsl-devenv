@@ -1,14 +1,5 @@
 .idea
 
-backup/*
-!backup/.gitkeep
-
-conf.override/*
-!conf.override/.gitkeep
-
-logs/*
-!logs/.gitkeep
-
 node_modules/
 yarn.lock
 

@@ -1,5 +1,5 @@
 %
-declare versionNumber="1.0"
+declare versionNumber="1.1"
 declare copyrightBeginYear="2024"
 declare commandFunctionName="installCommand"
 declare help="Install or update softwares"
@@ -19,10 +19,10 @@ List of softwares available:
 generateSoftwaresList() {
   while read -r soft; do
     echo -en "  - ${__HELP_TITLE_COLOR}${soft}: ${__HELP_EXAMPLE}"
-    SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${soft}" helpDescription 2>/dev/null || echo
+    SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${soft}" helpDescription 2>/dev/null || echo
     echo -en "${__RESET_COLOR}"
   done < <(
-    Conf::list "${INSTALL_SCRIPTS_DIR}" "" "" "-type f" "" |
+    Conf::list "${INSTALL_SCRIPTS_ROOT_DIR}" "" "" "-type f" "" |
       grep -v -E '^(_.*|MandatorySoftwares)$' || true
   )
 }

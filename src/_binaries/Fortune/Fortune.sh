@@ -17,7 +17,7 @@ helpDescription() {
 
 # jscpd:ignore-start
 dependencies() {
-  echo "Anacron"
+  echo "installScripts/Anacron"
 }
 helpVariables() { :; }
 listVariables() { :; }
