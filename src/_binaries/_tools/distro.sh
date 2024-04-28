@@ -2,6 +2,7 @@
 # BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/distro
 # FACADE
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=.
+# VAR_LOAD_LOCALE_CONFIG=0
 
 optionSkipDistro=0
 optionSkipInstall=0
@@ -26,10 +27,10 @@ downloadDistro() {
   fi
   local distroImageDir
   distroImageDir="$(getDistroImageDir)"
-  local distroImageTargetZip="${TMPDIR:-/tmp}/${distroImageDir}.zip"
+  local distroImageTargetZip="${TMPDIR:-/tmp}/${distroImageDir}"
 
-  if [[ ! -f "${distroImageDir}/AppxBlockMap.xml" ]]; then
-    Log::displayInfo "File ${distroImageDir}/AppxBlockMap.xml does not exist"
+  if [[ ! -f "${distroImageDir}/install.tar" ]]; then
+    Log::displayInfo "File ${distroImageDir}/install.tar does not exist"
     Log::displayInfo "Downloading official ubuntu image from ${DISTRO_URL} ..."
     # https://github.com/aria2/aria2/issues/684
     (
@@ -37,7 +38,12 @@ downloadDistro() {
       aria2c -c --max-connection-per-server=8 --min-split-size=1M -o "${distroImageTargetZip}" "${DISTRO_URL}"
     )
     Log::displayInfo "Unzipping ubuntu image ..."
-    unzip "${distroImageTargetZip}" -d "${distroImageDir}"
+    if [[ "${DISTRO_URL##*.}" = "gz" ]]; then
+      mkdir -p "${distroImageDir}"
+      gunzip -c "${distroImageTargetZip}" >"${distroImageDir}/install.tar"
+    else
+      unzip "${distroImageTargetZip}" -d "${distroImageDir}"
+    fi
   fi
 
   if [[ ! -f "${distroImageDir}/install.tar" ]]; then
@@ -76,9 +82,15 @@ installDistro() {
   installTarPath="$(wslpath -w "${distroImageDir}/install.tar")"
   powershell.exe -ExecutionPolicy Bypass -NoProfile \
     -Command "wsl.exe --import \"${DISTRO_NAME}\" \"${destDistroPath}\" \"${installTarPath}\" --version 2"
+}
 
+createDistroUser() {
   Log::displayInfo "Add user ${USERNAME} with default password 'wsl' in new distro"
-  runWslCmd useradd -m -s /bin/bash "${USERNAME}"
+  if runWslCmd id ubuntu &>/dev/null; then
+    runWslCmd sudo userdel ubuntu
+  fi
+  # create user with the same uid/gid as local user
+  runWslCmd sudo useradd -m -s /bin/bash "-u$(id -u)" "-g$(id -g)" "${USERNAME}"
   runWslCmd usermod -aG sudo "${USERNAME}"
   echo "${USERNAME}:wsl" | runWslCmd chpasswd
 }
@@ -86,7 +98,7 @@ installDistro() {
 # mount new distro / folder into current distro
 mountDistroFolder() {
   sudo mkdir -p "/mnt/wsl/${DISTRO_NAME}"
-  sudo mount -t drvfs "\\\\wsl$\\${DISTRO_NAME}" "/mnt/wsl/${DISTRO_NAME}"
+  sudo mount -t drvfs -o "uid=$(id -un),gid=$(id -gn)" "\\\\wsl$\\${DISTRO_NAME}" "/mnt/wsl/${DISTRO_NAME}"
   mkdir -p "/mnt/wsl/${DISTRO_NAME}${HOME}/fchastanet"
   runWslCmd chown -R "${USERNAME}:${USERGROUP}" "${HOME}/fchastanet"
 }
@@ -175,8 +187,9 @@ run() {
     Log::displaySkipped "Distribution ${DISTRO_NAME} already installed"
   else
     installDistro
+    createDistroUser
   fi
-
+  REMOTE=runWslCmd Engine::Config::loadUserVariables
   mountDistroFolder
 
   Log::displayInfo "Enable automount of this distro's / in /mnt/wsl/<distro> of the remote distro"

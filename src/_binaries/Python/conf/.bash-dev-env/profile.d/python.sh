@@ -7,7 +7,7 @@
 export PATH
 
 # load this virtualenv
-if [[ -f "${HOME}/.virtualenvs/python3.9/bin/activate" ]]; then
+if [[ -f "${HOME}/.virtualenvs/python3/bin/activate" ]]; then
   # shellcheck source=/dev/null
-  source "${HOME}/.virtualenvs/python3.9/bin/activate"
+  source "${HOME}/.virtualenvs/python3/bin/activate"
 fi

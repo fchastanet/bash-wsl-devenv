@@ -7,19 +7,18 @@
 # @set USERGROUP_ID String
 # @set USER_SHELL String current user shell
 # @set HOME String
+# @env REMOTE String prefix command to run commands remotely
 Engine::Config::loadUserVariables() {
   # deduce user home and group
   local -a split
   local IFS=':'
   # shellcheck disable=SC2207
-  split=($(getent passwd "${USERNAME}"))
+  split=($(${REMOTE:-} getent passwd "${USERNAME}"))
   USER_ID="${split[2]}"
   USERGROUP_ID="${split[3]}"
   HOME="${split[5]}"
   USER_SHELL="${split[6]}"
-  # shellcheck disable=SC2207
-  split=($(getent group "${USERNAME}"))
-  USERGROUP="${split[0]}"
+  USERGROUP="$(${REMOTE:-} id -gn "${USERNAME}")"
 
   if [[ -z "${USERGROUP}" || -z "${HOME}" ]]; then
     Log::displayError "USERNAME - unable to deduce USERGROUP, HOME from USERNAME"

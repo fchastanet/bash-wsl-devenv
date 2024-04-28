@@ -187,8 +187,8 @@ envFileTemplate="$(
 # shellcheck disable=SC2034
 # wsl username
 USERNAME="wsl"
-USERGROUP="wsl"
 HOME="/home/wsl"
+WINDOWS_USERNAME="fchastanet"
 
 # your login to connect to ssh servers if any
 SSH_LOGIN=""
@@ -338,7 +338,7 @@ Engine::Config::loadConfig() {
 
   Log::requireLoad
 
-  export PATH="${PATH}:${HOME}/.local/bin"
+  Engine::Config::loadLocaleConfig
 
   export BASH_DEV_ENV_CONFIG_LOADED=1
 }
@@ -907,16 +907,20 @@ Assert::fileExists() {
   local file="$1"
   local user="${2:-${USERNAME}}"
   local group="${3:-${USERGROUP}}"
-  Log::displayInfo "Check ${file} exists with user ${user}:${group}"
+  if [[ -n "${user}" ]]; then
+    Log::displayInfo "Check ${file} exists with user ${user}:${group}"
+  else
+    Log::displayInfo "Check ${file} exists"
+  fi
   if ! ${SUDO:-} test -f "${file}" &>/dev/null; then
     Log::displayError "missing file ${file}"
     return 1
   fi
-  if [[ "${user}" != "$(${SUDO:-} stat -c '%U' "${file}")" ]]; then
+  if [[ -n "${user}" && "${user}" != "$(${SUDO:-} stat -c '%U' "${file}")" ]]; then
     Log::displayError "incorrect user ownership on file ${file}"
     return 2
   fi
-  if [[ "${group}" != "$(${SUDO:-} stat -c '%G' "${file}")" ]]; then
+  if [[ -n "${group}" && "${group}" != "$(${SUDO:-} stat -c '%G' "${file}")" ]]; then
     Log::displayError "incorrect group ownership on file ${file}"
     return 3
   fi
@@ -1091,19 +1095,18 @@ Engine::Config::loadOsRelease() {
 # @set USERGROUP_ID String
 # @set USER_SHELL String current user shell
 # @set HOME String
+# @env REMOTE String prefix command to run commands remotely
 Engine::Config::loadUserVariables() {
   # deduce user home and group
   local -a split
   local IFS=':'
   # shellcheck disable=SC2207
-  split=($(getent passwd "${USERNAME}"))
+  split=($(${REMOTE:-} getent passwd "${USERNAME}"))
   USER_ID="${split[2]}"
   USERGROUP_ID="${split[3]}"
   HOME="${split[5]}"
   USER_SHELL="${split[6]}"
-  # shellcheck disable=SC2207
-  split=($(getent group "${USERNAME}"))
-  USERGROUP="${split[0]}"
+  USERGROUP="$(${REMOTE:-} id -gn "${USERNAME}")"
 
   if [[ -z "${USERGROUP}" || -z "${HOME}" ]]; then
     Log::displayError "USERNAME - unable to deduce USERGROUP, HOME from USERNAME"
@@ -1284,7 +1287,7 @@ Engine::Config::loadWslVariables() {
   export WINDOWS_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_PROFILE_DIR USERPROFILE
-  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C:-/mnt/c}/Users/${USERNAME}}"
+  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C:-/mnt/c}/Users/${WINDOWS_USERNAME}}"
   export WINDOWS_PROFILE_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 LOCAL_APP_DATA LOCALAPPDATA
@@ -1333,6 +1336,26 @@ Engine::Config::loadWslVariables() {
   checkBinary POWERSHELL_BIN
 
   return "${errorCount}"
+}
+
+# @description load locale configuration
+Engine::Config::loadLocaleConfig() {
+  if [[ "${BASH_DEV_ENV_CONFIG_LOADED:-0}" = "1" ]]; then
+    return 0
+  fi
+  if [[ "${LOAD_LOCALE_CONFIG:-1}" = "1" && ! -f "${PERSISTENT_TMPDIR}/localeConfig.initialized" ]]; then
+    Log::displayInfo "Initializing locale en_US.UTF-8"
+    export PATH="${PATH}:${HOME}/.local/bin"
+    sudo sed -E -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
+    echo 'LANG="en_US.UTF-8"' | sudo tee /etc/default/locale >/dev/null
+    echo "LANG=en_US.UTF-8" | sudo tee /etc/locale.conf >/dev/null
+    sudo locale-gen en_US.UTF-8
+    sudo dpkg-reconfigure --frontend=noninteractive locales
+    export LC_ALL=C
+    export LANG=en_US.UTF-8
+    export LC_MESSAGES=en_US.UTF-8
+    touch "${PERSISTENT_TMPDIR}/localeConfig.initialized"
+  fi
 }
 
 # @description log message to file
@@ -2514,7 +2537,7 @@ File::garbageCollect() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+3TYUvCQBzH8T3eq/iHPlDIbbfdeTDwgbnFBuWETnogBoqmgmi4sgdOX3sbIVRUIm1G9Ps8Odjd2G3fm2FqhbNSUohsZFJYb8c9jfE6Y5aQjs3S65JbUiNR/NY07Sl+HKyItOd4/u26Q/N/lGEaw0E8rY3G69p4sS7kNBzdnzHJOfqfwsf+D6vl/Ww+NkY5noSj+jtZf6du4/8/ia/7T5bzwWJixNMfP+NQfy7ka3/brjOLp/0Fd9L+Vg7vd9A/7186M4ezhZmdAb2UL71EXkTtSJHvheqcVBDe0GV45VOr2aYLn7odr6l8j25DFURdlS0NW37u29B7PXLLm05TBVuXGjuq3CVutbwJomt/mx7z7ANU3KRcpX6fkoSyhY330/vb9d/OBQAAAAAAAAAAAAAAAAAA8KkXo5Qa3AAoAAA="
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+3TUWuCUBQHcJ/7FGfYQ8FSb96bIPTQ0qGwZbAbe4gGRq2CqJFbe8j67FO2YBvbJKaN2P/3ckAPx6v/o6YrhTMSlhBpZZYw3tc9hfEGY4awzDpLrlvcsBQSxR9NUZ6ix3BFpDxH8x/7su6fKE3XhmE0rY3G69p4sS5kGw7OnzGLc+R/DJ/zf1gt72fzsTbKcRMOyt9M8zcbdfz/R/F9/pPlPFxMtGj662dk5d9gr/mbjBuizpP8BU/WgIwc3i/TP89fPdOHs4We7kBJzVdJJSegTiDJdXx5TtLzb+jSv3Kp3erQhUu9rtOSrkO3vvSCnkxb/bab+zFK/T7Z5U23Jb2tTc0dVe5iu1reeMG1u31b86Sk36Fix+UqDQYUx5T2N7/s2g/LGpwx8cOov94DAAAAAAAAAAAAAAAAAAA4bS8XNZVeACgAAA=="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -2532,13 +2555,14 @@ Compiler::Facade::requireCommandBinDir
 if Assert::functionExists initFacade; then
   initFacade
 fi
+LOAD_LOCALE_CONFIG="1"
 Engine::Config::loadConfig
 # @description create sudoer file and add traps to remove it at the end
 # @arg $1 sudoerFile:String the file path to create
 # @env USERNAME
 # shellcheck disable=SC2317
 local sudoerFile="${SUDOER_FILE_PREFIX}/etc/sudoers.d/bash-dev-env-no-password"
-if [[ -f "${sudoerFile}" ]]; then
+if [[ -f "${sudoerFile}" ]] || sudo test -f "${sudoerFile}"; then
   # sudoerFile probably already managed by parent script
   true
 else
@@ -3349,7 +3373,7 @@ install() {
     local downloadedArchive="$1"
     Log::displayInfo "Install/update go ..."
     mkdir -p "${HOME}/golang"
-    tar xvzf "${downloadedArchive}" -C "${HOME}/golang"
+    tar xzf "${downloadedArchive}" -C "${HOME}/golang"
   }
   FILTER_LAST_VERSION_CALLBACK=filterLatestNonBetaVersion \
     INSTALL_CALLBACK=installGo \
@@ -3373,8 +3397,6 @@ configure() {
     "${embed_dir_conf_dir}" \
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
     ".bash-dev-env"
-  ln -sfv "${HOME}/golang/go/bin/go" "${HOME}/go/bin/go"
-  ln -sfv "${HOME}/golang/go/bin/gofmt" "${HOME}/go/bin/gofmt"
 }
 testConfigure() {
   local failures=0

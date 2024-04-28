@@ -78,6 +78,7 @@ In order of activation:
 
 ### 2.3. Startup files order
 
+<!-- prettier-ignore-start -->
 |               | Interactive<br>login | Interactive<br>non-login | Script |
 |---------------|----------------------|--------------------------|--------|
 | /etc/zshenv   | A                    | A                        | A      |
@@ -90,6 +91,7 @@ In order of activation:
 | ~/.zlogin     | H                    |                          |        |
 | ~/.zlogout    | I                    |                          |        |
 | /etc/zlogout  | J                    |                          |        |
+<!-- prettier-ignore-end -->
 
 ### 2.4. Practical guide to which files get sourced when
 

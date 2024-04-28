@@ -518,6 +518,7 @@ facade_main_fixWslDatesh() {
 if Assert::functionExists initFacade; then
   initFacade
 fi
+LOAD_LOCALE_CONFIG="1"
 
 # @require Compiler::Facade::requireCommandBinDir
 

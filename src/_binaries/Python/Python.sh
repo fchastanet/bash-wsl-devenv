@@ -29,7 +29,43 @@ breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 # jscpd:ignore-end
 
+isUbuntuMinimum24() {
+  Version::compare "${VERSION_ID}" "24.04"
+}
+
 install() {
+  if isUbuntuMinimum24; then
+    installFromUbuntu24
+  else
+    installFromUbuntu20
+  fi
+}
+
+installFromUbuntu24() {
+  local -a packages=(
+    build-essential
+    python3
+    python-is-python3
+    python3-pip
+    python3-virtualenv
+  )
+  Linux::Apt::installIfNecessary --no-install-recommends "${packages[@]}"
+
+  mkdir -p \
+    "${HOME}/.local/bin" \
+    "${HOME}/.local/lib"
+
+  # shellcheck disable=SC2154
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-dev-env"
+
+  # Upgrade of pip packages will be done on subsequent calls during upgrade cron
+  upgradePipPackages
+}
+
+installFromUbuntu20() {
   SKIP_APT_GET_UPDATE=1 Linux::Apt::addRepository ppa:deadsnakes/ppa
   local -a packages=(
     build-essential
@@ -76,9 +112,13 @@ removeDuplicatePipPackages() {
 
 testInstall() {
   local -i failures=0
-  # since virtualenv is not loaded python 3.9 is not yet available
-  Version::checkMinimal "python" "--version" "3.8.10" || ((++failures))
-  Version::checkMinimal "virtualenv" "--version" "20.25.1" || ((++failures))
+  if isUbuntuMinimum24; then
+    Version::checkMinimal "python" "--version" "3.12.3" || ((++failures))
+  else
+    # since virtualenv is not loaded python 3.9 is not yet available
+    Version::checkMinimal "python" "--version" "3.8.10" || ((++failures))
+  fi
+  Version::checkMinimal "virtualenv" "--version" "20.25.0" || ((++failures))
   Assert::fileExists "${HOME}/.bash-dev-env/profile.d/python.sh" || ((++failures))
   return "${failures}"
 }
@@ -88,11 +128,11 @@ configure() {
   mkdir -p "${HOME}/.virtualenvs" || true
   mkdir -p "${HOME}/.pip/cache" || true
 
-  # create python3.9 virtual env
+  # create python3 virtual env
   # virtualenv (for Python 3) and venv (for Python 2)
   # allows you to manage separate package installations
   # for different projects.
-  virtualenv --system-site-packages --python=/usr/bin/python3.9 "${HOME}/.virtualenvs/python3.9"
+  virtualenv --system-site-packages --python=/usr/bin/python3 "${HOME}/.virtualenvs/python3"
   upgradePipPackages
 }
 
@@ -100,10 +140,12 @@ upgradePipPackages() {
   if [[ "${PIP_PACKAGES_UPGRADED:-0}" = "1" ]]; then
     return 0
   fi
-  if [[ -f "${HOME}/.virtualenvs/python3.9/bin/activate" ]]; then
+  if [[ -f "${HOME}/.virtualenvs/python3/bin/activate" ]]; then
     # load this virtualenv
     # shellcheck source=/dev/null
-    source "${HOME}/.virtualenvs/python3.9/bin/activate"
+    source "${HOME}/.virtualenvs/python3/bin/activate"
+
+    Log::displayInfo "Upgrading virtualenv pip packages"
 
     # remove duplicate pip packages with ~ prefix that breaks pip packages upgrade otherwise
     find "${VIRTUAL_ENV}/lib/python3.9/site-packages" -name '~*' -exec rm -Rf {} ';' || true
@@ -117,10 +159,14 @@ upgradePipPackages() {
 testConfigure() {
   local -i failures=0
   # shellcheck source=/dev/null
-  source "${HOME}/.virtualenvs/python3.9/bin/activate" || ((++failures))
-  Version::checkMinimal "python" "--version" "3.9.18" || ((++failures))
+  source "${HOME}/.virtualenvs/python3/bin/activate" || ((++failures))
+  if isUbuntuMinimum24; then
+    Version::checkMinimal "python" "--version" "3.12.3" || ((++failures))
+  else
+    Version::checkMinimal "python" "--version" "3.9.18" || ((++failures))
+  fi
   Version::checkMinimal "pip" "--version" "24.0" || ((++failures))
-  [[ "${VIRTUAL_ENV}" = "${HOME}/.virtualenvs/python3.9" ]] || {
+  [[ "${VIRTUAL_ENV}" = "${HOME}/.virtualenvs/python3" ]] || {
     Log::displayError "Virtualenv has not been loaded correctly"
     ((++failures))
   }

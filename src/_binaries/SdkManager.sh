@@ -29,13 +29,11 @@ install() {
     # shellcheck source=/dev/null
     source "${HOME}/.sdkman/bin/sdkman-init.sh"
     sdk selfupdate force
-    local output
-    local exitCode=0
-    output="$(yes | sdk install java)" || exitCode=$?
-    echo "${output}"
+    yes | sdk install java || true # exit code of sdk is not reliable
     # exit code can be different than 0 when java already installed
-    if [[ "${exitCode}" != "0" && ! "${output}" =~ java\ .*\ is\ already\ installed\. ]]; then
-      exit 1
+    if ! command -v java &>/dev/null; then
+      Log::displayError "java not installed, check above logs"
+      return 1
     fi
   ) || {
     Log::displayError "Error while installing java"
