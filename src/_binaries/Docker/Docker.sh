@@ -34,6 +34,44 @@ breakOnTestFailure() { :; }
 # REQUIRE Linux::requireUbuntu
 # REQUIRE Linux::requireExecutedAsUser
 install() {
+  if isUbuntuMinimum24; then
+    installFromUbuntu24
+  else
+    installFromUbuntu20
+  fi
+}
+
+isUbuntuMinimum24() {
+  Version::compare "${VERSION_ID}" "24.04"
+}
+
+installFromUbuntu24() {
+  Log::displayInfo "install docker required packages"
+  Linux::Apt::installIfNecessary --no-install-recommends \
+    ca-certificates \
+    curl
+
+  sudo sh -c 'install -m 0755 -d /etc/apt/keyrings'
+  Retry::default sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+  Log::displayInfo "install docker apt source list"
+  echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+    https://download.docker.com/linux/ubuntu \
+    ${VERSION_CODENAME} stable" |
+    sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+
+  Log::displayInfo "install docker"
+  Linux::Apt::installIfNecessary --no-install-recommends \
+    containerd.io \
+    docker-buildx-plugin \
+    docker-ce \
+    docker-ce-cli \
+    docker-compose-plugin
+}
+
+installFromUbuntu20() {
   Log::displayInfo "install docker required packages"
   Linux::Apt::installIfNecessary --no-install-recommends \
     apt-transport-https \
@@ -94,17 +132,26 @@ testInstall() {
   return "${failures}"
 }
 
-configure() {
-  Log::displayInfo "allowing user '${USERNAME}' to use docker"
-  sudo getent group docker >/dev/null || sudo groupadd docker || true
-  sudo usermod -aG docker "${USERNAME}" || true
-
+configureDockerPlugin() {
   Log::displayInfo "Configuring docker-compose as docker plugin"
   # create the docker plugins directory if it doesn't exist yet
   # shellcheck disable=SC2153
   mkdir -p "${HOME}/.docker/cli-plugins"
   rm -f "${HOME}/.docker/cli-plugins/docker-compose" || true
   sudo ln -sf /usr/local/bin/docker-compose "${HOME}/.docker/cli-plugins/docker-compose"
+}
+
+configure() {
+  Log::displayInfo "allowing user '${USERNAME}' to use docker"
+  sudo getent group docker >/dev/null || sudo groupadd docker || true
+  sudo usermod -aG docker "${USERNAME}" || true
+
+  if ! isUbuntuMinimum24; then
+    configureDockerPlugin
+  fi
+
+  sudo systemctl enable docker.service
+  sudo systemctl enable containerd.service
 
   # shellcheck disable=SC2154
   Conf::copyStructure \
@@ -120,12 +167,6 @@ testConfigure() {
   Log::displayInfo "check if docker-compose binary is working"
   if ! docker-compose version &>/dev/null; then
     Log::displayError "docker-compose failure"
-    ((++failures))
-  fi
-
-  Log::displayInfo "check if docker compose plugin is installed"
-  if [[ ! -f "${HOME}/.docker/cli-plugins/docker-compose" ]]; then
-    Log::displayError "docker compose plugin not installed in folder ${HOME}/.docker/cli-plugins/"
     ((++failures))
   fi
 

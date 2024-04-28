@@ -187,8 +187,8 @@ envFileTemplate="$(
 # shellcheck disable=SC2034
 # wsl username
 USERNAME="wsl"
-USERGROUP="wsl"
 HOME="/home/wsl"
+WINDOWS_USERNAME="fchastanet"
 
 # your login to connect to ssh servers if any
 SSH_LOGIN=""
@@ -338,7 +338,7 @@ Engine::Config::loadConfig() {
 
   Log::requireLoad
 
-  export PATH="${PATH}:${HOME}/.local/bin"
+  Engine::Config::loadLocaleConfig
 
   export BASH_DEV_ENV_CONFIG_LOADED=1
 }
@@ -836,6 +836,38 @@ InstallScripts::scriptFunctionEmpty() {
   [[ "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} && "$(declare -f "$1" | sed '4q;d')" = "}" ]]
 }
 
+# @description compare 2 version numbers
+# @arg $1 version1:String version 1
+# @arg $2 version2:String version 2
+# @exitcode 0 if equal
+# @exitcode 1 if version1 > version2
+# @exitcode 2 else
+Version::compare() {
+  if [[ "$1" = "$2" ]]; then
+    return 0
+  fi
+  local IFS=.
+  # shellcheck disable=2206
+  local i ver1=($1) ver2=($2)
+  # fill empty fields in ver1 with zeros
+  for ((i = ${#ver1[@]}; i < ${#ver2[@]}; i++)); do
+    ver1[i]=0
+  done
+  for ((i = 0; i < ${#ver1[@]}; i++)); do
+    if [[ -z "${ver2[i]+unset}" ]] || [[ -z ${ver2[i]} ]]; then
+      # fill empty fields in ver2 with zeros
+      ver2[i]=0
+    fi
+    if ((10#${ver1[i]} > 10#${ver2[i]})); then
+      return 1
+    fi
+    if ((10#${ver1[i]} < 10#${ver2[i]})); then
+      return 2
+    fi
+  done
+  return 0
+}
+
 # @description add apt repository followed by an apt-get update
 # @feature Retry::default
 # Linux::requireSudoCommand
@@ -955,16 +987,20 @@ Assert::fileExists() {
   local file="$1"
   local user="${2:-${USERNAME}}"
   local group="${3:-${USERGROUP}}"
-  Log::displayInfo "Check ${file} exists with user ${user}:${group}"
+  if [[ -n "${user}" ]]; then
+    Log::displayInfo "Check ${file} exists with user ${user}:${group}"
+  else
+    Log::displayInfo "Check ${file} exists"
+  fi
   if ! ${SUDO:-} test -f "${file}" &>/dev/null; then
     Log::displayError "missing file ${file}"
     return 1
   fi
-  if [[ "${user}" != "$(${SUDO:-} stat -c '%U' "${file}")" ]]; then
+  if [[ -n "${user}" && "${user}" != "$(${SUDO:-} stat -c '%U' "${file}")" ]]; then
     Log::displayError "incorrect user ownership on file ${file}"
     return 2
   fi
-  if [[ "${group}" != "$(${SUDO:-} stat -c '%G' "${file}")" ]]; then
+  if [[ -n "${group}" && "${group}" != "$(${SUDO:-} stat -c '%G' "${file}")" ]]; then
     Log::displayError "incorrect group ownership on file ${file}"
     return 3
   fi
@@ -1072,19 +1108,18 @@ Engine::Config::loadOsRelease() {
 # @set USERGROUP_ID String
 # @set USER_SHELL String current user shell
 # @set HOME String
+# @env REMOTE String prefix command to run commands remotely
 Engine::Config::loadUserVariables() {
   # deduce user home and group
   local -a split
   local IFS=':'
   # shellcheck disable=SC2207
-  split=($(getent passwd "${USERNAME}"))
+  split=($(${REMOTE:-} getent passwd "${USERNAME}"))
   USER_ID="${split[2]}"
   USERGROUP_ID="${split[3]}"
   HOME="${split[5]}"
   USER_SHELL="${split[6]}"
-  # shellcheck disable=SC2207
-  split=($(getent group "${USERNAME}"))
-  USERGROUP="${split[0]}"
+  USERGROUP="$(${REMOTE:-} id -gn "${USERNAME}")"
 
   if [[ -z "${USERGROUP}" || -z "${HOME}" ]]; then
     Log::displayError "USERNAME - unable to deduce USERGROUP, HOME from USERNAME"
@@ -1265,7 +1300,7 @@ Engine::Config::loadWslVariables() {
   export WINDOWS_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_PROFILE_DIR USERPROFILE
-  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C:-/mnt/c}/Users/${USERNAME}}"
+  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C:-/mnt/c}/Users/${WINDOWS_USERNAME}}"
   export WINDOWS_PROFILE_DIR
 
   Linux::Wsl::cachedWslpathFromWslVar2 LOCAL_APP_DATA LOCALAPPDATA
@@ -1314,6 +1349,26 @@ Engine::Config::loadWslVariables() {
   checkBinary POWERSHELL_BIN
 
   return "${errorCount}"
+}
+
+# @description load locale configuration
+Engine::Config::loadLocaleConfig() {
+  if [[ "${BASH_DEV_ENV_CONFIG_LOADED:-0}" = "1" ]]; then
+    return 0
+  fi
+  if [[ "${LOAD_LOCALE_CONFIG:-1}" = "1" && ! -f "${PERSISTENT_TMPDIR}/localeConfig.initialized" ]]; then
+    Log::displayInfo "Initializing locale en_US.UTF-8"
+    export PATH="${PATH}:${HOME}/.local/bin"
+    sudo sed -E -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
+    echo 'LANG="en_US.UTF-8"' | sudo tee /etc/default/locale >/dev/null
+    echo "LANG=en_US.UTF-8" | sudo tee /etc/locale.conf >/dev/null
+    sudo locale-gen en_US.UTF-8
+    sudo dpkg-reconfigure --frontend=noninteractive locales
+    export LC_ALL=C
+    export LANG=en_US.UTF-8
+    export LC_MESSAGES=en_US.UTF-8
+    touch "${PERSISTENT_TMPDIR}/localeConfig.initialized"
+  fi
 }
 
 # @description log message to file
@@ -2330,13 +2385,14 @@ Compiler::Facade::requireCommandBinDir
 if Assert::functionExists initFacade; then
   initFacade
 fi
+LOAD_LOCALE_CONFIG="1"
 Engine::Config::loadConfig
 # @description create sudoer file and add traps to remove it at the end
 # @arg $1 sudoerFile:String the file path to create
 # @env USERNAME
 # shellcheck disable=SC2317
 local sudoerFile="${SUDOER_FILE_PREFIX}/etc/sudoers.d/bash-dev-env-no-password"
-if [[ -f "${sudoerFile}" ]]; then
+if [[ -f "${sudoerFile}" ]] || sudo test -f "${sudoerFile}"; then
   # sudoerFile probably already managed by parent script
   true
 else
@@ -3156,8 +3212,14 @@ fortunes() {
   fi
 }
 
+isUbuntuMinimum24() {
+  Version::compare "${VERSION_ID}" "24.04"
+}
+
 install() {
-  Linux::Apt::addRepository ppa:aacebedo/fasd
+  if ! isUbuntuMinimum24; then
+    Linux::Apt::addRepository ppa:aacebedo/fasd
+  fi
   SKIP_APT_GET_UPDATE=1 Linux::Apt::installIfNecessary --no-install-recommends \
     fasd
 }

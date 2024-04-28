@@ -51,12 +51,20 @@ breakOnTestFailure() { :; }
 
 installHelm() {
   if ! command -v helm &>/dev/null; then
+    # remove old apt-key that was installed by this script
+    sudo apt-key del "7C1A 168A" || true
+
     Log::displayInfo "install helm ..."
-    Retry::default curl -fsSL https://baltocdn.com/helm/signing.asc | sudo apt-key add --no-tty --batch -
+    Retry::default curl -fsSL https://baltocdn.com/helm/signing.asc |
+      gpg --dearmor |
+      sudo tee /usr/share/keyrings/helm.gpg >/dev/null
     Linux::Apt::installIfNecessary --no-install-recommends \
       apt-transport-https
-    echo "deb https://baltocdn.com/helm/stable/debian/ all main" |
+    echo "deb [arch=$(dpkg --print-architecture) \
+      signed-by=/usr/share/keyrings/helm.gpg] \
+      https://baltocdn.com/helm/stable/debian/ all main" |
       sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+
     Linux::Apt::installIfNecessary --no-install-recommends \
       helm
   fi
@@ -110,6 +118,7 @@ installKubectx() {
 }
 
 installLazydocker() {
+  Log::displayInfo "Installing lazydocker"
   (
     # shellcheck source=/dev/null
     source "${HOME}/.bash-dev-env/profile.d/golang.sh" || exit 1

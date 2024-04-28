@@ -42,7 +42,7 @@ install() {
     local downloadedArchive="$1"
     Log::displayInfo "Install/update go ..."
     mkdir -p "${HOME}/golang"
-    tar xvzf "${downloadedArchive}" -C "${HOME}/golang"
+    tar xzf "${downloadedArchive}" -C "${HOME}/golang"
   }
   FILTER_LAST_VERSION_CALLBACK=filterLatestNonBetaVersion \
     INSTALL_CALLBACK=installGo \
@@ -66,8 +66,6 @@ configure() {
     "${embed_dir_conf_dir}" \
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
     ".bash-dev-env"
-  ln -sfv "${HOME}/golang/go/bin/go" "${HOME}/go/bin/go"
-  ln -sfv "${HOME}/golang/go/bin/gofmt" "${HOME}/go/bin/gofmt"
 }
 testConfigure() {
   local failures=0

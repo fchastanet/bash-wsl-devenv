@@ -39,13 +39,13 @@ testInstall() { :; }
 # jscpd:ignore-end
 
 configure() {
-  if [[ ! -f "${HOME}/.virtualenvs/python3.9/bin/activate" ]]; then
+  if [[ ! -f "${HOME}/.virtualenvs/python3/bin/activate" ]]; then
     Log::displayError "VirtualEnv has not been installed correctly"
     return 1
   fi
   # Load virtualenv
   # shellcheck source=/dev/null
-  source "${HOME}/.virtualenvs/python3.9/bin/activate"
+  source "${HOME}/.virtualenvs/python3/bin/activate"
   if [[ ! -d "${HOME}/.bash-dev-env/GitDefaultConfig/pre-commit-template" ]]; then
     if ! pre-commit init-templatedir -t pre-commit -t pre-push \
       "${HOME}/.bash-dev-env/GitDefaultConfig/pre-commit-template"; then

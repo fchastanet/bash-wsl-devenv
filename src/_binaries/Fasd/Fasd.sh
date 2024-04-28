@@ -51,8 +51,14 @@ fortunes() {
   fi
 }
 
+isUbuntuMinimum24() {
+  Version::compare "${VERSION_ID}" "24.04"
+}
+
 install() {
-  Linux::Apt::addRepository ppa:aacebedo/fasd
+  if ! isUbuntuMinimum24; then
+    Linux::Apt::addRepository ppa:aacebedo/fasd
+  fi
   SKIP_APT_GET_UPDATE=1 Linux::Apt::installIfNecessary --no-install-recommends \
     fasd
 }

@@ -65,11 +65,11 @@ install() {
 testInstall() {
   local -i failures=0
 
-  Assert::fileExists /opt/IlanCosman-tide-fonts/fonts/mesloLGS_NF_regular.ttf root root || ((++failures))
+  USERNAME="" USERGROUP="" Assert::fileExists /opt/IlanCosman-tide-fonts/fonts/mesloLGS_NF_regular.ttf || ((++failures))
 
   local localAppData
   Linux::Wsl::cachedWslpathFromWslVar2 localAppData LOCALAPPDATA
-  Assert::fileExists "${localAppData}/Microsoft/Windows/Fonts/mesloLGS_NF_regular.ttf" || {
+  USERNAME="" USERGROUP="" Assert::fileExists "${localAppData}/Microsoft/Windows/Fonts/mesloLGS_NF_regular.ttf" || {
     ((++failures))
     Log::displayError "Font mesloLGS_NF_regular.ttf not installed in windows folder: ${localAppData}/Microsoft/Windows/Fonts"
   }

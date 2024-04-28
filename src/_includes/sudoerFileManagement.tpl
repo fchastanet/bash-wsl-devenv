@@ -3,7 +3,7 @@
 # @env USERNAME
 # shellcheck disable=SC2317
 local sudoerFile="${SUDOER_FILE_PREFIX}/etc/sudoers.d/bash-dev-env-no-password"
-if [[ -f "${sudoerFile}" ]]; then
+if [[ -f "${sudoerFile}" ]] || sudo test -f "${sudoerFile}"; then
   # sudoerFile probably already managed by parent script
   true
 else
