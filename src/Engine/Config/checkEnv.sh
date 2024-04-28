@@ -90,7 +90,7 @@ Engine::Config::checkEnv() {
   checkVarAndDir PROJECTS_DIR r || true
   checkVarAndDir BACKUP_DIR rw || true
   checkVarAndDir LOGS_DIR rw || true
-  checkVarAndDir INSTALL_SCRIPTS_DIR r || true
+  checkVarAndDir INSTALL_SCRIPTS_ROOT_DIR r || true
   checkVarAndDir HOME rw || true
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev

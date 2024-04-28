@@ -87,7 +87,7 @@ trap 'summary "$?" "${INSTALL_START}"' EXIT INT TERM ABRT
 executeScript() {
   local configName="$1"
   local -a installCmd=(
-    "${INSTALL_SCRIPTS_DIR}/${configName}"
+    "${INSTALL_SCRIPTS_ROOT_DIR}/${configName}"
   )
   if [[ "${SKIP_INSTALL}" = "1" ]]; then
     installCmd+=(--skip-install)
@@ -118,18 +118,18 @@ executeScripts() {
   local configName
   for configName in "${CONFIG_LIST[@]}"; do
     if [[ "${SKIP_INSTALL}" = "0" ]] &&
-      SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isInstallImplemented; then
+      SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${configName}" isInstallImplemented; then
       ((++installConfigCount))
     fi
     if [[ "${SKIP_CONFIGURE}" = "0" ]] &&
-      SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isConfigureImplemented; then
+      SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${configName}" isConfigureImplemented; then
       ((++configConfigCount))
     fi
     if [[ "${SKIP_TEST}" = "0" ]]; then
-      if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isTestInstallImplemented; then
+      if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${configName}" isTestInstallImplemented; then
         ((++installTestConfigCount))
       fi
-      if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isTestConfigureImplemented; then
+      if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${configName}" isTestConfigureImplemented; then
         ((++configTestConfigCount))
       fi
     fi
@@ -143,21 +143,21 @@ executeScripts() {
           local rc="$1"
           local -a statFiles=()
           if [[ "${SKIP_INSTALL}" = "0" ]] &&
-            SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${currentConfigName}" isInstallImplemented; then
+            SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${currentConfigName}" isInstallImplemented; then
             Stats::aggregateStats "${LOGS_DIR:-#}/install.stat" "${installConfigCount}" "${LOGS_DIR:-#}/${currentConfigName}-install.stat"
             statFiles+=("${LOGS_DIR:-#}/${currentConfigName}-install.stat")
           fi
           if [[ "${SKIP_CONFIGURE}" = "0" ]] &&
-            SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${currentConfigName}" isConfigureImplemented; then
+            SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${currentConfigName}" isConfigureImplemented; then
             Stats::aggregateStats "${LOGS_DIR:-#}/config.stat" "${configConfigCount}" "${LOGS_DIR:-#}/${currentConfigName}-config.stat"
             statFiles+=("${LOGS_DIR:-#}/${currentConfigName}-config.stat")
           fi
           if [[ "${SKIP_TEST}" = "0" ]]; then
-            if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${currentConfigName}" isTestInstallImplemented; then
+            if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${currentConfigName}" isTestInstallImplemented; then
               Stats::aggregateStats "${LOGS_DIR:-#}/test-install.stat" "${installTestConfigCount}" "${LOGS_DIR:-#}/${currentConfigName}-test-install.stat"
               statFiles+=("${LOGS_DIR:-#}/${currentConfigName}-test-install.stat")
             fi
-            if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${currentConfigName}" isTestConfigureImplemented; then
+            if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${currentConfigName}" isTestConfigureImplemented; then
               Stats::aggregateStats "${LOGS_DIR:-#}/test-configuration.stat" "${configTestConfigCount}" "${LOGS_DIR:-#}/${currentConfigName}-test-configuration.stat"
               statFiles+=("${LOGS_DIR:-#}/${currentConfigName}-test-configuration.stat")
             fi
@@ -188,7 +188,7 @@ run() {
   LOGS_DIR="${LOGS_DIR:-${PERSISTENT_TMPDIR}}"
   rm -f "${LOGS_DIR:-#}/${SCRIPT}-"* || true
 
-  Profiles::checkScriptsExistence "${INSTALL_SCRIPTS_DIR}" "" "${CONFIG_LIST[@]}"
+  Profiles::checkScriptsExistence "${INSTALL_SCRIPTS_ROOT_DIR}" "" "${CONFIG_LIST[@]}"
   Log::displayInfo "Will Install ${CONFIG_LIST[*]}"
 
   # Start install process

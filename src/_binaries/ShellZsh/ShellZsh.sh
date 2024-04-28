@@ -18,7 +18,7 @@ helpDescription() {
 }
 
 dependencies() {
-  echo ShellBash
+  echo "installScripts/ShellBash"
 }
 
 listVariables() {

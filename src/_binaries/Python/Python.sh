@@ -107,7 +107,7 @@ installFromUbuntu20() {
 
 removeDuplicatePipPackages() {
   # remove duplicate pip packages with ~ prefix that breaks pip packages upgrade otherwise
-  find "${VIRTUAL_ENV}/lib/python3.9/site-packages" -name '~*' -exec rm -Rf {} ';' || true
+  find "${VIRTUAL_ENV}/lib/python3"*/site-packages -name '~*' -exec rm -Rf {} ';' || true
 }
 
 testInstall() {

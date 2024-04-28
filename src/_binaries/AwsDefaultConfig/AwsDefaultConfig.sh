@@ -17,8 +17,8 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "AwsCli"
-  echo "Saml2Aws"
+  echo "installScripts/AwsCli"
+  echo "installScripts/Saml2Aws"
 }
 
 listVariables() {

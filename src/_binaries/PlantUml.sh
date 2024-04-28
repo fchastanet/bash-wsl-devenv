@@ -15,7 +15,7 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "SdkManager"
+  echo "installScripts/SdkManager"
 }
 
 # jscpd:ignore-start

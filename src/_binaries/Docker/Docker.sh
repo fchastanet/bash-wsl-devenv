@@ -16,9 +16,9 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "MandatorySoftwares"
-  echo "WslDefaultConfig"
-  echo "DockerCompose"
+  echo "installScripts/MandatorySoftwares"
+  echo "installScripts/WslDefaultConfig"
+  echo "installScripts/DockerCompose"
 }
 
 # jscpd:ignore-start

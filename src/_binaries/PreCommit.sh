@@ -16,7 +16,7 @@ helpDescription() {
 
 dependencies() {
   # pre-commit is a python package
-  echo "Python"
+  echo "installScripts/Python"
 }
 
 fortunes() {

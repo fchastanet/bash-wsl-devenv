@@ -11,7 +11,7 @@ scriptName() {
 }
 
 dependencies() {
-  echo "ShellBash"
+  echo "installScripts/ShellBash"
 }
 
 fortunes() {

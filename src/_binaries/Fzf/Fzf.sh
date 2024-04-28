@@ -21,8 +21,8 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "Fd"
-  echo "Bat"
+  echo "installScripts/Fd"
+  echo "installScripts/Bat"
 }
 
 # jscpd:ignore-start

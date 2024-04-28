@@ -11,7 +11,7 @@ scriptName() {
 }
 
 dependencies() {
-  echo "AwsCli"
+  echo "installScripts/AwsCli"
 }
 
 fortunes() {

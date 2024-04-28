@@ -207,8 +207,8 @@ BACKUP_DIR="${BASH_DEV_ENV_ROOT_DIR}/backup"
 BACKUP_BEFORE_INSTALL=1
 # logs directory
 LOGS_DIR="${BASH_DEV_ENV_ROOT_DIR}/logs"
-# installScripts dir
-INSTALL_SCRIPTS_DIR="${BASH_DEV_ENV_ROOT_DIR}/installScripts"
+# installScripts root dir
+INSTALL_SCRIPTS_ROOT_DIR="${BASH_DEV_ENV_ROOT_DIR}"
 
 # 0   => no upgrade at all
 # lts => UPGRADE to latest ubuntu lts version
@@ -1367,7 +1367,7 @@ Engine::Config::checkEnv() {
   checkVarAndDir PROJECTS_DIR r || true
   checkVarAndDir BACKUP_DIR rw || true
   checkVarAndDir LOGS_DIR rw || true
-  checkVarAndDir INSTALL_SCRIPTS_DIR r || true
+  checkVarAndDir INSTALL_SCRIPTS_ROOT_DIR r || true
   checkVarAndDir HOME rw || true
 
   checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
@@ -2191,7 +2191,7 @@ optionHelpCallback() {
 
 # shellcheck disable=SC2317 # if function is overridden
 optionVersionCallback() {
-  echo "${SCRIPT_NAME} version 1.0"
+  echo "${SCRIPT_NAME} version 1.1"
   exit 0
 }
 
@@ -2415,7 +2415,7 @@ commandCallback() {
     # check if each Softwares exists
     local software
     for software in "${CONFIG_LIST[@]}"; do
-      if [[ ! -f "${INSTALL_SCRIPTS_DIR}/${software}" ]]; then
+      if [[ ! -f "${INSTALL_SCRIPTS_ROOT_DIR}/${software}" ]]; then
         Log::fatal "Software installScripts/${software} configuration does not exists"
       fi
     done
@@ -2440,7 +2440,7 @@ commandCallback() {
     declare -Ag allDepsResultSeen=()
 
     Profiles::allDepsRecursive \
-      "${INSTALL_SCRIPTS_DIR}" "${rootDependency}" "${CONFIG_LIST[@]}"
+      "${INSTALL_SCRIPTS_ROOT_DIR}" "${rootDependency}" "${CONFIG_LIST[@]}"
 
     CONFIG_LIST=("${allDepsResult[@]}")
   fi
@@ -2461,10 +2461,10 @@ export PREPARE_EXPORT
 generateSoftwaresList() {
   while read -r soft; do
     echo -en "  - ${__HELP_TITLE_COLOR}${soft}: ${__HELP_EXAMPLE}"
-    SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${soft}" helpDescription 2>/dev/null || echo
+    SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${soft}" helpDescription 2>/dev/null || echo
     echo -en "${__RESET_COLOR}"
   done < <(
-    Conf::list "${INSTALL_SCRIPTS_DIR}" "" "" "-type f" "" |
+    Conf::list "${INSTALL_SCRIPTS_ROOT_DIR}" "" "" "-type f" "" |
       grep -v -E '^(_.*|MandatorySoftwares)$' || true
   )
 }
@@ -3002,7 +3002,7 @@ List of softwares available:
 @@@SOFTWARES_LIST_HELP@@@"""
     echo
     echo -n -e "${__HELP_TITLE_COLOR}VERSION: ${__RESET_COLOR}"
-    echo '1.0'
+    echo '1.1'
     echo
     echo -e "${__HELP_TITLE_COLOR}AUTHOR:${__RESET_COLOR}"
     echo '[François Chastanet](https://github.com/fchastanet)'
@@ -3083,7 +3083,7 @@ trap 'summary "$?" "${INSTALL_START}"' EXIT INT TERM ABRT
 executeScript() {
   local configName="$1"
   local -a installCmd=(
-    "${INSTALL_SCRIPTS_DIR}/${configName}"
+    "${INSTALL_SCRIPTS_ROOT_DIR}/${configName}"
   )
   if [[ "${SKIP_INSTALL}" = "1" ]]; then
     installCmd+=(--skip-install)
@@ -3136,18 +3136,18 @@ executeScripts() {
   local configName
   for configName in "${CONFIG_LIST[@]}"; do
     if [[ "${SKIP_INSTALL}" = "0" ]] &&
-      SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isInstallImplemented; then
+      SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${configName}" isInstallImplemented; then
       ((++installConfigCount))
     fi
     if [[ "${SKIP_CONFIGURE}" = "0" ]] &&
-      SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isConfigureImplemented; then
+      SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${configName}" isConfigureImplemented; then
       ((++configConfigCount))
     fi
     if [[ "${SKIP_TEST}" = "0" ]]; then
-      if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isTestInstallImplemented; then
+      if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${configName}" isTestInstallImplemented; then
         ((++installTestConfigCount))
       fi
-      if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${configName}" isTestConfigureImplemented; then
+      if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${configName}" isTestConfigureImplemented; then
         ((++configTestConfigCount))
       fi
     fi
@@ -3161,21 +3161,21 @@ executeScripts() {
           local rc="$1"
           local -a statFiles=()
           if [[ "${SKIP_INSTALL}" = "0" ]] &&
-            SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${currentConfigName}" isInstallImplemented; then
+            SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${currentConfigName}" isInstallImplemented; then
             Stats::aggregateStats "${LOGS_DIR:-#}/install.stat" "${installConfigCount}" "${LOGS_DIR:-#}/${currentConfigName}-install.stat"
             statFiles+=("${LOGS_DIR:-#}/${currentConfigName}-install.stat")
           fi
           if [[ "${SKIP_CONFIGURE}" = "0" ]] &&
-            SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${currentConfigName}" isConfigureImplemented; then
+            SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${currentConfigName}" isConfigureImplemented; then
             Stats::aggregateStats "${LOGS_DIR:-#}/config.stat" "${configConfigCount}" "${LOGS_DIR:-#}/${currentConfigName}-config.stat"
             statFiles+=("${LOGS_DIR:-#}/${currentConfigName}-config.stat")
           fi
           if [[ "${SKIP_TEST}" = "0" ]]; then
-            if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${currentConfigName}" isTestInstallImplemented; then
+            if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${currentConfigName}" isTestInstallImplemented; then
               Stats::aggregateStats "${LOGS_DIR:-#}/test-install.stat" "${installTestConfigCount}" "${LOGS_DIR:-#}/${currentConfigName}-test-install.stat"
               statFiles+=("${LOGS_DIR:-#}/${currentConfigName}-test-install.stat")
             fi
-            if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_DIR}/${currentConfigName}" isTestConfigureImplemented; then
+            if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${currentConfigName}" isTestConfigureImplemented; then
               Stats::aggregateStats "${LOGS_DIR:-#}/test-configuration.stat" "${configTestConfigCount}" "${LOGS_DIR:-#}/${currentConfigName}-test-configuration.stat"
               statFiles+=("${LOGS_DIR:-#}/${currentConfigName}-test-configuration.stat")
             fi
@@ -3206,7 +3206,7 @@ run() {
   LOGS_DIR="${LOGS_DIR:-${PERSISTENT_TMPDIR}}"
   rm -f "${LOGS_DIR:-#}/${SCRIPT}-"* || true
 
-  Profiles::checkScriptsExistence "${INSTALL_SCRIPTS_DIR}" "" "${CONFIG_LIST[@]}"
+  Profiles::checkScriptsExistence "${INSTALL_SCRIPTS_ROOT_DIR}" "" "${CONFIG_LIST[@]}"
   Log::displayInfo "Will Install ${CONFIG_LIST[*]}"
 
   # Start install process

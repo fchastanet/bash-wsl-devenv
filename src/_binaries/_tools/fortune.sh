@@ -24,7 +24,7 @@ generateFortunes() {
       for configName in "${CONFIG_LIST[@]}"; do
         (
           local fortunes
-          fortunes="$("${INSTALL_SCRIPTS_DIR}/${configName}" fortunes | Filters::trimEmptyLines)"
+          fortunes="$("${INSTALL_SCRIPTS_ROOT_DIR}/${configName}" fortunes | Filters::trimEmptyLines)"
           if [[ -n "${fortunes}" ]]; then
             echo "${fortunes}"
           fi

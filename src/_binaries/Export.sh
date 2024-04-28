@@ -15,7 +15,7 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "Clean"
+  echo "installScripts/Clean"
 }
 
 # jscpd:ignore-start
