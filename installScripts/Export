@@ -2796,11 +2796,12 @@ configure() {
       rm -f "${HOME}/.aws/config" || true
       rm -f "${HOME}/.zcompdump" || true
       rm -f "${HOME}/.motd_shown" || true
+      find "${HOME}" -name id_rsa -delete || true
 
       deleteFolderExcept() {
         local folder="$1"
         ${SUDO:-} find "${folder}" \
-          -mindepth 1 -maxdepth 1 -not -name '.gitkeep' -exec rm -Rf {} ';' || true
+          -mindepth 1 -maxdepth 1 -not -name '.gitignore' -exec rm -Rf {} ';' || true
       }
 
       SUDO=sudo deleteFolderExcept "${BASH_DEV_ENV_ROOT_DIR}/megalinter-reports/"
@@ -2855,9 +2856,9 @@ testConfigure() {
 
     SUDO=sudo Assert::dirEmpty \
       "${BASH_DEV_ENV_ROOT_DIR}/megalinter-reports/" \
-      ".gitkeep" || ((++failures))
-    Assert::dirEmpty "${BASH_DEV_ENV_ROOT_DIR}/conf.override/" ".gitkeep" || ((++failures))
-    Assert::dirEmpty "${BASH_DEV_ENV_ROOT_DIR}/backup/" ".gitkeep" || ((++failures))
+      ".gitignore" || ((++failures))
+    Assert::dirEmpty "${BASH_DEV_ENV_ROOT_DIR}/conf.override/" ".gitignore" || ((++failures))
+    Assert::dirEmpty "${BASH_DEV_ENV_ROOT_DIR}/backup/" ".gitignore" || ((++failures))
     Assert::dirNotExists "${BASH_DEV_ENV_ROOT_DIR}/.history" || ((++failures))
     Assert::dirNotExists "${BASH_DEV_ENV_ROOT_DIR}/pages/docs" || ((++failures))
     Assert::dirNotExists "${BASH_DEV_ENV_ROOT_DIR}/vendor/vendor" || ((++failures))
@@ -2870,7 +2871,7 @@ testConfigure() {
 
     SUDO=sudo Assert::dirEmpty \
       "${BASH_DEV_ENV_ROOT_DIR}/vendor/bash-tools-framework/megalinter-reports/" \
-      ".gitkeep" || ((++failures))
+      ".gitignore" || ((++failures))
     Assert::dirNotExists "${BASH_DEV_ENV_ROOT_DIR}/vendor/bash-tools-framework/.history" || ((++failures))
     Assert::dirNotExists "${BASH_DEV_ENV_ROOT_DIR}/vendor/bash-tools-framework/vendor" || ((++failures))
     Assert::dirNotExists "${BASH_DEV_ENV_ROOT_DIR}/vendor/bash-tools-framework/pages/doc" || ((++failures))
