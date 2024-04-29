@@ -160,8 +160,8 @@ run() {
   if [[ ! "${DISTRO_URL}" =~ ^https://+ ]]; then
     Log::fatal "DISTRO_URL invalid value : '${DISTRO_URL}'"
   fi
-  if [[ ! -f "${BASH_DEV_ENV_ROOT_DIR}/profiles/profile.${DISTRO_INSTALL_PROFILE}.sh" ]]; then
-    Log::fatal "DISTRO_INSTALL_PROFILE invalid value : file '${BASH_DEV_ENV_ROOT_DIR}/profiles/profile.${DISTRO_INSTALL_PROFILE}.sh' does not exists"
+  if ! Profiles::getProfilePath "${DISTRO_INSTALL_PROFILE}" &>/dev/null; then
+    Log::fatal "Profile file profile.${DISTRO_INSTALL_PROFILE}.sh doesn't exist in any profiles directory"
   fi
   # The path where bash-dev-env project will be copied into target distro
   DISTRO_BASH_DEV_ENV_TARGET_DIR="${BASH_DEV_ENV_ROOT_DIR}"
