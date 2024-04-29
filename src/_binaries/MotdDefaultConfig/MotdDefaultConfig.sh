@@ -21,10 +21,10 @@ dependencies() {
 
 fortunes() {
   if [[ "${SHOW_MOTD}" = "1" ]]; then
-    echo "You can set SHOW_MOTD to 0 in '${BASH_DEV_ENV_ROOT_DIR}/.env' to hide motd"
+    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- You can set ${__HELP_EXAMPLE}SHOW_MOTD${__RESET_COLOR} to ${__HELP_EXAMPLE}0${__RESET_COLOR} in ${__HELP_EXAMPLE}${BASH_DEV_ENV_ROOT_DIR}/.env${__RESET_COLOR} to hide motd."
     echo "%"
   else
-    echo "You can set SHOW_MOTD to 1 in '${BASH_DEV_ENV_ROOT_DIR}/.env' to display motd"
+    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- You can set ${__HELP_EXAMPLE}SHOW_MOTD${__RESET_COLOR} to ${__HELP_EXAMPLE}1${__RESET_COLOR} in ${__HELP_EXAMPLE}${BASH_DEV_ENV_ROOT_DIR}/.env${__RESET_COLOR} to display motd."
     echo "%"
   fi
 }

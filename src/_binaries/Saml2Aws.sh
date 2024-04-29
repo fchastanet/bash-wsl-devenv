@@ -15,9 +15,11 @@ dependencies() {
 }
 
 fortunes() {
-  echo "use aws-login alias to log to aws using saml2aws (see https://github.com/Versent/saml2aws)"
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- use ${__HELP_EXAMPLE}aws-login${__RESET_COLOR} alias "
+  echo -e "to log to aws using saml2aws (see ${__HELP_EXAMPLE}<https://github.com/Versent/saml2aws>${__RESET_COLOR})."
   if ! command -v saml2aws &>/dev/null; then
-    printf "\ninstall it using 'installAndConfigure Saml2Aws"
+    echo
+    echo -e "install it using ${__HELP_EXAMPLE}installAndConfigure Saml2Aws${__RESET_COLOR}."
   fi
   echo "%"
 }

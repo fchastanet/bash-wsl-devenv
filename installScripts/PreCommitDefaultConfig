@@ -2763,9 +2763,9 @@ dependencies() {
 }
 
 fortunes() {
-  echo "PreCommit - pre-commit hooks template is automatically applied on git clone or git init"
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}pre-commit${__RESET_COLOR} hooks template is automatically applied on ${__HELP_EXAMPLE}git clone${__RESET_COLOR} or ${__HELP_EXAMPLE}git init${__RESET_COLOR}."
   echo "%"
-  echo "PreCommit - You can disable git hooks template using 'git config --global --unset init.templatedir'"
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- You can disable git hooks template using ${__HELP_EXAMPLE}git config --global --unset init.templatedir${__RESET_COLOR}."
   echo "%"
 }
 

@@ -6,7 +6,7 @@
 # @arg $3 containerName:String
 # @arg $4 title:String
 # @arg $5 testUrl:String
-function Docker::testContainer() {
+Docker::testContainer() {
   local dir="$1"
   local host="$2"
   local containerName="$3"

@@ -29,18 +29,18 @@ listVariables() {
 
 fortunes() {
   if [[ "${USER_SHELL}" = "/usr/bin/zsh" ]]; then
-    echo "$(scriptName) - Zsh ref card manual <http://www.bash2zsh.com/zsh_refcard/refcard.pdf>"
+    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- Zsh ref card manual ${__HELP_EXAMPLE}<http://www.bash2zsh.com/zsh_refcard/refcard.pdf>${__RESET_COLOR}."
     echo "%"
     if [[ "${ZSH_PREFERRED_THEME:-${ZSH_DEFAULT_THEME}}" != "powerlevel10k/powerlevel10k" ]]; then
-      echo "$(scriptName) - Powerlevel10k - use this command 'p10k configure' to customize shell prompt"
+      echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}Powerlevel10k${__RESET_COLOR} - use the command ${__HELP_EXAMPLE}p10k configure${__RESET_COLOR} to customize shell prompt."
       echo "%"
     fi
   else
     if command -v zsh &>/dev/null; then
-      echo "$(scriptName) - ${USER_SHELL} is set as default shell, you can switch to zsh using 'chsh -s /usr/bin/zsh'"
+      echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}${USER_SHELL}${__RESET_COLOR} is set as default shell, you can switch to zsh using ${__HELP_EXAMPLE}chsh -s /usr/bin/zsh${__RESET_COLOR}."
       echo "%"
     else
-      echo "$(scriptName) - Zsh is not set as your default shell, you can give it a try using 'installAndConfigure ZshProfile'"
+      echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}Zsh${__RESET_COLOR} is not set as your default shell, you can give it a try using ${__HELP_EXAMPLE}installAndConfigure ZshProfile${__RESET_COLOR}."
       echo "%"
     fi
   fi

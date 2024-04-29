@@ -2727,13 +2727,18 @@ helpDescription() {
   echo "Anacron"
 }
 
+fortunes() {
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}anacron${__RESET_COLOR} is the daemon that completes cron for computers that are not on at all times, check out some examples:"
+  echo -e "${__HELP_EXAMPLE}ls -al /etc/cron.{hourly,daily,weekly,monthly,yearly}${__RESET_COLOR}"
+  echo "%"
+}
+
 # jscpd:ignore-start
 dependencies() { :; }
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
-fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 # jscpd:ignore-end

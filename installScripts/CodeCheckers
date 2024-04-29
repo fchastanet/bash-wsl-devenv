@@ -2845,12 +2845,18 @@ dependencies() {
   echo "installScripts/Composer"
 }
 
+fortunes() {
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- the following linters are available: ${__HELP_EXAMPLE}hadolint${__RESET_COLOR}, ${__HELP_EXAMPLE}prettier${__RESET_COLOR}, ${__HELP_EXAMPLE}sass-lint${__RESET_COLOR}, ${__HELP_EXAMPLE}stylelint${__RESET_COLOR}, ${__HELP_EXAMPLE}shellcheck${__RESET_COLOR}, ${__HELP_EXAMPLE}phpmd${__RESET_COLOR}, ${__HELP_EXAMPLE}phpcs${__RESET_COLOR}, ${__HELP_EXAMPLE}php-cs-fixer${__RESET_COLOR}, ${__HELP_EXAMPLE}phpstan${__RESET_COLOR}, ${__HELP_EXAMPLE}psalm${__RESET_COLOR}."
+  echo "%"
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}hjson${__RESET_COLOR} allows to convert or parse json with comments."
+  echo "%"
+}
+
 # jscpd:ignore-start
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
-fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 # jscpd:ignore-end

@@ -53,7 +53,7 @@ Here are some common operations and shell modes they result in:
 - log in to a remote system via SSH: **login + interactive**
 <!-- markdownlint-disable-next-line MD052 -->
 - execute a script remotely, e.g. `ssh user@host 'echo $PWD'` or with
-  [Capistrano][]: **non‑login,&nbsp;non‑interactive**
+  [Capistrano](https://capistranorb.com/): **non‑login,&nbsp;non‑interactive**
 - start a new shell process, e.g. `zsh`: **non‑login, interactive**
 - run a script, `zsh myScript.sh`: **non‑login, non‑interactive**
 - run an executable with `#!/usr/bin/env zsh` shebang: **non‑login,

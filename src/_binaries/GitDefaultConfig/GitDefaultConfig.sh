@@ -21,7 +21,7 @@ dependencies() {
 }
 
 fortunes() {
-  echo "GitDefaultConfig - default main branch is set to $(git config --global --get init.defaultBranch), you can change it in your ~/.gitconfig"
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- default ${__HELP_EXAMPLE}main${__RESET_COLOR} branch is set to ${__HELP_EXAMPLE}$(git config --global --get init.defaultBranch)${__RESET_COLOR}, you can change it in your ${__HELP_EXAMPLE}~/.gitconfig${__RESET_COLOR}."
   echo "%"
 }
 

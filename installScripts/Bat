@@ -3441,17 +3441,17 @@ scriptName() {
 
 fortunes() {
   if command -v bat &>/dev/null; then
-    echo "$(scriptName) - Use bat command to pre-visualize one or multiple files"
+    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- Use ${__HELP_EXAMPLE}bat${__RESET_COLOR} command to pre-visualize one or multiple files."
     echo "%"
-    echo "$(scriptName) - alias h allows to display command help using bat, try 'h cp'"
+    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- alias ${__HELP_EXAMPLE}h${__RESET_COLOR} allows to display command help using ${__HELP_EXAMPLE}bat${__RESET_COLOR}, try ${__HELP_EXAMPLE}h cp${__RESET_COLOR}."
     echo "%"
 
     if [[ "${USER_SHELL}" = "/usr/bin/zsh" ]]; then
-      echo "$(scriptName) - command with --help will automatically be displayed with bat"
+      echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- command with ${__HELP_EXAMPLE}--help${__RESET_COLOR} will automatically be displayed with ${__HELP_EXAMPLE}bat${__RESET_COLOR}."
       echo "%"
     fi
   else
-    echo "Run 'installAndConfigure Bat' -- to initialize Bat (file pre-visualization tool)"
+    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- Run ${__HELP_EXAMPLE}installAndConfigure Bat${__RESET_COLOR} to initialize ${__HELP_EXAMPLE}bat${__RESET_COLOR} (file pre-visualization tool)."
     echo "%"
   fi
 

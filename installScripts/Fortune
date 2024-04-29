@@ -2377,7 +2377,7 @@ File::garbageCollect() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2XQW/aMBTHc+ZTvAVEoZVjOzjxYWLSDq12WqV10w6UTik4SqQQUJxQ0dLvPicQrasqKFWhWvd+F0v233m2/34P41Br7zCD9Lyy5dJjD9saiwufCSZ7jPVMvxRMWODtf2mWVeg8yACsG51s1G0b/0dxqHMd6IiM1ZyodL6X2/Bc/33pu64vLMa59Dn6fwge+x+nucqCUR7PlTN+pdvwXP9lj0spTP5z4XGJ/h+Czf6PYz1LgsXZNMuLVGlHRy+JscV/zpi/9t/lrjQ6l7nC5D977c0+xX/uf/MDvY5TWt6BRuOR3Z0u3DUA4hAGAyAhUJWPaLgaJJFKZmQ0nUyCdKyh3TZC2CxyxkFeC+3W3cWX85+/zs6/ff/x9fTi3oY+2Nyux1sE+n04jo9hOKz71t8BMof196H9iZqLS9MiSZ5QjaY3OlhsESXTZFSu64/oI+SRSitdZkTTyec0ngRJ3251wthMooXOqI6CTNFVhKoBki9mCkJYVjMBdFSEQFLgsAStTKxTIAqOdPPKOaGdwRV1hifdS8fMbTUvefOoa1cT661tOOw6wnp/5tDNcT5cqjnNZb0xosFnrJpRpFrlf+3JdIdx477x1rcQeSt2q/+ldPcYW3//e96q/jPPE54o679nhrH+H4BN9R/Lwvtnt/y/fdEDcGv+C1HmP2eedOXq/SfM3wDM/wNg8r98zpQ1wNgPt1gGEARBEARBEARBEARBEARB3ge/AfZKJf0AKAAA"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2XUW/aMBDHeeZT3IAVaOc4DgmRujKt6lrtpa3UbuoDpVNITBM1JChOYJTy3eekCQTEoJ1apnX+vUSc73y2/3dxkHDh1ZE5uqbFT6Jrcv6ZUSBqU1ZlvSHLDW7XVVktgPb6SysUIhYaAUBhxNy1fpvG/1EkLHUNZiOLDhH1hq9SDU/Vv6k3FaWpFmRC9CYR+m+DZf0dL6SBYYbOkErWC1XDE/UnqtyQm4Rw/VVV14X+22C9/pbDBq4xPvGDMPIok5j9Jzk26K8QjSzqr8hKQy6A/NKbXcV/rn/5He46Ho5roFhckrtWh0kRwPVNw4XA8Cy/f+g5fcOdGfuZ7ym7nRnpz0FAGXN8b2ZCRs7KWjXUBWQBugU0AMQAhYBGgMb1WYDpj478fp/nzM8xt/I5+A9mjGNbaDveXRzr9KDdBtQDTEMT9x6XhmzqDpCZxsHODneE9U6SZYSZY6kyufx6fvXj5Pzi2/ez48tpCVpQIqVsvIKg1YJdZxc6ncyWzgNoCOn8sPMJ8xbDXuS6K7zSvax3cn3XjNc1d/oIoU29xC8vT6tUqfUcHoQjFmBmGwHFjxmSBz/u8YBCDx6SSABmRz1AHhB4AEZ5rmNAFKqsfCPt4Vr7Bkudvfq1xGMr5WtSrtZLSWCZB1LXNW1q3gEvHaPr0tblkUIUNRmfK84XNMnp3/7c2a/UaheHZ1/OT+E9VCblxdFpvb5Ppk/LMq+JOEuuQlZkWRzNZ8kXcnx86clk6q2pp+wQk0qZJ+BlsrBp/htdAVHk+KB58fHBvGTpMmYnm3YidKMu3y+MnND2oxAC59YOoesHFg0Sz0e5vEQv8gGjDAyDKhwcHPA0+a3xVSxKjKUKxtWlpEayJIiY492mVZdLtpTI+m2eWWTPKU6Lf/tFJ1jJ8+7/2PX5OTZ+/zW05PtflzVN1dT4/tc0cf9vhXX3v+jZt8/z+v/+j/4AbOx/VU2+/2VNV3Rdi/tfVRui/7cB7//4IzF+B3D54V68BgQCgUAgEAgEAoFAIBAIBIK3wy8q9OAbACgAAA=="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -3186,21 +3186,23 @@ helpDescription() {
   echo "Fortune"
 }
 
-# jscpd:ignore-start
 dependencies() {
   echo "installScripts/Anacron"
 }
+
+fortunes() {
+  if [[ "${SHOW_FORTUNES}" = "1" ]]; then
+    # shellcheck disable=SC2016
+    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- You can set ${__HELP_EXAMPLE}SHOW_FORTUNES${__RESET_COLOR} to ${__HELP_EXAMPLE}0${__RESET_COLOR} in ${__HELP_EXAMPLE}${BASH_DEV_ENV_ROOT_DIR}/.env${__RESET_COLOR} to hide fortunes."
+    echo "%"
+  fi
+}
+
+# jscpd:ignore-start
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
-fortunes() {
-  if [[ "${SHOW_FORTUNES}" = "1" ]]; then
-    # shellcheck disable=SC2016
-    echo "You can set SHOW_FORTUNES to 0 in '${BASH_DEV_ENV_ROOT_DIR}/.env' to hide fortunes"
-    echo "%"
-  fi
-}
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 # jscpd:ignore-end
@@ -3228,7 +3230,7 @@ configure() {
     Log::displayHelp "Please provide a profile to the install command in order to activate automatic fortune generation"
   else
     local -a cmd=(
-      sudo -i -n -u "${USERNAME}"
+      sudo -i -n -u "${USERNAME}" bash -i
       "${BASH_DEV_ENV_ROOT_DIR}/bin/fortune"
       -p "${PROFILE}"
     )

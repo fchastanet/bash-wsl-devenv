@@ -2885,7 +2885,7 @@ breakOnTestFailure() { :; }
 fortunes() {
   if Assert::wsl; then
     if ! ls "${WINDOWS_PROFILE_DIR}/AppData/Local/Microsoft/Windows/Fonts/mesloLGS_NF"*.ttf &>/dev/null; then
-      echo "Font 'Meslo LG S' does not seem to be installed, use 'installAndConfigure Font' to get better terminal results"
+      echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- The font ${__HELP_EXAMPLE}Meslo LG S${__RESET_COLOR} does not seem to be installed, use ${__HELP_EXAMPLE}installAndConfigure Font${__RESET_COLOR} to get better terminal results."
       echo "%"
     fi
   fi

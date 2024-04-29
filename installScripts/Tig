@@ -2699,7 +2699,7 @@ helpDescription() {
 }
 
 fortunes() {
-  echo "Tig - use 'tig' command to browse git repository's logs"
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- use ${__HELP_EXAMPLE}tig${__RESET_COLOR} command to browse git repository's logs."
   echo "%"
 }
 # jscpd:ignore-start

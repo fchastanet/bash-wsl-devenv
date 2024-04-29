@@ -18,6 +18,13 @@ dependencies() {
   echo "installScripts/Xvsb"
 }
 
+fortunes() {
+  if ! command -v aws &>/dev/null; then
+    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- command ${__HELP_EXAMPLE}aws${__RESET_COLOR} not installed - install it using ${__HELP_EXAMPLE}installAndConfigure AwsCli${__RESET_COLOR}."
+    echo "%"
+  fi
+}
+
 # jscpd:ignore-start
 helpVariables() { :; }
 listVariables() { :; }
@@ -26,13 +33,6 @@ checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 # jscpd:ignore-end
-
-fortunes() {
-  if ! command -v aws &>/dev/null; then
-    echo "aws -- AwsCli not installed - install it using '${BASH_DEV_ENV_ROOT_DIR}/installScripts/AwsCli'"
-    echo "%"
-  fi
-}
 
 install() {
   # install aws-cli

@@ -3203,11 +3203,16 @@ listVariables() {
   echo "AWS_DEFAULT_DOCKER_REGISTRY_ID"
 }
 
+fortunes() {
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- Use the alias ${__HELP_EXAMPLE}aws-login${__RESET_COLOR} in order to connect to your default aws profile."
+  echo -e "Then the alias ${__HELP_EXAMPLE}aws-docker-login${__RESET_COLOR} can be used to login to docker registry."
+  echo "%"
+}
+
 # jscpd:ignore-start
 helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
-fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 install() { :; }

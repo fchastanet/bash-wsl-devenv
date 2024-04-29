@@ -13,7 +13,11 @@ scriptName() {
 
 fortunes() {
   if command -v fd &>/dev/null; then
-    echo "Fd -- fd is a program to find entries in your filesystem. It is a simple, fast and user-friendly alternative to find. While it does not aim to support all of find's powerful functionality, it provides sensible (opinionated) defaults for a majority of use cases. - https://github.com/sharkdp/fd"
+    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}fd${__RESET_COLOR} "
+    echo -e "is a program to find entries in your filesystem. It is a simple, fast and user-friendly "
+    echo -e "alternative to find. While it does not aim to support all of find's powerful functionality, "
+    echo -e "it provides sensible (opinionated) defaults for a majority of use cases. "
+    echo -e "${__HELP_EXAMPLE}<https://github.com/sharkdp/fd>${__RESET_COLOR}."
     echo "%"
   fi
 }
