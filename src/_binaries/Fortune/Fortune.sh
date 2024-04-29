@@ -15,21 +15,23 @@ helpDescription() {
   echo "Fortune"
 }
 
-# jscpd:ignore-start
 dependencies() {
   echo "installScripts/Anacron"
 }
+
+fortunes() {
+  if [[ "${SHOW_FORTUNES}" = "1" ]]; then
+    # shellcheck disable=SC2016
+    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- You can set ${__HELP_EXAMPLE}SHOW_FORTUNES${__RESET_COLOR} to ${__HELP_EXAMPLE}0${__RESET_COLOR} in ${__HELP_EXAMPLE}${BASH_DEV_ENV_ROOT_DIR}/.env${__RESET_COLOR} to hide fortunes."
+    echo "%"
+  fi
+}
+
+# jscpd:ignore-start
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
-fortunes() {
-  if [[ "${SHOW_FORTUNES}" = "1" ]]; then
-    # shellcheck disable=SC2016
-    echo "You can set SHOW_FORTUNES to 0 in '${BASH_DEV_ENV_ROOT_DIR}/.env' to hide fortunes"
-    echo "%"
-  fi
-}
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 # jscpd:ignore-end
@@ -57,7 +59,7 @@ configure() {
     Log::displayHelp "Please provide a profile to the install command in order to activate automatic fortune generation"
   else
     local -a cmd=(
-      sudo -i -n -u "${USERNAME}"
+      sudo -i -n -u "${USERNAME}" bash -i
       "${BASH_DEV_ENV_ROOT_DIR}/bin/fortune"
       -p "${PROFILE}"
     )

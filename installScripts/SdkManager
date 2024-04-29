@@ -2869,10 +2869,9 @@ dependencies() {
 }
 
 fortunes() {
-  echo "$(scriptName) - you can use the command 'sdk install java' to install latest jdk version"
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- you can use the command ${__HELP_EXAMPLE}sdk install java${__RESET_COLOR} to install latest jdk version."
   echo "%"
-  echo "$(scriptName) - check https://sdkman.io/sdks to see the list of sdk like "
-  echo "scala, gradle, ... that can be easily installed"
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- check ${__HELP_EXAMPLE}<https://sdkman.io/sdks>${__RESET_COLOR} to see the list of sdks like ${__HELP_EXAMPLE}scala${__RESET_COLOR}, ${__HELP_EXAMPLE}gradle${__RESET_COLOR}, ... that can be easily installed."
   echo '%'
 }
 

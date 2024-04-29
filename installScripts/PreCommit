@@ -2823,7 +2823,8 @@ dependencies() {
 }
 
 fortunes() {
-  echo "PreCommit - if .pre-commit-config.yaml file is present, pre-commit will run automatically the tools specified before the commit"
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- if ${__HELP_EXAMPLE}.pre-commit-config.yaml${__RESET_COLOR} file is present, "
+  echo -e "${__HELP_EXAMPLE}pre-commit${__RESET_COLOR} will run automatically the tools specified before the commit."
   echo "%"
 }
 

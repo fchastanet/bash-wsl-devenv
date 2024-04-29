@@ -23,6 +23,7 @@
     "**/report/**",
     "**/*.svg",
     "src/_binaries/installScripts/**",
+    "srcAlt/**",
     "**/DISCLAIMER.md",
     "src/_binaries/ShellBash/conf/.bash-dev-env/ShellBash.md",
     "src/_binaries/ShellZsh/conf/.bash-dev-env/ShellZsh.md"

@@ -564,7 +564,7 @@ Conf::list() {
 # will be used beginning with srcAlt profiles
 # @arg $1 profileName:String
 # @stdout the path of the profile, no output if profile not found
-# @exitCode 1 if profile not found
+# @exitcode 1 if profile not found
 Profiles::getProfilePath() {
   local profileName="$1"
   local dir

@@ -17,14 +17,15 @@ helpDescription() {
 
 fortunes() {
   if [[ -d "${HOME}/fchastanet/bash-tools/bin" ]]; then
-    echo "BashTools - cli -- tool to easily connect to your containers"
+    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}cli${__RESET_COLOR} -- tool to easily connect to your containers."
     echo "%"
-    echo "BashTools - dbImport -- tool to import database from aws or Mizar"
+    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}dbImport${__RESET_COLOR} -- tool to import database from aws or remote mysql server."
     echo "%"
-    echo "BashTools - dbQueryAllDatabases -- tool to execute a query on multiple databases"
+    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}dbQueryAllDatabases${__RESET_COLOR} -- tool to execute a query on multiple databases."
     echo "%"
   else
-    echo "Run 'installAndConfigure BashTools' -- to initialize bash tools (cli, dbImport, dbQueryAllDatabases, ...)"
+    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- Run ${__HELP_EXAMPLE}installAndConfigure BashTools${__RESET_COLOR} "
+    echo -e "to initialize bash tools (${__HELP_EXAMPLE}cli${__RESET_COLOR}, ${__HELP_EXAMPLE}dbImport${__RESET_COLOR}, ${__HELP_EXAMPLE}dbQueryAllDatabases${__RESET_COLOR}, ...)"
     echo "%"
   fi
 }

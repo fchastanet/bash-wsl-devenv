@@ -564,7 +564,7 @@ Conf::list() {
 # will be used beginning with srcAlt profiles
 # @arg $1 profileName:String
 # @stdout the path of the profile, no output if profile not found
-# @exitCode 1 if profile not found
+# @exitcode 1 if profile not found
 Profiles::getProfilePath() {
   local profileName="$1"
   local dir
@@ -2604,12 +2604,15 @@ generateFortunes() {
   echo >/etc/fortune-help-commands
   (
     for configName in "${CONFIG_LIST[@]}"; do
+      if [[ -z "${configName}" ]]; then
+        continue
+      fi
       (
         local fortunes
         fortunes="$("${BASH_DEV_ENV_ROOT_DIR}/${configName}" fortunes | Filters::trimEmptyLines)"
         if [[ -n "${fortunes}" ]]; then
-          echo "${fortunes}"
-          Log::displayInfo "${configName} - $(grep -cE '^%$'<<<"${fortunes}") fortunes generated"
+          echo -e "${fortunes}"
+          Log::displayInfo "${configName} - $(grep -cE '^%$' <<<"${fortunes}") fortunes generated"
         else
           Log::displayInfo "${configName} - no fortune generated"
         fi

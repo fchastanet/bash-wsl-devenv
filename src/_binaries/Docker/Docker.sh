@@ -15,6 +15,11 @@ helpDescription() {
   echo "install docker and docker-compose inside wsl"
 }
 
+fortunes() {
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- You can now use ${__HELP_EXAMPLE}docker compose${__RESET_COLOR} or ${__HELP_EXAMPLE}docker-compose${__RESET_COLOR} indifferently thanks to installed docker compose plugin."
+  echo "%"
+}
+
 dependencies() {
   echo "installScripts/MandatorySoftwares"
   echo "installScripts/WslDefaultConfig"
@@ -26,7 +31,6 @@ helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
-fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 # jscpd:ignore-end

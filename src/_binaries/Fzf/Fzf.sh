@@ -36,11 +36,11 @@ breakOnTestFailure() { :; }
 
 fortunes() {
   if [[ "${USER_SHELL}" = "/usr/bin/zsh" && -f "${HOME}/.fzf/shell/key-bindings.zsh" ]]; then
-    echo "$(scriptName) - Fzf - CTRL-T - Paste the selected file path(s) into the command line"
+    echo -e "$(scriptName) -- ${__HELP_EXAMPLE}CTRL-T${__RESET_COLOR} -- Paste the selected file path(s) into the command line."
     echo "%"
-    echo "$(scriptName) - Fzf - ALT-C - cd into the selected directory"
+    echo -e "$(scriptName) -- ${__HELP_EXAMPLE}ALT-C${__RESET_COLOR} -- cd into the selected directory."
     echo "%"
-    echo "$(scriptName) - Fzf - CTRL-R - Paste the selected command from history into the command line"
+    echo -e "$(scriptName) -- ${__HELP_EXAMPLE}CTRL-R${__RESET_COLOR} -- Paste the selected command from history into the command line."
     echo "%"
   fi
 }

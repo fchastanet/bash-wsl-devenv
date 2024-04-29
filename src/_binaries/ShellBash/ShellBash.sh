@@ -26,6 +26,15 @@ dependencies() {
   echo "installScripts/Vim"
 }
 
+fortunes() {
+  if [[ "${USER_SHELL}" = "/usr/bin/bash" ]]; then
+    if command -v zsh &>/dev/null; then
+      echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}Bash${__RESET_COLOR} is set as default shell, you can switch to zsh using ${__HELP_EXAMPLE}chsh -s /usr/bin/zsh${__RESET_COLOR}."
+      echo "%"
+    fi
+  fi
+}
+
 # jscpd:ignore-start
 helpVariables() { :; }
 listVariables() { :; }
@@ -34,15 +43,6 @@ checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 # jscpd:ignore-end
-
-fortunes() {
-  if [[ "${USER_SHELL}" = "/usr/bin/bash" ]]; then
-    if command -v zsh &>/dev/null; then
-      echo "Bash is set as default shell, you can switch to zsh using 'chsh -s /usr/bin/zsh'"
-      echo "%"
-    fi
-  fi
-}
 
 install() {
   Linux::Apt::installIfNecessary --no-install-recommends \
@@ -111,7 +111,6 @@ configure() {
 
   Log::displayInfo "disable bell"
   sudo sed -i -e 's/;set bell-style none/set bell-style none/g' /etc/inputrc
-
 }
 
 testConfigure() {

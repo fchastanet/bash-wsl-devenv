@@ -26,13 +26,16 @@ EXCLUDED_DIRECTORIES:
   - '.idea'
   - 'logs'
   - 'node_modules'
+  - 'srcAlt'
+  - 'vendor'
 FILTER_REGEX_EXCLUDE: |
   (?x)(
     \.git/|
     \.history/|
     \.idea/|
     ^vendor/|
-    ^node_modules/
+    ^node_modules/|
+    ^srcAlt/
   )
 FILEIO_REPORTER: false
 PRE_COMMANDS:

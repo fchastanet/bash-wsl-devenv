@@ -21,12 +21,15 @@ generateFortunes() {
   echo >/etc/fortune-help-commands
   (
     for configName in "${CONFIG_LIST[@]}"; do
+      if [[ -z "${configName}" ]]; then
+        continue
+      fi
       (
         local fortunes
         fortunes="$("${BASH_DEV_ENV_ROOT_DIR}/${configName}" fortunes | Filters::trimEmptyLines)"
         if [[ -n "${fortunes}" ]]; then
-          echo "${fortunes}"
-          Log::displayInfo "${configName} - $(grep -cE '^%$'<<<"${fortunes}") fortunes generated"
+          echo -e "${fortunes}"
+          Log::displayInfo "${configName} - $(grep -cE '^%$' <<<"${fortunes}") fortunes generated"
         else
           Log::displayInfo "${configName} - no fortune generated"
         fi

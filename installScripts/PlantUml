@@ -3012,12 +3012,16 @@ dependencies() {
   echo "installScripts/SdkManager"
 }
 
+fortunes() {
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}/opt/java/plantuml.jar${__RESET_COLOR} can be used for Vscode plantuml plugin to generate plantuml diagrams."
+  echo "%"
+}
+
 # jscpd:ignore-start
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
-fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 # jscpd:ignore-end

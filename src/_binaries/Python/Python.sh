@@ -16,7 +16,7 @@ helpDescription() {
 }
 
 fortunes() {
-  echo "Python - virtualenv is automatically loaded by ~/.bash-dev-env"
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}virtualenv${__RESET_COLOR} is automatically loaded by ${__HELP_EXAMPLE}~/.bash-dev-env/profile.d/python.sh${__RESET_COLOR}."
   echo "%"
 }
 # jscpd:ignore-start

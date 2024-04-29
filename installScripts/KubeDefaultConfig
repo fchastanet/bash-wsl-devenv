@@ -3568,29 +3568,30 @@ dependencies() {
   echo "installScripts/Go"
 }
 
+fortunes() {
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- these kubernetes tools are available ${__HELP_EXAMPLE}helm${__RESET_COLOR}, ${__HELP_EXAMPLE}kubectl${__RESET_COLOR}, ${__HELP_EXAMPLE}kind${__RESET_COLOR}, ${__HELP_EXAMPLE}minikube${__RESET_COLOR}, ${__HELP_EXAMPLE}kubeps1${__RESET_COLOR}, ${__HELP_EXAMPLE}kubectx${__RESET_COLOR}, ${__HELP_EXAMPLE}kubens${__RESET_COLOR}, ${__HELP_EXAMPLE}lazydocker${__RESET_COLOR}."
+  echo "%"
+  if command -v lazydocker &>/dev/null; then
+    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- you can use ${__HELP_EXAMPLE}lazydocker${__RESET_COLOR} to navigate through your containers."
+    echo -e "Lazydocker is a simple terminal UI for both ${__HELP_EXAMPLE}docker${__RESET_COLOR} and ${__HELP_EXAMPLE}docker-compose${__RESET_COLOR}, written in Go."
+    echo "%"
+  fi
+  if command -v k9s &>/dev/null; then
+    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- you can use ${__HELP_EXAMPLE}k9s${__RESET_COLOR} to navigate through your pods."
+    echo "K9s provides a terminal UI to interact with your Kubernetes clusters."
+    echo "The aim of this project is to make it easier to navigate, observe"
+    echo "and manage your applications in the wild. K9s continually watches"
+    echo "kubernetes for changes and offers subsequent commands to interact"
+    echo "with your observed resources."
+    echo "%"
+  fi
+}
+
 # jscpd:ignore-start
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
-fortunes() {
-  echo "$(scriptName) - these kubernetes tools are available helm, kubectl, kind, minikube, kubeps1, kubectx, kubens, lazydocker"
-  echo "%"
-  if command -v lazydocker &>/dev/null; then
-    echo "$(scriptName) - you can use lazydocker to navigate through your containers"
-    echo "A simple terminal UI for both docker and docker-compose, written in Go"
-    echo "%"
-  fi
-  if command -v k9s &>/dev/null; then
-    echo "$(scriptName) - you can use k9s to navigate through your pods"
-    echo "K9s provides a terminal UI to interact with your Kubernetes clusters."
-    echo "The aim of this project is to make it easier to navigate, observe"
-    echo "and manage your applications in the wild. K9s continually watches"
-    echo "Kubernetes for changes and offers subsequent commands to interact"
-    echo "with your observed resources."
-    echo "%"
-  fi
-}
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 # jscpd:ignore-end

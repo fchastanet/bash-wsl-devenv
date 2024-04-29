@@ -3021,6 +3021,12 @@ scriptName() {
   echo "Oq"
 }
 
+fortunes() {
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}oq${__RESET_COLOR} is a ${__HELP_EXAMPLE}jq${__RESET_COLOR} wrapper but able to parse other formats than json."
+  echo -e "${__HELP_EXAMPLE}<https://blacksmoke16.github.io/oq/>${__RESET_COLOR}"
+  echo "%"
+}
+
 oqParseVersion() {
   grep "oq" | Version::parse
 }

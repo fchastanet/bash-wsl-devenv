@@ -3228,13 +3228,17 @@ helpDescription() {
   echo "NodeNpm"
 }
 
+fortunes() {
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}n${__RESET_COLOR} -- tool to easily switch from one ${__HELP_EXAMPLE}node${__RESET_COLOR} version to another."
+  echo "%"
+}
+
 # jscpd:ignore-start
 dependencies() { :; }
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
-fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 # jscpd:ignore-end

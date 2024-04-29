@@ -40,12 +40,12 @@ breakOnTestFailure() { :; }
 fortunes() {
   if [[ "${USER_SHELL}" = "/usr/bin/bash" ]]; then
     if command -v fasd &>/dev/null; then
-      echo "$(scriptName) -- z <directory> to easily change directory (see https://github.com/clvv/fasd)"
+      echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}z <directory>${__RESET_COLOR} to easily change directory -- see ${__HELP_EXAMPLE}<https://github.com/clvv/fasd>${__RESET_COLOR}."
       echo "%"
-      echo "$(scriptName) -- v <file> to easily edit recently file with vi (see https://github.com/clvv/fasd)"
+      echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}v <file>${__RESET_COLOR} to easily edit recently file with vi -- see ${__HELP_EXAMPLE}<https://github.com/clvv/fasd>${__RESET_COLOR}."
       echo "%"
     else
-      echo "$(scriptName) -- Think about installing fasd to easily switch directory - run 'installAndConfigure Fasd'"
+      echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- Think about installing ${__HELP_EXAMPLE}fasd${__RESET_COLOR} to easily switch directory - run ${__HELP_EXAMPLE}installAndConfigure Fasd${__RESET_COLOR}."
       echo "%"
     fi
   fi
