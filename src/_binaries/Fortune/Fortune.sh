@@ -67,7 +67,10 @@ configure() {
       "${cmd[@]}"
 
     # generate /etc/fortune-help-commands and /etc/fortune-help-commands.dat
-    SKIP_REQUIRES=1 "${cmd[@]}"
+    SKIP_REQUIRES=1 "${cmd[@]}" || {
+      Log::displayError "fortunes generation failure"
+      return 1
+    }
   fi
 
   # shellcheck disable=SC2154

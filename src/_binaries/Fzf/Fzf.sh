@@ -35,7 +35,7 @@ breakOnTestFailure() { :; }
 # jscpd:ignore-end
 
 fortunes() {
-  if [[ -f "${HOME}/.fzf/shell/key-bindings.zsh" ]]; then
+  if [[ "${USER_SHELL}" = "/usr/bin/zsh" && -f "${HOME}/.fzf/shell/key-bindings.zsh" ]]; then
     echo "$(scriptName) - Fzf - CTRL-T - Paste the selected file path(s) into the command line"
     echo "%"
     echo "$(scriptName) - Fzf - ALT-C - cd into the selected directory"

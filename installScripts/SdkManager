@@ -1985,7 +1985,7 @@ Retry::parameterized() {
     if "$@"; then
       break
     elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
-      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
+      Log::displayDebug "Command failed. Wait for ${delayBetweenTries} seconds"
       ((retriesCount++))
       sleep "${delayBetweenTries}"
     else
@@ -2870,7 +2870,7 @@ dependencies() {
 
 fortunes() {
   echo "$(scriptName) - you can use the command 'sdk install java' to install latest jdk version"
-  echo ";"
+  echo "%"
   echo "$(scriptName) - check https://sdkman.io/sdks to see the list of sdk like "
   echo "scala, gradle, ... that can be easily installed"
   echo '%'
