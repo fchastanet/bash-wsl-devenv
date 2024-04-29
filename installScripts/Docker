@@ -3311,6 +3311,7 @@ installFromUbuntu20() {
   # Given this, you probably want to configure Debian to use the legacy
   # iptables by default
   sudo update-alternatives --set iptables /usr/sbin/iptables-legacy
+  sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
 
   Log::displayInfo "install docker apt source list"
   Retry::default curl -fsSL "https://download.docker.com/linux/${ID}/gpg" | sudo apt-key add --no-tty --batch -
