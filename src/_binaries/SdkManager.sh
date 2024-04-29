@@ -16,7 +16,7 @@ dependencies() {
 
 fortunes() {
   echo "$(scriptName) - you can use the command 'sdk install java' to install latest jdk version"
-  echo ";"
+  echo "%"
   echo "$(scriptName) - check https://sdkman.io/sdks to see the list of sdk like "
   echo "scala, gradle, ... that can be easily installed"
   echo '%'

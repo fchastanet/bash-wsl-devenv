@@ -64,7 +64,7 @@ Profiles::allDepsRecursive() {
     )
     if ((${#newDeps} > 0)); then
       Log::displayInfo "${i} depends on ${newDeps[*]}"
-      Profiles::allDepsRecursive "${scriptsDir}" "${i}" "${newDeps[@]}"
+      Profiles::allDepsRecursive "${scriptsDir}" "${i}" "${newDeps[@]}" || return $?
     fi
     if [[ "${addDep}" = "1" ]]; then
       Log::displayInfo "${i} is a dependency of ${parent}"

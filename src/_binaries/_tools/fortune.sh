@@ -19,22 +19,23 @@ trap 'err_report $LINENO' ERR
 
 generateFortunes() {
   echo >/etc/fortune-help-commands
-  if [[ "${SHOW_FORTUNES}" = "1" ]]; then
-    (
-      for configName in "${CONFIG_LIST[@]}"; do
-        (
-          local fortunes
-          fortunes="$("${INSTALL_SCRIPTS_ROOT_DIR}/${configName}" fortunes | Filters::trimEmptyLines)"
-          if [[ -n "${fortunes}" ]]; then
-            echo "${fortunes}"
-          fi
-        ) >>/etc/fortune-help-commands || {
-          Log::displayWarning "Script ${configName} - fortunes failed to be loaded"
-        }
-      done
-    ) 2>&1 | tee >(sed -r 's/\x1b\[[0-9;]*m//g' >>"${LOGS_DIR}/automatic-fortune") || return 1
-    Log::displayInfo "$(grep -cE '^%$' /etc/fortune-help-commands) fortunes generated"
-  fi
+  (
+    for configName in "${CONFIG_LIST[@]}"; do
+      (
+        local fortunes
+        fortunes="$("${BASH_DEV_ENV_ROOT_DIR}/${configName}" fortunes | Filters::trimEmptyLines)"
+        if [[ -n "${fortunes}" ]]; then
+          echo "${fortunes}"
+          Log::displayInfo "${configName} - $(grep -cE '^%$'<<<"${fortunes}") fortunes generated"
+        else
+          Log::displayInfo "${configName} - no fortune generated"
+        fi
+      ) >>/etc/fortune-help-commands || {
+        Log::displayWarning "Script ${configName} - fortunes failed to be loaded"
+      }
+    done
+  ) 2>&1 | tee >(sed -r 's/\x1b\[[0-9;]*m//g' >>"${LOGS_DIR}/automatic-fortune") || return 1
+  Log::displayInfo "$(grep -cE '^%$' /etc/fortune-help-commands) fortunes generated"
 }
 
 generateFortunesDat() {
@@ -47,7 +48,7 @@ generateFortunesDat() {
 run() {
   LOGS_DIR="${LOGS_DIR:-${PERSISTENT_TMPDIR}}"
 
-  Profiles::checkScriptsExistence "${INSTALL_SCRIPTS_DIR}" "" "${CONFIG_LIST[@]}"
+  Profiles::checkScriptsExistence "${INSTALL_SCRIPTS_ROOT_DIR}" "" "${CONFIG_LIST[@]}"
   Log::displayInfo "Will Install ${CONFIG_LIST[*]}"
 
   # Start install process

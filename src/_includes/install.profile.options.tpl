@@ -75,10 +75,7 @@ commandCallback() {
     local profilePath
     profilePath="$(Profiles::getProfilePath "${PROFILE}")" # should succeed as it was tested by option
     # load selected profile
-    mapfile -t CONFIG_LIST < <(
-      IFS=$'\n' Profiles::loadProfile \
-        "$(dirname "${profilePath}")" "${PROFILE}"
-    )
+    Profiles::loadProfile "${profilePath}"
   fi
   if [[ "${SKIP_DEPENDENCIES:-0}" = "0" ]]; then
     CONFIG_LIST=("${CONFIG_LIST[@]}")

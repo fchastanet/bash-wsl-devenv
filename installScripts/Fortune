@@ -2224,7 +2224,7 @@ Retry::parameterized() {
     if "$@"; then
       break
     elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
-      Log::displayWarning "Command failed. Wait for ${delayBetweenTries} seconds"
+      Log::displayDebug "Command failed. Wait for ${delayBetweenTries} seconds"
       ((retriesCount++))
       sleep "${delayBetweenTries}"
     else
@@ -3238,7 +3238,10 @@ configure() {
       "${cmd[@]}"
 
     # generate /etc/fortune-help-commands and /etc/fortune-help-commands.dat
-    SKIP_REQUIRES=1 "${cmd[@]}"
+    SKIP_REQUIRES=1 "${cmd[@]}" || {
+      Log::displayError "fortunes generation failure"
+      return 1
+    }
   fi
 
   # shellcheck disable=SC2154
