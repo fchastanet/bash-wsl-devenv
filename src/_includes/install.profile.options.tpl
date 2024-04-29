@@ -32,7 +32,15 @@ profileHelp() {
   echo "Profile name to use that contains all the softwares to install"
   echo "List of profiles available:"
   echo
-  Conf::list "${BASH_DEV_ENV_ROOT_DIR}/profiles" "" ".sh" "-type f" "   - "  | sort | uniq
+  (
+    Conf::list "${BASH_DEV_ENV_ROOT_DIR}/profiles" "profile." ".sh" "-type f" "   - "
+    local dir
+    for dir in "${BASH_DEV_ENV_ROOT_DIR}/srcAlt/"*; do
+      if [[ -d "${dir}/profiles" ]]; then
+        Conf::list "${dir}/profiles" "profile." ".sh" "-type f" "   - "
+      fi
+    done
+  ) | sort | uniq
 }
 
 softwareArgHelp() {
@@ -40,9 +48,11 @@ softwareArgHelp() {
   echo "See below for complete list of softwares available"
 }
 
+
 validateProfile() {
-  if [[ ! -f "${BASH_DEV_ENV_ROOT_DIR}/profiles/profile.$2.sh" ]]; then
-    Log::fatal "Profile file ${BASH_DEV_ENV_ROOT_DIR}/profile.$2.sh doesn't exist"
+  local profileName="$2"
+  if ! Profiles::getProfilePath "${profileName}" &>/dev/null; then
+    Log::fatal "Profile file profile.${profileName}.sh doesn't exist in any profiles directory"
   fi
 }
 
@@ -54,16 +64,20 @@ commandCallback() {
     # check if each Softwares exists
     local software
     for software in "${CONFIG_LIST[@]}"; do
-      if [[ ! -f "${INSTALL_SCRIPTS_ROOT_DIR}/${software}" ]]; then
-        Log::fatal "Software installScripts/${software} configuration does not exists"
+      if [[ ! -f "${BASH_DEV_ENV_ROOT_DIR}/${software}" ]]; then
+        Log::fatal "Software ${software} configuration does not exists"
       fi
     done
   elif [[ -z "${PROFILE}" ]]; then
     Log::fatal "You must specify either a list of softwares, either a profile name"
   else
+    # get profile path
+    local profilePath
+    profilePath="$(Profiles::getProfilePath "${PROFILE}")" # should succeed as it was tested by option
     # load selected profile
     mapfile -t CONFIG_LIST < <(
-      IFS=$'\n' Profiles::loadProfile "${BASH_DEV_ENV_ROOT_DIR}/profiles" "${PROFILE}"
+      IFS=$'\n' Profiles::loadProfile \
+        "$(dirname "${profilePath}")" "${PROFILE}"
     )
   fi
   if [[ "${SKIP_DEPENDENCIES:-0}" = "0" ]]; then
