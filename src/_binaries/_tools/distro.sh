@@ -174,9 +174,6 @@ run() {
   if [[ ! "${DISTRO_URL}" =~ ^https://+ ]]; then
     Log::fatal "DISTRO_URL invalid value : '${DISTRO_URL}'"
   fi
-  if ! Profiles::getProfilePath "${DISTRO_INSTALL_PROFILE}" &>/dev/null; then
-    Log::fatal "Profile file profile.${DISTRO_INSTALL_PROFILE}.sh doesn't exist in any profiles directory"
-  fi
   # The path where bash-dev-env project will be copied into target distro
   DISTRO_BASH_DEV_ENV_TARGET_DIR="${BASH_DEV_ENV_ROOT_DIR}"
   # shellcheck disable=SC1003
@@ -253,7 +250,7 @@ run() {
     fi
   fi
   local installCmd=(
-    ./install -p "${DISTRO_INSTALL_PROFILE}" "${DISTRO_INSTALL_OPTIONS[@]}"
+    ./install "${DISTRO_INSTALL_OPTIONS[@]}"
   )
   if [[ "${optionExport}" = "1" ]]; then
     installCmd+=(--prepare-export)
