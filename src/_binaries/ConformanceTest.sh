@@ -45,13 +45,6 @@ install() {
   if [[ "$(getent passwd "${USERNAME}" | cut -d: -f6)" != "${HOME}" ]]; then
     Log::fatal "Specified User home '${HOME}' of ${USERNAME} is incorrect."
   fi
-
-  if Assert::wsl &&
-    [[ "${DOCKER_INSIDE_WSL}" = "0" ]] &&
-    Array::contains "Docker" "$@" &&
-    ! command -v docker &>/dev/null; then
-    Log::fatal "Please check that you installed docker for windows and you associated this wsl distribution with it"
-  fi
 }
 
 configure() {

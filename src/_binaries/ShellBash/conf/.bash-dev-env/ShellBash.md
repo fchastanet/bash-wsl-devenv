@@ -61,30 +61,28 @@ Here are some common operations and shell modes they result in:
 
 In order of activation:
 
-1. **login** mode:
-1. `/etc/profile`
-1. `~/.bash_profile`, `~/.bash_login`, `~/.profile` (only first one that exists)
-1. interactive **non-login**:
-1. `/etc/bash.bashrc` (some Linux; not on Mac OS X)
-1. `~/.bashrc`
-1. **non-interactive**:
-1. source file in `$BASH_ENV`
+- **login** mode:
+  - _1._ `/etc/profile`
+  - _2._ `~/.bash_profile`, `~/.bash_login`, `~/.profile` (only first one that
+    exists)
+- **interactive non-login** mode:
+  - _1._ `/etc/bash.bashrc` (some Linux; not on Mac OS X)
+  - _2._ `~/.bashrc`
+- **non-interactive** mode:
+  - _1._ source file in `$BASH_ENV`
 
 ### 2.3. Startup files order
 
-+----------------+-----------+-----------+------+ |
-|Interactive|Interactive|Script| | |login |non-login | |
-+----------------+-----------+-----------+------+ |/etc/profile | A | | |
-+----------------+-----------+-----------+------+ |/etc/bash.bashrc| | A | |
-+----------------+-----------+-----------+------+ |~/.bashrc | | B | |
-+----------------+-----------+-----------+------+ |~/.bash_profile | B1 | | |
-+----------------+-----------+-----------+------+ |~/.bash_login | B2 | | |
-+----------------+-----------+-----------+------+ |~/.profile | B3 | | |
-+----------------+-----------+-----------+------+ |BASH_ENV | | | A |
-+----------------+-----------+-----------+------+ | | | | |
-+----------------+-----------+-----------+------+ | | | | |
-+----------------+-----------+-----------+------+ |~/.bash_logout | C | | |
-+----------------+-----------+-----------+------+
+|                  | Interactive<br>login | Interactive<br>non-login | Script |
+|------------------|----------------------|--------------------------|--------|
+| /etc/profile     | A                    |                          |        |
+| /etc/bash.bashrc |                      | A                        |        |
+| ~/.bashrc        |                      | B                        |        |
+| ~/.bash_profile  | B1                   |                          |        |
+| ~/.bash_login    | B2                   |                          |        |
+| ~/.profile       | B3                   |                          |        |
+| BASH_ENV         |                      |                          | A      |
+| ~/.bash_logout   | C                    |                          |        |
 
 Moral: put stuff in ~/.bashrc, and make ~/.bash_profile source it.
 

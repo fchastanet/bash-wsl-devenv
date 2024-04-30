@@ -59,7 +59,7 @@ configure() {
     Log::displayHelp "Please provide a profile to the install command in order to activate automatic fortune generation"
   else
     local -a cmd=(
-      sudo -i -n -u "${USERNAME}" bash -i
+      sudo -E -n -u "${USERNAME}" bash -l
       "${BASH_DEV_ENV_ROOT_DIR}/bin/fortune"
       -p "${PROFILE}"
     )

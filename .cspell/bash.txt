@@ -122,3 +122,4 @@ Ecma
 selfupdate
 userdel
 cowthink
+noprofile

@@ -40,6 +40,8 @@ Engine::Config::loadConfig() {
 
   Log::requireLoad
 
+  Engine::Config::loadSshKey
+
   Engine::Config::loadLocaleConfig
 
   export BASH_DEV_ENV_CONFIG_LOADED=1
