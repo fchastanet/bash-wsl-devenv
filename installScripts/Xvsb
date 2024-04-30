@@ -162,35 +162,66 @@ Assert::functionExists() {
 envFileTemplate="$(
   cat <<'EOF'
 # shellcheck disable=SC2034
-# wsl username
+
+# -----------------------------------------------------------------------------
+# General information
+# -----------------------------------------------------------------------------
+
+# wsl username with default password wsl
 USERNAME="wsl"
+
 HOME="/home/wsl"
+
 WINDOWS_USERNAME="fchastanet"
+
+# -----------------------------------------------------------------------------
+# Git & SSH information
+# -----------------------------------------------------------------------------
+
+# if 1, it indicates you accept that your git key will be loaded.
+# if 0, configurations that need to be authenticated will be skipped.
+# Distro mode: in any case, your key is not copied.
+AUTHORIZE_SSH_KEY_USAGE=1
 
 # your login to connect to ssh servers if any
 SSH_LOGIN=""
 
 # your git full name 'FirstName LastName'
 GIT_USERNAME=""
+
 # email used for git 'ldap@domain.com'
 GIT_USER_MAIL=""
+
+# -----------------------------------------------------------------------------
+# AWS information
+# -----------------------------------------------------------------------------
+
 # email used to connect to aws
 AWS_USER_MAIL="fchastanet@gmail.com"
+
 # app id to connect to aws account
 AWS_APP_ID=""
+
 AWS_PROFILE=""
 AWS_DEFAULT_REGION=""
 AWS_TEST_SECRET_ID=""
 AWS_DEFAULT_DOCKER_REGISTRY_ID=""
 
+# -----------------------------------------------------------------------------
+# K8S information
+# -----------------------------------------------------------------------------
+
 # KubeDefaultConfig ~/.kube/config generation
 # aws region of the cluster (Eg: us-east-1)
 KUBE_CONFIG_REGION_CODE=
-# aws arn of the cluster arn:aws:ecs:region:aws_account_id:cluster/MyCluster
+
+# aws arn of the cluster.
+# Eg: arn:aws:ecs:region:aws_account_id:cluster/MyCluster
 KUBE_CONFIG_CLUSTER_ARN=
 
-# hostname of the distro
-DISTRO_HOSTNAME="wslHost"
+# -----------------------------------------------------------------------------
+# Directories
+# -----------------------------------------------------------------------------
 
 # overridden conf directory that will be used to override
 # the default configuration that are embedded in binaries
@@ -204,37 +235,16 @@ PROJECTS_DIR="${HOME}/projects"
 BACKUP_DIR="${BASH_DEV_ENV_ROOT_DIR}/backup"
 # backup files/dirs before installing new file (usually 1, but 0 if using distro)
 BACKUP_BEFORE_INSTALL=1
+
 # logs directory
 LOGS_DIR="${BASH_DEV_ENV_ROOT_DIR}/logs"
+
 # installScripts root dir
 INSTALL_SCRIPTS_ROOT_DIR="${BASH_DEV_ENV_ROOT_DIR}"
 
-# 0   => no upgrade at all
-# lts => UPGRADE to latest ubuntu lts version
-# dev => UPGRADE to latest ubuntu dev version
-# Use if you know what you are doing,
-# could cause some packages to not being available yet
-UPGRADE_UBUNTU_VERSION=0
-
-# -----------------------------------------
-# PROFILES options
-
-# Choose your preferred shell
-# possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
-PREFERRED_SHELL="ShellBash"
-
-# Zsh theme to use
-# possible choices: powerlevel10k/powerlevel10k, sindresorhus/pure, starship/starship
-ZSH_PREFERRED_THEME="powerlevel10k/powerlevel10k"
-
-# Display Fortune tooltip at bash/zsh session open
-SHOW_FORTUNES=1
-
-# Display MOTD at bash/zsh session open
-SHOW_MOTD=1
-
-# Install Docker inside wsl
-DOCKER_INSIDE_WSL=1
+# -----------------------------------------------------------------------------
+# Installation configuration
+# -----------------------------------------------------------------------------
 
 # Configuration files are overwritten even if exists
 # !!!! First time initialization: let this value to 1 !!!!
@@ -252,32 +262,68 @@ OVERWRITE_CONFIG_FILES=1
 CHANGE_WINDOWS_FILES=1
 
 # Indicate that install script can warn you using speaker when your input is needed
-CAN_TALK_DURING_INSTALLATION=${CAN_TALK_DURING_INSTALLATION:-1}
+CAN_TALK_DURING_INSTALLATION=1
 
 # if 0 install script will skip all interactive activity (saml2aws, ...),
 # so dependent installation will be skipped as well
-INSTALL_INTERACTIVE=${INSTALL_INTERACTIVE:-1}
+INSTALL_INTERACTIVE=1
 
 # display elapsed time since last log
 DISPLAY_DURATION=1
 
-# -----------------------------------------
-# WSLCONFIG - these parameters will help to automatically
-# configure %USERPROFILE%/.wslconfig file
-# Adjust these values to your needs
+# 0   => no upgrade at all
+# lts => UPGRADE to latest ubuntu lts version
+# dev => UPGRADE to latest ubuntu dev version
+# Use if you know what you are doing,
+# could cause some packages to not being available yet
+UPGRADE_UBUNTU_VERSION=0
+
+# -----------------------------------------------------------------------------
+# Profile configuration
+# -----------------------------------------------------------------------------
+
+# Choose your preferred shell
+# possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
+PREFERRED_SHELL="ShellZsh"
+
+# Zsh theme to use
+# possible choices: powerlevel10k/powerlevel10k, sindresorhus/pure, starship/starship
+ZSH_PREFERRED_THEME="powerlevel10k/powerlevel10k"
+
+# Display Fortune tooltip at bash/zsh session open
+SHOW_FORTUNES=1
+
+# Display MOTD at bash/zsh session open
+SHOW_MOTD=1
+
+# -----------------------------------------------------------------------------
+# WSLCONFIG
+# These parameters automatically configure %USERPROFILE%/.wslconfig file.
 # @see https://docs.microsoft.com/en-us/windows/wsl/wsl-config
+# -----------------------------------------------------------------------------
+
 # Recommended 50% of total memory
 WSLCONFIG_MAX_MEMORY=8GB
+
 # personally I prefer run out of memory instead of beginning swapping
 # So I know immediately if some processes have to be stopped
 WSLCONFIG_SWAP=0
 
-# -----------------------------------------
+# -----------------------------------------------------------------------------
 # Hacks
 # on some configurations we have to force path of some windows commands
+# -----------------------------------------------------------------------------
+
 #POWERSHELL_BIN=/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
 #IPCONFIG_BIN=/mnt/c/Windows/system32/ipconfig.exe
 #WSL_EXE_BIN=/mnt/c/Windows/system32/wsl.exe
+
+# -----------------------------------------------------------------------------
+# General distribution information
+# -----------------------------------------------------------------------------
+
+# hostname of the distro
+DISTRO_HOSTNAME="wslHost"
 EOF
 )"
 
@@ -314,6 +360,8 @@ Engine::Config::loadConfig() {
   Engine::Config::loadWslVariables
 
   Log::requireLoad
+
+  Engine::Config::loadSshKey
 
   Engine::Config::loadLocaleConfig
 
@@ -1077,7 +1125,6 @@ Engine::Config::checkEnv() {
 
   checkValidValues SHOW_FORTUNES 0 1
   checkValidValues SHOW_MOTD 0 1
-  checkValidValues DOCKER_INSIDE_WSL 0 1
   checkValidValues OVERWRITE_CONFIG_FILES 0 1
   checkValidValues CHANGE_WINDOWS_FILES 0 1
   checkValidValues CAN_TALK_DURING_INSTALLATION 0 1
@@ -1194,6 +1241,53 @@ Engine::Config::loadWslVariables() {
   checkBinary POWERSHELL_BIN
 
   return "${errorCount}"
+}
+
+# @description load pageant and ssh key
+# you can provide ssh key by env variable SSH_PRIVATE_KEY
+# or if empty, file ~/.ssh/id_rsa will be used if present
+# @env SSH_PRIVATE_KEY ssh key provided by env variable
+# @env AUTHORIZE_SSH_KEY_USAGE if 0, no ssh key is loaded
+# @env LOAD_SSH_KEY feature flag used in distro mode
+Engine::Config::loadSshKey() {
+  if [[ "${LOAD_SSH_KEY:-1}" = "0" ]]; then
+    # ignore in distro mode
+    return 0
+  fi
+  if [[ "${AUTHORIZE_SSH_KEY_USAGE:-0}" = "0" ]]; then
+    Log::displaySkipped "Ssh key will not be loaded as you set AUTHORIZE_SSH_KEY_USAGE to 0"
+    return 0
+  fi
+  if [[ -n "${SSH_AUTH_SOCK}" && -n "${SSH_AGENT_PID}" ]]; then
+    Log::displaySkipped "Ssh agent skipped as variables SSH_AUTH_SOCK and SSH_AGENT_PID are set"
+    return 0
+  fi
+
+  if [[ -z "${SSH_PRIVATE_KEY}" && ! -f "${HOME}/.ssh/id_rsa" ]]; then
+    Log::displayError "File '${HOME}/.ssh/id_rsa' is missing and env variable SSH_PRIVATE_KEY is empty"
+    return 1
+  fi
+  local errorCode=0
+  ssh-add -l &>/dev/null || errorCode=$?
+  if [[ "${errorCode}" = "2" ]]; then
+    # ssh agent is not started
+    Log::displayInfo "Starting ssh agent"
+    eval "$(ssh-agent)" || return 2
+    export SSH_AUTH_SOCK
+    export SSH_AGENT_PID
+  fi
+
+  if [[ -z "${SSH_PRIVATE_KEY}" ]]; then
+    ssh-add "${HOME}/.ssh/id_rsa" || return 3
+  else
+    ssh-add <(base64 -d <<<"${SSH_PRIVATE_KEY}") || return 3
+  fi
+
+  # Check key has been added to ssh agent
+  ssh-add -l &>/dev/null || {
+    Log::displayError "Your ssh key has not been loaded"
+    return 4
+  }
 }
 
 # @description load locale configuration
@@ -1571,6 +1665,16 @@ Linux::Wsl::cachedWslvar2() {
     Linux::Wsl::originalWslvar "${args[@]}"
 }
 
+# @description Display message using skip color (yellow)
+# @arg $1 message:String the message to display
+Log::displaySkipped() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    Log::computeDuration
+    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logSkipped "$1"
+}
+
 # @description Display given text and complete the rest of the line with given character
 # @arg $1 text:String text to display
 # @arg $2 character:String (default:#) character to use to complete the line
@@ -1782,6 +1886,14 @@ Cache::getPropertyValue2() {
 # @require Linux::Wsl::requireWsl
 Linux::Wsl::originalWslvar() {
   wslvar "$@" | sed -z '$ s/[\r\n]$//'
+}
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logSkipped() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SKIPPED}" "$1"
+  fi
 }
 
 # @description Retry a command several times depending on parameters

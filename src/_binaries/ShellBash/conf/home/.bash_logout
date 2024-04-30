@@ -5,22 +5,27 @@
 # CHECK ~/.bash-dev-env/README.md
 ###############################################################################
 
-# clean history at exit by removing useless commands
+# If running interactively
+if [[ "$-" =~ .*i.* ]]; then
 
-# save current history
-history -n
+  # clean history at exit by removing useless commands
 
-# do not store some simple commands
-tempHistory=$(mktemp -p /tmp)
-# shellcheck disable=SC2154
-trap 'rc=$?; rm -f ${tempHistory} || true; exit "${rc}"' EXIT
-history | sort -k2 -k1nr | uniq -f1 | sort -n | cut -c8- | grep -v -E "^ls|^ll|^pwd |^ |^exit|^mc$|^su$|^df|^clear|^ps|^history|^env|^#|^vi|^exit" >"${tempHistory}"
+  # save current history
+  history -n
 
-# clear history
-history -c
+  # do not store some simple commands
+  tempHistory=$(mktemp -p /tmp)
+  # shellcheck disable=SC2154
+  trap 'rc=$?; rm -f ${tempHistory} || true; exit "${rc}"' EXIT
+  history | sort -k2 -k1nr | uniq -f1 | sort -n | cut -c8- | grep -v -E "^ls|^ll|^pwd |^ |^exit|^mc$|^su$|^df|^clear|^ps|^history|^env|^#|^vi|^exit" >"${tempHistory}"
 
-# load cleaned history temp file
-history -r "${tempHistory}"
+  # clear history
+  history -c
 
-# write history
-history -w
+  # load cleaned history temp file
+  history -r "${tempHistory}"
+
+  # write history
+  history -w
+
+fi

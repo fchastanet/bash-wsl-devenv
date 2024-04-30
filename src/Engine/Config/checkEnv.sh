@@ -99,7 +99,6 @@ Engine::Config::checkEnv() {
 
   checkValidValues SHOW_FORTUNES 0 1
   checkValidValues SHOW_MOTD 0 1
-  checkValidValues DOCKER_INSIDE_WSL 0 1
   checkValidValues OVERWRITE_CONFIG_FILES 0 1
   checkValidValues CHANGE_WINDOWS_FILES 0 1
   checkValidValues CAN_TALK_DURING_INSTALLATION 0 1

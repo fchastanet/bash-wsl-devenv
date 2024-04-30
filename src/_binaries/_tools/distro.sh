@@ -2,8 +2,13 @@
 # BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/distro
 # FACADE
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=.
+# VAR_LOAD_CONFIG=0
 # VAR_LOAD_LOCALE_CONFIG=0
 
+LOAD_SSH_KEY=0 Engine::Config::loadConfig
+.INCLUDE "$(dynamicTemplateDir _includes/sudoerFileManagement.tpl)"
+
+# shellcheck disable=SC2034
 optionSkipDistro=0
 optionSkipInstall=0
 optionExport=0
@@ -143,6 +148,15 @@ waitUntilDistroTerminated() {
   Retry::parameterized 20 1 "Waiting for distro ${DISTRO_NAME} to terminate" checkDistroTerminated
 }
 
+getSshPrivateKey() {
+  if [[ "${AUTHORIZE_SSH_KEY_USAGE:-0}" = "1" ]]; then
+    if [[ ! -f "${HOME}/.ssh/id_rsa" ]]; then
+      Log::fatal "Your private ssh key '${HOME}/.ssh/id_rsa' is not available"
+    fi
+    base64 -w0 <"${HOME}/.ssh/id_rsa"
+  fi
+}
+
 # @require Linux::requireExecutedAsUser
 run() {
   if [[ ! -f "${BASH_DEV_ENV_ROOT_DIR}/.env.distro" ]]; then
@@ -257,8 +271,9 @@ run() {
       .INCLUDE "$(dynamicTemplateDir _includes/sudoerFileManagement.tpl)"
 
       Log::displayInfo "Installing ... using ${installCmd[*]}"
-      REMOTE_USER=${USERNAME} REMOTE_PWD="${DISTRO_BASH_DEV_ENV_TARGET_DIR}" \
-        runWslCmd "${installCmd[@]}" || exit 1
+      REMOTE_USER=${USERNAME} \
+        REMOTE_PWD="${DISTRO_BASH_DEV_ENV_TARGET_DIR}" \
+        runWslCmd bash --noprofile -c "SSH_PRIVATE_KEY='$(getSshPrivateKey)' ${installCmd[*]}" || exit 1
     ) || exit 1
     Log::displayInfo "Restarting wsl distribution ${DISTRO_NAME}"
     wsl.exe --terminate "${DISTRO_NAME}"
