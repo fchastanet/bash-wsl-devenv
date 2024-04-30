@@ -5,6 +5,20 @@ if [[ $- != *i* ]]; then
   return 0
 fi
 
+### Added by Zinit's installer
+source "$HOME/.local/share/zinit/zinit.git/zinit.zsh"
+autoload -Uz _zinit
+(( ${+_comps} )) && _comps[zinit]=_zinit
+
+# Load a few important annexes, without Turbo
+# (this is currently required for annexes)
+zinit light-mode for \
+    zdharma-continuum/zinit-annex-as-monitor \
+    zdharma-continuum/zinit-annex-bin-gem-node \
+    zdharma-continuum/zinit-annex-patch-dl \
+    zdharma-continuum/zinit-annex-rust
+### End of Zinit's installer chunk
+
 # compinit
 autoload -Uz compinit
 if [[ -n ${HOME}/.cache/zsh/zcompdump-$ZSH_VERSION(#qN.mh+24) ]]; then
@@ -14,19 +28,6 @@ else
 fi
 zstyle :compinstall filename "${HOME}/.zshrc"
 zstyle ':completion:*' menu select
-
-# zinit plugin manager
-ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
-if [ -f "${ZINIT_HOME}/zinit.zsh" ]; then
-  source "${ZINIT_HOME}/zinit.zsh"
-  autoload -Uz _zinit
-  (( ${+_comps} )) && _comps[zinit]=_zinit
-  zinit lucid depth=1 light-mode for \
-    zdharma-continuum/zinit-annex-as-monitor \
-    zdharma-continuum/zinit-annex-bin-gem-node \
-    zdharma-continuum/zinit-annex-patch-dl \
-    zdharma-continuum/zinit-annex-rust
-fi
 
 # make vi use right keys binding
 bindkey -e

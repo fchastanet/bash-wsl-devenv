@@ -46,6 +46,7 @@ configure() {
   # Load virtualenv
   # shellcheck source=/dev/null
   source "${HOME}/.virtualenvs/python3/bin/activate"
+  export PATH=${PATH}:${HOME}/.local/bin
   if [[ ! -d "${HOME}/.bash-dev-env/GitDefaultConfig/pre-commit-template" ]]; then
     if ! pre-commit init-templatedir -t pre-commit -t pre-push \
       "${HOME}/.bash-dev-env/GitDefaultConfig/pre-commit-template"; then
