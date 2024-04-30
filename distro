@@ -800,31 +800,6 @@ Retry::parameterized() {
   return 0
 }
 
-# @description deduce profile path from given profile name
-# if 2 profiles are named identically the first existing profile
-# will be used beginning with srcAlt profiles
-# @arg $1 profileName:String
-# @stdout the path of the profile, no output if profile not found
-# @exitcode 1 if profile not found
-Profiles::getProfilePath() {
-  local profileName="$1"
-  local dir
-  for dir in "${BASH_DEV_ENV_ROOT_DIR}/srcAlt/"*; do
-    profilePath="${dir}/profiles/profile.${profileName}.sh"
-    if [[ -f "${profilePath}" ]]; then
-      echo "${profilePath}"
-      return 0
-    fi
-  done
-  local profilePath="${BASH_DEV_ENV_ROOT_DIR}/profiles/profile.${profileName}.sh"
-  if [[ -f "${profilePath}" ]]; then
-    echo "${profilePath}"
-    return 0
-  fi
-
-  return 1
-}
-
 # @description Display message using skip color (yellow)
 # @arg $1 message:String the message to display
 Log::displaySkipped() {
@@ -2649,9 +2624,6 @@ run() {
   if [[ ! "${DISTRO_URL}" =~ ^https://+ ]]; then
     Log::fatal "DISTRO_URL invalid value : '${DISTRO_URL}'"
   fi
-  if ! Profiles::getProfilePath "${DISTRO_INSTALL_PROFILE}" &>/dev/null; then
-    Log::fatal "Profile file profile.${DISTRO_INSTALL_PROFILE}.sh doesn't exist in any profiles directory"
-  fi
   # The path where bash-dev-env project will be copied into target distro
   DISTRO_BASH_DEV_ENV_TARGET_DIR="${BASH_DEV_ENV_ROOT_DIR}"
   # shellcheck disable=SC1003
@@ -2728,7 +2700,7 @@ run() {
     fi
   fi
   local installCmd=(
-    ./install -p "${DISTRO_INSTALL_PROFILE}" "${DISTRO_INSTALL_OPTIONS[@]}"
+    ./install "${DISTRO_INSTALL_OPTIONS[@]}"
   )
   if [[ "${optionExport}" = "1" ]]; then
     installCmd+=(--prepare-export)
