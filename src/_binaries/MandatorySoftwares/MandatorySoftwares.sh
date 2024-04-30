@@ -15,8 +15,14 @@ helpDescription() {
   echo "MandatorySoftwares"
 }
 
+fortunes() {
+  if command -v mc &>/dev/null; then
+    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}mc${__RESET_COLOR} is a file manager in text mode usable in a terminal."
+    echo "%"
+  fi
+}
+
 dependencies() { :; }
-fortunes() { :; }
 helpVariables() { :; }
 listVariables() { :; }
 defaultVariables() { :; }
@@ -56,6 +62,7 @@ install() {
     curl
     dos2unix
     jq
+    mc
     mysql-client
     # net-tools to get netstat
     net-tools
