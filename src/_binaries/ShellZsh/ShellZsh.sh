@@ -67,8 +67,8 @@ install() {
     zinit self-update
     zinit update --all --parallel
   else
-    bash -c "$(
-      NO_EDIT=1 NO_INPUT=1 curl \
+    NO_INPUT=1 NO_TUTORIAL=1 bash -c "$(
+      curl \
         --fail --show-error --silent \
         --location https://raw.githubusercontent.com/zdharma-continuum/zinit/HEAD/scripts/install.sh
     )"
