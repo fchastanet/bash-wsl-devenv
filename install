@@ -343,6 +343,14 @@ Engine::Config::loadConfig() {
   # shellcheck source=/.env
   source "${BASH_DEV_ENV_ROOT_DIR}/.env"
   set +o allexport
+  export STATS_DIR="${LOGS_DIR}/stats"
+  if [[ ! -d "${STATS_DIR}" ]]; then
+    mkdir -p "${STATS_DIR}" || true
+  fi
+  export LOGS_INSTALL_SCRIPTS_DIR="${LOGS_DIR}/installScripts"
+  if [[ ! -d "${LOGS_INSTALL_SCRIPTS_DIR}" ]]; then
+    mkdir -p "${LOGS_INSTALL_SCRIPTS_DIR}" || true
+  fi
 
   # load environment variables ID, VERSION_CODENAME
   Engine::Config::loadOsRelease
@@ -3175,19 +3183,24 @@ summary() {
     Stats::logRecapitulative "${LOGS_DIR}/lastInstallLogRecapitulative.log"
 
     Log::headLine "" "Summary"
-    Stats::aggregateStatsSummary "software installation(s)" "${LOGS_DIR:-#}/global.stat"
+    Stats::aggregateStatsSummary "software installation(s)" \
+      "${STATS_DIR:-#}/global.stat"
     Log::headLine "" "Details"
     if [[ "${SKIP_INSTALL}" = "0" ]]; then
-      Stats::aggregateStatsSummary "installation(s)" "${LOGS_DIR:-#}/install.stat"
+      Stats::aggregateStatsSummary "installation(s)" \
+        "${STATS_DIR:-#}/install.stat"
     fi
     if [[ "${SKIP_TEST}" = "0" ]]; then
-      Stats::aggregateStatsSummary "installation test(s)" "${LOGS_DIR:-#}/test-install.stat"
+      Stats::aggregateStatsSummary "installation test(s)" \
+        "${STATS_DIR:-#}/test-install.stat"
     fi
     if [[ "${SKIP_CONFIGURE}" = "0" ]]; then
-      Stats::aggregateStatsSummary "configuration(s)" "${LOGS_DIR:-#}/config.stat"
+      Stats::aggregateStatsSummary "configuration(s)" \
+        "${STATS_DIR:-#}/config.stat"
     fi
     if [[ "${SKIP_TEST}" = "0" ]]; then
-      Stats::aggregateStatsSummary "configuration test(s)" "${LOGS_DIR:-#}/test-configuration.stat"
+      Stats::aggregateStatsSummary "configuration test(s)" \
+        "${STATS_DIR:-#}/test-configuration.stat"
     fi
     local endDate
     endDate="$(date +%s)"
@@ -3300,33 +3313,50 @@ executeScripts() {
         aggregateStat() {
           local rc="$1"
           local -a statFiles=()
+          local scriptName="${currentConfigName//\//@}"
+          local scriptCmd="${INSTALL_SCRIPTS_ROOT_DIR}/${currentConfigName}"
           if [[ "${SKIP_INSTALL}" = "0" ]] &&
-            SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${currentConfigName}" isInstallImplemented; then
-            Stats::aggregateStats "${LOGS_DIR:-#}/install.stat" "${installConfigCount}" "${LOGS_DIR:-#}/${currentConfigName}-install.stat"
-            statFiles+=("${LOGS_DIR:-#}/${currentConfigName}-install.stat")
+            SKIP_REQUIRES=1 "${scriptCmd}" isInstallImplemented; then
+            Stats::aggregateStats \
+              "${STATS_DIR:-#}/install.stat" \
+              "${installConfigCount}" \
+              "${STATS_DIR:-#}/${scriptName}-install.stat"
+            statFiles+=("${STATS_DIR:-#}/${scriptName}-install.stat")
           fi
           if [[ "${SKIP_CONFIGURE}" = "0" ]] &&
-            SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${currentConfigName}" isConfigureImplemented; then
-            Stats::aggregateStats "${LOGS_DIR:-#}/config.stat" "${configConfigCount}" "${LOGS_DIR:-#}/${currentConfigName}-config.stat"
-            statFiles+=("${LOGS_DIR:-#}/${currentConfigName}-config.stat")
+            SKIP_REQUIRES=1 "${scriptCmd}" isConfigureImplemented; then
+            Stats::aggregateStats \
+              "${STATS_DIR:-#}/config.stat" \
+              "${configConfigCount}" \
+              "${STATS_DIR:-#}/${scriptName}-config.stat"
+            statFiles+=("${STATS_DIR:-#}/${scriptName}-config.stat")
           fi
           if [[ "${SKIP_TEST}" = "0" ]]; then
-            if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${currentConfigName}" isTestInstallImplemented; then
-              Stats::aggregateStats "${LOGS_DIR:-#}/test-install.stat" "${installTestConfigCount}" "${LOGS_DIR:-#}/${currentConfigName}-test-install.stat"
-              statFiles+=("${LOGS_DIR:-#}/${currentConfigName}-test-install.stat")
+            if SKIP_REQUIRES=1 "${scriptCmd}" isTestInstallImplemented; then
+              Stats::aggregateStats \
+                "${STATS_DIR:-#}/test-install.stat" \
+                "${installTestConfigCount}" \
+                "${STATS_DIR:-#}/${scriptName}-test-install.stat"
+              statFiles+=("${STATS_DIR:-#}/${scriptName}-test-install.stat")
             fi
-            if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${currentConfigName}" isTestConfigureImplemented; then
-              Stats::aggregateStats "${LOGS_DIR:-#}/test-configuration.stat" "${configTestConfigCount}" "${LOGS_DIR:-#}/${currentConfigName}-test-configuration.stat"
-              statFiles+=("${LOGS_DIR:-#}/${currentConfigName}-test-configuration.stat")
+            if SKIP_REQUIRES=1 "${scriptCmd}" isTestConfigureImplemented; then
+              Stats::aggregateStats \
+                "${STATS_DIR:-#}/test-configuration.stat" \
+                "${configTestConfigCount}" \
+                "${STATS_DIR:-#}/${scriptName}-test-configuration.stat"
+              statFiles+=("${STATS_DIR:-#}/${scriptName}-test-configuration.stat")
             fi
           fi
-          Stats::aggregateGlobalStats "${LOGS_DIR:-#}/global.stat" "${configCount}" "${statFiles[@]}"
+          Stats::aggregateGlobalStats \
+            "${STATS_DIR:-#}/global.stat" \
+            "${configCount}" \
+            "${statFiles[@]}"
           exit "${rc}"
         }
         trap 'aggregateStat "$?"' EXIT INT TERM ABRT
 
         rm -f \
-          "${LOGS_DIR:-#}/${currentConfigName}"-{install,config,test-install,test-configuration,global,current}.stat \
+          "${STATS_DIR:-#}/${scriptName}"-{install,config,test-install,test-configuration,global,current}.stat \
           &>/dev/null || true
 
         UI::drawLineWithMsg "Installing ${currentConfigName} (${configIndex}/${configCount})" '#'
@@ -3354,7 +3384,7 @@ run() {
   Log::rotate "${LOGS_DIR}/lastInstall.log" "${maxLogRotationCount}"
   Log::rotate "${LOGS_DIR}/lastInstallSummary" "${maxLogRotationCount}"
   rm -f \
-    "${LOGS_DIR:-#}/"{install,config,test-install,test-configuration,global}.stat \
+    "${STATS_DIR:-#}/"{install,config,test-install,test-configuration,global}.stat \
     "${LOGS_DIR}/lastInstallStatus" \
     "${LOGS_DIR}/lastInstallLogRecapitulative.log" \
     &>/dev/null || true

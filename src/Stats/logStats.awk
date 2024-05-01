@@ -23,9 +23,11 @@ BEGIN {
 
 }
 END {
+  error = (stat != 0) || error
   print "error=" error
   print "warning=" warning
   print "skipped=" skipped
   print "help=" help
+  success = (stat == 0) || success
   print "success=" success
 }

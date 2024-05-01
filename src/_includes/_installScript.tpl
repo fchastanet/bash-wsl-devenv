@@ -59,3 +59,7 @@ isConfigureImplemented() {
 isTestConfigureImplemented() {
   ! InstallScripts::scriptFunctionEmpty testConfigure
 }
+
+fullScriptName() {
+  File::relativeToDir "${REAL_SCRIPT_FILE}" "${BASH_DEV_ENV_ROOT_DIR}"
+}

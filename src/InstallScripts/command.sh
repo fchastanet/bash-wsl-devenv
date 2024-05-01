@@ -6,12 +6,15 @@
 # @env SKIP_INSTALL
 # @env SKIP_CONFIGURE
 # @env SKIP_TEST
-# @env LOGS_DIR
+# @env STATS_DIR
+# @env LOGS_INSTALL_SCRIPTS_DIR
 InstallScripts::command() {
-  local logsDir="${LOGS_DIR:-#}"
-  local scriptName
-  scriptName="$(scriptName)"
-  rm -f "${logsDir}/${scriptName}-.*" || true
+  local logsDir="${LOGS_INSTALL_SCRIPTS_DIR:-#}"
+  local statsDir="${STATS_DIR:-#}"
+  local fullScriptName
+  fullScriptName="$(fullScriptName)"
+  local scriptName="${fullScriptName//\//@}"
+  rm -f "${statsDir}/${scriptName}-"* || true
 
   # shellcheck disable=SC2317
   onInterrupt() {
@@ -34,25 +37,27 @@ InstallScripts::command() {
       }
     fi
   }
-  local globalStatsFile="${logsDir}/${scriptName}-global.stat"
+  local globalStatsFile="${statsDir}/${scriptName}-global.stat"
   local hook
   if [[ "${SKIP_INSTALL}" = "0" ]] && ! InstallScripts::scriptFunctionEmpty install; then
     LOG_CONTEXT="${scriptName} - " Log::headLine "INSTALL" "Installing ${scriptName}"
     logFile="${logsDir}/${scriptName}-install.log"
-    statsFile="${logsDir}/${scriptName}-install.stat"
+    statsFile="${statsDir}/${scriptName}-install.stat"
 
     # break at first install error
     (
       startDate="$(date +%s)"
       # shellcheck disable=SC2317
       computeStats() {
-        local rc=$?
-        Stats::computeStatsTrap "${rc}" "${logFile}" "${statsFile}" "${startDate}"
-        Stats::computeStatsTrap "${rc}" "${logFile}" "${globalStatsFile}" "${startDate}"
+        local rc=$1
         LOG_CONTEXT="${scriptName} - " Stats::statusLine "${statsFile}" "Installation"
+        Stats::computeFromLog \
+          "${logFile}" "${rc}" "${statsFile}" "${startDate}"
+        Stats::aggregateGlobalStats \
+          "${globalStatsFile}" "1" "${statsFile}"
         exit "${rc}"
       }
-      trap 'computeStats' EXIT INT TERM ABRT
+      trap 'computeStats "$?"' EXIT INT TERM ABRT
 
       local -i failures=0
       sourceHook preInstall || ((++failures))
@@ -67,18 +72,20 @@ InstallScripts::command() {
     ! InstallScripts::scriptFunctionEmpty testInstall; then
     Log::headLine "TEST" "Testing ${scriptName} installation"
     logFile="${logsDir}/${scriptName}-test-install.log"
-    statsFile="${logsDir}/${scriptName}-test-install.stat"
+    statsFile="${statsDir}/${scriptName}-test-install.stat"
     (
       startDate="$(date +%s)"
       # shellcheck disable=SC2317
       computeStats() {
-        local rc=$?
-        Stats::computeStatsTrap "${rc}" "${logFile}" "${statsFile}" "${startDate}"
-        Stats::computeStatsTrap "${rc}" "${logFile}" "${globalStatsFile}" "${startDate}"
+        local rc=$1
         Stats::statusLine "${statsFile}" "Test Install ${scriptName}"
+        Stats::computeFromLog \
+          "${logFile}" "${rc}" "${statsFile}" "${startDate}"
+        Stats::aggregateGlobalStats \
+          "${globalStatsFile}" "1" "${statsFile}"
         exit "${rc}"
       }
-      trap 'computeStats' EXIT INT TERM ABRT
+      trap 'computeStats "$?"' EXIT INT TERM ABRT
 
       local -i failures=0
       sourceHook preTestInstall || ((++failures))
@@ -97,18 +104,20 @@ InstallScripts::command() {
     ! InstallScripts::scriptFunctionEmpty configure; then
     Log::headLine "CONFIG" "Configuring ${scriptName}"
     logFile="${logsDir}/${scriptName}-config.log"
-    statsFile="${logsDir}/${scriptName}-config.stat"
+    statsFile="${statsDir}/${scriptName}-config.stat"
     (
       startDate="$(date +%s)"
       # shellcheck disable=SC2317
       computeStats() {
-        local rc=$?
-        Stats::computeStatsTrap "${rc}" "${logFile}" "${statsFile}" "${startDate}"
-        Stats::computeStatsTrap "${rc}" "${logFile}" "${globalStatsFile}" "${startDate}"
+        local rc=$1
         Stats::statusLine "${statsFile}" "Configuration ${scriptName}"
+        Stats::computeFromLog \
+          "${logFile}" "${rc}" "${statsFile}" "${startDate}"
+        Stats::aggregateGlobalStats \
+          "${globalStatsFile}" "1" "${statsFile}"
         exit "${rc}"
       }
-      trap 'computeStats' EXIT INT TERM ABRT
+      trap 'computeStats "$?"' EXIT INT TERM ABRT
 
       local -i failures=0
       sourceHook preConfigure || ((++failures))
@@ -128,18 +137,20 @@ InstallScripts::command() {
     ! InstallScripts::scriptFunctionEmpty configure; then
     Log::headLine "TEST" "Testing ${scriptName} configuration"
     logFile="${logsDir}/${scriptName}-test-configuration.log"
-    statsFile="${logsDir}/${scriptName}-test-configuration.stat"
+    statsFile="${statsDir}/${scriptName}-test-configuration.stat"
     (
       startDate="$(date +%s)"
       # shellcheck disable=SC2317
       computeStats() {
-        local rc=$?
-        Stats::computeStatsTrap "${rc}" "${logFile}" "${statsFile}" "${startDate}"
-        Stats::computeStatsTrap "${rc}" "${logFile}" "${globalStatsFile}" "${startDate}"
+        local rc=$1
         Stats::statusLine "${statsFile}" "Test Configuration ${scriptName}"
+        Stats::computeFromLog \
+          "${logFile}" "${rc}" "${statsFile}" "${startDate}"
+        Stats::aggregateGlobalStats \
+          "${globalStatsFile}" "1" "${statsFile}"
         exit "${rc}"
       }
-      trap 'computeStats' EXIT INT TERM ABRT
+      trap 'computeStats "$?"' EXIT INT TERM ABRT
 
       local -i failures=0
       sourceHook preTestConfigure || ((++failures))

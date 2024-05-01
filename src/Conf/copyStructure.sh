@@ -10,6 +10,7 @@
 # @env HOME used for default value of targetDir arg
 # @env OVERWRITE_CONFIG_FILES indicates if target directory should be overwritten if it exists
 # @env PRETTY_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @env IGNORE_MISSING_SOURCE_DIR
 Conf::copyStructure() {
   local embedDir="$1"
   local overrideDir="$2"
@@ -19,8 +20,15 @@ Conf::copyStructure() {
   local configDir
   # shellcheck disable=SC2154
   configDir="$(Conf::getOverriddenDir "${embedDir}" "${overrideDir}")"
-  # shellcheck disable=SC2154
-  OVERWRITE_CONFIG_FILES=${OVERWRITE_CONFIG_FILES:-1} \
-    PRETTY_ROOT_DIR="${embedDir%/*}" \
-    Install::structure "${configDir}/${subDir}" "${targetDir}"
+  if [[ -d "${configDir}/${subDir}" ]]; then
+    # shellcheck disable=SC2154
+    OVERWRITE_CONFIG_FILES=${OVERWRITE_CONFIG_FILES:-1} \
+      PRETTY_ROOT_DIR="${embedDir%/*}" \
+      Install::structure "${configDir}/${subDir}" "${targetDir}"
+  elif [[ "${IGNORE_MISSING_SOURCE_DIR:-0}" = "1" ]]; then
+    return 0
+  else
+    Log::displayError "Directory ${subDir} does not exists in '${embedDir}' or '${overrideDir}'"
+    return 1
+  fi
 }

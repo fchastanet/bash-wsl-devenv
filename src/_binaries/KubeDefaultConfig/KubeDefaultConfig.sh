@@ -222,10 +222,10 @@ configure() {
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
     ".bash-dev-env"
 
-  Conf::copyStructure \
+  IGNORE_MISSING_SOURCE_DIR=1 Conf::copyStructure \
     "${embed_dir_conf_dir}" \
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
-    ".kube" || true # ignore if conf override does not define .kube/config
+    ".kube"
 
   if [[ ! -f "${HOME}/.kube/config" ]] && isKubeConfigGenerationAvailable "generation"; then
     aws eks update-kubeconfig \

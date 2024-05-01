@@ -21,6 +21,14 @@ Engine::Config::loadConfig() {
   # shellcheck source=/.env
   source "${BASH_DEV_ENV_ROOT_DIR}/.env"
   set +o allexport
+  export STATS_DIR="${LOGS_DIR}/stats"
+  if [[ ! -d "${STATS_DIR}" ]]; then
+    mkdir -p "${STATS_DIR}" || true
+  fi
+  export LOGS_INSTALL_SCRIPTS_DIR="${LOGS_DIR}/installScripts"
+  if [[ ! -d "${LOGS_INSTALL_SCRIPTS_DIR}" ]]; then
+    mkdir -p "${LOGS_INSTALL_SCRIPTS_DIR}" || true
+  fi
 
   # load environment variables ID, VERSION_CODENAME
   Engine::Config::loadOsRelease
