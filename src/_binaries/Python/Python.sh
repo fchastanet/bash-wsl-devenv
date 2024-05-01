@@ -148,7 +148,7 @@ upgradePipPackages() {
     Log::displayInfo "Upgrading virtualenv pip packages"
 
     # remove duplicate pip packages with ~ prefix that breaks pip packages upgrade otherwise
-    find "${VIRTUAL_ENV}/lib/python3.9/site-packages" -name '~*' -exec rm -Rf {} ';' || true
+    find "$(python -m site --user-site)" -name '~*' -exec rm -Rf {} ';' || true
 
     # install/upgrade pip
     python -m pip install --upgrade pip

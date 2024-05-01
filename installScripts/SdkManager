@@ -342,6 +342,14 @@ Engine::Config::loadConfig() {
   # shellcheck source=/.env
   source "${BASH_DEV_ENV_ROOT_DIR}/.env"
   set +o allexport
+  export STATS_DIR="${LOGS_DIR}/stats"
+  if [[ ! -d "${STATS_DIR}" ]]; then
+    mkdir -p "${STATS_DIR}" || true
+  fi
+  export LOGS_INSTALL_SCRIPTS_DIR="${LOGS_DIR}/installScripts"
+  if [[ ! -d "${LOGS_INSTALL_SCRIPTS_DIR}" ]]; then
+    mkdir -p "${LOGS_INSTALL_SCRIPTS_DIR}" || true
+  fi
 
   # load environment variables ID, VERSION_CODENAME
   Engine::Config::loadOsRelease
@@ -577,12 +585,15 @@ Log::requireLoad() {
 # @env SKIP_INSTALL
 # @env SKIP_CONFIGURE
 # @env SKIP_TEST
-# @env LOGS_DIR
+# @env STATS_DIR
+# @env LOGS_INSTALL_SCRIPTS_DIR
 InstallScripts::command() {
-  local logsDir="${LOGS_DIR:-#}"
-  local scriptName
-  scriptName="$(scriptName)"
-  rm -f "${logsDir}/${scriptName}-.*" || true
+  local logsDir="${LOGS_INSTALL_SCRIPTS_DIR:-#}"
+  local statsDir="${STATS_DIR:-#}"
+  local fullScriptName
+  fullScriptName="$(fullScriptName)"
+  local scriptName="${fullScriptName//\//@}"
+  rm -f "${statsDir}/${scriptName}-"* || true
 
   # shellcheck disable=SC2317
   onInterrupt() {
@@ -605,25 +616,27 @@ InstallScripts::command() {
       }
     fi
   }
-  local globalStatsFile="${logsDir}/${scriptName}-global.stat"
+  local globalStatsFile="${statsDir}/${scriptName}-global.stat"
   local hook
   if [[ "${SKIP_INSTALL}" = "0" ]] && ! InstallScripts::scriptFunctionEmpty install; then
     LOG_CONTEXT="${scriptName} - " Log::headLine "INSTALL" "Installing ${scriptName}"
     logFile="${logsDir}/${scriptName}-install.log"
-    statsFile="${logsDir}/${scriptName}-install.stat"
+    statsFile="${statsDir}/${scriptName}-install.stat"
 
     # break at first install error
     (
       startDate="$(date +%s)"
       # shellcheck disable=SC2317
       computeStats() {
-        local rc=$?
-        Stats::computeStatsTrap "${rc}" "${logFile}" "${statsFile}" "${startDate}"
-        Stats::computeStatsTrap "${rc}" "${logFile}" "${globalStatsFile}" "${startDate}"
+        local rc=$1
         LOG_CONTEXT="${scriptName} - " Stats::statusLine "${statsFile}" "Installation"
+        Stats::computeFromLog \
+          "${logFile}" "${rc}" "${statsFile}" "${startDate}"
+        Stats::aggregateGlobalStats \
+          "${globalStatsFile}" "1" "${statsFile}"
         exit "${rc}"
       }
-      trap 'computeStats' EXIT INT TERM ABRT
+      trap 'computeStats "$?"' EXIT INT TERM ABRT
 
       local -i failures=0
       sourceHook preInstall || ((++failures))
@@ -638,18 +651,20 @@ InstallScripts::command() {
     ! InstallScripts::scriptFunctionEmpty testInstall; then
     Log::headLine "TEST" "Testing ${scriptName} installation"
     logFile="${logsDir}/${scriptName}-test-install.log"
-    statsFile="${logsDir}/${scriptName}-test-install.stat"
+    statsFile="${statsDir}/${scriptName}-test-install.stat"
     (
       startDate="$(date +%s)"
       # shellcheck disable=SC2317
       computeStats() {
-        local rc=$?
-        Stats::computeStatsTrap "${rc}" "${logFile}" "${statsFile}" "${startDate}"
-        Stats::computeStatsTrap "${rc}" "${logFile}" "${globalStatsFile}" "${startDate}"
+        local rc=$1
         Stats::statusLine "${statsFile}" "Test Install ${scriptName}"
+        Stats::computeFromLog \
+          "${logFile}" "${rc}" "${statsFile}" "${startDate}"
+        Stats::aggregateGlobalStats \
+          "${globalStatsFile}" "1" "${statsFile}"
         exit "${rc}"
       }
-      trap 'computeStats' EXIT INT TERM ABRT
+      trap 'computeStats "$?"' EXIT INT TERM ABRT
 
       local -i failures=0
       sourceHook preTestInstall || ((++failures))
@@ -668,18 +683,20 @@ InstallScripts::command() {
     ! InstallScripts::scriptFunctionEmpty configure; then
     Log::headLine "CONFIG" "Configuring ${scriptName}"
     logFile="${logsDir}/${scriptName}-config.log"
-    statsFile="${logsDir}/${scriptName}-config.stat"
+    statsFile="${statsDir}/${scriptName}-config.stat"
     (
       startDate="$(date +%s)"
       # shellcheck disable=SC2317
       computeStats() {
-        local rc=$?
-        Stats::computeStatsTrap "${rc}" "${logFile}" "${statsFile}" "${startDate}"
-        Stats::computeStatsTrap "${rc}" "${logFile}" "${globalStatsFile}" "${startDate}"
+        local rc=$1
         Stats::statusLine "${statsFile}" "Configuration ${scriptName}"
+        Stats::computeFromLog \
+          "${logFile}" "${rc}" "${statsFile}" "${startDate}"
+        Stats::aggregateGlobalStats \
+          "${globalStatsFile}" "1" "${statsFile}"
         exit "${rc}"
       }
-      trap 'computeStats' EXIT INT TERM ABRT
+      trap 'computeStats "$?"' EXIT INT TERM ABRT
 
       local -i failures=0
       sourceHook preConfigure || ((++failures))
@@ -699,18 +716,20 @@ InstallScripts::command() {
     ! InstallScripts::scriptFunctionEmpty configure; then
     Log::headLine "TEST" "Testing ${scriptName} configuration"
     logFile="${logsDir}/${scriptName}-test-configuration.log"
-    statsFile="${logsDir}/${scriptName}-test-configuration.stat"
+    statsFile="${statsDir}/${scriptName}-test-configuration.stat"
     (
       startDate="$(date +%s)"
       # shellcheck disable=SC2317
       computeStats() {
-        local rc=$?
-        Stats::computeStatsTrap "${rc}" "${logFile}" "${statsFile}" "${startDate}"
-        Stats::computeStatsTrap "${rc}" "${logFile}" "${globalStatsFile}" "${startDate}"
+        local rc=$1
         Stats::statusLine "${statsFile}" "Test Configuration ${scriptName}"
+        Stats::computeFromLog \
+          "${logFile}" "${rc}" "${statsFile}" "${startDate}"
+        Stats::aggregateGlobalStats \
+          "${globalStatsFile}" "1" "${statsFile}"
         exit "${rc}"
       }
-      trap 'computeStats' EXIT INT TERM ABRT
+      trap 'computeStats "$?"' EXIT INT TERM ABRT
 
       local -i failures=0
       sourceHook preTestConfigure || ((++failures))
@@ -859,6 +878,18 @@ Array::wrap2() {
 InstallScripts::scriptFunctionEmpty() {
   local pattern="^[ \t]+(:|true)"
   [[ "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} && "$(declare -f "$1" | sed '4q;d')" = "}" ]]
+}
+
+# @description print the resolved path relative to DIR
+# do not check for path existence
+# @arg $1 srcFile:String the file to resolve
+# @arg $2 relativeTo:String the directory
+# @stdout the resolved path relative to DIR
+File::relativeToDir() {
+  local srcFile="$1"
+  local relativeTo="$2"
+
+  realpath -m --relative-to="${relativeTo}" "${srcFile}"
 }
 
 # @description apt-get install if package is not installed yet
@@ -1533,22 +1564,6 @@ Log::headLine() {
   echo -e "${__TEST_COLOR}$(UI::textLine "${message}" " ")${__RESET_COLOR}" >&2
 }
 
-# @description trap function responsible to compute and display stats after each script execution
-# @arg $1 status:int
-# @arg $2 logFile:String
-# @arg $3 statFile:String
-# @arg $4 startDate:String date at which log started
-Stats::computeStatsTrap() {
-  local status="$1"
-  local logFile="$2"
-  local statFile="$3"
-  local startDate="$4"
-  local endDate
-  endDate="$(date +%s)"
-  Stats::computeFromLog "${logFile}" "${status}" "$((endDate - startDate))" >"${statFile}"
-  return "${status}"
-}
-
 # @description display message to reflect last installation status
 # @arg $1:statFile
 # @arg $2:msg
@@ -1577,6 +1592,151 @@ Stats::statusLine() {
     fi
     # overwrite final TEST line
     echo -e "${color}${statusMsg}${__RESET_COLOR}"
+  )
+}
+
+# @description extract stats form log
+# @arg $1 logFile:String the log file to parse
+# @arg $2 status:int the status of the command associated to that log file
+# @arg $3 statsFile:String where to write stats
+# @arg $4 startDate:String date at which log started
+# @stdout output with the format provided by this example src/Stats/aggregateStats.example
+# @see src/Stats/aggregateStats.example
+Stats::computeFromLog() {
+  local logFile="$1"
+  local status="$2"
+  local statsFile="$3"
+  local startDate="$4"
+  local endDate
+  endDate="$(date +%s)"
+  local duration="$((endDate - startDate))"
+
+  local logStatsAwkScript
+  logStatsAwkScript="$(
+    cat <<'EOF'
+BEGIN {
+  error=0
+  warning=0
+  skipped=0
+  help=0
+  success=0
+}
+{
+  buffer = substr($0, 1, 20)
+  if(match(buffer, /(ERROR)[ ]+- /, arr) != 0) {
+    error+=1
+  } else if(match(buffer, /(WARNING)[ ]+- /, arr) != 0) {
+    warning+=1
+  } else if(match(buffer, /(SKIPPED)[ ]+- /, arr) != 0) {
+    skipped+=1
+  } else if(match(buffer, /(ERROR)[ ]+- /, arr) != 0) {
+    error+=1
+  } else if(match(buffer, /(HELP)[ ]+- /, arr) != 0) {
+    help+=1
+  } else if(match(buffer, /(SUCCESS)[ ]+- /, arr) != 0) {
+    success+=1
+  }
+
+}
+END {
+  error = (stat != 0) || error
+  print "error=" error
+  print "warning=" warning
+  print "skipped=" skipped
+  print "help=" help
+  success = (stat == 0) || success
+  print "success=" success
+}
+EOF
+  )"
+
+  (
+    if [[ -f "${logFile}" ]]; then
+      awk -v status="${status}" --source "${logStatsAwkScript}" "${logFile}"
+      echo "status=${status}"
+      echo "duration=${duration}"
+    else
+      # not executed
+      echo "status=-1"
+    fi
+  ) >"${statsFile}"
+}
+
+# @description aggregate number of skip/error/... log messages
+# and export the result in aggregateStatFile
+# @arg $1 statFile:String the current stat file to add to aggregateStatFile
+# @arg $2 appCount:int number of app requested to be installed
+# @arg $@ statFiles:String[] the files in which each step stats hve been aggregated aggregated
+# if it doesn't exist, the file is created with needed variables set to 0
+# stats will be saved
+Stats::aggregateGlobalStats() {
+  local aggregateStatFile="$1"
+  local appCount="$2"
+  shift 2 || true
+  local -a statFiles=("$@")
+
+  (
+    if [[ ! -f "${aggregateStatFile}" ]]; then
+      Stats::aggregateStatsInitialContent "${appCount}" >"${aggregateStatFile}"
+    fi
+    # shellcheck source=src/Stats/aggregateStats.example
+    source "${aggregateStatFile}"
+
+    local -i globalError=0
+    local -i globalWarning=0
+    local -i globalSkipped=0
+    local -i globalHelp=0
+    local -i globalSuccess=0
+    local -i globalStatus=0
+    ((globalDuration = duration)) || true
+    for statFile in "${statFiles[@]}"; do
+      if [[ ! -f "${statFile}" ]]; then
+        continue
+      fi
+      # shellcheck source=src/Stats/logStats.example
+      source "${statFile}"
+
+      # all statuses need to be 0 for global status to be O
+      globalError=$((globalError || error))
+      globalWarning=$((globalWarning || warning))
+      globalSkipped=$((globalSkipped || skipped))
+      globalHelp=$((globalHelp || help))
+      globalSuccess=$((globalSuccess || success))
+      globalStatus=$((globalStatus || status))
+      globalDuration=$((globalDuration + duration))
+    done
+    # shellcheck source=src/Stats/aggregateStats.example
+    source "${aggregateStatFile}"
+    ((count++)) || true
+    if ((globalStatus == 0)); then
+      ((statusSuccess++)) || true
+    fi
+    if ((globalStatus > 0 || globalError > 0)); then
+      ((error++)) || true
+    fi
+    if ((globalWarning > 0)); then
+      ((warning++)) || true
+    fi
+    if ((globalSkipped > 0)); then
+      ((skipped++)) || true
+    fi
+    if ((globalHelp > 0)); then
+      ((help++)) || true
+    fi
+    if ((globalSuccess > 0)); then
+      ((success++)) || true
+    fi
+    (
+      echo "count=${count}"
+      echo "appCount=${appCount}"
+      echo "error=${error}"
+      echo "warning=${warning}"
+      echo "skipped=${skipped}"
+      echo "help=${help}"
+      echo "success=${success}"
+      echo "duration=${globalDuration}"
+      echo "statusSuccess=${statusSuccess}"
+    ) >"${aggregateStatFile}"
   )
 }
 
@@ -1863,62 +2023,18 @@ UI::textLine() {
   printf '%*s\n' "${remainingWidth}" '' | tr ' ' "${character}"
 }
 
-# @description extract stats form log
-# @arg $1 logFile:String the log file to parse
-# @arg $2 status:int the status of the command associated to that log file
-# @arg $3 duration:int the duration  of the command associated to that log file
-# @stdout output with the format provided by this example src/Stats/aggregateStats.example
-# @see src/Stats/aggregateStats.example
-Stats::computeFromLog() {
-  local logFile="$1"
-  local status="$2"
-  local duration="$3"
-
-  local logStatsAwkScript
-  logStatsAwkScript="$(
-    cat <<'EOF'
-BEGIN {
-  error=0
-  warning=0
-  skipped=0
-  help=0
-  success=0
-}
-{
-  buffer = substr($0, 1, 20)
-  if(match(buffer, /(ERROR)[ ]+- /, arr) != 0) {
-    error+=1
-  } else if(match(buffer, /(WARNING)[ ]+- /, arr) != 0) {
-    warning+=1
-  } else if(match(buffer, /(SKIPPED)[ ]+- /, arr) != 0) {
-    skipped+=1
-  } else if(match(buffer, /(ERROR)[ ]+- /, arr) != 0) {
-    error+=1
-  } else if(match(buffer, /(HELP)[ ]+- /, arr) != 0) {
-    help+=1
-  } else if(match(buffer, /(SUCCESS)[ ]+- /, arr) != 0) {
-    success+=1
-  }
-
-}
-END {
-  print "error=" error
-  print "warning=" warning
-  print "skipped=" skipped
-  print "help=" help
-  print "success=" success
-}
-EOF
-  )"
-
-  if [[ -f "${logFile}" ]]; then
-    awk --source "${logStatsAwkScript}" "${logFile}"
-    echo "status=${status}"
-    echo "duration=${duration}"
-  else
-    # not executed
-    echo "status=-1"
-  fi
+# @description default aggregateStats file Content
+Stats::aggregateStatsInitialContent() {
+  local appCount="$1"
+  echo "count=0"
+  echo "appCount=${appCount}"
+  echo "error=0"
+  echo "warning=0"
+  echo "skipped=0"
+  echo "help=0"
+  echo "success=0"
+  echo "duration=0"
+  echo "statusSuccess=0"
 }
 
 # @description Retry a command 5 times with a delay of 15 seconds between each attempt
@@ -2953,6 +3069,10 @@ isConfigureImplemented() {
 
 isTestConfigureImplemented() {
   ! InstallScripts::scriptFunctionEmpty testConfigure
+}
+
+fullScriptName() {
+  File::relativeToDir "${REAL_SCRIPT_FILE}" "${BASH_DEV_ENV_ROOT_DIR}"
 }
 
 helpDescription() {
