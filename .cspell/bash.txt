@@ -105,6 +105,7 @@ sudoer
 SUDOER
 Sudoer
 SYMFONY
+tarignore
 tempdir
 TERM
 textmate

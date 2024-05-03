@@ -30,6 +30,7 @@ codespell
 commandline
 COMPREPLY
 CONCAT
+COND
 cpes
 creinstall
 Creset
@@ -186,6 +187,7 @@ setpartialstrut
 SGEQS
 shellcheckrc
 shmop
+signingkey
 simplesamlphp
 soffice
 SONARLINT
