@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/WslDefaultConfig/WslDefaultConfig.sh
+# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/Shellcheck.sh
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
 # shellcheck disable=SC2288,SC2034
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/WslDefaultConfig
+# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Shellcheck
 
 # ensure that no user aliases could interfere with
 # commands used in this script
@@ -150,35 +150,6 @@ Log::displayDebug() {
     echo -e "${__DEBUG_COLOR}DEBUG   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logDebug "$1"
-}
-
-# @description convert base64 encoded back to target file
-# if target file is executable prepend dir of target
-# file to PATH to make binary available everywhere
-# it is advised to include in the path of the target file
-# the md5sum of the binFile
-#
-# @arg $1 targetFile:String the file to write
-# @arg $2 binFileBase64:String the base64 encoded file
-# @arg $3 fileMode:String the chmod to set on the file
-# @set PATH String prepend target embedded file binary directory to PATH variable if binary executable
-Compiler::Embed::extractFileFromBase64() {
-  local targetFile="$1"
-  local binFileBase64="$2"
-  local fileMode="${3:-+x}"
-  local targetDir="${targetFile%/*}"
-
-  if [[ ! -f "${targetFile}" ]]; then
-    if [[ ! -d "${targetDir}" ]]; then
-      mkdir -p "${targetDir}"
-    fi
-    base64 -d >"${targetFile}" <<<"${binFileBase64}"
-    chmod "${fileMode}" "${targetFile}"
-  fi
-
-  if [[ -x "${targetFile}" ]]; then
-    Env::pathPrepend "${targetDir}"
-  fi
 }
 
 # @description checks if function name provided exists
@@ -921,256 +892,85 @@ File::relativeToDir() {
   realpath -m --relative-to="${relativeTo}" "${srcFile}"
 }
 
-# @description add the line ip hostname at the end of /etc/hosts only if hostname does not exists yet in this file
-# if wsl do the same in ${BASE_MNT_C}/Windows/System32/drivers/etc/hosts
-# @warning files are backup before being updated
-# @arg $1 hostName:String
-# @arg $2 ip:String optional, default value: 127.0.0.1
-# @env BASE_MNT_C String
-# @stderr diagnostics information is displayed
-# @env SUDO String allows to use custom sudo prefix command
-# @require Git::requireGitCommand
-# @require Linux::requireSudoCommand
-# @feature Retry::default
-Dns::addHost() {
-  local hostName="$1"
-  local ip="${2:-127.0.0.1}"
-  local -a cmd
-
-  if ! grep -q -E "[[:space:]]${hostName}([[:space:]]|$)" /etc/hosts; then
-    SUDO=${SUDO:-} Backup::file /etc/hosts
-    printf '%s\t%s\n' "${ip}" "${hostName}" | ${SUDO:-} tee -a /etc/hosts
-    Log::displaySuccess "Host ${hostName} added to /etc/hosts"
-  fi
-  if Assert::wsl; then
-    [[ -f "${BASE_MNT_C}/Windows/System32/drivers/etc/hosts" ]] || return 1
-    if ! dos2unix <"${BASE_MNT_C}/Windows/System32/drivers/etc/hosts" | grep -q -E "[[:space:]]${hostName}([[:space:]]|$)"; then
-      SUDO=${SUDO:-} Backup::file "${BASE_MNT_C}/Windows/System32/drivers/etc/hosts"
-      cmd=(
-        -ExecutionPolicy Bypass
-        -NoProfile
-        -Command Add-Content -Path "c:/Windows/System32/drivers/etc/hosts"
-        -Value "'${ip} ${hostName}'"
-      )
-      ${POWERSHELL_BIN:-powershell.exe} -Command "Start-Process powershell \"${cmd[*]}\" -Verb RunAs"
-      Log::displaySuccess "Host ${hostName} added to ${BASE_MNT_C}/Windows/System32/drivers/etc/hosts"
-    fi
-  fi
-}
-
-# @description determine if the script is executed under WSL
-# cspell:disable
-# @example text
-#   uname GitBash windows (with wsl) => MINGW64_NT-10.0 ZOXFL-6619QN2 2.10.0(0.325/5/3) 2018-06-13 23:34 x86_64 Msys
-#   uname GitBash windows (wo wsl)   => MINGW64_NT-10.0 frsa02-j5cbkc2 2.9.0(0.318/5/3) 2018-01-12 23:37 x86_64 Msys
-#   uname wsl => Linux ZOXFL-6619QN2 4.4.0-17134-Microsoft #112-Microsoft Thu Jun 07 22:57:00 PST 2018 x86_64 x86_64 x86_64 GNU/Linux
-# cspell:enable
+# @description upgrade given binary to latest github release using retry
 #
-# @exitcode 1 on error
-Assert::wsl() {
-  [[ "$(uname -o)" = "GNU/Linux" ]]
+# downloadReleaseUrl argument : the placeholder @latestVersion@ will be replaced by the latest release version
+# @arg $1 targetFile:String target binary file (eg: /usr/local/bin/kind)
+# @arg $2 downloadReleaseUrl:String github release url (eg: https://github.com/kubernetes-sigs/kind/releases/download/@latestVersion@/kind-linux-amd64)
+# @arg $3 softVersionArg:String parameter to add to existing command to compute current version
+# @arg $4 softVersionCallback:Function function called to get software version (default: Version::getCommandVersionFromPlainText will call software with argument --version)
+# @arg $5 installCallback:Function function called to install the file retrieved on github (default copy as is and set execution bit)
+# @arg $6 softVersionCallback:Function function to call to filter the version retrieved from github (Default: Version::parse)
+# @stdout log messages about retry, install, upgrade
+# @env SOFT_VERSION_CALLBACK pass softVersionCallback by env variable instead of passing it by arg
+# @env INSTALL_CALLBACK pass installCallback by env variable instead of passing it by arg
+# @env CURL_CONNECT_TIMEOUT number of seconds before giving up host connection
+Github::upgradeRelease() {
+  local targetFile="$1"
+  local downloadReleaseUrl="$2"
+  local softVersionArg="${3:---version}"
+  local softVersionCallback="${4:-${SOFT_VERSION_CALLBACK:-Version::getCommandVersionFromPlainText}}"
+  # shellcheck disable=SC2034
+  local installCallback="${5:-${INSTALL_CALLBACK:-}}"
+  local parseGithubVersionCallback="${6:-${PARSE_VERSION_CALLBACK:-Version::parse}}"
+
+  local repo
+  repo="$(Github::extractRepoFromGithubUrl "${downloadReleaseUrl}")"
+  local releasesUrl="https://api.github.com/repos/${repo}/releases/latest"
+
+  # shellcheck disable=SC2317
+  extractVersion() {
+    Version::githubApiExtractVersion | "${parseGithubVersionCallback}"
+  }
+  FILTER_LAST_VERSION_CALLBACK=${FILTER_LAST_VERSION_CALLBACK:-extractVersion} \
+    SOFT_VERSION_CALLBACK="${softVersionCallback}" \
+    Web::upgradeRelease \
+    "${targetFile}" \
+    "${releasesUrl}" \
+    "${downloadReleaseUrl}" \
+    "${softVersionArg}"
 }
 
-# @description select right file to load depending if file exists in this order:
-# - from conf.override
-# - from embedded file if provided
-# - from conf dir
-# @arg $1 file:String
-# @arg $2 embedFile:String eventual embedded file
-# @exitcode 1 if file does not exist at all
-Conf::dynamicConfFile() {
-  local file="${1/#\//}" # remove first slash if any
-  local embedFile="${2:-}"
-  if [[ -f "${CONF_OVERRIDE_DIR}/${file}" ]]; then
-    echo "${CONF_OVERRIDE_DIR}/${file}"
-    return 0
-  elif [[ -f "${embedFile}" ]]; then
-    echo "${embedFile}"
-    return 0
-  fi
-  if [[ "${IGNORE_ERROR:-0}" = "0" ]]; then
-    Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
-    return 1
-  fi
-}
+# @description Check that command version is greater than expected minimal version
+# display warning if command version greater than expected minimal version
+# display error if command version less than expected minimal version and exit 1
+# @arg $1 commandName:String command path
+# @arg $2 argVersion:String command line parameters to launch to get command version
+# @arg $3 minimalVersion:String expected minimal command version
+# @arg $4 parseVersionCallback:Function
+# @arg $5 help:String optional help message to display if command does not exist
+# @exitcode 0 if command version greater or equal to expected minimal version
+# @exitcode 1 if command version less than expected minimal version
+# @exitcode 2 if command does not exist
+Version::checkMinimal() {
+  local commandName="$1"
+  local argVersion="$2"
+  local minimalVersion="$3"
+  local parseVersionCallback=${4:-Version::parse}
+  local help="${5:-}"
 
-# @description installs file to given directory
-#
-# callbacks parameters `${fromFile} ${targetFile} $@`
-# @arg $1 fromFile - original file to copy
-# @arg $2 targetFile - target file
-# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
-# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
-# @arg $5 successCallback:Function the callback to call when file is installed successfully, by default setUserRights callback is called
-# @arg $6 failureCallback:Function the callback to call when file installation has failed, by default unableToCopyCallback callback is called
-# @arg $@ callbacksParams:String[] additional parameters passed to callbacks
-# @exitcode 1 if fromFile is not readable
-# @exitcode 2 if backup file failure
-# @exitcode 3 if copy failure
-# @exitcode 0 on success or if OVERWRITE_CONFIG_FILES=0
-# @exitcode 0 on success or if CHANGE_WINDOWS_FILES=0 and target file is a windows file
-# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
-# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target file is in windows file system, overwrite it
-# @env USERNAME (default: root) the user name that will be used to set target files ownership
-# @env USERGROUP (default: root) the group name that will be used to set target files ownership
-# @env BASE_MNT_C String windows C drive base PATH
-# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
-# @env SUDO String allows to use custom sudo prefix command
-# @env BACKUP_BEFORE_INSTALL Boolean (default: 1) backup file before installing the file
-Install::file() {
-  local fromFile="$1"
-  local targetFile="$2"
-  local userName="${3:-${USERNAME:-root}}"
-  local userGroup="${4:-${USERGROUP:-root}}"
-  local successCallback=${5:-Install::setUserRightsCallback}
-  local failureCallback=${6:-Install::unableToCopyCallback}
-  shift 6 || true
+  Assert::commandExists "${commandName}" "${help}" || return 2
 
-  if [[ ! -f "${fromFile}" || ! -r "${fromFile}" ]]; then
-    Log::displayError "cannot read source file '${fromFile}'"
-    return 1
-  fi
+  # shellcheck disable=SC2034
+  local status=0
+  # shellcheck disable=SC2034
+  local -a pipeStatus=()
+  local version
+  version="$("${commandName}" "${argVersion}" 2>&1 | ${parseVersionCallback} || Bash::handlePipelineFailure status pipeStatus)"
 
-  # skip if OVERWRITE_CONFIG_FILES is 0 and target file exists
-  if [[ "${OVERWRITE_CONFIG_FILES}" = "0" && -f "${targetFile}" ]]; then
-    Log::displayWarning "File '${targetFile}' exists - Skip install (because OVERWRITE_CONFIG_FILES=0 in .env file)"
-    return 0
-  fi
+  Log::displayDebug "check ${commandName} version ${version} against minimal ${minimalVersion}"
 
-  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
-  if [[ "${CHANGE_WINDOWS_FILES}" = "0" && "${targetFile}" =~ ^${BASE_MNT_C} ]]; then
-    Log::displayWarning "File '${targetFile}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
-    return 0
-  fi
-
-  local targetDir="${targetFile%/*}"
-  if ! ${SUDO} test -d "${targetDir}"; then
-    ${SUDO:-} mkdir -p "${targetDir}"
-    ${SUDO:-} chown "${userName}":"${userGroup}" "${targetDir}"
-  fi
-  local fromDir="${fromFile%/*}"
-  local fromFilename="${fromFile##*/}"
-
-  local prettyFromDir
-  # shellcheck disable=SC2295
-  prettyFromDir="${fromDir#${PRETTY_ROOT_DIR:-${FRAMEWORK_ROOT_DIR}}/}"
-  if diff -q "${fromFile}" "${targetFile}" &>/dev/null; then
-    Log::displayStatus "No changes detected. No need to update '${targetFile}' from '${prettyFromDir}/${fromFilename}'"
-    return 0
-  fi
-
-  if [[ "${BACKUP_BEFORE_INSTALL:-1}" = "1" ]]; then
-    Backup::file "${targetFile}" || return 2
-  fi
-
-  if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
-    # shellcheck disable=SC2295
-    Log::displaySuccess "Installed file '${targetFile}' from '${prettyFromDir}/${fromFilename}'"
-    ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${prettyFromDir}" "${fromFilename}"
-  else
-    # shellcheck disable=SC2295
-    Log::displayError "unable to copy file '${targetFile}' from '${fromDir#${FRAMEWORK_ROOT_DIR}/}/${fromFilename}'"
-    ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${prettyFromDir}" "${fromFilename}"
-    return 3
-  fi
-}
-
-# @description install callback
-#   set file with root ownership
-# @arg $1 fromFile:String
-# @arg $2 targetFile:String
-# @exitcode 1 on any failure
-# @env SUDO String allows to use custom sudo prefix command
-# @see Install::file
-Install::setUserRootCallback() {
-  # shellcheck disable=SC2034 # $1 not used
-  local fromFile="$1"
-  local targetFile="$2"
-  ${SUDO:-} chown root:root "${targetFile}"
-}
-
-# @description try to ping the dns
-# @arg $1 host:String is the dns hostname
-# @exitcode 1 if host arg empty
-# @exitcode 2 if ping host failed
-# @exitcode 3 if ip is not bound to local ip address
-# @exitcode 4 if ifconfig result is empty
-Dns::checkHostname() {
-  local host="$1"
-  if [[ -z "${host}" ]]; then
-    return 1
-  fi
-
-  # check if host is reachable
-  local -a pingCmd=(ping -c 1 "${host}")
-  if Assert::windows; then
-    pingCmd=(ping -n 1 "${host}")
-  fi
-
-  Log::displayInfo "try to reach host ${host}"
-  if ! Command::captureOutputAndExitCode "${pingCmd[@]}"; then
-    return 2
-  fi
-
-  # get ip from ping
-  # under windows: Pinging willywonka.host.lan [127.0.0.1] with 32 bytes of data
-  # under linux: PING willywonka.host.lan (127.0.1.1) 56(84) bytes of data.
-  local ip
-  ip=$(echo "${COMMAND_OUTPUT}" | grep -i ping | grep -Eo '[0-9.]{4,}' | head -1)
-
-  # now we have to check if ip is bound to local ip address
-  if [[ ${ip} != 127.0.* ]]; then
-    # resolve to a non local address
-    # check if ip resolve to our ips
-    local -a ipconfigCmd=(ifconfig)
-    if Assert::windows; then
-      ipconfigCmd=(ipconfig)
+  Version::compare "${version}" "${minimalVersion}" || {
+    local result=$?
+    if [[ "${result}" = "1" ]]; then
+      Log::displayInfo "${commandName} version is ${version} greater than ${minimalVersion}"
+    elif [[ "${result}" = "2" ]]; then
+      Log::displayError "${commandName} minimal version is ${minimalVersion}, your version is ${version}"
+      return 1
     fi
+    return 0
+  }
 
-    Log::displayInfo "check if ip(${ip}) associated to host(${host}) is listed in your network configuration"
-    if ! Command::captureOutputAndExitCode "${ipconfigCmd[*]} | grep ${ip} | cat"; then
-      return 3
-    fi
-    if [[ -z "${COMMAND_OUTPUT}" ]]; then
-      return 4
-    fi
-  fi
-
-  return 0
-}
-
-# @description asserts that first argument is file that exists with specified ownership
-# @arg $1 file:String
-# @arg $2 user:String expected owner user name of the file (default: USERNAME or id -un command)
-# @arg $3 group:String expected owner group name of the file (default: USERGROUP or id -gn command)
-# @env USERNAME String if arg $2 is not provided
-# @env USERGROUP String if arg $3 is not provided
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode 1 if missing file
-# @exitcode 2 if incorrect user ownership
-# @exitcode 3 if incorrect group ownership
-# @stderr diagnostics information is displayed
-Assert::fileExists() {
-  local file="$1"
-  local user="${2:-${USERNAME}}"
-  local group="${3:-${USERGROUP}}"
-  if [[ -n "${user}" ]]; then
-    Log::displayInfo "Check ${file} exists with user ${user}:${group}"
-  else
-    Log::displayInfo "Check ${file} exists"
-  fi
-  if ! ${SUDO:-} test -f "${file}" &>/dev/null; then
-    Log::displayError "missing file ${file}"
-    return 1
-  fi
-  if [[ -n "${user}" && "${user}" != "$(${SUDO:-} stat -c '%U' "${file}")" ]]; then
-    Log::displayError "incorrect user ownership on file ${file}"
-    return 2
-  fi
-  if [[ -n "${group}" && "${group}" != "$(${SUDO:-} stat -c '%G' "${file}")" ]]; then
-    Log::displayError "incorrect group ownership on file ${file}"
-    return 3
-  fi
 }
 
 # @description ensure COMMAND_BIN_DIR env var is set
@@ -1230,18 +1030,6 @@ Log::logDebug() {
   if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_DEBUG)); then
     Log::logMessage "${2:-DEBUG}" "$1"
   fi
-}
-
-# @description prepend directories to the PATH environment variable
-# @arg $@ args:String[] list of directories to prepend
-# @set PATH update PATH with the directories prepended
-Env::pathPrepend() {
-  local arg
-  for arg in "$@"; do
-    if [[ -d "${arg}" && ":${PATH}:" != *":${arg}:"* ]]; then
-      PATH="$(realpath "${arg}"):${PATH}"
-    fi
-  done
 }
 
 # @description if .env does not exist, initialize it with .env.template
@@ -1683,6 +1471,29 @@ Log::rotate() {
   fi
 }
 
+# @description select right file to load depending if file exists in this order:
+# - from conf.override
+# - from embedded file if provided
+# - from conf dir
+# @arg $1 file:String
+# @arg $2 embedFile:String eventual embedded file
+# @exitcode 1 if file does not exist at all
+Conf::dynamicConfFile() {
+  local file="${1/#\//}" # remove first slash if any
+  local embedFile="${2:-}"
+  if [[ -f "${CONF_OVERRIDE_DIR}/${file}" ]]; then
+    echo "${CONF_OVERRIDE_DIR}/${file}"
+    return 0
+  elif [[ -f "${embedFile}" ]]; then
+    echo "${embedFile}"
+    return 0
+  fi
+  if [[ "${IGNORE_ERROR:-0}" = "0" ]]; then
+    Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
+    return 1
+  fi
+}
+
 # @description Display given text on full line with TEST_COLOR style
 # @arg $1 text:String text to display
 Log::headLine() {
@@ -1874,119 +1685,205 @@ Stats::aggregateGlobalStats() {
   )
 }
 
-# @description Backup given file in the same directory or in BACKUP_DIR directory
-# backup file name is composed by following fields separated by -:
-#   - if BACKUP_DIR is not empty then escaped dir name separated by @
-#   - filename(without path)
-#   - date with format %Y%m%d_%H:%M:%S (Eg: 20240326_14:45:08)
-# @arg $1 file:String the file to backup
-# @stderr messages about backup file location
-# @env SUDO String allows to use custom sudo prefix command
-# @env BACKUP_DIR if not set backup the file in the same directory as original file
-# @exitcode 1 on copy failure
-Backup::file() {
-  local file="$1"
-  if [[ -f "${file}" ]]; then
-    local backupFile fileDirname escapedDirname
-    fileDirname="${file%/*}"
-    escapedDirname=${fileDirname/\//}      # remove first slash
-    escapedDirname=${escapedDirname//\//@} # replace all slashes by @
-    if [[ -z "${BACKUP_DIR:-}" ]]; then
-      backupFile="${fileDirname}/${file##*/}-$(date +"%Y%m%d_%H:%M:%S")"
-    else
-      backupFile="${BACKUP_DIR}/${escapedDirname}@${file##*/}-$(date +"%Y%m%d_%H:%M:%S")"
-    fi
-    Log::displayInfo "Backup file '${file}' to ${backupFile}"
-    ${SUDO:-} cp "${file}" "${backupFile}"
+# @description extract software version number
+# @arg $1 command:String the command that will be called with --version parameter
+# @arg $2 argVersion:String  allows to override default --version parameter
+Version::getCommandVersionFromPlainText() {
+  local command="$1"
+  local argVersion="${2:---version}"
+  "${command}" "${argVersion}" 2>&1 |
+    Version::parse # keep only version numbers
+}
+
+# @description filter to keep only version number from a string
+# @arg $@ files:String[] the files to filter
+# @exitcode * if one of the filter command fails
+# @stdin you can use stdin as alternative to files argument
+# @stdout the filtered content
+# shellcheck disable=SC2120
+Version::parse() {
+  # match anything, print(p), exit on first match(Q)
+  sed -En \
+    -e 's/\x1b\[[0-9;]*[mGKHF]//g' \
+    -e 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/' \
+    -e '//{p;Q}' \
+    "$@"
+}
+
+# @description github repository eg: kubernetes-sigs/kind
+# @arg $1 githubUrl:String eg: https://github.com/kubernetes-sigs/kind/releases/download/@latestVersion@/kind-linux-amd64
+# @exitcode 1 if no matching repo found in provided url, 0 otherwise
+# @stdout the repo in the form owner/repo
+Github::extractRepoFromGithubUrl() {
+  local githubUrl="$1"
+  local result
+  result="$(sed -n -E 's#^https://github.com/([^/]+/[^/]+)/.*$#\1#p' <<<"${githubUrl}")"
+  if [[ -z "${result}" ]]; then
+    return 1
   fi
+  echo "${result}"
 }
 
-# @description Display message using success color (bg green/fg white)
-# @arg $1 message:String the message to display
-Log::displaySuccess() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    Log::computeDuration
-    echo -e "${__SUCCESS_COLOR}SUCCESS - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logSuccess "$1"
+# @description extract version number from github api
+# @noargs
+# @stdin json result of github API
+# @exitcode 1 if jq or Version::parse fails
+# @stdout the version parsed
+# @require Linux::requireJqCommand
+Version::githubApiExtractVersion() {
+  jq -r ".tag_name"
 }
 
-# @description install callback
-#   set file with root ownership and execution bit
-# @arg $1 fromFile:String
-# @arg $2 targetFile:String
-# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
-# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
-# @env USERNAME (default: root) the user name that will be used to set target files ownership
-# @env USERGROUP (default: root) the group name that will be used to set target files ownership
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode 1 on any failure
-# @see Install::file
-Install::setUserRightsCallback() {
-  # shellcheck disable=SC2034 # $1 not used
-  local fromFile="$1"
-  local targetFile="$2"
-  local userName="${3:-${USERNAME:-root}}"
-  local userGroup="${4:-${USERGROUP:-root}}"
-
-  ${SUDO:-} chown "${userName}":"${userGroup}" "${targetFile}"
-}
-
-# @description install callback
-#   default callback used called when file copy has failed
-# @arg $1 fromFile:String
-# @arg $2 targetFile:String
-# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
-# @exitcode 1 always fail
-# @stderr diagnostics information is displayed
-# @see Install::file
-Install::unableToCopyCallback() {
-  local fromDir="$1"
-  local fileName="$2"
-  local targetFile="$3"
-  Log::fatal "unable to copy file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fileName}' to '${targetFile}'"
-}
-
-# @description Display message using info color (blue) but warning level
-# @arg $1 message:String the message to display
-Log::displayStatus() {
-  local type="${2:-STATUS}"
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
-    Log::computeDuration
-    echo -e "${__INFO_COLOR}${type}  - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logStatus "$1" "${type}"
-}
-
-# @description determine if the script is executed under windows (using wsl)
-# cspell:disable
-# @example text
-#   uname GitBash windows (with wsl) => MINGW64_NT-10.0 ZOXFL-6619QN2 2.10.0(0.325/5/3) 2018-06-13 23:34 x86_64 Msys
-#   uname GitBash windows (wo wsl)   => MINGW64_NT-10.0 frsa02-j5cbkc2 2.9.0(0.318/5/3) 2018-01-12 23:37 x86_64 Msys
-#   uname wsl => Linux ZOXFL-6619QN2 4.4.0-17134-Microsoft #112-Microsoft Thu Jun 07 22:57:00 PST 2018 x86_64 x86_64 x86_64 GNU/Linux
-# cspell:enable
+# @description upgrade given binary to latest release using retry
 #
-# @exitcode 1 on error
-Assert::windows() {
-  [[ "$(uname -o)" = "Msys" ]]
+# releasesUrl argument : the placeholder @latestVersion@ will be replaced by the latest release version
+# @arg $1 targetFile:String target binary file (eg: /usr/local/bin/kind)
+# @arg $2 releasesUrl:String url on which we can query all available versions (eg: "https://go.dev/dl/?mode=json")
+# @arg $3 downloadReleaseUrl:String url from which the software will be downloaded (eg: https://storage.googleapis.com/golang/go@latestVersion@.linux-amd64.tar.gz)
+# @arg $4 softVersionArg:String parameter to add to existing command to compute current version
+# @stdout log messages about retry, install, upgrade
+# @env FILTER_LAST_VERSION_CALLBACK a callback to filter the latest version from releasesUrl
+# @env SOFT_VERSION_CALLBACK a callback to execute command version
+# @env PARSE_VERSION_CALLBACK a callback to parse the version of the existing command
+# @env INSTALL_CALLBACK a callback to install the software downloaded
+# @env CURL_CONNECT_TIMEOUT number of seconds before giving up host connection
+Web::upgradeRelease() {
+  local targetFile="$1"
+  local releasesUrl="$2"
+  local downloadReleaseUrl="$3"
+  local softVersionArg="${4:---version}"
+  # options from env variables
+  local filterLastVersionCallback="${FILTER_LAST_VERSION_CALLBACK:-Version::parse}"
+  local softVersionCallback="${SOFT_VERSION_CALLBACK:-Version::getCommandVersionFromPlainText}"
+  local installCallback="${INSTALL_CALLBACK:-}"
+  local latestVersion
+  latestVersion="$(Web::getReleases "${releasesUrl}" | ${filterLastVersionCallback})" || {
+    Log::displayError "latest version not found on ${releasesUrl}"
+    return 1
+  }
+  Log::displayInfo "Latest version found is ${latestVersion}"
+
+  local currentVersion="not existing"
+  if [[ -f "${targetFile}" ]]; then
+    currentVersion="$(${softVersionCallback} "${targetFile}" "${softVersionArg}" 2>&1 || true)"
+  fi
+  if [[ "${currentVersion}" = "${latestVersion}" ]]; then
+    Log::displayInfo "${targetFile} version ${latestVersion} already installed"
+  else
+    if [[ -z "${currentVersion}" ]]; then
+      Log::displayInfo "Installing ${targetFile} with version ${latestVersion}"
+    else
+      Log::displayInfo "Upgrading ${targetFile} from version ${currentVersion} to ${latestVersion}"
+    fi
+    local url
+    url="$(echo "${downloadReleaseUrl}" | sed -E "s/@latestVersion@/${latestVersion}/g")"
+    Log::displayInfo "Using url ${url}"
+    newSoftware=$(mktemp -p "${TMPDIR:-/tmp}" -t web.newSoftware.XXXX)
+    Retry::default curl \
+      -L \
+      --connect-timeout "${CURL_CONNECT_TIMEOUT:-5}" \
+      -o "${newSoftware}" \
+      --fail \
+      "${url}"
+
+    Github::defaultInstall "${newSoftware}" "${targetFile}" "${latestVersion}" "${installCallback}"
+  fi
 }
 
-# @description ability to call a command capturing output and exit code
-# but displaying it also to error output to follow command's progress
-# command output is sent to COMMAND_OUTPUT and stderr as well in realtime using tee
-# @arg $@ command:String[] the command to execute
-# @set COMMAND_OUTPUT String stdout of the command is returned in global variable COMMAND_OUTPUT
-# @stderr command output
-# @exitcode * exit code of the command
-Command::captureOutputAndExitCode() {
+# @description check if command specified exists or return 1
+# with error and message if not
+#
+# @arg $1 commandName:String on which existence must be checked
+# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
+#
+# @exitcode 1 if the command specified does not exist
+# @stderr diagnostic information + help if second argument is provided
+Assert::commandExists() {
+  local commandName="$1"
+  local helpIfNotExists="$2"
 
-  # reset COMMAND_OUTPUT before launching the command
-  unset COMMAND_OUTPUT
+  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
+    Log::displayError "${commandName} is not installed, please install it"
+    if [[ -n "${helpIfNotExists}" ]]; then
+      Log::displayInfo "${helpIfNotExists}"
+    fi
+    return 1
+  }
+  return 0
+}
 
-  # trick, we capture stdout in variable COMMAND_OUTPUT
-  # and we copy also (via tee) stdout to stderr to be able to follow progress of the command
+# @description ignore exit code 141 from simple command pipes
+# @example use with:
+#   local resultingStatus=0
+#   local -a originalPipeStatus=()
+#   cmd1 | cmd2 || Bash::handlePipelineFailure resultingStatus originalPipeStatus || true
+#   [[ "${resultingStatus}" = "0" ]]
+# @arg $1 resultingStatusCode:&int (passed by reference) (optional) resulting status code
+# @arg $2 originalStatus:int[] (passed by reference) (optional) copy of original PIPESTATUS array
+# @env PIPESTATUS assuming that this function is called like in the example provided
+# @see https://unix.stackexchange.com/a/709880/582856
+Bash::handlePipelineFailure() {
+  local -a pipeStatusBackup=("${PIPESTATUS[@]}")
+  local -n handlePipelineFailure_resultingStatusCode=$1
+  local -n handlePipelineFailure_originalStatus=$2
   # shellcheck disable=SC2034
-  COMMAND_OUTPUT=$(bash -c "$*" | tee /dev/stderr) || return $?
+  handlePipelineFailure_originalStatus=("${pipeStatusBackup[@]}")
+  handlePipelineFailure_resultingStatusCode=0
+  local statusCode
+  for statusCode in "${pipeStatusBackup[@]}"; do
+    if ((statusCode == 141)); then
+      return 0
+    elif ((statusCode > 0)); then
+      # shellcheck disable=SC2034
+      handlePipelineFailure_resultingStatusCode="${statusCode}"
+      break
+    fi
+  done
+  return "${handlePipelineFailure_resultingStatusCode}"
+}
+
+# @description compare 2 version numbers
+# @arg $1 version1:String version 1
+# @arg $2 version2:String version 2
+# @exitcode 0 if equal
+# @exitcode 1 if version1 > version2
+# @exitcode 2 else
+Version::compare() {
+  if [[ "$1" = "$2" ]]; then
+    return 0
+  fi
+  local IFS=.
+  # shellcheck disable=2206
+  local i ver1=($1) ver2=($2)
+  # fill empty fields in ver1 with zeros
+  for ((i = ${#ver1[@]}; i < ${#ver2[@]}; i++)); do
+    ver1[i]=0
+  done
+  for ((i = 0; i < ${#ver1[@]}; i++)); do
+    if [[ -z "${ver2[i]+unset}" ]] || [[ -z ${ver2[i]} ]]; then
+      # fill empty fields in ver2 with zeros
+      ver2[i]=0
+    fi
+    if ((10#${ver1[i]} > 10#${ver2[i]})); then
+      return 1
+    fi
+    if ((10#${ver1[i]} < 10#${ver2[i]})); then
+      return 2
+    fi
+  done
+  return 0
+}
+
+# @description prepend directories to the PATH environment variable
+# @arg $@ args:String[] list of directories to prepend
+# @set PATH update PATH with the directories prepended
+Env::pathPrepend() {
+  local arg
+  for arg in "$@"; do
+    if [[ -d "${arg}" && ":${PATH}:" != *":${arg}:"* ]]; then
+      PATH="$(realpath "${arg}"):${PATH}"
+    fi
+  done
 }
 
 # @description load color theme
@@ -1998,20 +1895,6 @@ UI::requireTheme() {
   if [[ "${LOAD_THEME:-1}" = "1" ]]; then
     UI::theme "${BASH_FRAMEWORK_THEME-default}"
   fi
-}
-
-# @description ensure command git is available
-# @exitcode 1 if git command not available
-# @stderr diagnostics information is displayed
-Git::requireGitCommand() {
-  Assert::commandExists git
-}
-
-# @description ensure command sudo is available
-# @exitcode 1 if sudo command not available
-# @stderr diagnostics information is displayed
-Linux::requireSudoCommand() {
-  Assert::commandExists sudo
 }
 
 # @description checks if variable name provided exists
@@ -2118,6 +2001,19 @@ Linux::Apt::installIfNecessary() {
   fi
 }
 
+# @description determine if the script is executed under WSL
+# cspell:disable
+# @example text
+#   uname GitBash windows (with wsl) => MINGW64_NT-10.0 ZOXFL-6619QN2 2.10.0(0.325/5/3) 2018-06-13 23:34 x86_64 Msys
+#   uname GitBash windows (wo wsl)   => MINGW64_NT-10.0 frsa02-j5cbkc2 2.9.0(0.318/5/3) 2018-01-12 23:37 x86_64 Msys
+#   uname wsl => Linux ZOXFL-6619QN2 4.4.0-17134-Microsoft #112-Microsoft Thu Jun 07 22:57:00 PST 2018 x86_64 x86_64 x86_64 GNU/Linux
+# cspell:enable
+#
+# @exitcode 1 on error
+Assert::wsl() {
+  [[ "$(uname -o)" = "GNU/Linux" ]]
+}
+
 # @description retrieve path from wslvar and then use wslpath to resolve it
 # using cache (cache is refreshed every day)
 # @arg $1 var:String the var to retrieve using wslvar
@@ -2198,42 +2094,73 @@ Stats::aggregateStatsInitialContent() {
   echo "statusSuccess=0"
 }
 
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logSuccess() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SUCCESS}" "$1"
+# @description Retrieve the latest version number of a web release
+# @arg $1 releaseListUrl:String the url from which version list can be retrieved
+# @stdout log messages about retry
+# @env CURL_CONNECT_TIMEOUT number of seconds before giving up host connection
+Web::getReleases() {
+  local releaseListUrl="$1"
+  # Get latest release from GitHub api
+  Retry::default curl \
+    -L \
+    --connect-timeout "${CURL_CONNECT_TIMEOUT:-5}" \
+    --fail \
+    --silent \
+    "${releaseListUrl}"
+}
+
+# @description Retry a command 5 times with a delay of 15 seconds between each attempt
+# @arg $@ command:String[] the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+Retry::default() {
+  Retry::parameterized 5 15 "" "$@"
+}
+
+# @description intermediate callback that is used by Github::upgradeRelease
+# or Github::installRelease
+# if installCallback is not set, it allows to:
+#   - copy the downloaded file to the right target file
+#   - and set the execution bit
+# else
+#   installCallback is called with newSoftware, targetFile, version arguments
+# fi
+# @warning do not use this function as callback for Github::upgradeRelease or Github::installRelease, as it would result to an infinite loop
+# @arg $1 newSoftware:String the downloaded software file
+# @arg $2 targetFile:String where we want to copy the file
+# @arg $3 version:String the version that has been downloaded
+# @arg $4 installCallback:Function (optional) the callback to call with 3 first arguments
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode * on failure
+# @see Github::upgradeRelease
+# @see Github::installRelease
+# @internal
+Github::defaultInstall() {
+  local newSoftware="$1"
+  local targetFile="$2"
+  local version="$3"
+  local installCallback=$4
+  # shellcheck disable=SC2086
+  if ! ${SUDO:-} test -d "${targetFile%/*}"; then
+    ${SUDO:-} mkdir -p "${targetFile%/*}"
+  fi
+  if [[ "$(type -t "${installCallback}")" = "function" ]]; then
+    ${installCallback} "${newSoftware}" "${targetFile}" "${version}"
+  else
+    ${SUDO:-} mv "${newSoftware}" "${targetFile}"
+    ${SUDO:-} chmod +x "${targetFile}"
+    hash -r
+    ${SUDO:-} rm -f "${newSoftware}" || true
   fi
 }
 
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logStatus() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_WARNING)); then
-    Log::logMessage "${2:-STATUS}" "$1"
+# @description ensure command jq is available
+# @exitcode 1 if jq command not available
+# @stderr diagnostics information is displayed
+Linux::requireJqCommand() {
+  if [[ "${SKIP_REQUIRE_JQ:-0}" = "0" && "${SKIP_REQUIRES:-0}" = "0" ]]; then
+    Assert::commandExists jq
   fi
-}
-
-# @description check if command specified exists or return 1
-# with error and message if not
-#
-# @arg $1 commandName:String on which existence must be checked
-# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
-#
-# @exitcode 1 if the command specified does not exist
-# @stderr diagnostic information + help if second argument is provided
-Assert::commandExists() {
-  local commandName="$1"
-  local helpIfNotExists="$2"
-
-  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
-    Log::displayError "${commandName} is not installed, please install it"
-    if [[ -n "${helpIfNotExists}" ]]; then
-      Log::displayInfo "${helpIfNotExists}"
-    fi
-    return 1
-  }
-  return 0
 }
 
 # @description check if argument respects this framework variable naming convention
@@ -2397,6 +2324,43 @@ Log::logSkipped() {
   fi
 }
 
+# @description Retry a command several times depending on parameters
+# @arg $1 maxRetries:int    $1 max retries
+# @arg $2 delay:int between attempt
+# @arg $3 message:String to display to describe the attempt
+# @arg $@ rest of parameters, the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+# @exitcode 2 if maxRetries invalid value
+Retry::parameterized() {
+  local maxRetries=$1
+  shift || true
+  local delayBetweenTries=$1
+  shift || true
+  local message="$1"
+  shift || true
+  local retriesCount=1
+  if [[ "${maxRetries}" -lt 1 ]]; then
+    Log::displayError "invalid maxRetry value"
+    return 2
+  fi
+
+  while true; do
+    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
+    if "$@"; then
+      break
+    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
+      Log::displayDebug "Command failed. Wait for ${delayBetweenTries} seconds"
+      ((retriesCount++))
+      sleep "${delayBetweenTries}"
+    else
+      Log::displayError "The command has failed after ${retriesCount} attempts."
+      return 1
+    fi
+  done
+  return 0
+}
+
 # @description ensure linux distribution is ubuntu
 # @exitcode 1 if linux distribution is not ubuntu
 Linux::requireUbuntu() {
@@ -2417,14 +2381,6 @@ Linux::Wsl::requireWsl() {
     tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
     File::garbageCollect "${tempEnvDir}/bash_tools_wslvar_${USER_ID:-$(id -un)}" "1"
   fi
-}
-
-# @description Retry a command 5 times with a delay of 15 seconds between each attempt
-# @arg $@ command:String[] the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-Retry::default() {
-  Retry::parameterized 5 15 "" "$@"
 }
 
 # @description call simply original wslpath command
@@ -2474,57 +2430,15 @@ File::garbageCollect() {
   find "${path}" -depth -maxdepth "${maxdepth}" -type f -mtime "${mtime}" -print -delete
 }
 
-# @description Retry a command several times depending on parameters
-# @arg $1 maxRetries:int    $1 max retries
-# @arg $2 delay:int between attempt
-# @arg $3 message:String to display to describe the attempt
-# @arg $@ rest of parameters, the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-# @exitcode 2 if maxRetries invalid value
-Retry::parameterized() {
-  local maxRetries=$1
-  shift || true
-  local delayBetweenTries=$1
-  shift || true
-  local message="$1"
-  shift || true
-  local retriesCount=1
-  if [[ "${maxRetries}" -lt 1 ]]; then
-    Log::displayError "invalid maxRetry value"
-    return 2
-  fi
-
-  while true; do
-    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
-    if "$@"; then
-      break
-    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
-      Log::displayDebug "Command failed. Wait for ${delayBetweenTries} seconds"
-      ((retriesCount++))
-      sleep "${delayBetweenTries}"
-    else
-      Log::displayError "The command has failed after ${retriesCount} attempts."
-      return 1
-    fi
-  done
-  return 0
-}
-
 # FUNCTIONS
 
-Compiler::Embed::extractFileFromBase64 "${PERSISTENT_TMPDIR:-/tmp}/b27cb77828a56b8318852a8376b94366/wslConf" "W2F1dG9tb3VudF0Kcm9vdCA9IC9tbnQvCm9wdGlvbnMgPSAibWV0YWRhdGEsdWlkPTEwMDAsZ2lkPTEwMDAsdW1hc2s9MDAyMixmbWFzaz0xMSIKCltib290XQpzeXN0ZW1kPXRydWUKCltleHBlcmltZW50YWxdCmRuc1R1bm5lbGluZz10cnVlCnVzZVdpbmRvd3NEbnNDYWNoZT10cnVlCg==" "644"
-
-declare -gx embed_file_wslConf="${PERSISTENT_TMPDIR:-/tmp}/b27cb77828a56b8318852a8376b94366/wslConf"
-
-facade_main_WslDefaultConfigsh() {
+facade_main_Shellchecksh() {
 
 # REQUIRES
 Env::requireLoad
 UI::requireTheme
-Git::requireGitCommand
-Linux::requireSudoCommand
 Log::requireLoad
+Linux::requireJqCommand
 Linux::requireUbuntu
 Linux::Wsl::requireWsl
 Compiler::Facade::requireCommandBinDir
@@ -2562,7 +2476,6 @@ fi
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
 # IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/WslDefaultConfig/conf/etc/wsl.conf" as wslConf
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -3261,7 +3174,7 @@ installScriptCommand() {
     echo '[François Chastanet](https://github.com/fchastanet)'
     echo
     echo -e "${__HELP_TITLE_COLOR}SOURCE FILE:${__RESET_COLOR}"
-    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/WslDefaultConfig/WslDefaultConfig.sh'
+    echo 'https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/Shellcheck.sh'
     echo
     echo -e "${__HELP_TITLE_COLOR}LICENSE:${__RESET_COLOR}"
     echo 'MIT License'
@@ -3319,12 +3232,8 @@ fullScriptName() {
   File::relativeToDir "${REAL_SCRIPT_FILE}" "${BASH_DEV_ENV_ROOT_DIR}"
 }
 
-scriptName() {
-  echo "WslDefaultConfig"
-}
-
 helpDescription() {
-  echo "WslDefaultConfig"
+  scriptName
 }
 
 # jscpd:ignore-start
@@ -3336,43 +3245,34 @@ checkVariables() { :; }
 fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
-install() { :; }
-testInstall() { :; }
+configure() { :; }
+testConfigure() { :; }
 # jscpd:ignore-end
 
-configure() {
-  sudo hostnamectl set-hostname "${DISTRO_HOSTNAME}"
-  SUDO=sudo Dns::addHost "${DISTRO_HOSTNAME}"
-  if Assert::wsl && [[ ! -f "/etc/wsl.conf" ]]; then
-    local fileToInstall
-    # shellcheck disable=SC2154
-    fileToInstall="$(Conf::dynamicConfFile "etc/wsl.conf" "${embed_file_wslConf}")" || return 1
-    SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
-      "${fileToInstall}" "/etc/wsl.conf" root root "Install::setUserRootCallback"
-  fi
+scriptName() {
+  echo "Shellcheck"
 }
 
-testConfigure() {
-  local -i failures=0
-  if ! Assert::wsl; then
-    return 0
-  fi
-  if [[ "$(hostnamectl | grep 'hostname' | awk -F ': ' '{print $2}')" != "${DISTRO_HOSTNAME}" ]]; then
-    Log::displayError "Hostname ${DISTRO_HOSTNAME} has not been set on this distro"
-    ((++failures))
-  fi
-  if ! Dns::checkHostname "${DISTRO_HOSTNAME}"; then
-    Log::displayError "Hostname ${DISTRO_HOSTNAME} is not reachable"
-    ((++failures))
-  fi
-  if ! Assert::fileExists "/etc/wsl.conf" "root" "root"; then
-    ((++failures))
-    if ! grep -q -E "^root = /mnt/$" "/etc/wsl.conf"; then
-      Log::displayError "/etc/wsl.conf does not contains root = /mnt/ instruction"
-      ((++failures))
-    fi
-  fi
-  return "${failures}"
+shellcheckInstallCallback() {
+  local archive="$1"
+  local targetFile="$2"
+  local version="$3"
+  sudo tar -xvJf "${archive}" \
+    --strip-components=1 \
+    -C "$(dirname "${targetFile}")" \
+    "shellcheck-v${version}/shellcheck"
+  sudo chmod +x "${targetFile}"
+  rm -f "${archive}" || true
+}
+
+install() {
+  SUDO=sudo INSTALL_CALLBACK=shellcheckInstallCallback Github::upgradeRelease \
+    /usr/local/bin/shellcheck \
+    "https://github.com/koalaman/shellcheck/releases/download/v@latestVersion@/shellcheck-v@latestVersion@.linux.x86_64.tar.xz"
+}
+
+testInstall() {
+  Version::checkMinimal "shellcheck" --version "0.10.0" || return 1
 }
 
 local action=$1
@@ -3444,4 +3344,4 @@ esac
 exit 0
 }
 
-facade_main_WslDefaultConfigsh "$@"
+facade_main_Shellchecksh "$@"

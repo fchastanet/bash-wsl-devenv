@@ -13,52 +13,20 @@
 > - [Bash Tools](https://fchastanet.github.io/bash-tools/)
 > - **[Bash Dev Env](https://fchastanet.github.io/bash-dev-env/)**
 
-<!-- prettier-ignore-start -->
 <!-- markdownlint-capture -->
-<!-- markdownlint-disable -->
-[![GitHubLicense](
-  https://img.shields.io/github/license/Naereen/StrapDown.js.svg
-)](
-  https://github.com/fchastanet/bash-dev-env/blob/master/LICENSE
-)
-[![CI/CD](
-  https://github.com/fchastanet/bash-dev-env/actions/workflows/lint-test.yml/badge.svg
-)](
-  https://github.com/fchastanet/bash-dev-env/actions?query=workflow%3A%22Lint+and+test%22+branch%3Amaster
-)
-[![ProjectStatus](
-  http://opensource.box.com/badges/active.svg
-)](
-  http://opensource.box.com/badges
-  'Project Status'
-)
-[![DeepSource](
-  https://deepsource.io/gh/fchastanet/bash-dev-env.svg/?label=active+issues&show_trend=true
-)](
-  https://deepsource.io/gh/fchastanet/bash-dev-env/?ref=repository-badge
-)
-[![DeepSource](
-  https://deepsource.io/gh/fchastanet/bash-dev-env.svg/?label=resolved+issues&show_trend=true
-)](
-  https://deepsource.io/gh/fchastanet/bash-dev-env/?ref=repository-badge
-)
-[![AverageTimeToResolveAnIssue](
-  http://isitmaintained.com/badge/resolution/fchastanet/bash-dev-env.svg
-)](
-  http://isitmaintained.com/project/fchastanet/bash-dev-env
-  'Average time to resolve an issue'
-)
-[![PercentageOfIssuesStillOpen](
-  http://isitmaintained.com/badge/open/fchastanet/bash-dev-env.svg
-)](
-  http://isitmaintained.com/project/fchastanet/bash-dev-env
-  'Percentage of issues still open'
-)
+
+[![GitHubLicense](https://img.shields.io/github/license/Naereen/StrapDown.js.svg)](https://github.com/fchastanet/bash-dev-env/blob/master/LICENSE)
+[![CI/CD](https://github.com/fchastanet/bash-dev-env/actions/workflows/lint-test.yml/badge.svg)](https://github.com/fchastanet/bash-dev-env/actions?query=workflow%3A%22Lint+and+test%22+branch%3Amaster)
+[![ProjectStatus](http://opensource.box.com/badges/active.svg)](http://opensource.box.com/badges "Project Status")
+[![DeepSource](https://deepsource.io/gh/fchastanet/bash-dev-env.svg/?label=active+issues&show_trend=true)](https://deepsource.io/gh/fchastanet/bash-dev-env/?ref=repository-badge)
+[![DeepSource](https://deepsource.io/gh/fchastanet/bash-dev-env.svg/?label=resolved+issues&show_trend=true)](https://deepsource.io/gh/fchastanet/bash-dev-env/?ref=repository-badge)
+[![AverageTimeToResolveAnIssue](http://isitmaintained.com/badge/resolution/fchastanet/bash-dev-env.svg)](http://isitmaintained.com/project/fchastanet/bash-dev-env "Average time to resolve an issue")
+[![PercentageOfIssuesStillOpen](http://isitmaintained.com/badge/open/fchastanet/bash-dev-env.svg)](http://isitmaintained.com/project/fchastanet/bash-dev-env "Percentage of issues still open")
+
 <!-- markdownlint-restore -->
-<!-- prettier-ignore-end -->
 
 - [1. Excerpt](#1-excerpt)
-- [2. Install \& Configuration](#2-install--configuration)
+- [2. Install & Configuration](#2-install--configuration)
   - [2.1. Dev-env install](#21-dev-env-install)
 - [3. Features presentation](#3-features-presentation)
   - [3.1. Periodical updates](#31-periodical-updates)
@@ -95,41 +63,57 @@ This project will install, update and configure these non exhaustive
 dependencies:
 
 - [Awsume](https://awsu.me/) (alternative to Saml2Aws)
+
 - [AwsCli](https://aws.amazon.com/cli/?nc1=h_ls)
+
   - Awscli with default ck configuration
+
 - ShellBash with
+
   - pre configured aliases
   - default variables PATH, ...
   - completions
   - customized git prompt
   - fasd jump easily to directories/files
   - Kubectx + Kubeps1
+
 - [BashTools](https://github.com/fchastanet/bash-tools) provides some useful
   bash tools:
+
   - cli -- tool to easily connect to your containers
   - dbImport -- tool to import database from aws or Mizar
   - dbQueryAllDatabases -- tool to execute a query on multiple databases
   - ...
+
 - CodeCheckers
+
   - [shellcheck](https://www.shellcheck.net)
+
 - Composer
+
   - php
   - php-curl
   - php-mbstring
   - php-xml
+
 - ComposerDependencies
+
   - squizlabs/php_codesniffer
   - phpmd/phpmd
   - friendsofphp/php-cs-fixer
+
 - ShellZsh: instead of using ShellBash, you can use Zsh shell with
+
   - pre configured aliases
   - default variables PATH, ...
   - completions
   - very powerful and efficient prompt powerlevel10k
   - zinit plugins/themes manager
   - Fzf (search history)
+
 - Fortune (display help message at each bash/zsh login based on the installed
   softwares)
+
 - [Fzf](https://github.com/junegunn/fzf) - fzf is a general-purpose command-line
   fuzzy finder. It's an interactive Unix filter for command-line that can be
   used with any list; files, command history, processes, hostNames, bookmarks,
@@ -138,18 +122,27 @@ dependencies:
   filesystem. It is a simple, fast and user-friendly alternative to find. While
   it does not aim to support all of find's powerful functionality, it provides
   sensible (opinionated) defaults for a majority of use cases.
+
 - Git (default ~/.gitconfig with main branch, email, name, default aliases, ...)
+
 - GitHook
+
   - configure [pre-commit](https://pre-commit.com/) to provide default commit
     linter
   - hook for default commit message prefix based on branch name
+
 - [Hadolint](https://github.com/hadolint/hadolint) (docker linter)
+
 - Java dependency needed by Plantuml
+
 - Kubernetes
+
   - [Helm](https://helm.sh/)
   - [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/)
   - [Minikube](https://minikube.sigs.k8s.io/docs/start/)
+
 - MandatorySoftwares
+
   - build-essential
   - curl
   - dos2unix
@@ -163,23 +156,35 @@ dependencies:
   - vim-gui-common
   - vim-runtime
   - wget
+
 - MLocate (command locate + indexing configuration) -
+
   - Mlocate deprecated in favor of fd (installed with Fzf dependency of
     ShellBash and ShellZsh) contrary to Mlocate, fd does not need to maintain a
     db of files
+
 - Node (install n + nodejs)
+
 - NodeDependencies
+
   - hjson
   - npm-check-updates
   - prettier
   - sass-lint
   - stylelint
+
 - OpenVpn
+
 - Oq
+
 - Plantuml
+
 - Python dependency for Awsume
+
 - Saml2Aws (alternative to Awsume)
+
 - VsCodeExtensionProfiles
+
   - install some useful extensions
   - configure VsCode with extensions profiles that can be activated
     independently in VsCode
@@ -190,8 +195,10 @@ dependencies:
     - Jenkinsfile-Docker-Helm
     - PHP-HTML-JS-twig-Vue
     - SQL
+
 - Xvfb (not used in any profile for now, used to launch headless chrome by aws
   cli)
+
 - Dependencies for WSL only
 
   - Anacron ability to run cron asynchronously (useful for wsl that has no
@@ -207,6 +214,7 @@ dependencies:
   - WslProfile (currently deactivated) - ability to configure windows terminal
 
 - Dependencies for virtual box only
+
   - Chrome
   - Docker
   - DockerCompose

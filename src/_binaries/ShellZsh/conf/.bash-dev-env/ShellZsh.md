@@ -51,9 +51,11 @@ These modes can be manually activated with the flag `-i`.
 Here are some common operations and shell modes they result in:
 
 - log in to a remote system via SSH: **login + interactive**
+
 <!-- markdownlint-disable-next-line MD052 -->
+
 - execute a script remotely, e.g. `ssh user@host 'echo $PWD'` or with
-  [Capistrano](https://capistranorb.com/): **non‑login,&nbsp;non‑interactive**
+  [Capistrano](https://capistranorb.com/): **non‑login, non‑interactive**
 - start a new shell process, e.g. `zsh`: **non‑login, interactive**
 - run a script, `zsh myScript.sh`: **non‑login, non‑interactive**
 - run an executable with `#!/usr/bin/env zsh` shebang: **non‑login,
@@ -64,23 +66,22 @@ Here are some common operations and shell modes they result in:
 
 In order of activation:
 
-1. `/etc/zsh/zshenv`
-2. `~/.zshenv`
-3. **login** mode:
-4. `/etc/zsh/zprofile`
-5. `~/.zprofile`
-6. **interactive**:
-7. `/etc/zsh/zshrc`
-8. `~/.zshrc`
-9. **login** mode:
-10. `/etc/zsh/zlogin`
-11. `~/.zlogin`
+- `/etc/zsh/zshenv`
+- `~/.zshenv`
+- **login** mode:
+  - _1._ `/etc/zsh/zprofile`
+  - _2._ `~/.zprofile`
+- **interactive**:
+  - _1._ `/etc/zsh/zshrc`
+  - _2._ `~/.zshrc`
+- **login** mode:
+  - _1._ `/etc/zsh/zlogin`
+  - _2._ `~/.zlogin`
 
 ### 2.3. Startup files order
 
-<!-- prettier-ignore-start -->
 |               | Interactive<br>login | Interactive<br>non-login | Script |
-|---------------|----------------------|--------------------------|--------|
+| ------------- | -------------------- | ------------------------ | ------ |
 | /etc/zshenv   | A                    | A                        | A      |
 | ~/.zshenv     | B                    | B                        | B      |
 | /etc/zprofile | C                    |                          |        |
@@ -91,7 +92,6 @@ In order of activation:
 | ~/.zlogin     | H                    |                          |        |
 | ~/.zlogout    | I                    |                          |        |
 | /etc/zlogout  | J                    |                          |        |
-<!-- prettier-ignore-end -->
 
 ### 2.4. Practical guide to which files get sourced when
 
@@ -155,6 +155,7 @@ sourced in a login shell, the script becomes interactive.
       prompts.
 
   - `~/.bash-dev-env/`:
+
     - `profile.d/` : contains all the script files that will load env variable
       related to specific products (Eg: load paths, ...)
     - `aliases.d/` : contains all the aliases

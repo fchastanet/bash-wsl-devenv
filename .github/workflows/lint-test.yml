@@ -1,34 +1,33 @@
 ---
 # Lint the code base and launch unit test at each push or pull request
 name: Lint and test
-on:
+on: # yamllint disable-line rule:truthy
   push:
     # execute when pushing only branches, not tags
     branches:
       - '**'
+      # avoid infinite loop for auto created PRs
+      - 'update/pre-commit-*'
   workflow_dispatch:
 
 jobs:
-  linters:
+  build:
     runs-on: ubuntu-22.04
     permissions:
       # needed by ouzi-dev/commit-status-updater@v2
       statuses: write
-      # needed by peter-evans/create-pull-request@v5
-      pull-requests: write
-      # needed by peter-evans/create-pull-request@v5
-      contents: write
-
+      # needed by mikepenz/action-junit-report@v4
+      checks: write
+    strategy:
+      fail-fast: true
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        # kics-scan ignore-line
         uses: docker/setup-buildx-action@v3
 
       - name: Login to DockerHub
-        # kics-scan ignore-line
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -40,9 +39,23 @@ jobs:
           cp .env.template .env
           ./bin/installRequirements
 
-      # only if pre-commit
+      # -------------------------------------------------------
+      # Prepare environment
+      # -------------------------------------------------------
+
+      - name: Set env vars
+        id: vars
+        run: |
+          (
+            echo "job_tag=${{github.run_id}}-${{ matrix.vendor }}-${{ matrix.bashTarVersion }}"
+            echo "branch_name=${GITHUB_REF##*/}"
+          ) >> "${GITHUB_ENV}"
+
+      # -------------------------------------------------------
+      # Lint & Run unit tests
+      # -------------------------------------------------------
+
       - name: Set up Python
-        # kics-scan ignore-line
         uses: actions/setup-python@v5
         with:
           python-version: 3.9
@@ -50,47 +63,84 @@ jobs:
       - name: Install pre-commit
         run: pip install pre-commit
 
-      # kics-scan ignore-line
       - uses: ouzi-dev/commit-status-updater@v2
         with:
-          name: lint
+          name: build-bash-dev-env
           status: pending
 
       - name: Run pre-commit
-        run: pre-commit run -a --hook-stage manual
-
-      - name: Checkstyle aggregation
-        # kics-scan ignore-line
-        uses: lcollins/checkstyle-github-action@v2.0.0
-        with:
-          path: 'artifacts/**/*.xml'
+        run: |
+          pre-commit run \
+            -c .pre-commit-config-github.yaml \
+            -a --hook-stage manual
 
       - name: Archive results
         if: always()
-        uses: actions/upload-artifact@v4
         continue-on-error: true
+        uses: actions/upload-artifact@v4
         with:
           name: linter-reports
           path: |
-            logs/*.xml
-            logs/*.log
             megalinter-reports/**
 
-      - name: Create Pull Request
+      - uses: crazy-max/ghaction-import-gpg@v5
         if: failure()
-        continue-on-error: true
-        # kics-scan ignore-line
-        uses: peter-evans/create-pull-request@v5
         with:
-          branch: update/pre-commit-fixes
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+
+      - uses: tibdex/github-app-token@v1
+        if: failure()
+        id: generate-token
+        with:
+          app_id: ${{ secrets.APP_ID }}
+          private_key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Create Pull Request
+        id: cpr
+        if: failure()
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ steps.generate-token.outputs.token }}
+          committer: fchastanet <fchastanet@gmail.com>
+          branch: update/pre-commit-fixes-${{ env.branch_name }}
+          delete-branch: true
           title: lint fixes
           commit-message: Auto-update lint fixes
           body: |
             some auto fixes have been generated during pre-commit run
-          labels: updates
+          labels: pre-commit-fixes
+
+      - name: Print Pull request created
+        if: ${{ steps.cpr.outputs.pull-request-number }}
+        run: |
+          echo "Pull Request Number - ${{ steps.cpr.outputs.pull-request-number }}"
+          echo "Pull Request URL - ${{ steps.cpr.outputs.pull-request-url }}"
+
+      - name: Publish Test Report
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          token: ${{ steps.generate-token.outputs.token }}
+          fail_on_failure: true
+          require_tests: true
+          require_passed_tests: true
+          report_paths: 'logs/**.xml'
+
+      - name: Upload Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Logs
+          path: |
+            logs/**
+            megalinter-reports/**
 
       - uses: ouzi-dev/commit-status-updater@v2
         if: always()
         with:
-          name: lint
+          name: build-bash-dev-env
+          # neutral, success, skipped, cancelled, timed_out, action_required, failure
           status: ${{ job.status }}

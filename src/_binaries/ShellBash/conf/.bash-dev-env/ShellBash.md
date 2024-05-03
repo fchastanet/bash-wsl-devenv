@@ -50,7 +50,7 @@ Here are some common operations and shell modes they result in:
 - log in to a remote system via SSH: **login + interactive**
 - execute a script remotely, e.g. `ssh user@host 'echo $PWD'` or with
   <!-- markdownlint-disable-next-line MD052 -->
-  [Capistrano][]: **non‑login,&nbsp;non‑interactive**
+  [Capistrano](https://capistranorb.com/): **non‑login, non‑interactive**
 - start a new shell process, e.g. `bash`: **non‑login, interactive**
 - run a script, `bash myScript.sh`: **non‑login, non‑interactive**
 - run an executable with `#!/usr/bin/env bash` shebang: **non‑login,
@@ -74,7 +74,7 @@ In order of activation:
 ### 2.3. Startup files order
 
 |                  | Interactive<br>login | Interactive<br>non-login | Script |
-|------------------|----------------------|--------------------------|--------|
+| ---------------- | -------------------- | ------------------------ | ------ |
 | /etc/profile     | A                    |                          |        |
 | /etc/bash.bashrc |                      | A                        |        |
 | ~/.bashrc        |                      | B                        |        |
@@ -147,6 +147,7 @@ sourced in a login shell, the script becomes interactive.
       prompts.
 
   - `~/.bash-dev-env/`:
+
     - `profile.d/` : contains all the script files that will load env variable
       related to specific products (Eg: load paths, ...)
     - `aliases.d/` : contains all the aliases

@@ -22,6 +22,7 @@ dependencies() {
   echo "installScripts/Python"
   echo "installScripts/NodeDependencies"
   echo "installScripts/Composer"
+  echo "installScripts/Shellcheck"
 }
 
 fortunes() {
@@ -41,9 +42,6 @@ breakOnTestFailure() { :; }
 # jscpd:ignore-end
 
 install() {
-  Linux::Apt::installIfNecessary --no-install-recommends \
-    shellcheck
-
   Log::displayInfo "Installing python dependencies shfmt-py"
   if [[ -f "${HOME}/.virtualenvs/python3/bin/activate" ]]; then
     # shellcheck source=/dev/null
@@ -66,7 +64,6 @@ install() {
 
 testInstall() {
   local -i failures=0
-  Version::checkMinimal "shellcheck" --version "0.7.0" || ((++failures))
   Version::checkMinimal "shfmt" --version "3.7.0" || ((++failures))
 
   # composer dependencies

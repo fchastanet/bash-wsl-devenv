@@ -892,44 +892,6 @@ File::relativeToDir() {
   realpath -m --relative-to="${relativeTo}" "${srcFile}"
 }
 
-# @description apt-get install if package is not installed yet
-# @arg $@ packages:String[] list of packages to install
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @env SKIP_APT_GET_UPDATE
-# @stdout diagnostics logs
-Linux::Apt::installIfNecessary() {
-  local -a packages=("$@")
-  local package
-  local -i installNeeded=0
-  for package in "${packages[@]}"; do
-    if [[ "${package}" =~ ^-- ]]; then
-      continue
-    fi
-    if ! Linux::Apt::isPackageInstalled "${package}"; then
-      Log::displayInfo "Package ${package} is not installed"
-      installNeeded=1
-    fi
-  done
-  if ((installNeeded == 1)); then
-    if [[ "${SKIP_APT_GET_UPDATE:-0}" = "0" ]]; then
-      Linux::Apt::update
-    fi
-    Linux::Apt::install "${packages[@]}"
-    for package in "${packages[@]}"; do
-      if [[ "${package}" =~ ^-- ]]; then
-        continue
-      fi
-      if ! Linux::Apt::isPackageInstalled "${package}"; then
-        Log::displayWarning "Package ${package} does not appear to have been installed, check if you could have chosen the wrong package name (Eg: python3.9-distutils instead of python3-distutils)"
-      fi
-    done
-  else
-    Log::displayInfo "Apt install avoided as packages are already installed : ${packages[*]}"
-  fi
-}
-
 # @description Display message using skip color (yellow)
 # @arg $1 message:String the message to display
 Log::displaySkipped() {
@@ -1620,7 +1582,7 @@ EOF
 # and export the result in aggregateStatFile
 # @arg $1 statFile:String the current stat file to add to aggregateStatFile
 # @arg $2 appCount:int number of app requested to be installed
-# @arg $@ statFiles:String[] the files in which each step stats hve been aggregated aggregated
+# @arg $@ statFiles:String[] the files in which each step stats have been aggregated aggregated
 # if it doesn't exist, the file is created with needed variables set to 0
 # stats will be saved
 Stats::aggregateGlobalStats() {
@@ -1692,36 +1654,6 @@ Stats::aggregateGlobalStats() {
       echo "statusSuccess=${statusSuccess}"
     ) >"${aggregateStatFile}"
   )
-}
-
-# @description check if apt package is installed
-# @arg $1 package:String the package name to check
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::isPackageInstalled() {
-  local package="$1"
-  dpkg -l "${package}" | grep -Eq "^ii  ${package}"
-}
-
-# @description update apt packages list
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::update() {
-  Log::displayInfo "Apt update ..."
-  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
-}
-
-# @description apt-get install
-# @arg $@ softwares:String[] list of softwares to install
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::install() {
-  Log::displayInfo "Apt install $*"
-  Retry::default sudo apt-get install -y -q "$@"
 }
 
 # @description log message to file
@@ -1854,14 +1786,6 @@ UI::requireTheme() {
   fi
 }
 
-# @description ensure linux distribution is ubuntu
-# @exitcode 1 if linux distribution is not ubuntu
-Linux::requireUbuntu() {
-  if ! Array::contains "$(Linux::getDistributorId)" "ubuntu" "debian"; then
-    Log::fatal "this script should be executed under Ubuntu or Debian OS"
-  fi
-}
-
 # @description checks if variable name provided exists
 # @arg $1 varName:String
 # @exitcode 1 if variable doesn't exist
@@ -1926,6 +1850,44 @@ Assert::emailAddress() {
   local expectedRegexp="^\S+@\S+$"
 
   [[ "$1" =~ ${expectedRegexp} ]]
+}
+
+# @description apt-get install if package is not installed yet
+# @arg $@ packages:String[] list of packages to install
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @env SKIP_APT_GET_UPDATE
+# @stdout diagnostics logs
+Linux::Apt::installIfNecessary() {
+  local -a packages=("$@")
+  local package
+  local -i installNeeded=0
+  for package in "${packages[@]}"; do
+    if [[ "${package}" =~ ^-- ]]; then
+      continue
+    fi
+    if ! Linux::Apt::isPackageInstalled "${package}"; then
+      Log::displayInfo "Package ${package} is not installed"
+      installNeeded=1
+    fi
+  done
+  if ((installNeeded == 1)); then
+    if [[ "${SKIP_APT_GET_UPDATE:-0}" = "0" ]]; then
+      Linux::Apt::update
+    fi
+    Linux::Apt::install "${packages[@]}"
+    for package in "${packages[@]}"; do
+      if [[ "${package}" =~ ^-- ]]; then
+        continue
+      fi
+      if ! Linux::Apt::isPackageInstalled "${package}"; then
+        Log::displayWarning "Package ${package} does not appear to have been installed, check if you could have chosen the wrong package name (Eg: python3.9-distutils instead of python3-distutils)"
+      fi
+    done
+  else
+    Log::displayInfo "Apt install avoided as packages are already installed : ${packages[*]}"
+  fi
 }
 
 # @description determine if the script is executed under WSL
@@ -2011,25 +1973,6 @@ Stats::aggregateStatsInitialContent() {
   echo "statusSuccess=0"
 }
 
-# @description Retry a command 5 times with a delay of 15 seconds between each attempt
-# @arg $@ command:String[] the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-Retry::default() {
-  Retry::parameterized 5 15 "" "$@"
-}
-
-# @description retrieve linux distributor id
-# @noargs
-# @exitcode 1 if lsb_release fails or not found
-# @stdout the linux distributor id
-Linux::getDistributorId() {
-  (
-    source /etc/os-release
-    echo "${ID}"
-  )
-}
-
 # @description check if argument respects this framework variable naming convention
 # - if variable begins with an uppercase or underscore, following letters have to be uppercase or underscore
 # - variable name can includes ':' or '_' or digits but not as first letter
@@ -2040,6 +1983,36 @@ Linux::getDistributorId() {
 # @see https://regex101.com/r/BUlPXS/1
 Assert::validVariableName() {
   [[ "$1" =~ (^[a-z][A-Za-z_0-9:]+$)|(^[A-Z_][A-Z_0-9:]+$) ]]
+}
+
+# @description check if apt package is installed
+# @arg $1 package:String the package name to check
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::isPackageInstalled() {
+  local package="$1"
+  dpkg -l "${package}" | grep -Eq "^ii  ${package}"
+}
+
+# @description update apt packages list
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::update() {
+  Log::displayInfo "Apt update ..."
+  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
+}
+
+# @description apt-get install
+# @arg $@ softwares:String[] list of softwares to install
+# @feature Retry::default
+# Linux::requireSudoCommand
+# @require Linux::requireUbuntu
+# @stdout diagnostics logs
+Linux::Apt::install() {
+  Log::displayInfo "Apt install $*"
+  Retry::default sudo apt-get install -y -q "$@"
 }
 
 declare -Agx bash_tools_wslpath=()
@@ -2153,6 +2126,83 @@ Linux::Wsl::originalWslvar() {
   wslvar "$@" | sed -z '$ s/[\r\n]$//'
 }
 
+# @description ensure linux distribution is ubuntu
+# @exitcode 1 if linux distribution is not ubuntu
+Linux::requireUbuntu() {
+  if ! Array::contains "$(Linux::getDistributorId)" "ubuntu" "debian"; then
+    Log::fatal "this script should be executed under Ubuntu or Debian OS"
+  fi
+}
+
+# @description ensure linux runs under wsl
+# @env WSL_GARBAGE_COLLECT int 0 to disable garbage collect of cache files
+# @exitcode 1 if linux does not run under wsl
+Linux::Wsl::requireWsl() {
+  Assert::wsl || return 1
+  if [[ "${WSL_GARBAGE_COLLECT:-1}" = "1" ]]; then
+    local tempEnvDir
+    tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
+    File::garbageCollect "${tempEnvDir}/bash_tools_wslpath_${USER_ID:-$(id -un)}" "1"
+    tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
+    File::garbageCollect "${tempEnvDir}/bash_tools_wslvar_${USER_ID:-$(id -un)}" "1"
+  fi
+}
+
+# @description Retry a command 5 times with a delay of 15 seconds between each attempt
+# @arg $@ command:String[] the command to run
+# @exitcode 0 on success
+# @exitcode 1 if max retries count reached
+Retry::default() {
+  Retry::parameterized 5 15 "" "$@"
+}
+
+# @description call simply original wslpath command
+# @arg $@ args:String[] args to pass to wslpath
+# @exitcode * wslpath exit code
+# @stdout wslpath stdout
+# @require Linux::Wsl::requireWsl
+Linux::Wsl::originalWslpath() {
+  wslpath "$@" | sed -z '$ s/[\r\n]$//'
+}
+
+# @description retrieve linux distributor id
+# @noargs
+# @exitcode 1 if lsb_release fails or not found
+# @stdout the linux distributor id
+Linux::getDistributorId() {
+  (
+    source /etc/os-release
+    echo "${ID}"
+  )
+}
+
+# @description delete files older than n days in given path
+# @warning use this function with caution as it will delete all files in given path without any prompt
+# @arg $1 path:String the directory in which files will be deleted or the file to delete
+# @arg $2 mtime:String expiration time in days (eg: 1 means 1 day) (default value: 1). Eg: +1 match files that have been accessed at least two days ago (rounding effect)
+# @arg $3 maxdepth:int Descend at most levels (a non-negative integer) levels of directories below the starting-points. (default value: 1)
+# @exitcode 1 if path not provided or empty
+# @exitcode * find command failure code
+# @stderr find output on error or diagnostics logs
+# @see man find atime
+File::garbageCollect() {
+  local path="$1"
+  local mtime="$2"
+  local maxdepth="${3:-1}"
+
+  if [[ -z "${path}" ]]; then
+    return 1
+  fi
+
+  if [[ ! -e "${path}" ]]; then
+    # path already removed
+    return 0
+  fi
+
+  Log::displayInfo "Garbage collect files older than ${mtime} days in path ${path} with max depth ${maxdepth}"
+  find "${path}" -depth -maxdepth "${maxdepth}" -type f -mtime "${mtime}" -print -delete
+}
+
 # @description Retry a command several times depending on parameters
 # @arg $1 maxRetries:int    $1 max retries
 # @arg $2 delay:int between attempt
@@ -2190,56 +2240,6 @@ Retry::parameterized() {
   return 0
 }
 
-# @description ensure linux runs under wsl
-# @env WSL_GARBAGE_COLLECT int 0 to disable garbage collect of cache files
-# @exitcode 1 if linux does not run under wsl
-Linux::Wsl::requireWsl() {
-  Assert::wsl || return 1
-  if [[ "${WSL_GARBAGE_COLLECT:-1}" = "1" ]]; then
-    local tempEnvDir
-    tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
-    File::garbageCollect "${tempEnvDir}/bash_tools_wslpath_${USER_ID:-$(id -un)}" "1"
-    tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
-    File::garbageCollect "${tempEnvDir}/bash_tools_wslvar_${USER_ID:-$(id -un)}" "1"
-  fi
-}
-
-# @description call simply original wslpath command
-# @arg $@ args:String[] args to pass to wslpath
-# @exitcode * wslpath exit code
-# @stdout wslpath stdout
-# @require Linux::Wsl::requireWsl
-Linux::Wsl::originalWslpath() {
-  wslpath "$@" | sed -z '$ s/[\r\n]$//'
-}
-
-# @description delete files older than n days in given path
-# @warning use this function with caution as it will delete all files in given path without any prompt
-# @arg $1 path:String the directory in which files will be deleted or the file to delete
-# @arg $2 mtime:String expiration time in days (eg: 1 means 1 day) (default value: 1). Eg: +1 match files that have been accessed at least two days ago (rounding effect)
-# @arg $3 maxdepth:int Descend at most levels (a non-negative integer) levels of directories below the starting-points. (default value: 1)
-# @exitcode 1 if path not provided or empty
-# @exitcode * find command failure code
-# @stderr find output on error or diagnostics logs
-# @see man find atime
-File::garbageCollect() {
-  local path="$1"
-  local mtime="$2"
-  local maxdepth="${3:-1}"
-
-  if [[ -z "${path}" ]]; then
-    return 1
-  fi
-
-  if [[ ! -e "${path}" ]]; then
-    # path already removed
-    return 0
-  fi
-
-  Log::displayInfo "Garbage collect files older than ${mtime} days in path ${path} with max depth ${maxdepth}"
-  find "${path}" -depth -maxdepth "${maxdepth}" -type f -mtime "${mtime}" -print -delete
-}
-
 # FUNCTIONS
 
 facade_main_CodeCheckerssh() {
@@ -2247,8 +2247,8 @@ facade_main_CodeCheckerssh() {
 # REQUIRES
 Env::requireLoad
 UI::requireTheme
-Linux::requireUbuntu
 Log::requireLoad
+Linux::requireUbuntu
 Linux::Wsl::requireWsl
 Compiler::Facade::requireCommandBinDir
 
@@ -3057,6 +3057,7 @@ dependencies() {
   echo "installScripts/Python"
   echo "installScripts/NodeDependencies"
   echo "installScripts/Composer"
+  echo "installScripts/Shellcheck"
 }
 
 fortunes() {
@@ -3076,9 +3077,6 @@ breakOnTestFailure() { :; }
 # jscpd:ignore-end
 
 install() {
-  Linux::Apt::installIfNecessary --no-install-recommends \
-    shellcheck
-
   Log::displayInfo "Installing python dependencies shfmt-py"
   if [[ -f "${HOME}/.virtualenvs/python3/bin/activate" ]]; then
     # shellcheck source=/dev/null
@@ -3101,7 +3099,6 @@ install() {
 
 testInstall() {
   local -i failures=0
-  Version::checkMinimal "shellcheck" --version "0.7.0" || ((++failures))
   Version::checkMinimal "shfmt" --version "3.7.0" || ((++failures))
 
   # composer dependencies

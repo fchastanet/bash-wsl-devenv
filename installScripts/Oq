@@ -1626,7 +1626,7 @@ EOF
 # and export the result in aggregateStatFile
 # @arg $1 statFile:String the current stat file to add to aggregateStatFile
 # @arg $2 appCount:int number of app requested to be installed
-# @arg $@ statFiles:String[] the files in which each step stats hve been aggregated aggregated
+# @arg $@ statFiles:String[] the files in which each step stats have been aggregated aggregated
 # if it doesn't exist, the file is created with needed variables set to 0
 # stats will be saved
 Stats::aggregateGlobalStats() {
