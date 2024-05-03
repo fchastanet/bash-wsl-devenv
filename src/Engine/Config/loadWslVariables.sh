@@ -21,7 +21,10 @@ Engine::Config::loadWslVariables() {
   local IFS=' '
   local -a split=()
   # shellcheck disable=SC2207
-  split=($(grep -m 1 -E 'C:\\[^ ]+ ([^ ]+) ' /proc/mounts 2>/dev/null))
+  split=($(grep -m 1 -E 'C:\\[^ ]+ ([^ ]+) ' /proc/mounts 2>/dev/null)) || {
+    # probably not wsl after all
+    return 0
+  }
   # shellcheck disable=SC1003
   BASE_MNT_C="${split[1]}"
   export BASE_MNT_C

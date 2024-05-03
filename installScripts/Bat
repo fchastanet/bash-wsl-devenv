@@ -133,6 +133,7 @@ export __VERBOSE_LEVEL_TRACE=3
 # @description Display message using info color (bg light blue/fg white)
 # @arg $1 message:String the message to display
 # @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displayInfo() {
   local type="${2:-INFO}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
@@ -142,8 +143,10 @@ Log::displayInfo() {
   Log::logInfo "$1" "${type}"
 }
 
-# @description Display message using debug color (grey)
+# @description Display message using debug color (gray)
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displayDebug() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_DEBUG)); then
     Log::computeDuration
@@ -401,6 +404,8 @@ Engine::Config::loadConfig() {
 
 # @description Display message using warning color (yellow)
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displayWarning() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
     Log::computeDuration
@@ -411,6 +416,8 @@ Log::displayWarning() {
 
 # @description Display message using error color (red)
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displayError() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_ERROR)); then
     Log::computeDuration
@@ -463,7 +470,7 @@ UI::theme() {
     __SUCCESS_COLOR='\e[32m'       # Green
     __WARNING_COLOR='\e[33m'       # Yellow
     __SKIPPED_COLOR='\e[33m'       # Yellow
-    __DEBUG_COLOR='\e[37m'         # Grey
+    __DEBUG_COLOR='\e[37m'         # Gray
     __HELP_COLOR='\e[7;49;33m'     # Black on Gold
     __TEST_COLOR='\e[100m'         # Light magenta
     __TEST_ERROR_COLOR='\e[41m'    # white on red
@@ -508,6 +515,8 @@ UI::drawLine() {
 
 # @description Display message using error color (red) and exit immediately with error status 1
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::fatal() {
   Log::computeDuration
   echo -e "${__ERROR_COLOR}FATAL   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
@@ -767,7 +776,7 @@ InstallScripts::command() {
   fi
 }
 
-# @description concat each element of an array with a separator
+# @description concatenate each element of an array with a separator
 # but wrapping text when line length is more than provided argument
 # The algorithm will try not to cut the array element if it can.
 # - if an arg can be placed on current line it will be,
@@ -1086,11 +1095,16 @@ LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
 LOG_LAST_LOG_DATE_INIT=1
 LOG_LAST_DURATION_STR=""
 
-# @description Display message using info color (bg light blue/fg white)
-# @arg $1 message:String the message to display
+# @description compute duration since last call to this function
+# the result is set in following env variables.
+# in ss.sss (seconds followed by milliseconds precision 3 decimals)
+# @noargs
 # @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @set LOG_LAST_LOG_DATE_INIT int (default 1) set to 0 at first call, allows to detect reference log
+# @set LOG_LAST_DURATION_STR String the last duration displayed
+# @set LOG_LAST_LOG_DATE String the last log date that will be used to compute next diff
 Log::computeDuration() {
-  if ((DISPLAY_DURATION == 1)); then
+  if ((${DISPLAY_DURATION:-0} == 1)); then
     local -i duration=0
     local -i delta=0
     local -i currentLogDate
@@ -1317,6 +1331,9 @@ Engine::Config::loadHostIp() {
 
 # @description install apt wslu if necessary providing wslvar, wslpath
 Engine::Config::requireWslu() {
+  if [[ "${LOAD_WSLU:-1}" = "0" ]]; then
+    return 0
+  fi
   if ! command -v wslvar &>/dev/null; then
     Log::displayInfo "Installing pre-requisite Wslu : wslvar, wslpath, ... commands"
     Linux::Apt::installIfNecessary --no-install-recommends wslu
@@ -1353,7 +1370,10 @@ Engine::Config::loadWslVariables() {
   local IFS=' '
   local -a split=()
   # shellcheck disable=SC2207
-  split=($(grep -m 1 -E 'C:\\[^ ]+ ([^ ]+) ' /proc/mounts 2>/dev/null))
+  split=($(grep -m 1 -E 'C:\\[^ ]+ ([^ ]+) ' /proc/mounts 2>/dev/null)) || {
+    # probably not wsl after all
+    return 0
+  }
   # shellcheck disable=SC1003
   BASE_MNT_C="${split[1]}"
   export BASE_MNT_C
@@ -1509,8 +1529,7 @@ Assert::tty() {
   if [[ "${INTERACTIVE:-0}" = "1" ]]; then
     return 0
   fi
-  # check if stdout or stderr is connected to terminal
-  [[ -t 1 || -t 2 ]]
+  tty -s
 }
 
 # @description log message to file
@@ -1872,8 +1891,7 @@ Web::upgradeRelease() {
     else
       Log::displayInfo "Upgrading ${targetFile} from version ${currentVersion} to ${latestVersion}"
     fi
-    local url
-    url="$(echo "${downloadReleaseUrl}" | sed -E "s/@latestVersion@/${latestVersion}/g")"
+    local url="${downloadReleaseUrl//@latestVersion@/${latestVersion}}"
     Log::displayInfo "Using url ${url}"
     newSoftware=$(mktemp -p "${TMPDIR:-/tmp}" -t web.newSoftware.XXXX)
     Retry::default curl \
@@ -2257,8 +2275,9 @@ Assert::wsl() {
 # using cache (cache is refreshed every day)
 # @arg $1 var:String the var to retrieve using wslvar
 # @arg $@ args:String[] (optional) additional arguments to pass to wslvar
-# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
-# @exitcode * if Linux::Wsl::originalWslpath cannot find the path or Linux::Wsl::originalWslvar cannot find the var
+# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: PERSISTENT_TMPDIR), you can use TMPDIR instead
+# @exitcode 1 if var cannot be found in cache nor using Linux::Wsl::originalWslvar
+# @exitcode 2 if path cannot be found in cache nor using Linux::Wsl::originalWslpath
 # @stderr diagnostics information is displayed
 # @require Linux::Wsl::requireWsl
 # @feature cache
@@ -2267,15 +2286,15 @@ Linux::Wsl::cachedWslpathFromWslVar2() {
   local -n cachedWslpathFromWslVar2_value=$1
   shift || true
   local value
-  Linux::Wsl::cachedWslvar2 value "$@"
-  Linux::Wsl::cachedWslpath2 cachedWslpathFromWslVar2_value "${value}" || return 1
+  Linux::Wsl::cachedWslvar2 value "$@" || return 1
+  Linux::Wsl::cachedWslpath2 cachedWslpathFromWslVar2_value "${value}" || return 2
 }
 
 declare -Agx bash_tools_wslvar=()
 # @description retrieve wslvar using cache (cache is refreshed every day)
 # @arg $1 cachedWslvar2_var:&String the variable to set by reference if the value is found
 # @arg $@ args:String[] arguments to pass to wslvar
-# @env WSL_TMPDIR String temp directory to store the wslvar cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
+# @env WSL_TMPDIR String temp directory to store the wslvar cache (default value: PERSISTENT_TMPDIR), you can use TMPDIR instead
 # @exitcode * if Linux::Wsl::originalWslvar cannot find the variable
 # @stderr diagnostics information is displayed
 # @require Linux::Wsl::requireWsl
@@ -2298,6 +2317,8 @@ Linux::Wsl::cachedWslvar2() {
 
 # @description Display message using skip color (yellow)
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displaySkipped() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
     Log::computeDuration
@@ -2476,6 +2497,8 @@ Install::file() {
 
 # @description Display message using success color (bg green/fg white)
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displaySuccess() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
     Log::computeDuration
@@ -2538,7 +2561,7 @@ Linux::Apt::install() {
 declare -Agx bash_tools_wslpath=()
 # @description retrieve wslpath using cache (cache is refreshed every day)
 # @arg $@ args:String[] arguments to pass to wslpath
-# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
+# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: PERSISTENT_TMPDIR), you can use TMPDIR instead
 # @exitcode * if Linux::Wsl::originalWslpath cannot find the path
 # @stderr diagnostics information is displayed
 # @require Linux::Wsl::requireWsl
@@ -2729,6 +2752,8 @@ Install::unableToCopyCallback() {
 
 # @description Display message using info color (blue) but warning level
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displayStatus() {
   local type="${2:-STATUS}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
@@ -2852,7 +2877,7 @@ File::garbageCollect() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2Ub4vTQBDG8zqfYrwe9g4ubTbNHxAq1mulBbkK5vD1plmTwDZbsklLT/3uTqJFLdgqpj3U+b3ZJLM7O+GZeXp94+TYSOB59coCz/5+3WEw17c923fsgYvfA9cODPBOX5phVLrkBYCx0fLgvmPxv5RevxdxnVqxWFsiX5+kG35Z/wHzmecbNsPwgPQ/B/v6c5lxLXQvbrETfkd/x2eo/8BnpP9Z+Ln+ES97Om3jjmP6e6670z9gToD6u4HjGWC3cfkx/nP9O0/6UZb36x4wO+1idmA8h7t5CJPxLLyBcDp7C69mrydwO7qDlxO4fzMehZMxvJuF0/l9WG+d3U5aLwPrGEmpNhpKBbGCS0iFXMFiBarYvSRZCQu1XGZlz2xGALD9pxgZdvEBLGsleZbjKnmeVDwRw/pY10yvruGDCXBx+eICo00u5/lTBh93CcxP5mNrfIjD8//QigEcmX9mM7+ef2Z7gRMEuI95zHFo/s8Bzn+li8YDUH54+KdtQOVyC+9x6vE3b2CrKljwHLjUCiotIJEq4hK+jkDtFmotiiKLBVgp8DzeTbjIy6wQcospMRBnmkdSxICuodVSgFqVmco18KI5uMnKVFUlRCLLE+CLsuIS62gyXYnkGUiN267NzhfjsRK8Bj8Mu3j2m5fsew++63IrxbBxpq75w+GmTEywb0jHkjx2NxIEQRAEQRAEQRAEQRAEQRAEQRB/ymefwTIeACgAAA=="
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "H4sIAAAAAAAAA+2UUWvbMBSF8+xfcdeUpYXaiZs4hkHGssYjhtEM5rJnOdZsgSIFS05Ju/333XgLY2ZrKE1Stt3vRbZlXV376Byv2zo4PSQMgnpEmuNvrsP+4LIFweFba7UqY1mJWz61TvPj/hK8rpcyU7gZX7lcrQ5yGh6tv+8Pw5D0PwZN/ZkUzHDjZXs8CY/Xvx+Q/4/Dn/VPmfVMsY89dukfDAYN/QfDAPU/yk/8z/Vvv+imQnU3Z8Bp7xenDZMZXM8SiCZxcgHJNP4I7+L3EVyNr+FtBDcfJuMkmsCnOJnObpLNq/FVtPc2sI+xlPrWgNWQaTiFgsslzJegy+1NLizM9WIhrOfUFgA8/lOcGXXwAlx3KZlQOEqm8orlfLRZ1nGKs3O4dwBOTt+c4Gxd6/L1Sx++bAs4X53n1vghHvb/3V4CYIf//Z4/bPg/6PVD8v8xQP9XpqwzAOWHu386BrSSa/iMrsfPvIC1rmDOFDBpNFSGQy51yiT8sMAmLfSKl6XIOLgFMJVtHc6VFSWXayyJE5kwLJU8A0wNoxcc9NIKrQywsl54K2yhKwspFyoHNrcVk9hHXemM569AGnzt3Gl/Dx43x23wwaiDa39mSTN78N7YteSjOpk6zi+L6zaxQDOQdhV57tNIEARBEARBEARBEARBEARBEARBPJVvjsoUjgAoAAA="
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -3486,7 +3511,7 @@ installScriptCommand() {
     Log::displayDebug "Command ${SCRIPT_NAME} - parse arguments: ${BASH_FRAMEWORK_ARGV[*]}"
     Log::displayDebug "Command ${SCRIPT_NAME} - parse filtered arguments: ${BASH_FRAMEWORK_ARGV_FILTERED[*]}"
   elif [[ "${options_parse_cmd}" = "help" ]]; then
-    Array::wrap2 ' ' 80 0 "\e[1;37mDESCRIPTION:\e[0m" "$(helpDescriptionCallback)"
+    Array::wrap2 ' ' 80 0 "${__HELP_TITLE_COLOR}DESCRIPTION:${__RESET_COLOR}" "$(helpDescriptionCallback)"
     echo
 
     echo -e "$(Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" "${SCRIPT_NAME}" "[OPTIONS]")"

@@ -133,6 +133,7 @@ export __VERBOSE_LEVEL_TRACE=3
 # @description Display message using info color (bg light blue/fg white)
 # @arg $1 message:String the message to display
 # @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displayInfo() {
   local type="${2:-INFO}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
@@ -142,8 +143,10 @@ Log::displayInfo() {
   Log::logInfo "$1" "${type}"
 }
 
-# @description Display message using debug color (grey)
+# @description Display message using debug color (gray)
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displayDebug() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_DEBUG)); then
     Log::computeDuration
@@ -401,6 +404,8 @@ Engine::Config::loadConfig() {
 
 # @description Display message using warning color (yellow)
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displayWarning() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
     Log::computeDuration
@@ -411,6 +416,8 @@ Log::displayWarning() {
 
 # @description Display message using error color (red)
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displayError() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_ERROR)); then
     Log::computeDuration
@@ -463,7 +470,7 @@ UI::theme() {
     __SUCCESS_COLOR='\e[32m'       # Green
     __WARNING_COLOR='\e[33m'       # Yellow
     __SKIPPED_COLOR='\e[33m'       # Yellow
-    __DEBUG_COLOR='\e[37m'         # Grey
+    __DEBUG_COLOR='\e[37m'         # Gray
     __HELP_COLOR='\e[7;49;33m'     # Black on Gold
     __TEST_COLOR='\e[100m'         # Light magenta
     __TEST_ERROR_COLOR='\e[41m'    # white on red
@@ -508,6 +515,8 @@ UI::drawLine() {
 
 # @description Display message using error color (red) and exit immediately with error status 1
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::fatal() {
   Log::computeDuration
   echo -e "${__ERROR_COLOR}FATAL   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
@@ -767,7 +776,7 @@ InstallScripts::command() {
   fi
 }
 
-# @description concat each element of an array with a separator
+# @description concatenate each element of an array with a separator
 # but wrapping text when line length is more than provided argument
 # The algorithm will try not to cut the array element if it can.
 # - if an arg can be placed on current line it will be,
@@ -1042,11 +1051,16 @@ LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
 LOG_LAST_LOG_DATE_INIT=1
 LOG_LAST_DURATION_STR=""
 
-# @description Display message using info color (bg light blue/fg white)
-# @arg $1 message:String the message to display
+# @description compute duration since last call to this function
+# the result is set in following env variables.
+# in ss.sss (seconds followed by milliseconds precision 3 decimals)
+# @noargs
 # @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @set LOG_LAST_LOG_DATE_INIT int (default 1) set to 0 at first call, allows to detect reference log
+# @set LOG_LAST_DURATION_STR String the last duration displayed
+# @set LOG_LAST_LOG_DATE String the last log date that will be used to compute next diff
 Log::computeDuration() {
-  if ((DISPLAY_DURATION == 1)); then
+  if ((${DISPLAY_DURATION:-0} == 1)); then
     local -i duration=0
     local -i delta=0
     local -i currentLogDate
@@ -1273,6 +1287,9 @@ Engine::Config::loadHostIp() {
 
 # @description install apt wslu if necessary providing wslvar, wslpath
 Engine::Config::requireWslu() {
+  if [[ "${LOAD_WSLU:-1}" = "0" ]]; then
+    return 0
+  fi
   if ! command -v wslvar &>/dev/null; then
     Log::displayInfo "Installing pre-requisite Wslu : wslvar, wslpath, ... commands"
     Linux::Apt::installIfNecessary --no-install-recommends wslu
@@ -1309,7 +1326,10 @@ Engine::Config::loadWslVariables() {
   local IFS=' '
   local -a split=()
   # shellcheck disable=SC2207
-  split=($(grep -m 1 -E 'C:\\[^ ]+ ([^ ]+) ' /proc/mounts 2>/dev/null))
+  split=($(grep -m 1 -E 'C:\\[^ ]+ ([^ ]+) ' /proc/mounts 2>/dev/null)) || {
+    # probably not wsl after all
+    return 0
+  }
   # shellcheck disable=SC1003
   BASE_MNT_C="${split[1]}"
   export BASE_MNT_C
@@ -1465,8 +1485,7 @@ Assert::tty() {
   if [[ "${INTERACTIVE:-0}" = "1" ]]; then
     return 0
   fi
-  # check if stdout or stderr is connected to terminal
-  [[ -t 1 || -t 2 ]]
+  tty -s
 }
 
 # @description log message to file
@@ -2074,8 +2093,9 @@ Assert::wsl() {
 # using cache (cache is refreshed every day)
 # @arg $1 var:String the var to retrieve using wslvar
 # @arg $@ args:String[] (optional) additional arguments to pass to wslvar
-# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
-# @exitcode * if Linux::Wsl::originalWslpath cannot find the path or Linux::Wsl::originalWslvar cannot find the var
+# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: PERSISTENT_TMPDIR), you can use TMPDIR instead
+# @exitcode 1 if var cannot be found in cache nor using Linux::Wsl::originalWslvar
+# @exitcode 2 if path cannot be found in cache nor using Linux::Wsl::originalWslpath
 # @stderr diagnostics information is displayed
 # @require Linux::Wsl::requireWsl
 # @feature cache
@@ -2084,15 +2104,15 @@ Linux::Wsl::cachedWslpathFromWslVar2() {
   local -n cachedWslpathFromWslVar2_value=$1
   shift || true
   local value
-  Linux::Wsl::cachedWslvar2 value "$@"
-  Linux::Wsl::cachedWslpath2 cachedWslpathFromWslVar2_value "${value}" || return 1
+  Linux::Wsl::cachedWslvar2 value "$@" || return 1
+  Linux::Wsl::cachedWslpath2 cachedWslpathFromWslVar2_value "${value}" || return 2
 }
 
 declare -Agx bash_tools_wslvar=()
 # @description retrieve wslvar using cache (cache is refreshed every day)
 # @arg $1 cachedWslvar2_var:&String the variable to set by reference if the value is found
 # @arg $@ args:String[] arguments to pass to wslvar
-# @env WSL_TMPDIR String temp directory to store the wslvar cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
+# @env WSL_TMPDIR String temp directory to store the wslvar cache (default value: PERSISTENT_TMPDIR), you can use TMPDIR instead
 # @exitcode * if Linux::Wsl::originalWslvar cannot find the variable
 # @stderr diagnostics information is displayed
 # @require Linux::Wsl::requireWsl
@@ -2115,6 +2135,8 @@ Linux::Wsl::cachedWslvar2() {
 
 # @description Display message using skip color (yellow)
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displaySkipped() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
     Log::computeDuration
@@ -2263,6 +2285,8 @@ Install::file() {
 
 # @description Display message using success color (bg green/fg white)
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displaySuccess() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
     Log::computeDuration
@@ -2338,7 +2362,7 @@ Linux::Apt::install() {
 declare -Agx bash_tools_wslpath=()
 # @description retrieve wslpath using cache (cache is refreshed every day)
 # @arg $@ args:String[] arguments to pass to wslpath
-# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
+# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: PERSISTENT_TMPDIR), you can use TMPDIR instead
 # @exitcode * if Linux::Wsl::originalWslpath cannot find the path
 # @stderr diagnostics information is displayed
 # @require Linux::Wsl::requireWsl
@@ -2492,6 +2516,8 @@ Install::unableToCopyCallback() {
 
 # @description Display message using info color (blue) but warning level
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displayStatus() {
   local type="${2:-STATUS}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
@@ -2667,7 +2693,7 @@ Retry::parameterized() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "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"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "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"
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -3301,7 +3327,7 @@ installScriptCommand() {
     Log::displayDebug "Command ${SCRIPT_NAME} - parse arguments: ${BASH_FRAMEWORK_ARGV[*]}"
     Log::displayDebug "Command ${SCRIPT_NAME} - parse filtered arguments: ${BASH_FRAMEWORK_ARGV_FILTERED[*]}"
   elif [[ "${options_parse_cmd}" = "help" ]]; then
-    Array::wrap2 ' ' 80 0 "\e[1;37mDESCRIPTION:\e[0m" "$(helpDescriptionCallback)"
+    Array::wrap2 ' ' 80 0 "${__HELP_TITLE_COLOR}DESCRIPTION:${__RESET_COLOR}" "$(helpDescriptionCallback)"
     echo
 
     echo -e "$(Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" "${SCRIPT_NAME}" "[OPTIONS]")"

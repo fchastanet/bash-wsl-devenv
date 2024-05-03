@@ -80,6 +80,8 @@ In order of activation:
 
 ### 2.3. Startup files order
 
+<!-- markdownlint-disable-next-line MD033 -->
+
 |               | Interactive<br>login | Interactive<br>non-login | Script |
 | ------------- | -------------------- | ------------------------ | ------ |
 | /etc/zshenv   | A                    | A                        | A      |

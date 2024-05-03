@@ -18,3 +18,5 @@ TODO.local.md
 commit-msg.md
 
 tmp
+
+bin/buildBinFiles

@@ -27,7 +27,10 @@ function Profiles::loadProfile::OK { #@test
   Profiles::loadProfile \
     ${BATS_TEST_DIRNAME}/testsData/profile.test1.sh &>"${BATS_TEST_TMPDIR}/log" || exitCode=$?
 
-  [[ "${exitCode}" = "0" ]] || (echo >&3 "invalid exit code"; exit 1)
+  [[ "${exitCode}" = "0" ]] || (
+    echo >&3 "invalid exit code"
+    exit 1
+  )
   run cat "${BATS_TEST_TMPDIR}/log"
   # shellcheck disable=SC2154
   assert_lines_count 1
@@ -43,7 +46,10 @@ function Profiles::loadProfile::Duplicates { #@test
   Profiles::loadProfile \
     ${BATS_TEST_DIRNAME}/testsData/profile.test2Duplicates.sh &>"${BATS_TEST_TMPDIR}/log" || exitCode=$?
 
-  [[ "${exitCode}" = "0" ]] || (echo >&3 "invalid exit code"; exit 1)
+  [[ "${exitCode}" = "0" ]] || (
+    echo >&3 "invalid exit code"
+    exit 1
+  )
   run cat "${BATS_TEST_TMPDIR}/log"
   assert_lines_count 1
   assert_line --index 0 --partial "INFO    - Loading profile '${BATS_TEST_DIRNAME}/testsData/profile.test2Duplicates.sh'"
@@ -58,7 +64,10 @@ function Profiles::loadProfile::additionalVariableLoaded { #@test
   Profiles::loadProfile \
     ${BATS_TEST_DIRNAME}/testsData/profile.test2Duplicates.sh &>"${BATS_TEST_TMPDIR}/log" || exitCode=$?
 
-  [[ "${exitCode}" = "0" ]] || (echo >&3 "invalid exit code"; exit 1)
+  [[ "${exitCode}" = "0" ]] || (
+    echo >&3 "invalid exit code"
+    exit 1
+  )
   run cat "${BATS_TEST_TMPDIR}/log"
   assert_lines_count 1
   assert_line --index 0 --partial "INFO    - Loading profile '${BATS_TEST_DIRNAME}/testsData/profile.test2Duplicates.sh'"

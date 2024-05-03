@@ -133,6 +133,7 @@ export __VERBOSE_LEVEL_TRACE=3
 # @description Display message using info color (bg light blue/fg white)
 # @arg $1 message:String the message to display
 # @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displayInfo() {
   local type="${2:-INFO}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
@@ -142,8 +143,10 @@ Log::displayInfo() {
   Log::logInfo "$1" "${type}"
 }
 
-# @description Display message using debug color (grey)
+# @description Display message using debug color (gray)
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displayDebug() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_DEBUG)); then
     Log::computeDuration
@@ -401,6 +404,8 @@ Engine::Config::loadConfig() {
 
 # @description Display message using warning color (yellow)
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displayWarning() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
     Log::computeDuration
@@ -411,6 +416,8 @@ Log::displayWarning() {
 
 # @description Display message using error color (red)
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displayError() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_ERROR)); then
     Log::computeDuration
@@ -463,7 +470,7 @@ UI::theme() {
     __SUCCESS_COLOR='\e[32m'       # Green
     __WARNING_COLOR='\e[33m'       # Yellow
     __SKIPPED_COLOR='\e[33m'       # Yellow
-    __DEBUG_COLOR='\e[37m'         # Grey
+    __DEBUG_COLOR='\e[37m'         # Gray
     __HELP_COLOR='\e[7;49;33m'     # Black on Gold
     __TEST_COLOR='\e[100m'         # Light magenta
     __TEST_ERROR_COLOR='\e[41m'    # white on red
@@ -508,6 +515,8 @@ UI::drawLine() {
 
 # @description Display message using error color (red) and exit immediately with error status 1
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::fatal() {
   Log::computeDuration
   echo -e "${__ERROR_COLOR}FATAL   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
@@ -767,7 +776,7 @@ InstallScripts::command() {
   fi
 }
 
-# @description concat each element of an array with a separator
+# @description concatenate each element of an array with a separator
 # but wrapping text when line length is more than provided argument
 # The algorithm will try not to cut the array element if it can.
 # - if an arg can be placed on current line it will be,
@@ -950,6 +959,8 @@ Conf::copyStructure() {
 
 # @description Display message using info color (bg light blue/fg white)
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displayHelp() {
   local type="${2:-HELP}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
@@ -1028,11 +1039,16 @@ LOG_LAST_LOG_DATE="${FIRST_LOG_DATE}"
 LOG_LAST_LOG_DATE_INIT=1
 LOG_LAST_DURATION_STR=""
 
-# @description Display message using info color (bg light blue/fg white)
-# @arg $1 message:String the message to display
+# @description compute duration since last call to this function
+# the result is set in following env variables.
+# in ss.sss (seconds followed by milliseconds precision 3 decimals)
+# @noargs
 # @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @set LOG_LAST_LOG_DATE_INIT int (default 1) set to 0 at first call, allows to detect reference log
+# @set LOG_LAST_DURATION_STR String the last duration displayed
+# @set LOG_LAST_LOG_DATE String the last log date that will be used to compute next diff
 Log::computeDuration() {
-  if ((DISPLAY_DURATION == 1)); then
+  if ((${DISPLAY_DURATION:-0} == 1)); then
     local -i duration=0
     local -i delta=0
     local -i currentLogDate
@@ -1259,6 +1275,9 @@ Engine::Config::loadHostIp() {
 
 # @description install apt wslu if necessary providing wslvar, wslpath
 Engine::Config::requireWslu() {
+  if [[ "${LOAD_WSLU:-1}" = "0" ]]; then
+    return 0
+  fi
   if ! command -v wslvar &>/dev/null; then
     Log::displayInfo "Installing pre-requisite Wslu : wslvar, wslpath, ... commands"
     Linux::Apt::installIfNecessary --no-install-recommends wslu
@@ -1295,7 +1314,10 @@ Engine::Config::loadWslVariables() {
   local IFS=' '
   local -a split=()
   # shellcheck disable=SC2207
-  split=($(grep -m 1 -E 'C:\\[^ ]+ ([^ ]+) ' /proc/mounts 2>/dev/null))
+  split=($(grep -m 1 -E 'C:\\[^ ]+ ([^ ]+) ' /proc/mounts 2>/dev/null)) || {
+    # probably not wsl after all
+    return 0
+  }
   # shellcheck disable=SC1003
   BASE_MNT_C="${split[1]}"
   export BASE_MNT_C
@@ -1451,8 +1473,7 @@ Assert::tty() {
   if [[ "${INTERACTIVE:-0}" = "1" ]]; then
     return 0
   fi
-  # check if stdout or stderr is connected to terminal
-  [[ -t 1 || -t 2 ]]
+  tty -s
 }
 
 # @description log message to file
@@ -2032,8 +2053,9 @@ Assert::wsl() {
 # using cache (cache is refreshed every day)
 # @arg $1 var:String the var to retrieve using wslvar
 # @arg $@ args:String[] (optional) additional arguments to pass to wslvar
-# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
-# @exitcode * if Linux::Wsl::originalWslpath cannot find the path or Linux::Wsl::originalWslvar cannot find the var
+# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: PERSISTENT_TMPDIR), you can use TMPDIR instead
+# @exitcode 1 if var cannot be found in cache nor using Linux::Wsl::originalWslvar
+# @exitcode 2 if path cannot be found in cache nor using Linux::Wsl::originalWslpath
 # @stderr diagnostics information is displayed
 # @require Linux::Wsl::requireWsl
 # @feature cache
@@ -2042,15 +2064,15 @@ Linux::Wsl::cachedWslpathFromWslVar2() {
   local -n cachedWslpathFromWslVar2_value=$1
   shift || true
   local value
-  Linux::Wsl::cachedWslvar2 value "$@"
-  Linux::Wsl::cachedWslpath2 cachedWslpathFromWslVar2_value "${value}" || return 1
+  Linux::Wsl::cachedWslvar2 value "$@" || return 1
+  Linux::Wsl::cachedWslpath2 cachedWslpathFromWslVar2_value "${value}" || return 2
 }
 
 declare -Agx bash_tools_wslvar=()
 # @description retrieve wslvar using cache (cache is refreshed every day)
 # @arg $1 cachedWslvar2_var:&String the variable to set by reference if the value is found
 # @arg $@ args:String[] arguments to pass to wslvar
-# @env WSL_TMPDIR String temp directory to store the wslvar cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
+# @env WSL_TMPDIR String temp directory to store the wslvar cache (default value: PERSISTENT_TMPDIR), you can use TMPDIR instead
 # @exitcode * if Linux::Wsl::originalWslvar cannot find the variable
 # @stderr diagnostics information is displayed
 # @require Linux::Wsl::requireWsl
@@ -2073,6 +2095,8 @@ Linux::Wsl::cachedWslvar2() {
 
 # @description Display message using skip color (yellow)
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displaySkipped() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
     Log::computeDuration
@@ -2191,6 +2215,8 @@ Install::file() {
 
 # @description Display message using success color (bg green/fg white)
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displaySuccess() {
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
     Log::computeDuration
@@ -2266,7 +2292,7 @@ Linux::Apt::install() {
 declare -Agx bash_tools_wslpath=()
 # @description retrieve wslpath using cache (cache is refreshed every day)
 # @arg $@ args:String[] arguments to pass to wslpath
-# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: TMPDIR), you can use PERSISTENT_TMPDIR instead
+# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: PERSISTENT_TMPDIR), you can use TMPDIR instead
 # @exitcode * if Linux::Wsl::originalWslpath cannot find the path
 # @stderr diagnostics information is displayed
 # @require Linux::Wsl::requireWsl
@@ -2420,6 +2446,8 @@ Install::unableToCopyCallback() {
 
 # @description Display message using info color (blue) but warning level
 # @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displayStatus() {
   local type="${2:-STATUS}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
@@ -2588,7 +2616,7 @@ Retry::parameterized() {
 
 # FUNCTIONS
 
-Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "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"
+Compiler::Embed::extractDirFromBase64 "${TMPDIR:-/tmp}/conf_dir" "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"
 
 declare -gx embed_dir_conf_dir="${TMPDIR:-/tmp}/conf_dir"
 
@@ -3223,7 +3251,7 @@ installScriptCommand() {
     Log::displayDebug "Command ${SCRIPT_NAME} - parse arguments: ${BASH_FRAMEWORK_ARGV[*]}"
     Log::displayDebug "Command ${SCRIPT_NAME} - parse filtered arguments: ${BASH_FRAMEWORK_ARGV_FILTERED[*]}"
   elif [[ "${options_parse_cmd}" = "help" ]]; then
-    Array::wrap2 ' ' 80 0 "\e[1;37mDESCRIPTION:\e[0m" "$(helpDescriptionCallback)"
+    Array::wrap2 ' ' 80 0 "${__HELP_TITLE_COLOR}DESCRIPTION:${__RESET_COLOR}" "$(helpDescriptionCallback)"
     echo
 
     echo -e "$(Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" "${SCRIPT_NAME}" "[OPTIONS]")"
