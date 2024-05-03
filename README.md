@@ -15,6 +15,8 @@
 
 <!-- markdownlint-capture -->
 
+<!-- markdownlint-disable MD013 -->
+
 [![GitHubLicense](https://img.shields.io/github/license/Naereen/StrapDown.js.svg)](https://github.com/fchastanet/bash-dev-env/blob/master/LICENSE)
 [![CI/CD](https://github.com/fchastanet/bash-dev-env/actions/workflows/lint-test.yml/badge.svg)](https://github.com/fchastanet/bash-dev-env/actions?query=workflow%3A%22Lint+and+test%22+branch%3Amaster)
 [![ProjectStatus](http://opensource.box.com/badges/active.svg)](http://opensource.box.com/badges "Project Status")

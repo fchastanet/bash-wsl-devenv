@@ -15,7 +15,7 @@ function Profiles::allDepsRecursiveNoDeps { #@test
   local status=0
   Profiles::allDepsRecursive \
     "${BATS_TEST_DIRNAME}/testsData" "your software selection" \
-    &>"${BATS_TEST_TMPDIR}/log"; status=$?
+    &>"${BATS_TEST_TMPDIR}/log" || status=$?
   [[ "${status}" = "0" ]]
   run cat "${BATS_TEST_TMPDIR}/log"
   assert_output ""
@@ -27,7 +27,7 @@ function Profiles::allDepsRecursiveOK { #@test
   local status=0
   Profiles::allDepsRecursive \
     "${BATS_TEST_DIRNAME}/testsData/allDepsRecursive/installScripts" "your software selection" \
-    "Install1.sh" &>"${BATS_TEST_TMPDIR}/log"; status=$?
+    "Install1.sh" &>"${BATS_TEST_TMPDIR}/log" || status=$?
   [[ "${status}" = "0" ]]
   run cat "${BATS_TEST_TMPDIR}/log"
   assert_lines_count 6

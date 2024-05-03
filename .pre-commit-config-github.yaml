@@ -21,6 +21,7 @@ repos:
         pass_filenames: false
         always_run: true
         require_serial: true
+        stages: [pre-commit, pre-push, manual]
 
   - repo: https://github.com/executablebooks/mdformat
     # Do this before other tools "fixing" the line endings
@@ -31,7 +32,7 @@ repos:
         entry: mdformat # Executable to run, with fixed options
         language: python
         types: [markdown]
-        args: [--wrap, '80', --number]
+        args: [--wrap, "80", --number]
         additional_dependencies:
           - mdformat-toc
           - mdformat-shfmt
@@ -45,7 +46,6 @@ repos:
     hooks:
       - id: mixed-line-ending
       - id: end-of-file-fixer
-      - id: trailing-whitespace
       - id: check-executables-have-shebangs
       - id: check-shebang-scripts-are-executable
       - id: check-xml
@@ -54,6 +54,11 @@ repos:
       - id: fix-byte-order-marker
       - id: check-yaml
       - id: trailing-whitespace
+        exclude: |
+          (?x)(
+            testsData/
+          )
+        stages: [pre-commit, pre-push, manual]
       - id: check-added-large-files
       - id: forbid-new-submodules
       - id: mixed-line-ending
@@ -61,14 +66,20 @@ repos:
       - id: file-contents-sorter
         files: .cspell/.*\.txt
         args: [--ignore-case]
+        stages: [pre-commit, pre-push, manual]
       - id: check-json
         # x modifier: extended. Spaces and text after a # in the pattern are ignored
         exclude: |
-          (?x)^(
-            conf\/localAppData\/Packages\/Microsoft.WindowsTerminal_8wekyb3d8bbwe\/LocalState\/originalSettings.json |
-            conf\/.vscode\/settings.json |
-            src\/_binaries\/ShellBash/conf\/.vscode\/argv.json
+          (?x)(
+            .vscode\/.*.json$|
+            ^conf\/localAppData\/Packages\/Microsoft.WindowsTerminal_8wekyb3d8bbwe\/LocalState\/originalSettings.json$
           )$
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.6.27
+    hooks:
+      - id: actionlint
+        stages: [pre-commit, pre-push, manual]
 
   - repo: https://github.com/codespell-project/codespell
     rev: v2.2.6
@@ -76,15 +87,15 @@ repos:
       - id: codespell
         args:
           - --dictionary
-          - '-'
+          - "-"
           - --dictionary
           - .cspell/codespellrc-dic.txt
           - --ignore-words
           - .cspell/codespellrc-ignore.txt
           - --quiet-level
-          - '2'
+          - "2"
           - --interactive
-          - '0'
+          - "0"
           - --check-filenames
           - --check-hidden
           - --write-changes
@@ -112,7 +123,7 @@ repos:
     rev: 3.0.2
     hooks:
       - id: shfmt
-        args: [-i, '2', -ci]
+        args: [-i, "2", -ci]
         # x modifier: extended. Spaces and text after a # in the pattern are ignored
         exclude: |
           (?x)(
@@ -121,8 +132,9 @@ repos:
             ^distro$|
             ^install$|
             ^installScripts/|
-            \.tpl$ |
-            /testsData/
+            \.tpl$|
+            /testsData/|
+            ^srcAlt/DependencySample/installScripts/|
           )
 
       # Check both committed and uncommitted files for git conflict
@@ -144,7 +156,7 @@ repos:
         args:
           [
             --expected-warnings-count,
-            '3',
+            "3",
             --format,
             plain,
             --theme,
@@ -156,7 +168,7 @@ repos:
         args:
           [
             --expected-warnings-count,
-            '3',
+            "3",
             --format,
             checkstyle,
             --theme,
@@ -165,6 +177,3 @@ repos:
             WARNING,
           ]
       - id: plantuml
-      - id: megalinterCheckVersion
-      - id: megalinter
-      - id: megalinterGithubAction

@@ -45,7 +45,7 @@ loadConfigFiles() {
   script_shell="$(readlink /proc/$$/exe | sed "s/.*\///")" # bash or zsh
   local -a extensions=(sh "${script_shell}")
   local file
-  while IFS= read -r file ; do
+  while IFS= read -r file; do
     # shellcheck source=src/_binaries/MandatorySoftwares/conf/.bash-dev-env/aliases.d/bash-dev-env.sh
     source "${file}"
   done < <(

@@ -1,16 +1,20 @@
 {
   "recommendations": [
     "streetsidesoftware.code-spell-checker",
-    "mkaufman.HTMLHint",
-    "esbenp.prettier-vscode",
-    "monosans.djlint",
     "timonwong.shellcheck",
-    "AquaSecurityOfficial.trivy-vulnerability-scanner",
-    "Bridgecrew.checkov",
     "standard.vscode-standard",
     "stylelint.vscode-stylelint",
     "foxundermoon.shell-format",
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+    "shd101wyy.markdown-preview-enhanced",
+    "yzhang.markdown-all-in-one",
+    "luggage66.awk",
+    "lizebang.bash-extension-pack",
+    "rogalmic.bash-debug",
+    "jetmartin.bats",
     "HTMLHint.vscode-htmlhint",
-    "dbaeumer.vscode-eslint"
+    "mkaufman.HTMLHint",
+    "monosans.djlint"
   ]
 }

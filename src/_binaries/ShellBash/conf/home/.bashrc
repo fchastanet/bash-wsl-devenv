@@ -68,7 +68,7 @@ if [[ "$-" =~ .*i.* ]]; then
   loadConfigFiles() {
     local dir="$1"
     local file
-    while IFS= read -r file ; do
+    while IFS= read -r file; do
       # shellcheck source=src/_binaries/MandatorySoftwares/conf/.bash-dev-env/aliases.d/bash-dev-env.sh
       source "${file}"
     done < <("${HOME}/.bash-dev-env/loadConfigFiles" "${dir}" sh bash || echo)

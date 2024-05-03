@@ -2,6 +2,7 @@
 .vimrc
 .Xresources
 aacebedo
+actionlint
 adduser
 alacritty
 anacron
@@ -37,15 +38,19 @@ DOCKERHUB
 docsify
 dotnet
 dpkg
+ecma
 fasd
 gdebi
 getent
 gitfast
 github
 Github
+github
+GITHUB
 gnupg
 gofmt
 goserver
+gpgsign
 graphviz
 GRYPE
 hadolint
@@ -128,12 +133,14 @@ sdkmanager
 setaf
 Shellcheck
 shellcheck
+SpacesAftertabs
 stylelint
 substr
 Sume
 sysinfo
 tagname
 templatedir
+testsuites
 tigrc
 tmuxinator
 tput
@@ -173,3 +180,4 @@ Xvfb
 Xvsb
 zcompdump
 zinit
+zshscript

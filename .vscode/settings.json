@@ -2,17 +2,18 @@
   "search.useIgnoreFiles": true,
   "search.exclude": {
     "_site": true,
+    "report": true,
     "**/bin": true,
+    "node_modules": true,
     "backup": true,
+    "megalinter-reports": true,
+    "vendor": true,
     "distro": true,
     "install": true,
     "installScripts/**": true,
-    "megalinter-reports": true,
-    "node_modules": true,
     "pages/docs": true,
-    "report": true,
     "tmp": true,
-    "vendor": true
+    "vendor/bash-tools-framework/**": true
   },
   "explorer.autoReveal": false,
   "files.exclude": {
@@ -27,6 +28,13 @@
   "editor.indentSize": "tabSize",
   "editor.tabSize": 2,
   "files.trimTrailingWhitespace": true,
+  "workbench.editorAssociations": {
+    "*.md": "default"
+  },
   "markdown.extension.toc.levels": "2..6",
-  "shellcheck.customArgs": ["--source-path=SCRIPTDIR", "--external-sources"]
+  "plantuml.server": "http://localhost:8080/",
+  "shellcheck.customArgs": ["--source-path=SCRIPTDIR", "--external-sources"],
+  "shellcheck.ignorePatterns": {
+    "**/*.tpl": true
+  }
 }
