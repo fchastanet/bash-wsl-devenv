@@ -25,7 +25,7 @@ Docker::testContainer() {
     # shellcheck disable=SC2317
     cleanOnExit() {
       if [[ "${containerWasUp}" != "running" ]]; then
-        Log::displayInfo "Shuting down ${title} ..."
+        Log::displayInfo "Shutting down ${title} ..."
         docker-compose down
       fi
     }

@@ -1,5 +1,8 @@
+alacritty
+ansi
 coreutils
 cpio
+debian
 dircolors
 divx
 dtterm
@@ -8,6 +11,9 @@ eterm
 fbterm
 flac
 jfbterm
+konsole
+kterm
+linux
 lzma
 mlterm
 MULTIHARDLINK
@@ -17,15 +23,9 @@ rmvb
 rxvt
 setgid
 setuid
+sqlite
 svgz
+unicode
 webm
 webp
 xspf
-sqlite
-debian
-linux
-unicode
-kterm
-konsole
-ansi
-alacritty

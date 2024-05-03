@@ -1665,7 +1665,7 @@ EOF
 # and export the result in aggregateStatFile
 # @arg $1 statFile:String the current stat file to add to aggregateStatFile
 # @arg $2 appCount:int number of app requested to be installed
-# @arg $@ statFiles:String[] the files in which each step stats hve been aggregated aggregated
+# @arg $@ statFiles:String[] the files in which each step stats have been aggregated aggregated
 # if it doesn't exist, the file is created with needed variables set to 0
 # stats will be saved
 Stats::aggregateGlobalStats() {
@@ -1810,7 +1810,7 @@ Install::structure() {
   fi
 
   # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
-  if [[ "${CHANGE_WINDOWS_FILES:-0}" = "0" && "${toDir}" =~ ^${BASE_MNT_C} ]]; then
+  if [[ "${CHANGE_WINDOWS_FILES:-0}" = "0" && "${toDir}" =~ ^${BASE_MNT_C:-/mnt/c} ]]; then
     Log::displayWarning "Install::structure - Directory '${fromDir}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
     return 0
   fi
@@ -1837,10 +1837,9 @@ Install::structure() {
     local dir
     shopt -s lastpipe
     # -links 2 allows to exclude empty directories
-    # %P get file without initial directory
-    ${SUDO:-} find "${fromDir}" -depth -type d -links 2 -printf "%P\0" |
+    ${SUDO:-} find "${fromDir}" -depth -type d -links 2 -print0 |
       while read -rd '' dir; do
-        if ! createStructure "${toDir}/${dir}"; then
+        if ! createStructure "${toDir}/${dir#"${fromDir}"}"; then
           # error already reported by createStructure
           exit 1
         fi
@@ -1856,9 +1855,10 @@ Install::structure() {
   (
     local file
     shopt -s lastpipe
-    ${SUDO:-} find "${fromDir}" -depth -type f -printf "%P\0" |
+    ${SUDO:-} find "${fromDir}" -depth -type f -print0 |
       while read -rd '' file; do
-        if ! Install::file "${fromDir}/${file}" "${toDir}/${file}"; then
+        local localFile="${file#"${fromDir}/"}"
+        if ! Install::file "${fromDir}/${localFile}" "${toDir}/${localFile}"; then
           # error already reported by Install::file
           exit 1
         fi
