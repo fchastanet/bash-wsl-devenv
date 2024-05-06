@@ -26,7 +26,7 @@ DOCKER_BUILDKIT=1 docker build \
 
 # run docker image
 declare -a localDockerRunArgs=(
-   --rm
+  --rm
   -e KEEP_TEMP_FILES=0
   -e BATS_FIX_TEST=0
   -e USER_ID="1000"
@@ -47,5 +47,5 @@ localDockerRunArgs+=(-e BATS_FIX_TEST="${BATS_FIX_TEST:-0}")
 docker run \
   "${localDockerRunArgs[@]}" \
   "${imageRefUser}" \
-    /bash/vendor/bash-tools-framework/vendor/bats/bin/bats \
-    "$@"
+  /bash/vendor/bash-tools-framework/vendor/bats/bin/bats \
+  "$@"
