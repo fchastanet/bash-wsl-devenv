@@ -1,1 +1,2 @@
+adpat -> adapt
 tst -> test

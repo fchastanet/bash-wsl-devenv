@@ -12,6 +12,12 @@ on: # yamllint disable-line rule:truthy
       - "*"
   workflow_dispatch:
 
+# cancel previous build if several pushes
+concurrency:
+  group: >-
+    ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   # Apply linter fixes configuration
   # When active, APPLY_FIXES must also be defined as
@@ -68,10 +74,10 @@ jobs:
       # Prepare environment
       # -------------------------------------------------------
 
-      - name: Install vendors
+      - name: Install requirements
         run: |
-          set -x
           set -exo pipefail
+          chmod 777 logs
           cp .env.template .env
           sed -i -E \
               -e "s/^USERNAME=.*\$/USERNAME=$(id -un)/" \
@@ -81,9 +87,7 @@ jobs:
               .env
 
           LOAD_WSLU=0 LOAD_SSH_KEY=0 LOAD_LOCALE_CONFIG=0 ./bin/installRequirements
-          ls -al vendor/bash-tools-framework || true
-          ls -al vendor/bash-tools-framework/bin || true
-          ./vendor/bash-tools-framework/bin/installRequirements
+          vendor/bash-tools-framework/bin/installRequirements
 
       - name: Set env vars
         id: vars
@@ -93,27 +97,14 @@ jobs:
       # Lint & Run unit tests
       # -------------------------------------------------------
 
-      - name: Cache pre-commit
-        uses: actions/cache@v4
-        env:
-          cache_name: pre-commit-${{ env.cache_version }}
-          hash: ${{hashFiles('**/.pre-commit-config-github.yaml')}}
-        with:
-          path: ~/.cache/pre-commit
-          key: ${{ runner.os }}-${{ env.cache_name }}-${{ env.hash }}
-          restore-keys: ${{ runner.os }}-${{ env.cache_name }}-
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: 3.9
 
-      - name: Install pre-commit
-        run: pip install pre-commit
-
       - uses: fchastanet/github-action-setup-shfmt@v4.0.0
 
-      - uses: ouzi-dev/commit-status-updater@v2
+      - uses: akatov/commit-status-updater@a9e988ec5454692ff7745a509452422a35172ad6
         with:
           name: build-bash-dev-env
           status: pending
@@ -137,11 +128,7 @@ jobs:
           # Validates all source when push on master,
           # else just the git diff with master.
           # Override with true if you always want to lint all sources
-          VALIDATE_ALL_CODEBASE: >-
-            ${{
-              github.event_name == 'push' &&
-              github.ref == 'refs/heads/master'
-            }}
+          VALIDATE_ALL_CODEBASE: true
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MEGALINTER_CONFIG: .mega-linter-githubAction.yml
           CI_MODE: 1
@@ -204,17 +191,18 @@ jobs:
       - name: "Run unit tests"
         id: unitTest
         run: |
-          set -o errexit
+          set -exo pipefail
+          status=0
           CI_MODE=1 ./test.sh scrasnups/build:bash-tools-ubuntu-5.3 \
             -j 30 --formatter junit -o logs -r src |
-            tee logs/test.log
+            tee logs/test.log || status=$?
           awk '/xml version="1.0"/{flag=1} flag; /<\/testsuites>/{flag=0}' \
             logs/test.log >logs/junit.xml
+          exit "${status}"
 
       - name: Publish Test Report
         uses: mikepenz/action-junit-report@v4
-        # https://stackoverflow.com/a/70549615/3045926
-        if: ${{ always() && steps.unitTest.conclusion == 'success' }}
+        if: ${{ always() }}
         with:
           token: ${{ github.token }}
           check_name: JUnit-bash-dev-env
@@ -224,14 +212,14 @@ jobs:
           report_paths: "logs/**.xml"
 
       - name: Upload Test Results
-        if: ${{ always() && steps.preCommit.conclusion == 'success' }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: Test Results
           path: |
             logs/**
 
-      - uses: ouzi-dev/commit-status-updater@v2
+      - uses: akatov/commit-status-updater@a9e988ec5454692ff7745a509452422a35172ad6
         if: always()
         with:
           name: build-bash-dev-env

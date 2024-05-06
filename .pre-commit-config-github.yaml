@@ -4,7 +4,7 @@
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
-default_install_hook_types: [pre-commit]
+default_install_hook_types: [pre-commit, pre-push]
 default_stages: [pre-commit, manual]
 minimum_pre_commit_version: 3.5.0
 fail_fast: false
@@ -144,7 +144,7 @@ repos:
         exclude: /testsData/
 
   - repo: https://github.com/fchastanet/bash-tools-framework
-    rev: 3.0.0
+    rev: 4.0.0
     hooks:
       - id: fixShebangExecutionBit
       - id: awkLint

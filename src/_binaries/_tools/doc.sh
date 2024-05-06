@@ -2,41 +2,68 @@
 # BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/bin/doc
 # ROOT_DIR_RELATIVE_TO_BIN_DIR=..
 # FACADE
+# VAR_LOAD_REQUIRES=0
+# VAR_LOAD_CONFIG=0
 # shellcheck disable=SC2034
 
-DOC_DIR="${BASH_DEV_ENV_ROOT_DIR}/pages"
 declare copyrightBeginYear="2020"
 
 .INCLUDE "$(dynamicTemplateDir _binaries/_tools/doc.options.tpl)"
 
-run() {
-  if [[ "${IN_BASH_DOCKER:-}" != "You're in docker" ]]; then
-    local -a dockerRunCmd=(
-      "/bash/bin/doc"
-      "${BASH_FRAMEWORK_ARGV_FILTERED[@]}"
-    )
-    local -a dockerArgvFiltered=(
-      -e ORIGINAL_DOC_DIR="${DOC_DIR}"
-    )
-    # shellcheck disable=SC2154
-    Docker::runBuildContainer \
-      "${optionVendor:-ubuntu}" \
-      "${optionBashVersion:-5.1}" \
-      "${optionBashBaseImage:-ubuntu:20.04}" \
-      "${optionSkipDockerBuild}" \
-      "${optionTraceVerbose}" \
-      "${optionContinuousIntegrationMode}" \
-      dockerRunCmd \
-      dockerArgvFiltered
+runContainer() {
+  local image="scrasnups/build:bash-tools-ubuntu-5.3"
+  local -a dockerRunCmd=(
+    "/bash/bin/doc"
+    "${BASH_FRAMEWORK_ARGV_FILTERED[@]}"
+  )
 
-    return $?
+  if ! docker inspect --type=image "${image}" &>/dev/null; then
+    docker pull "${image}"
+  fi
+  # run docker image
+  local -a localDockerRunArgs=(
+    --rm
+    -e KEEP_TEMP_FILES="${KEEP_TEMP_FILES:-0}"
+    -e BATS_FIX_TEST="${BATS_FIX_TEST:-0}"
+    -e ORIGINAL_DOC_DIR="${BASH_DEV_ENV_ROOT_DIR}/pages"
+    -w /bash
+    -v "${BASH_DEV_ENV_ROOT_DIR}:/bash"
+    --entrypoint /usr/local/bin/bash
+  )
+  # shellcheck disable=SC2154
+  if [[ "${optionContinuousIntegrationMode}" = "0" ]]; then
+    localDockerRunArgs+=(
+      -e USER_ID="${USER_ID:-1000}"
+      -e GROUP_ID="${GROUP_ID:-1000}"
+      --user "www-data:www-data"
+      -v "/tmp:/tmp"
+      -it
+    )
+  fi
+  if [[ -d "${FRAMEWORK_ROOT_DIR}" ]]; then
+    localDockerRunArgs+=(
+      -v "$(cd "${FRAMEWORK_ROOT_DIR}" && pwd -P):/bash/vendor/bash-tools-framework"
+    )
   fi
 
-  #-----------------------------
-  # doc generation
-  #-----------------------------
-  declare ROOT_DIR=/bash
-  declare DOC_DIR="${ROOT_DIR}/pages"
+  # shellcheck disable=SC2154
+  if [[ "${optionTraceVerbose}" = "1" ]]; then
+    set -x
+  fi
+  docker run \
+    "${localDockerRunArgs[@]}" \
+    "${image}" \
+    "${dockerRunCmd[@]}"
+  set +x
+}
+
+generateDoc() {
+  # shellcheck disable=SC2154
+  if [[ "${optionTraceVerbose}" = "1" ]]; then
+    set -x
+  fi
+  local ROOT_DIR=/bash
+  local DOC_DIR="${ROOT_DIR}/pages"
   # copy other files
   cp "${ROOT_DIR}/README.md" "${DOC_DIR}/README.md"
   sed -i -E \
@@ -48,6 +75,14 @@ run() {
   cp -R "${ROOT_DIR}/docs" "${DOC_DIR}/docs"
 
   Log::displayStatus "Doc generated in ${ORIGINAL_DOC_DIR} folder"
+}
+
+run() {
+  if [[ "${IN_BASH_DOCKER:-}" != "You're in docker" ]]; then
+    runContainer
+  else
+    generateDoc
+  fi
 }
 
 if [[ "${BASH_FRAMEWORK_QUIET_MODE:-0}" = "1" ]]; then
