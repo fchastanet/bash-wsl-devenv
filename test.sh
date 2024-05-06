@@ -2,7 +2,6 @@
 
 REAL_SCRIPT_FILE="$(readlink -e "$(realpath "${BASH_SOURCE[0]}")")"
 CURRENT_DIR="${REAL_SCRIPT_FILE%/*}"
-FRAMEWORK_ROOT_DIR="${CURRENT_DIR}/vendor/bash-tools-framework"
 
 set -o errexit
 set -o pipefail
@@ -10,42 +9,45 @@ set -o pipefail
 declare image="$1"
 shift || true
 
+if [[ -z "${image}" || "${image}" = "" ]]; then
+  echo "try : ./test.sh scrasnups/build:bash-tools-alpine-5.0 -r src -j 30"
+  echo "or  : ./test.sh scrasnups/build:bash-tools-ubuntu-5.3 -r src -j 30"
+  echo "display bats help : ./test.sh scrasnups/build:bash-tools-ubuntu-5.3 --help"
+  exit 0
+fi
+
 # build docker image
-docker pull "${image}"
-set -x
-declare imageRefUser="${image}-user"
-DOCKER_BUILDKIT=1 docker build \
-  --cache-from "scrasnups/${image}" \
-  --build-arg "BASH_IMAGE=${image}" \
-  --build-arg SKIP_USER=0 \
-  --build-arg USER_ID="${USER_ID:-$(id -u)}" \
-  --build-arg GROUP_ID="${GROUP_ID:-$(id -g)}" \
-  -f "${FRAMEWORK_ROOT_DIR}/.docker/DockerfileUser" \
-  -t "${imageRefUser}" \
-  "${FRAMEWORK_ROOT_DIR}/.docker"
+if [[ "${CI_MODE:-0}" = "1" ]] || ! docker inspect --type=image "${image}" &>/dev/null; then
+  docker pull "${image}"
+fi
 
 # run docker image
 declare -a localDockerRunArgs=(
   --rm
-  -e KEEP_TEMP_FILES=0
-  -e BATS_FIX_TEST=0
-  -e USER_ID="1000"
-  -e GROUP_ID="1000"
-  --user "1000:1000"
+  -e KEEP_TEMP_FILES="${KEEP_TEMP_FILES:-0}"
+  -e BATS_FIX_TEST="${BATS_FIX_TEST:-0}"
+  -e USER_ID="${USER_ID:-1000}"
+  -e GROUP_ID="${GROUP_ID:-1000}"
+  --user "www-data:www-data"
   -w /bash
-  -v "$(pwd):/bash"
+  -v "${CURRENT_DIR}:/bash"
   --entrypoint /usr/local/bin/bash
 )
-# shellcheck disable=SC2154
+
+if [[ -d "${CURRENT_DIR}/vendor/bash-tools-framework" ]]; then
+  FRAMEWORK_ROOT_DIR="$(cd "${CURRENT_DIR}/vendor/bash-tools-framework" && pwd -P)"
+  localDockerRunArgs+=(
+    -v "${FRAMEWORK_ROOT_DIR}:/bash/vendor/bash-tools-framework"
+  )
+fi
 if [[ "${CI_MODE:-0}" = "0" ]]; then
   localDockerRunArgs+=(-v "/tmp:/tmp")
   localDockerRunArgs+=(-it)
 fi
-localDockerRunArgs+=(-e KEEP_TEMP_FILES="${KEEP_TEMP_FILES:-0}")
-localDockerRunArgs+=(-e BATS_FIX_TEST="${BATS_FIX_TEST:-0}")
 
+set -x
 docker run \
   "${localDockerRunArgs[@]}" \
-  "${imageRefUser}" \
-    /bash/vendor/bash-tools-framework/vendor/bats/bin/bats \
-    "$@"
+  "${image}" \
+  /bash/vendor/bash-tools-framework/vendor/bats/bin/bats \
+  "$@"

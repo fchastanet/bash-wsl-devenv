@@ -62,16 +62,6 @@ dictionaryDefinitions:
     path: ".cspell/p10kZsh.txt"
     addWords: true
 
-dictionaries:
-  - bash
-  - plantuml
-  - myAwk
-  - myBash
-  - loremIpsum
-  - config
-  - softwares
-  - softwareTerms
-
 # https://github.com/streetsidesoftware/cspell/blob/main/packages/cspell/README.md#languagesettings
 languageSettings:
   - languageId: dirColors
@@ -87,7 +77,7 @@ languageSettings:
       - mySoftwares
       - software
 
-  - languageId: zshscript
+  - languageId: zshScript
     locale: "*"
     dictionaries:
       - bash
@@ -156,8 +146,11 @@ overrides:
       - p10kZsh
       - softwareTerms
 
-  - filename: "**/(*.zsh|.zshrc|.zprofile)"
-    languageId: zshscript
+  - filename:
+      - "**/*.zsh"
+      - "**/.zshrc"
+      - "**/.zprofile"
+    languageId: zshScript
 
   - filename: "**/*.ps1"
     dictionaries:
