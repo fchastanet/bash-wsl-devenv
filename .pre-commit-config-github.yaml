@@ -144,12 +144,10 @@ repos:
         exclude: /testsData/
 
   - repo: https://github.com/fchastanet/bash-tools-framework
-    rev: 4.0.0
+    rev: 5.1.2
     hooks:
       - id: fixShebangExecutionBit
       - id: awkLint
-      - id: buildShFiles
-      - id: buildShFilesGithubAction
       - id: shellcheckLint
       - id: shellcheckLintGithubAction
       - id: frameworkLint
@@ -177,3 +175,8 @@ repos:
             WARNING,
           ]
       - id: plantuml
+
+  - repo: https://github.com/fchastanet/bash-compiler
+    rev: 0.3.4
+    hooks:
+      - id: buildBashBinaries

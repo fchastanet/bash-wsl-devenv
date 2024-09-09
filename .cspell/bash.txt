@@ -60,6 +60,7 @@ KHTML
 killall
 lazyload
 libkrb
+listall
 LOCALAPPDATA
 mapfile
 maxdepth
