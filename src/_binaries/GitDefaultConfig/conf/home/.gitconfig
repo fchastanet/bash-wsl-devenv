@@ -8,6 +8,11 @@
   excludesFile = ~/.bash-dev-env/GitDefaultConfig/gitignore
   # Don't consider trailing space change as a cause for merge conflicts
   whitespace = -trailing-space
+  # make .githooks folder as default .git/hooks folder
+  # so these files can be versioned
+  # You can restore default value using :
+  # git config --global core.hooksPath .git/hooks
+  #hooksPath = .githooks
 [init]
   defaultBranch = master
   templatedir = ~/.bash-dev-env/GitDefaultConfig/pre-commit-template

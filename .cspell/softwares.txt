@@ -49,10 +49,12 @@ github
 GITHUB
 gnupg
 gofmt
+gogvm
 goserver
 gpgsign
 graphviz
 GRYPE
+gtpl
 hadolint
 Hadolint
 hjson
