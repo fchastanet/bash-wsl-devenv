@@ -1,0 +1,70 @@
+---
+binData:
+  commands:
+    default:
+      definitionFiles:
+        5: ${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/argsInstallScript.sh
+
+      args:
+        - variableName: command
+          name: command
+          help: The command to run on this install script.
+          type: String
+          min: 0
+          max: 1
+          defaultValue: install
+          callbacks:
+            - argsInstallScriptCommandCallback
+          authorizedValues:
+            - help: Show help description of this install script.
+              value: helpDescription
+            - help: Show the internal name of this install script.
+              value: scriptName
+            - help: Show this install scripts's dependencies.
+              value: dependencies
+            - help: "Show the variables needed to execute this\ninstall script."
+              value: listVariables
+            - help:
+                "Show the fortunes sentences that this\ninstall script can
+                generate."
+              value: fortunes
+            - help: helpVariables
+              value: helpVariables
+            - help: defaultVariables
+              value: defaultVariables
+            - help: checkVariables
+              value: checkVariables
+            - help: breakOnConfigFailure
+              value: breakOnConfigFailure
+            - help: breakOnTestFailure
+              value: breakOnTestFailure
+            - help: isInstallImplemented
+              value: isInstallImplemented
+            - help: install
+              value: install
+            - help: isTestInstallImplemented
+              value: isTestInstallImplemented
+            - help: testInstall
+              value: testInstall
+            - help: isConfigureImplemented
+              value: isConfigureImplemented
+            - help: configure
+              value: configure
+            - help: isTestConfigureImplemented
+              value: isTestConfigureImplemented
+            - help: testConfigure
+              value: testConfigure
+      optionGroups:
+        zzzGroupInstall:
+          title: "INSTALL OPTIONS:"
+      options:
+        - variableName: PROFILE
+          group: zzzGroupInstall
+          type: String
+          help: profileHelpFunction
+          helpValueName: profile
+          callbacks:
+            - validateProfile
+          alts:
+            - "--profile"
+            - "-p"

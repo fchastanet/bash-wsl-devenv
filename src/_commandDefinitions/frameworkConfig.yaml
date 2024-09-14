@@ -1,0 +1,25 @@
+---
+compilerConfig: &defaultFrameworkConfig
+  # compile parameters
+  # rootDir     : directory used to compute src file relative path
+  # srcDirs     : additional directories where to find the functions
+  # templateDir : directory from which bash-tpl templates will be searched
+  # binDir      : fallback bin directory in case BIN_FILE has not been provided
+  rootDir: ${BASH_DEV_ENV_ROOT_DIR}
+  srcDirs:
+    - ${BASH_DEV_ENV_ROOT_DIR}/src
+    - ${FRAMEWORK_ROOT_DIR}/src
+  binDir: ${BASH_DEV_ENV_ROOT_DIR}/bin
+  templateDirs:
+    - ${COMPILER_ROOT_DIR}/examples/templates
+    - ${BASH_DEV_ENV_ROOT_DIR}/src
+  templateFile: binFile.gtpl
+
+  # describe the functions that will be skipped from being imported
+  functionsIgnoreRegexpList:
+    - Namespace::functions
+    - Functions::myFunction
+    - Namespace::requireSomething
+    - IMPORT::dir::file
+    - Acquire::ForceIPv4
+    - M::MZ

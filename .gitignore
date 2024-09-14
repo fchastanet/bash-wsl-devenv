@@ -20,3 +20,4 @@ commit-msg.md
 tmp
 
 bin/buildBinFiles
+src/_commandDefinitions/generated

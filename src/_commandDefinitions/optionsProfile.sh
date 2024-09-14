@@ -1,53 +1,26 @@
-%
-# shellcheck source=/dev/null
-source <(
-  profileHelp() { :; }
-  Options::generateOption \
-    --help profileHelp \
-    --help-value-name profile \
-    --variable-type "String" \
-    --alt "--profile" \
-    --alt "-p" \
-    --callback validateProfile \
-    --variable-name "PROFILE" \
-    --function-name optionProfileFunction
+#!/bin/bash
 
-  softwareArgHelp() { :; }
-  Options::generateArg \
-    --variable-name "CONFIG_LIST" \
-    --min 0 \
-    --max -1 \
-    --name "softwares" \
-    --help softwareArgHelp \
-    --function-name softwaresArgFunction
-)
-options+=(
-  optionProfileFunction
-  softwaresArgFunction
-  --callback commandCallback
-)
-%
+softwareArgHelpFunction() {
+  echo "    List of softwares to install (--profile option cannot be used in this case)"
+  echo "    See below for complete list of softwares available"
+}
 
-profileHelp() {
-  echo "Profile name to use that contains all the softwares to install"
-  echo "List of profiles available:"
-  echo
+profileHelpFunction() {
+  echo "    Profile name to use that contains all the softwares to install"
+}
+
+profilesHelpList() {
+  echo -e "  ${__HELP_TITLE_COLOR}Available profiles:${__RESET_COLOR}"
   (
-    Conf::list "${BASH_DEV_ENV_ROOT_DIR}/profiles" "profile." ".sh" "-type f" "   - "
+    Conf::list "${BASH_DEV_ENV_ROOT_DIR}/profiles" "profile." ".sh" "-type f" "    - "
     local dir
     for dir in "${BASH_DEV_ENV_ROOT_DIR}/srcAlt/"*; do
       if [[ -d "${dir}/profiles" ]]; then
-        Conf::list "${dir}/profiles" "profile." ".sh" "-type f" "   - "
+        Conf::list "${dir}/profiles" "profile." ".sh" "-type f" "    - "
       fi
     done
   ) | sort | uniq
 }
-
-softwareArgHelp() {
-  echo "List of softwares to install (--profile option cannot be used in this case)"
-  echo "See below for complete list of softwares available"
-}
-
 
 validateProfile() {
   local profileName="$2"

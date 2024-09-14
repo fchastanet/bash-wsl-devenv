@@ -1,0 +1,16 @@
+---
+binData:
+  commands:
+    default:
+      optionGroups:
+        zzzGroupExport:
+          title: "EXPORT OPTIONS:"
+      options:
+        - variableName: PREPARE_EXPORT
+          group: zzzGroupExport
+          type: Boolean
+          help:
+            prepare the wsl installation for export (remove all sensitive files)
+          alts:
+            - "--prepare-export"
+            - "-e"

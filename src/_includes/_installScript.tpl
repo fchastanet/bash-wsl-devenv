@@ -1,5 +1,4 @@
 %
-declare versionNumber="1.0"
 declare copyrightBeginYear="2024"
 declare commandFunctionName="installScriptCommand"
 helpDescriptionCallback() { :; }
@@ -39,7 +38,7 @@ helpLongDescriptionCallback() {
 
   echo -e "${__HELP_TITLE}List of needed variables:${__HELP_NORMAL}"
   stringOrNone "$(helpVariables)"
-
+  echo
   echo -e "${__HELP_TITLE}List of dependencies:${__HELP_NORMAL}"
   stringOrNone "$(dependencies)"
 }

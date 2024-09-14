@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_tools/install/install-binary.yaml
+# GENERATED FROM https://github.com/fchastanet/bash-tools-framework/tree/master/src/_tools/install/install-binary.yaml
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -102,7 +102,7 @@ if [[ -n "${EMBED_CURRENT_DIR}" ]]; then
 else
   CURRENT_DIR="${REAL_SCRIPT_FILE%/*}"
 fi
-FRAMEWORK_ROOT_DIR="$(cd "${CURRENT_DIR}/." && pwd -P)"
+FRAMEWORK_ROOT_DIR="$(cd "${CURRENT_DIR}/../.." && pwd -P)"
 FRAMEWORK_SRC_DIR="${FRAMEWORK_ROOT_DIR}/src"
 FRAMEWORK_BIN_DIR="${FRAMEWORK_ROOT_DIR}/bin"
 FRAMEWORK_VENDOR_DIR="${FRAMEWORK_ROOT_DIR}/vendor"
@@ -285,29 +285,6 @@ Array::wrap2() {
 }
 
 
-# @description check if command specified exists or return 1
-# with error and message if not
-#
-# @arg $1 commandName:String on which existence must be checked
-# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
-#
-# @exitcode 1 if the command specified does not exist
-# @stderr diagnostic information + help if second argument is provided
-Assert::commandExists() {
-  local commandName="$1"
-  local helpIfNotExists="$2"
-
-  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
-    Log::displayError "${commandName} is not installed, please install it"
-    if [[ -n "${helpIfNotExists}" ]]; then
-      Log::displayInfo "${helpIfNotExists}"
-    fi
-    return 1
-  }
-  return 0
-}
-
-
 # @description check if param is valid email address
 # @warning it is a very simple check, no RFC validation
 # @arg $1 emailAddress:String the full email address
@@ -442,36 +419,6 @@ Cache::getPropertyValue2() {
     return 0
   fi
   return 1
-}
-
-
-# @description convert base64 encoded back to target file
-# if target file is executable prepend dir of target
-# file to PATH to make binary available everywhere
-# it is advised to include in the path of the target file
-# the md5sum of the binFile
-#
-# @arg $1 targetFile:String the file to write
-# @arg $2 binFileBase64:String the base64 encoded file
-# @arg $3 fileMode:String the chmod to set on the file
-# @set PATH String prepend target embedded file binary directory to PATH variable if binary executable
-Compiler::Embed::extractFileFromBase64() {
-  local targetFile="$1"
-  local binFileBase64="$2"
-  local fileMode="${3:-+x}"
-  local targetDir="${targetFile%/*}"
-
-  if [[ ! -f "${targetFile}" ]]; then
-    if [[ ! -d "${targetDir}" ]]; then
-      mkdir -p "${targetDir}"
-    fi
-    base64 -d >"${targetFile}" <<<"${binFileBase64}"
-    chmod "${fileMode}" "${targetFile}"
-  fi
-
-  if [[ -x "${targetFile}" ]]; then
-    Env::pathPrepend "${targetDir}"
-  fi
 }
 
 
@@ -635,27 +582,24 @@ Engine::Config::createEnvFileFromTemplate() {
 }
 
 
+envFileTemplate="$(
+  cat <<'EOF'
+.INCLUDE "${BASH_DEV_ENV_ROOT_DIR}/.env.template"
+EOF
+)"
+
 # @description load .env file
 # @arg $1 envFile:String the file to load
 Engine::Config::loadConfig() {
   if [[ "${BASH_DEV_ENV_CONFIG_LOADED:-0}" = "1" ]]; then
     return 0
   fi
-Linux::requireTarCommand
-Compiler::Embed::extractFileFromBase64 \
-  "${PERSISTENT_TMPDIR:-/tmp}/27feff9c99f5b61ed472af09314aafa6/envFileTemplate" \
-  "IyEvYmluL2Jhc2gKIyBzaGVsbGNoZWNrIGRpc2FibGU9U0MyMDM0CgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgR2VuZXJhbCBpbmZvcm1hdGlvbgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojIHdzbCB1c2VybmFtZSB3aXRoIGRlZmF1bHQgcGFzc3dvcmQgd3NsClVTRVJOQU1FPSJ3c2wiCgpIT01FPSIvaG9tZS93c2wiCgpXSU5ET1dTX1VTRVJOQU1FPSJmY2hhc3RhbmV0IgoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQojIEdpdCAmIFNTSCBpbmZvcm1hdGlvbgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojIGlmIDEsIGl0IGluZGljYXRlcyB5b3UgYWNjZXB0IHRoYXQgeW91ciBnaXQga2V5IHdpbGwgYmUgbG9hZGVkLgojIGlmIDAsIGNvbmZpZ3VyYXRpb25zIHRoYXQgbmVlZCB0byBiZSBhdXRoZW50aWNhdGVkIHdpbGwgYmUgc2tpcHBlZC4KIyBEaXN0cm8gbW9kZTogaW4gYW55IGNhc2UsIHlvdXIga2V5IGlzIG5vdCBjb3BpZWQuCkFVVEhPUklaRV9TU0hfS0VZX1VTQUdFPTEKCiMgeW91ciBsb2dpbiB0byBjb25uZWN0IHRvIHNzaCBzZXJ2ZXJzIGlmIGFueQpTU0hfTE9HSU49IiIKCiMgeW91ciBnaXQgZnVsbCBuYW1lICdGaXJzdE5hbWUgTGFzdE5hbWUnCkdJVF9VU0VSTkFNRT0iIgoKIyBlbWFpbCB1c2VkIGZvciBnaXQgJ2xkYXBAZG9tYWluLmNvbScKR0lUX1VTRVJfTUFJTD0iIgoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQojIEFXUyBpbmZvcm1hdGlvbgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojIGVtYWlsIHVzZWQgdG8gY29ubmVjdCB0byBhd3MKQVdTX1VTRVJfTUFJTD0iZmNoYXN0YW5ldEBnbWFpbC5jb20iCgojIGFwcCBpZCB0byBjb25uZWN0IHRvIGF3cyBhY2NvdW50CkFXU19BUFBfSUQ9IiIKCkFXU19QUk9GSUxFPSIiCkFXU19ERUZBVUxUX1JFR0lPTj0iIgpBV1NfVEVTVF9TRUNSRVRfSUQ9IiIKQVdTX0RFRkFVTFRfRE9DS0VSX1JFR0lTVFJZX0lEPSIiCgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgSzhTIGluZm9ybWF0aW9uCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiMgS3ViZURlZmF1bHRDb25maWcgfi8ua3ViZS9jb25maWcgZ2VuZXJhdGlvbgojIGF3cyByZWdpb24gb2YgdGhlIGNsdXN0ZXIgKEVnOiB1cy1lYXN0LTEpCktVQkVfQ09ORklHX1JFR0lPTl9DT0RFPQoKIyBhd3MgYXJuIG9mIHRoZSBjbHVzdGVyLgojIEVnOiBhcm46YXdzOmVjczpyZWdpb246YXdzX2FjY291bnRfaWQ6Y2x1c3Rlci9NeUNsdXN0ZXIKS1VCRV9DT05GSUdfQ0xVU1RFUl9BUk49CgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgRGlyZWN0b3JpZXMKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQoKIyBvdmVycmlkZGVuIGNvbmYgZGlyZWN0b3J5IHRoYXQgd2lsbCBiZSB1c2VkIHRvIG92ZXJyaWRlCiMgdGhlIGRlZmF1bHQgY29uZmlndXJhdGlvbiB0aGF0IGFyZSBlbWJlZGRlZCBpbiBiaW5hcmllcwpDT05GX09WRVJSSURFX0RJUj0iJHtCQVNIX0RFVl9FTlZfUk9PVF9ESVJ9L2NvbmYub3ZlcnJpZGUiCgojIHdoZXJlIHRvIGluc3RhbGwgYmFzaC10b29scywgLi4uCiMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMjE1MwpQUk9KRUNUU19ESVI9IiR7SE9NRX0vcHJvamVjdHMiCgojIHdoZXJlIG92ZXJyaWRkZW4gY29uZmlnIGZpbGVzIHdpbGwgYmUgYmFja2VkIHVwCkJBQ0tVUF9ESVI9IiR7QkFTSF9ERVZfRU5WX1JPT1RfRElSfS9iYWNrdXAiCiMgYmFja3VwIGZpbGVzL2RpcnMgYmVmb3JlIGluc3RhbGxpbmcgbmV3IGZpbGUgKHVzdWFsbHkgMSwgYnV0IDAgaWYgdXNpbmcgZGlzdHJvKQpCQUNLVVBfQkVGT1JFX0lOU1RBTEw9MQoKIyBsb2dzIGRpcmVjdG9yeQpMT0dTX0RJUj0iJHtCQVNIX0RFVl9FTlZfUk9PVF9ESVJ9L2xvZ3MiCgojIGluc3RhbGxTY3JpcHRzIHJvb3QgZGlyCklOU1RBTExfU0NSSVBUU19ST09UX0RJUj0iJHtCQVNIX0RFVl9FTlZfUk9PVF9ESVJ9L2luc3RhbGxTY3JpcHRzIgoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQojIEluc3RhbGxhdGlvbiBjb25maWd1cmF0aW9uCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiMgQ29uZmlndXJhdGlvbiBmaWxlcyBhcmUgb3ZlcndyaXR0ZW4gZXZlbiBpZiBleGlzdHMKIyAhISEhIEZpcnN0IHRpbWUgaW5pdGlhbGl6YXRpb246IGxldCB0aGlzIHZhbHVlIHRvIDEgISEhIQojIFZhbHVlIDA6CiMgLSBJZiB0YXJnZXQgY29uZmlndXJhdGlvbiBmaWxlIGV4aXN0cywgZGlzcGxheXMgYSBtZXNzYWdlIGFuZCBkbyBub3Qgb3ZlcndyaXRlIHRoZSBmaWxlCiMgLSBJZiB0YXJnZXQgY29uZmlndXJhdGlvbiBmaWxlIGRvZXNuJ3QgZXhpc3QsIGluc3RhbGxzIHRoZSBmaWxlCiMgVmFsdWUgMQojIC0gaW5zdGFsbCBvciBvdmVyd3JpdGUgdGhlIGZpbGUgd2l0aG91dCBjaGVja2luZyBleGlzdGVuY2UKT1ZFUldSSVRFX0NPTkZJR19GSUxFUz0xCgojIFdpbmRvd3MgZmlsZXMgY2FuIGJlIG92ZXJyaWRkZW4gaWYgMQojIGlmIDAKIyAtIHNraXAgY2hhbmdlcyB0byAlVVNFUlBST0ZJTEUlLy53c2xjb25maWcKIyAtIHNraXAgY29weWluZyBmb250cwpDSEFOR0VfV0lORE9XU19GSUxFUz0xCgojIEluZGljYXRlIHRoYXQgaW5zdGFsbCBzY3JpcHQgY2FuIHdhcm4geW91IHVzaW5nIHNwZWFrZXIgd2hlbiB5b3VyIGlucHV0IGlzIG5lZWRlZApDQU5fVEFMS19EVVJJTkdfSU5TVEFMTEFUSU9OPTEKCiMgaWYgMCBpbnN0YWxsIHNjcmlwdCB3aWxsIHNraXAgYWxsIGludGVyYWN0aXZlIGFjdGl2aXR5IChzYW1sMmF3cywgLi4uKSwKIyBzbyBkZXBlbmRlbnQgaW5zdGFsbGF0aW9uIHdpbGwgYmUgc2tpcHBlZCBhcyB3ZWxsCklOU1RBTExfSU5URVJBQ1RJVkU9MQoKIyBkaXNwbGF5IGVsYXBzZWQgdGltZSBzaW5jZSBsYXN0IGxvZwpESVNQTEFZX0RVUkFUSU9OPTEKCiMgMCAgID0+IG5vIHVwZ3JhZGUgYXQgYWxsCiMgbHRzID0+IFVQR1JBREUgdG8gbGF0ZXN0IHVidW50dSBsdHMgdmVyc2lvbgojIGRldiA9PiBVUEdSQURFIHRvIGxhdGVzdCB1YnVudHUgZGV2IHZlcnNpb24KIyBVc2UgaWYgeW91IGtub3cgd2hhdCB5b3UgYXJlIGRvaW5nLAojIGNvdWxkIGNhdXNlIHNvbWUgcGFja2FnZXMgdG8gbm90IGJlaW5nIGF2YWlsYWJsZSB5ZXQKVVBHUkFERV9VQlVOVFVfVkVSU0lPTj0wCgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgUHJvZmlsZSBjb25maWd1cmF0aW9uCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiMgQ2hvb3NlIHlvdXIgcHJlZmVycmVkIHNoZWxsCiMgcG9zc2libGUgY2hvaWNlczogU2hlbGxCYXNoIChMZWdhY3kgZXhwZXJpZW5jZSksIFNoZWxsWnNoIChSZWNvbW1lbmRlZCBleHBlcmllbmNlKQpQUkVGRVJSRURfU0hFTEw9IlNoZWxsWnNoIgoKIyBac2ggdGhlbWUgdG8gdXNlCiMgcG9zc2libGUgY2hvaWNlczogcG93ZXJsZXZlbDEway9wb3dlcmxldmVsMTBrLCBzaW5kcmVzb3JodXMvcHVyZSwgc3RhcnNoaXAvc3RhcnNoaXAKWlNIX1BSRUZFUlJFRF9USEVNRT0icG93ZXJsZXZlbDEway9wb3dlcmxldmVsMTBrIgoKIyBEaXNwbGF5IEZvcnR1bmUgdG9vbHRpcCBhdCBiYXNoL3pzaCBzZXNzaW9uIG9wZW4KU0hPV19GT1JUVU5FUz0xCgojIERpc3BsYXkgTU9URCBhdCBiYXNoL3pzaCBzZXNzaW9uIG9wZW4KU0hPV19NT1REPTEKCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KIyBXU0xDT05GSUcKIyBUaGVzZSBwYXJhbWV0ZXJzIGF1dG9tYXRpY2FsbHkgY29uZmlndXJlICVVU0VSUFJPRklMRSUvLndzbGNvbmZpZyBmaWxlLgojIEBzZWUgaHR0cHM6Ly9kb2NzLm1pY3Jvc29mdC5jb20vZW4tdXMvd2luZG93cy93c2wvd3NsLWNvbmZpZwojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojIFJlY29tbWVuZGVkIDUwJSBvZiB0b3RhbCBtZW1vcnkKV1NMQ09ORklHX01BWF9NRU1PUlk9OEdCCgojIHBlcnNvbmFsbHkgSSBwcmVmZXIgcnVuIG91dCBvZiBtZW1vcnkgaW5zdGVhZCBvZiBiZWdpbm5pbmcgc3dhcHBpbmcKIyBTbyBJIGtub3cgaW1tZWRpYXRlbHkgaWYgc29tZSBwcm9jZXNzZXMgaGF2ZSB0byBiZSBzdG9wcGVkCldTTENPTkZJR19TV0FQPTAKCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KIyBIYWNrcwojIG9uIHNvbWUgY29uZmlndXJhdGlvbnMgd2UgaGF2ZSB0byBmb3JjZSBwYXRoIG9mIHNvbWUgd2luZG93cyBjb21tYW5kcwojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojUE9XRVJTSEVMTF9CSU49L21udC9jL1dpbmRvd3MvU3lzdGVtMzIvV2luZG93c1Bvd2VyU2hlbGwvdjEuMC9wb3dlcnNoZWxsLmV4ZQojSVBDT05GSUdfQklOPS9tbnQvYy9XaW5kb3dzL3N5c3RlbTMyL2lwY29uZmlnLmV4ZQojV1NMX0VYRV9CSU49L21udC9jL1dpbmRvd3Mvc3lzdGVtMzIvd3NsLmV4ZQoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQojIEdlbmVyYWwgZGlzdHJpYnV0aW9uIGluZm9ybWF0aW9uCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiMgaG9zdG5hbWUgb2YgdGhlIGRpc3RybwpESVNUUk9fSE9TVE5BTUU9IndzbEhvc3QiCg==" \
-  "755"
-
-declare -gx embed_file_envFileTemplate="${PERSISTENT_TMPDIR:-/tmp}/27feff9c99f5b61ed472af09314aafa6/envFileTemplate"
-
   local envFile="${BASH_DEV_ENV_ROOT_DIR}/.env"
-  # shellcheck disable=SC2154
   Engine::Config::createEnvFileFromTemplate \
-    "${envFile}" "${embed_file_envFileTemplate}" || exit 1
+    "${envFile}" "${envFileTemplate}" || exit 1
   set -o allexport
   # shellcheck source=/.env.template
-  source <(echo "${embed_file_envFileTemplate}")
+  source <(echo "${envFileTemplate}")
   # shellcheck source=/.env
   source "${BASH_DEV_ENV_ROOT_DIR}/.env"
   set +o allexport
@@ -937,19 +881,6 @@ Engine::Config::requireWslu() {
 }
 
 
-# @description prepend directories to the PATH environment variable
-# @arg $@ args:String[] list of directories to prepend
-# @set PATH update PATH with the directories prepended
-Env::pathPrepend() {
-  local arg
-  for arg in "$@"; do
-    if [[ -d "${arg}" && ":${PATH}:" != *":${arg}:"* ]]; then
-      PATH="$(realpath "${arg}"):${PATH}"
-    fi
-  done
-}
-
-
 # @description ensure env files are loaded
 # @arg $@ list of default files to load at the end
 # @exitcode 1 if one of env files fails to load
@@ -1027,30 +958,6 @@ File::garbageCollect() {
 
   Log::displayInfo "Garbage collect files older than ${mtime} days in path ${path} with max depth ${maxdepth}"
   find "${path}" -depth -maxdepth "${maxdepth}" -type f -mtime "${mtime}" -print -delete
-}
-
-# shellcheck disable=SC2120
-
-# @description uniq command need input file to be sorted
-# here We are using awk that do not need file to be sorted
-# to get uniq values
-# iterates over each file and prints (default awk behavior)
-# each unique line; only takes first value and ignores duplicates
-# Note ! be careful of memory usage as each unique $0 is stored in an array
-# @exitcode * if one of the filter command fails
-# @stdin you can use stdin as alternative to str argument
-# @stdout the filtered content
-# shellcheck disable=SC2120
-Filters::uniqUnsorted() {
-  awk '!seen[$0]++' "$@"
-}
-
-
-# @description create a temp file using default TMPDIR variable
-# @env TMPDIR String (default value /tmp)
-# @arg $1 templateName:String template name to use(optional)
-Framework::createTempFile() {
-  mktemp -p "${TMPDIR:-/tmp}" -t "${1:-}.XXXXXXXXXXXX"
 }
 
 
@@ -1401,11 +1308,13 @@ Linux::getDistributorId() {
 }
 
 
-# @description ensure command tar is available
-# @exitcode 1 if tar command not available
+# @description ensure running user is not root
+# @exitcode 1 if current user is root
 # @stderr diagnostics information is displayed
-Linux::requireTarCommand() {
-  Assert::commandExists tar
+Linux::requireExecutedAsUser() {
+  if [[ "$(id -u)" = "0" ]]; then
+    Log::fatal "this script should be executed as normal user"
+  fi
 }
 
 
@@ -1745,81 +1654,6 @@ Log::rotate() {
 }
 
 
-declare -Ag allDepsResultSeen=()
-declare -ag allDepsResult=()
-
-# @description get recursively all the dependencies of each config from configs arg
-#
-# The parent argument must be set to "your software selection" when you call it,
-# then the value will change when this function will be called recursively with the
-# parent dependency
-#
-# Algorithm
-#   For each config in configs
-#     - load config definition
-#     - mark this config as seen to avoid to recompute it later, in the case where another
-#       definition depends on it
-#     - call installScripts_${config}_dependencies function if exists (skipped if not)
-#     - add these new dependencies if any to current dependencies list
-#     - call recursively Profiles::allDepsRecursive with these dependencies
-#     - add in allDepsResult the current config if it was not seen yet
-#   This has constructed a tree with the most deep dependency present in the first items
-#
-# @warning allDepsResultSeen and allDepsResult global variables have to reset to empty array every time you call this function
-#
-# @arg $1 scriptsDir:String base directory where dependencies can be retrieved
-# @arg $2 parent:String set to "your software selection" when you call it
-# @arg $@ configs:String[] list of configurations to load, each config can depend on an other one
-# @exitcode 1 if one of the dependency cannot be found
-# @exitcode 2 if error while loading one of the dependency definition
-# @exitcode 3 if error while calling dependencies function of the dependency's definition
-# @set allDepsResultSeen String[] list of dependencies already seen
-# @set allDepsResult String[] the final list of dependencies sorted by the most to less dependent
-# @stderr diagnostics information is displayed
-Profiles::allDepsRecursive() {
-  local scriptsDir="$1"
-  local parent="$2"
-  shift 2 || true
-  local i
-  local addDep=0
-  local -a deps=()
-  local -a newDeps
-
-  for i in "$@"; do
-    if [[ "${allDepsResultSeen["${i}"]}" = 'stored' ]]; then
-      continue
-    fi
-    if [[ ! -f "${scriptsDir}/${i}" ]]; then
-      Log::displayError "Dependency ${i} doesn't exist"
-      return 1
-    fi
-
-    if ! readarray -t newDeps < <(SKIP_REQUIRES=1 "${scriptsDir}/${i}" dependencies); then
-      Log::displayError "Dependency ${i} - ${scriptsDir}/${i} dependencies failure"
-      return 3
-    fi
-    if [[ -z "${allDepsResultSeen[${i}]+exists}" ]]; then
-      addDep=1
-      allDepsResultSeen["${i}"]='stored'
-    fi
-    # remove duplicates from deps preserving order
-    mapfile -t deps < <(
-      IFS=$'\n'
-      printf "%s\n" "${deps[@]}" | awk '!x[$0]++'
-    )
-    if ((${#newDeps} > 0)); then
-      Log::displayInfo "${i} depends on ${newDeps[*]}"
-      Profiles::allDepsRecursive "${scriptsDir}" "${i}" "${newDeps[@]}" || return $?
-    fi
-    if [[ "${addDep}" = "1" ]]; then
-      Log::displayInfo "${i} is a dependency of ${parent}"
-      allDepsResult+=("${i}")
-    fi
-    addDep=0
-  done
-}
-
-
 # @description check if dependencies exist
 # path is constructed with following rule
 #   ${scriptsDir}/${dependency}${extension}
@@ -1838,78 +1672,6 @@ Profiles::checkScriptsExistence() {
       Log::fatal "script ${i} doesn't exist"
     fi
   done
-}
-
-
-# @description deduce profile path from given profile name
-# if 2 profiles are named identically the first existing profile
-# will be used beginning with srcAlt profiles
-# @arg $1 profileName:String
-# @stdout the path of the profile, no output if profile not found
-# @exitcode 1 if profile not found
-Profiles::getProfilePath() {
-  local profileName="$1"
-  local dir
-  for dir in "${BASH_DEV_ENV_ROOT_DIR}/srcAlt/"*; do
-    profilePath="${dir}/profiles/profile.${profileName}.sh"
-    if [[ -f "${profilePath}" ]]; then
-      echo "${profilePath}"
-      return 0
-    fi
-  done
-  local profilePath="${BASH_DEV_ENV_ROOT_DIR}/profiles/profile.${profileName}.sh"
-  if [[ -f "${profilePath}" ]]; then
-    echo "${profilePath}"
-    return 0
-  fi
-
-  return 1
-}
-
-
-# @description load profile file based on profileFile argument
-# The profile file is profileDir/profile.profile.sh
-# This file should define the variable CONFIG_LIST with array type
-# @arg $1 profileFile:String full profile path
-# @exitcode 1 if argument is not provided
-# @exitcode 2 if profile not found
-# @exitcode 3 if profile found but CONFIG_LIST variable unset
-# @exitcode 4 if profile found but CONFIG_LIST variable empty
-# @exitcode 5 if error occurs during profile loading
-# @stderr diagnostics information is displayed
-# @see Profiles::allDepsRecursive in order to load all the dependencies recursively based on this list
-# @set CONFIG_LIST
-Profiles::loadProfile() {
-  local profileFile="$1"
-
-  if [[ -z "${profileFile}" ]]; then
-    Log::displayError "This method needs exactly 1 parameter"
-    return 1
-  fi
-
-  # load the profile
-  Log::displayInfo "Loading profile '${profileFile}'"
-  if [[ ! -f "${profileFile}" ]]; then
-    Log::displayError "profile ${profileFile} not found"
-    return 2
-  fi
-
-  # shellcheck source=src/Profiles/testsData/profile.test1.sh
-  source "${profileFile}" || return 5
-
-  if [[ ! -v CONFIG_LIST ]]; then
-    Log::displayError "Profile ${profileFile} missing variable CONFIG_LIST"
-    return 3
-  fi
-  if [[ ${#CONFIG_LIST[@]} -eq 0 ]]; then
-    Log::displayError "Profile ${profileFile} variable CONFIG_LIST cannot be empty"
-    return 4
-  fi
-
-  # remove duplicates from profile preserving order
-  mapfile -t CONFIG_LIST < <(
-    IFS=$'\n' printf '%s\n' "${CONFIG_LIST[@]}" | Filters::uniqUnsorted
-  )
 }
 
 
@@ -2159,27 +1921,7 @@ Stats::logRecapitulative() {
   local logRecapitulativeAwkScript
   logRecapitulativeAwkScript="$(
     cat <<'EOF'
-BEGIN {
-  currentProcessLogs = ""
-  currentContainsLogs = 0
-}
-{
-  buffer = substr($0, 1, 150)
-  if(match(buffer, /PROCESS - Processing ([^ ]+) \([0-9]+\/[0-9]+\)/, arr) != 0) {
-    processNameName = arr[1]
-
-    currentProcessLogs = currentProcessLogs "\033[44m--- Process " processNameName " ---\033[0m\n"
-  } else if(match(buffer, /(ERROR|SKIPPED|WARN|HELP|FATAL)[ ]+- /, arr) != 0) {
-    currentContainsLogs = 1
-    currentProcessLogs = currentProcessLogs $0 "\n"
-  }
-}
-END {
-  if (currentContainsLogs == 1) {
-    printf currentProcessLogs
-  }
-}
-
+.INCLUDE "${TEMPLATE_DIR}/Stats/logRecapitulative.awk"
 EOF
   )"
 
@@ -2355,274 +2097,34 @@ UI::theme() {
 # FUNCTIONS
 
 
-declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
-
 beforeParseCallback() {
   Env::requireLoad
   UI::requireTheme
   Log::requireLoad
+  Linux::requireUbuntu
+  Linux::Wsl::requireWsl
+  isInterfaceMandatoryFunctionImplemented
+  # we need non root user to be sure that all variables will be correctly deduced
+  Linux::requireExecutedAsUser
+  Engine::Config::loadConfig
 }
 
-copyrightCallback() {
-  #
-  # shellcheck disable=SC2155,SC2154,SC2250
-  echo "Copyright (c) 2024-now François Chastanet"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListInfoVerboseCallback() {
-  BASH_FRAMEWORK_ARGV_FILTERED+=(--verbose)
-}
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListDebugVerboseCallback() {
-  BASH_FRAMEWORK_ARGV_FILTERED+=(-vv)
-}
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListTraceVerboseCallback() {
-  BASH_FRAMEWORK_ARGV_FILTERED+=(-vvv)
-}
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListEnvFileCallback() { :; }
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListLogLevelCallback() { :; }
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListDisplayLevelCallback() { :; }
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListNoColorCallback() {
-  BASH_FRAMEWORK_ARGV_FILTERED+=(--no-color)
-}
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListThemeCallback() { :; }
-# shellcheck disable=SC2317 # if function is overridden
-updateArgListQuietCallback() { :; }
-
-# shellcheck disable=SC2317 # if function is overridden
-optionHelpCallback() {
-  Log::displayError "optionHelpCallback needs to be overridden"
-  exit 0
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionVersionCallback() {
-  # shellcheck disable=SC2154
-  echo "${SCRIPT_NAME} version 3.0"
-  exit 0
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionInfoVerboseCallback() {
-  BASH_FRAMEWORK_ARGS_VERBOSE_OPTION='--verbose'
-  BASH_FRAMEWORK_ARGS_VERBOSE=${__VERBOSE_LEVEL_INFO}
-  echo "BASH_FRAMEWORK_DISPLAY_LEVEL=${__LEVEL_INFO}" >>"${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionDebugVerboseCallback() {
-  BASH_FRAMEWORK_ARGS_VERBOSE_OPTION='-vv'
-  BASH_FRAMEWORK_ARGS_VERBOSE=${__VERBOSE_LEVEL_DEBUG}
-  echo "BASH_FRAMEWORK_DISPLAY_LEVEL=${__LEVEL_DEBUG}" >>"${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionTraceVerboseCallback() {
-  # shellcheck disable=SC2034
-  BASH_FRAMEWORK_ARGS_VERBOSE_OPTION='-vvv'
-  BASH_FRAMEWORK_ARGS_VERBOSE=${__VERBOSE_LEVEL_TRACE}
-  echo "BASH_FRAMEWORK_DISPLAY_LEVEL=${__LEVEL_DEBUG}" >>"${overrideEnvFile}"
-}
-
-getLevel() {
-  local levelName="$1"
-  case "${levelName^^}" in
-    OFF)
-      echo "${__LEVEL_OFF}"
-      ;;
-    ERR | ERROR)
-      echo "${__LEVEL_ERROR}"
-      ;;
-    WARN | WARNING)
-      echo "${__LEVEL_WARNING}"
-      ;;
-    INFO)
-      echo "${__LEVEL_INFO}"
-      ;;
-    DEBUG | TRACE)
-      echo "${__LEVEL_DEBUG}"
-      ;;
-    *)
-      Log::displayError "Command ${SCRIPT_NAME} - Invalid level ${level}"
-      return 1
-      ;;
-  esac
-}
-
-getVerboseLevel() {
-  local levelName="$1"
-  case "${levelName^^}" in
-    OFF)
-      echo "${__VERBOSE_LEVEL_OFF}"
-      ;;
-    ERR | ERROR | WARN | WARNING | INFO)
-      echo "${__VERBOSE_LEVEL_INFO}"
-      ;;
-    DEBUG)
-      echo "${__VERBOSE_LEVEL_DEBUG}"
-      ;;
-    TRACE)
-      echo "${__VERBOSE_LEVEL_TRACE}"
-      ;;
-    *)
-      Log::displayError "Command ${SCRIPT_NAME} - Invalid level ${level}"
-      return 1
-      ;;
-  esac
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionDisplayLevelCallback() {
-  local level="$2"
-  local logLevel verboseLevel
-  logLevel="$(getLevel "${level}")"
-  verboseLevel="$(getVerboseLevel "${level}")"
-  BASH_FRAMEWORK_ARGS_VERBOSE=${verboseLevel}
-  echo "BASH_FRAMEWORK_DISPLAY_LEVEL=${logLevel}" >>"${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionLogLevelCallback() {
-  local level="$2"
-  local logLevel verboseLevel
-  logLevel="$(getLevel "${level}")"
-  verboseLevel="$(getVerboseLevel "${level}")"
-  # shellcheck disable=SC2034
-  BASH_FRAMEWORK_ARGS_VERBOSE=${verboseLevel}
-  echo "BASH_FRAMEWORK_LOG_LEVEL=${logLevel}" >>"${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionLogFileCallback() {
-  local logFile="$2"
-  echo "BASH_FRAMEWORK_LOG_FILE='${logFile}'" >>"${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionQuietCallback() {
-  echo "BASH_FRAMEWORK_QUIET_MODE=1" >>"${overrideEnvFile}"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionNoColorCallback() {
-  UI::theme "noColor"
-}
-
-# shellcheck disable=SC2317 # if function is overridden
-optionThemeCallback() {
-  UI::theme "$2"
-}
-
-displayConfig() {
-  echo "Config"
-  UI::drawLine "-"
-  local var
-  while read -r var; do
-    printf '%-40s = %s\n' "${var}" "$(declare -p "${var}" | sed -E -e 's/^[^=]+=(.*)/\1/')"
-  done < <(typeset -p | awk 'match($3, "^(BASH_FRAMEWORK_[^=]+)=", m) { print m[1] }' | sort)
-  exit 0
-}
-
-optionBashFrameworkConfigCallback() {
-  if [[ ! -f "$2" ]]; then
-    Log::fatal "Command ${SCRIPT_NAME} - Bash framework config file '$2' does not exists"
-  fi
-}
-
-defaultFrameworkConfig="$(
-  cat <<'EOF'
-
-# copied from src/_includes/.framework-config.default
 # shellcheck disable=SC2034
-
-REAL_SCRIPT_FILE="${REAL_SCRIPT_FILE:-$(readlink -e "$(realpath "${BASH_SOURCE[0]}")")}"
-FRAMEWORK_ROOT_DIR="${FRAMEWORK_ROOT_DIR:-${REAL_SCRIPT_FILE%/*/*}}"
-FRAMEWORK_SRC_DIR="${FRAMEWORK_SRC_DIR:-${FRAMEWORK_ROOT_DIR}/src}"
-FRAMEWORK_BIN_DIR="${FRAMEWORK_BIN_DIR:-${FRAMEWORK_ROOT_DIR}/bin}"
-FRAMEWORK_VENDOR_DIR="${FRAMEWORK_VENDOR_DIR:-${FRAMEWORK_ROOT_DIR}/vendor}"
-FRAMEWORK_VENDOR_BIN_DIR="${FRAMEWORK_VENDOR_BIN_DIR:-${FRAMEWORK_ROOT_DIR}/vendor/bin}"
-
-# describe the functions that will be skipped from being imported
-FRAMEWORK_FUNCTIONS_IGNORE_REGEXP="${FRAMEWORK_FUNCTIONS_IGNORE_REGEXP:-^(Namespace::functions|Functions::myFunction|Namespace::requireSomething|Acquire::ForceIPv4)$}"
-# describe the files that do not contain function to be imported
-NON_FRAMEWORK_FILES_REGEXP="${NON_FRAMEWORK_FILES_REGEXP:-(^bin/|.framework-config|.bats$|/testsData/|^manualTests/|/_.sh$|/ZZZ.sh$|/__all.sh$|^src/_binaries|^src/_includes|^src/batsHeaders.sh$|^src/_standalone)}"
-# describe the files that are allowed to not have an associated bats file
-BATS_FILE_NOT_NEEDED_REGEXP="${BATS_FILE_NOT_NEEDED_REGEXP:-(^bin/|.framework-config|.bats$|/testsData/|^manualTests/|/_.sh$|/ZZZ.sh$|/__all.sh$|^src/batsHeaders.sh$|^src/_includes)}"
-# describe the files that are allowed to not have a function matching the filename
-FRAMEWORK_FILES_FUNCTION_MATCHING_IGNORE_REGEXP="${FRAMEWORK_FILES_FUNCTION_MATCHING_IGNORE_REGEXP:-^bin/|^\.framework-config$|/testsData/|^manualTests/|\.bats$}"
-# Source directories
-if [[ ! -v FRAMEWORK_SRC_DIRS ]]; then
-  FRAMEWORK_SRC_DIRS=(
-    "${FRAMEWORK_ROOT_DIR}/src"
-  )
-fi
-
-# export here all the variables that will be used in your templates
-export REPOSITORY_URL="${REPOSITORY_URL:-https://github.com/fchastanet/bash-tools-framework}"
-
-BASH_FRAMEWORK_THEME="${BASH_FRAMEWORK_THEME:-default}"
-BASH_FRAMEWORK_LOG_LEVEL="${BASH_FRAMEWORK_LOG_LEVEL:-0}"
-BASH_FRAMEWORK_DISPLAY_LEVEL="${BASH_FRAMEWORK_DISPLAY_LEVEL:-3}"
-BASH_FRAMEWORK_LOG_FILE="${BASH_FRAMEWORK_LOG_FILE:-${FRAMEWORK_ROOT_DIR}/logs/${0##*/}.log}"
-BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION="${BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION:-5}"
-
-EOF
-)"
-
-overrideEnvFile="$(Framework::createTempFile "overrideEnvFile")"
-
-commandOptionParseFinished() {
-  # load default template framework config
-  defaultEnvFile="${PERSISTENT_TMPDIR}/.framework-config"
-  echo "${defaultFrameworkConfig}" >"${defaultEnvFile}"
-  local -a files=("${defaultEnvFile}")
-  # shellcheck disable=SC2154
-  if [[ -f "${optionBashFrameworkConfig}" ]]; then
-    files+=("${optionBashFrameworkConfig}")
-  fi
-  files+=("${overrideEnvFile}")
-  Env::requireLoad "${files[@]}"
-  Log::requireLoad
-  # shellcheck disable=SC2154
-  if [[ "${optionConfig}" = "1" ]]; then
-    displayConfig
-  fi
-}
-
-
+declare -a CONFIG_LIST=()
 
 generateSoftwaresList() {
-  local description
-  local list
-  list="$(
+  while read -r soft; do
+    echo -en "  - ${__HELP_TITLE_COLOR}${soft}: ${__HELP_EXAMPLE}"
+    SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${soft}" helpDescription 2>/dev/null || echo
+    echo -en "${__RESET_COLOR}"
+  done < <(
     Conf::list "${INSTALL_SCRIPTS_ROOT_DIR}" "" "" "-type f" "" |
       grep -v -E '^(_.*|MandatorySoftwares)$' || true
-  )"
-  local -i maxLineLength
-  maxLineLength="$(wc -L <<<"${list}")"
-  while read -r soft; do
-    echo -en "  - ${__HELP_TITLE_COLOR}${soft} ${__HELP_EXAMPLE}"
-    printf -- '_%.0s' $(seq "$((maxLineLength - ${#soft} + 1))")
-    description="$(SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${soft}" helpDescription 2>/dev/null)"
-    if [[ -z "${description}" ]]; then
-      echo " <No description available>"
-    else
-      sed '2,$s/^/      /' <<<" ${description}"
-    fi
-    echo -en "${__RESET_COLOR}"
-  done <<<"${list}"
+  )
 }
 
 declare -i help_cache_max_duration=86400
-helpLongDescriptionFunction() {
-  LOAD_SSH_KEY=0 afterParseCallback
+longDescriptionFunction() {
   local softwaresListHelpTempFile
   softwaresListHelpTempFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_dev_env_install_software_arg_help_cache"
 
@@ -2630,122 +2132,16 @@ helpLongDescriptionFunction() {
     (($(File::elapsedTimeSinceLastModification "${softwaresListHelpTempFile}") > help_cache_max_duration))
   then
     echo >&2 -n "Generating softwares list cache ..."
-    generateSoftwaresList > "${softwaresListHelpTempFile}" || rm -f "${softwaresListHelpTempFile}"
+    generateSoftwaresList > "${softwaresListHelpTempFile}"
     echo >&2 -e "\033[2K" # erase line (Generating softwares list cache ...)
   fi
 
-  echo "  Install or update softwares (kube, aws, composer, node, ...)."
-  echo "  Configure Home environment (git config, kube, motd, ssh, dns, ...)."
-  echo "  And check configurations."
+  echo "Install or update softwares (kube, aws, composer, node, ...)."
+  echo "Configure Home environment (git config, kube, motd, ssh, dns, ...)."
+  echo "And check configuration"
   echo
-  echo -e "  ${__HELP_TITLE_COLOR}Available softwares:${__RESET_COLOR}"
+  echo -e "${__HELP_TITLE_COLOR}List of softwares available:${__RESET_COLOR}"
   cat "${softwaresListHelpTempFile}"
-  echo
-  profilesHelpList
-}
-
-
-
-softwareArgHelpFunction() {
-  echo "    List of softwares to install (--profile option cannot be used in this case)"
-  echo "    See below for complete list of softwares available"
-}
-
-profileHelpFunction() {
-  echo "    Profile name to use that contains all the softwares to install"
-}
-
-profilesHelpList() {
-  echo -e "  ${__HELP_TITLE_COLOR}Available profiles:${__RESET_COLOR}"
-  (
-    Conf::list "${BASH_DEV_ENV_ROOT_DIR}/profiles" "profile." ".sh" "-type f" "    - "
-    local dir
-    for dir in "${BASH_DEV_ENV_ROOT_DIR}/srcAlt/"*; do
-      if [[ -d "${dir}/profiles" ]]; then
-        Conf::list "${dir}/profiles" "profile." ".sh" "-type f" "    - "
-      fi
-    done
-  ) | sort | uniq
-}
-
-validateProfile() {
-  local profileName="$2"
-  if ! Profiles::getProfilePath "${profileName}" &>/dev/null; then
-    Log::fatal "Profile file profile.${profileName}.sh doesn't exist in any profiles directory"
-  fi
-}
-
-commandCallback() {
-  if ((${#CONFIG_LIST} > 0)); then
-    if [[ -n "${PROFILE}" ]]; then
-      Log::fatal "You cannot combine profile and softwares"
-    fi
-    # check if each Softwares exists
-    local software
-    for software in "${CONFIG_LIST[@]}"; do
-      if [[ ! -f "${BASH_DEV_ENV_ROOT_DIR}/${software}" ]]; then
-        Log::fatal "Software ${software} configuration does not exists"
-      fi
-    done
-  elif [[ -z "${PROFILE}" ]]; then
-    Log::fatal "You must specify either a list of softwares, either a profile name"
-  else
-    # get profile path
-    local profilePath
-    profilePath="$(Profiles::getProfilePath "${PROFILE}")" # should succeed as it was tested by option
-    # load selected profile
-    Profiles::loadProfile "${profilePath}"
-  fi
-  if [[ "${SKIP_DEPENDENCIES:-0}" = "0" ]]; then
-    CONFIG_LIST=("${CONFIG_LIST[@]}")
-
-    declare rootDependency="your software selection"
-    if [[ -n "${PROFILE}" ]]; then
-      rootDependency="profile ${PROFILE}"
-    fi
-    # deduce dependencies
-    declare -ag allDepsResult=()
-    # shellcheck disable=SC2034
-    declare -Ag allDepsResultSeen=()
-
-    Profiles::allDepsRecursive \
-      "${INSTALL_SCRIPTS_ROOT_DIR}" "${rootDependency}" "${CONFIG_LIST[@]}"
-
-    CONFIG_LIST=("${allDepsResult[@]}")
-  fi
-  if ((${#CONFIG_LIST} == 0)); then
-    Log::fatal "Softwares list is empty"
-  fi
-}
-
-export CONFIG_LIST
-export PROFILE
-
-
-
-optionHelpCallback() {
-  "installCommandHelp"
-  exit 0
-}
-
-defaultBeforeParseCallback() {
-  Env::requireLoad
-  UI::requireTheme
-  Log::requireLoad
-  Linux::requireUbuntu
-  Linux::Wsl::requireWsl
-}
-
-beforeParseCallback() {
-  defaultBeforeParseCallback
-}
-
-defaultAfterParseCallback() {
-  Engine::Config::loadConfig
-}
-
-afterParseCallback() {
-  defaultAfterParseCallback
 }
 
 
@@ -3053,7 +2449,7 @@ installCommandParse() {
           return 1
         fi
         if [[ ! "$1" =~ OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE ]]; then
-          Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - value '$1' is not part of authorized values(OFF, ERR, ERROR, WARN, WARNING, INFO, DEBUG, TRACE)"
+          Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - value '$1' is not part of authorized values([OFF ERR ERROR WARN WARNING INFO DEBUG TRACE])"
           return 1
         fi
 
@@ -3104,7 +2500,7 @@ installCommandParse() {
           return 1
         fi
         if [[ ! "$1" =~ OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE ]]; then
-          Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - value '$1' is not part of authorized values(OFF, ERR, ERROR, WARN, WARNING, INFO, DEBUG, TRACE)"
+          Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - value '$1' is not part of authorized values([OFF ERR ERROR WARN WARNING INFO DEBUG TRACE])"
           return 1
         fi
 
@@ -3150,7 +2546,7 @@ installCommandParse() {
           return 1
         fi
         if [[ ! "$1" =~ default|default-force|noColor ]]; then
-          Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - value '$1' is not part of authorized values(default, default-force, noColor)"
+          Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - value '$1' is not part of authorized values([default default-force noColor])"
           return 1
         fi
 
@@ -3219,6 +2615,7 @@ installCommandParse() {
 
         # Argument 1/1 - CONFIG_LIST
         # Argument CONFIG_LIST min 0 max -1
+        # Argument CONFIG_LIST authorizedValues:
         elif (( options_parse_parsedArgIndex >= minParsedArgIndex0 )); then
           ((++options_parse_argParsedCountCONFIG_LIST))
           # shellcheck disable=SC2034
@@ -3277,9 +2674,9 @@ installCommandHelp() {
   echo
   echo -e "${__HELP_TITLE_COLOR}ARGUMENTS:${__RESET_COLOR}"
 
-  Array::wrap2 " " 80 2 "  [${__HELP_OPTION_COLOR}softwares${__HELP_NORMAL} {list} (optional)]"
+    Array::wrap2 " " 80 2 "  [${__HELP_OPTION_COLOR}softwares${__HELP_NORMAL} {list} (optional)]
+  "
   softwareArgHelpFunction
-
 
   # ------------------------------------------
   # options section
@@ -3291,9 +2688,11 @@ installCommandHelp() {
   echo
 
 
+
   echo -e "  ${__HELP_OPTION_COLOR}--skip-install${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}--skip-installation${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-si${__HELP_NORMAL} {single}"
   Array::wrap2 ' ' 76 4 "    " "Skip software installation."
   echo
+
 
 
   echo -e "  ${__HELP_OPTION_COLOR}--skip-test${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}--skip-tests${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-st${__HELP_NORMAL} {single}"
@@ -3301,14 +2700,17 @@ installCommandHelp() {
   echo
 
 
+
   echo -e "  ${__HELP_OPTION_COLOR}--skip-deps${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}--skip-dependencies${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-sd${__HELP_NORMAL} {single}"
   Array::wrap2 ' ' 76 4 "    " "Install the software requested without resolving dependencies."
   echo
+
 
   echo
   echo -e "${__HELP_TITLE_COLOR}INSTALL OPTIONS:${__RESET_COLOR}"
   echo -e "  ${__HELP_OPTION_COLOR}--profile${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-p <profile>${__HELP_NORMAL} {single}"
   profileHelpFunction
+
 
 
   echo
@@ -3317,6 +2719,7 @@ installCommandHelp() {
   Array::wrap2 ' ' 76 4 "    " "prepare the wsl installation for export (remove all sensitive files)"
   echo
 
+
   echo
   echo -e "${__HELP_TITLE_COLOR}GLOBAL OPTIONS:${__RESET_COLOR}"
   echo -e "  ${__HELP_OPTION_COLOR}--help${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-h${__HELP_NORMAL} {single}"
@@ -3324,9 +2727,11 @@ installCommandHelp() {
   echo
 
 
+
   echo -e "  ${__HELP_OPTION_COLOR}--config${__HELP_NORMAL} {single}"
   Array::wrap2 ' ' 76 4 "    " "Displays configuration"
   echo
+
 
 
   echo -e "  ${__HELP_OPTION_COLOR}--bash-framework-config <bash-framework-config>${__HELP_NORMAL} {single}"
@@ -3334,9 +2739,11 @@ installCommandHelp() {
   echo
 
 
+
   echo -e "  ${__HELP_OPTION_COLOR}--verbose${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-v${__HELP_NORMAL} {single}"
   Array::wrap2 ' ' 76 4 "    " "Info level verbose mode (alias of --display-level INFO)"
   echo
+
 
 
   echo -e "  ${__HELP_OPTION_COLOR}-vv${__HELP_NORMAL} {single}"
@@ -3344,57 +2751,45 @@ installCommandHelp() {
   echo
 
 
+
   echo -e "  ${__HELP_OPTION_COLOR}-vvv${__HELP_NORMAL} {single}"
   Array::wrap2 ' ' 76 4 "    " "Trace level verbose mode (alias of --display-level TRACE)"
   echo
 
 
+
   echo -e "  ${__HELP_OPTION_COLOR}--log-level <log-level>${__HELP_NORMAL} {single}"
   Array::wrap2 ' ' 76 4 "    " "Set log level"
   echo
+  Array::wrap2 ' ' 76 6 "    Possible values: " "OFF, "  "ERR, "  "ERROR, "  "WARN, "  "WARNING, "  "INFO, "  "DEBUG, "  "TRACE"
+  echo
 
-  echo "    Possible values: "
-  echo -e "      - ${__OPTION_COLOR}OFF${__RESET_COLOR}"
-  echo -e "      - ${__OPTION_COLOR}ERR${__RESET_COLOR}"
-  echo -e "      - ${__OPTION_COLOR}ERROR${__RESET_COLOR}"
-  echo -e "      - ${__OPTION_COLOR}WARN${__RESET_COLOR}"
-  echo -e "      - ${__OPTION_COLOR}WARNING${__RESET_COLOR}"
-  echo -e "      - ${__OPTION_COLOR}INFO${__RESET_COLOR}"
-  echo -e "      - ${__OPTION_COLOR}DEBUG${__RESET_COLOR}"
-  echo -e "      - ${__OPTION_COLOR}TRACE${__RESET_COLOR}"
 
   echo -e "  ${__HELP_OPTION_COLOR}--log-file <log-file>${__HELP_NORMAL} {single}"
   Array::wrap2 ' ' 76 4 "    " "Set log file"
   echo
 
 
+
   echo -e "  ${__HELP_OPTION_COLOR}--display-level <display-level>${__HELP_NORMAL} {single}"
   Array::wrap2 ' ' 76 4 "    " "Set display level"
   echo
+  Array::wrap2 ' ' 76 6 "    Possible values: " "OFF, "  "ERR, "  "ERROR, "  "WARN, "  "WARNING, "  "INFO, "  "DEBUG, "  "TRACE"
+  echo
 
-  echo "    Possible values: "
-  echo -e "      - ${__OPTION_COLOR}OFF${__RESET_COLOR}"
-  echo -e "      - ${__OPTION_COLOR}ERR${__RESET_COLOR}"
-  echo -e "      - ${__OPTION_COLOR}ERROR${__RESET_COLOR}"
-  echo -e "      - ${__OPTION_COLOR}WARN${__RESET_COLOR}"
-  echo -e "      - ${__OPTION_COLOR}WARNING${__RESET_COLOR}"
-  echo -e "      - ${__OPTION_COLOR}INFO${__RESET_COLOR}"
-  echo -e "      - ${__OPTION_COLOR}DEBUG${__RESET_COLOR}"
-  echo -e "      - ${__OPTION_COLOR}TRACE${__RESET_COLOR}"
 
   echo -e "  ${__HELP_OPTION_COLOR}--no-color${__HELP_NORMAL} {single}"
   Array::wrap2 ' ' 76 4 "    " "Produce monochrome output. alias of --theme noColor."
   echo
 
 
+
   echo -e "  ${__HELP_OPTION_COLOR}--theme <theme>${__HELP_NORMAL} {single}"
   Array::wrap2 ' ' 76 4 "    " "Choose color theme - default-force means colors will be produced even if command is piped."
   echo
+  Array::wrap2 ' ' 76 6 "    Possible values: " "default, "  "default-force, "  "noColor"
+  echo
 
-  echo "    Possible values: "
-  echo -e "      - ${__OPTION_COLOR}default${__RESET_COLOR}"
-  echo -e "      - ${__OPTION_COLOR}default-force${__RESET_COLOR}"
-  echo -e "      - ${__OPTION_COLOR}noColor${__RESET_COLOR}"
   Array::wrap2 ' ' 76 6 "    Default value: " "default"
   echo
 
@@ -3403,9 +2798,11 @@ installCommandHelp() {
   echo
 
 
+
   echo -e "  ${__HELP_OPTION_COLOR}--quiet${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-q${__HELP_NORMAL} {single}"
   Array::wrap2 ' ' 76 4 "    " "Quiet mode, doesn't display any output."
   echo
+
 
   # ------------------------------------------
   # longDescription section
@@ -3413,7 +2810,7 @@ installCommandHelp() {
   echo
   echo
   echo -e "${__HELP_TITLE_COLOR}DESCRIPTION:${__RESET_COLOR}"
-  helpLongDescriptionFunction
+  longDescriptionFunction
   # ------------------------------------------
   # version section
   # ------------------------------------------
@@ -3431,7 +2828,7 @@ installCommandHelp() {
   # ------------------------------------------
   echo
   echo -n -e "${__HELP_TITLE_COLOR}SOURCE FILE: ${__RESET_COLOR}"
-  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_tools/install/install-binary.yaml"
+  echo "https://github.com/fchastanet/bash-tools-framework/tree/master/src/_tools/install/install-binary.yaml"
   # ------------------------------------------
   # license section
   # ------------------------------------------
@@ -3445,27 +2842,22 @@ installCommandHelp() {
 }
 
 
-beforeParseCallback
-
 installCommandParse "$@"
 MAIN_FUNCTION_NAME="main"
 main() {
-
-afterParseCallback
 
 LOGS_DIR="${LOGS_DIR:-${PERSISTENT_TMPDIR}}"
 # shellcheck disable=SC2034
 INSTALL_START="$(date +%s)"
 rm -f "${LOGS_DIR:-#}/${SCRIPT}-"* || true
 
-
 # trap errors
+# shellcheck disable=SC2016
+Framework::trapAdd 'err_report $LINENO' ERR
 err_report() {
   echo "$0 - Upgrade failure - Error on line $1"
   exit 1
 }
-# shellcheck disable=SC2016
-Framework::trapAdd 'err_report $LINENO' ERR
 
 # shellcheck disable=SC2317
 declare -g summaryDisplayed="0"

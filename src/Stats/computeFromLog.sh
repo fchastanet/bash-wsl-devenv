@@ -19,7 +19,7 @@ Stats::computeFromLog() {
   local logStatsAwkScript
   logStatsAwkScript="$(
     cat <<'EOF'
-.INCLUDE "${TEMPLATE_DIR}/Stats/logStats.awk"
+{{ includeFile "${BASH_DEV_ENV_ROOT_DIR}/src/Stats/logStats.awk" }}
 EOF
   )"
 

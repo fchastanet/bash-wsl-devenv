@@ -1,0 +1,11 @@
+---
+extends:
+  - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/optionsSkip.yaml"
+  - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/optionsPrepareExport.yaml"
+  - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/argsInstallScript.yaml"
+  - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/default.yaml"
+
+binData:
+  commands:
+    default: &defaultCommand
+      mainFile: ${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/installScript-main.sh
