@@ -2,10 +2,6 @@
 # @embed "${FRAMEWORK_ROOT_DIR}/src/UI/talk.ps1" as talkScript
 # @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/AwsDefaultConfig/conf" as conf_dir
 
-scriptName() {
-  echo "AwsDefaultConfig"
-}
-
 helpDescription() {
   echo "Default aws config using saml2aws"
 }

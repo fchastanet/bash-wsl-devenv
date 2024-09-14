@@ -1,0 +1,18 @@
+extends:
+  - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/installScript.yaml"
+
+vars:
+  SRC_FILE_PATH: srcAlt/DependencySample/src/_installScripts/DependencySample-binary.yaml
+
+compilerConfig:
+  targetFile: "${BASH_DEV_ENV_ROOT_DIR}/srcAlt/DependencySample/installScripts/DependencySample"
+  relativeRootDirBasedOnTargetDir: ..
+binData:
+  commands:
+    default:
+      functionName: DependencySampleCommand
+      version: "3.0"
+      copyrightBeginYear: 2024
+      definitionFiles:
+        11: ${BASH_DEV_ENV_ROOT_DIR}/srcAlt/DependencySample/src/_installScripts/DependencySample/DependencySample.sh
+      commandName: DependencySample

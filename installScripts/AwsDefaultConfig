@@ -2647,7 +2647,7 @@ beforeParseCallback() {
 copyrightCallback() {
   #
   # shellcheck disable=SC2155,SC2154,SC2250
-  echo "Copyright (c) 2022-now François Chastanet"
+  echo "Copyright (c) 2024-now François Chastanet"
 }
 
 # shellcheck disable=SC2317 # if function is overridden
@@ -2894,10 +2894,6 @@ Compiler::Embed::extractDirFromBase64 \
 declare -gx embed_dir_conf_dir="${PERSISTENT_TMPDIR:-/tmp}/251fe6df509aea454ce41b44874bebbb/conf_dir"
 
 
-scriptName() {
-  echo "AwsDefaultConfig"
-}
-
 helpDescription() {
   echo "Default aws config using saml2aws"
 }
@@ -3074,6 +3070,10 @@ isInterfaceMandatoryFunctionImplemented() {
   isFunctionImplemented testInstall || return 1
   isFunctionImplemented configure || return 1
   isFunctionImplemented testConfigure || return 1
+}
+
+scriptName() {
+  echo "AwsDefaultConfig"
 }
 
 beforeParseCallback() {
@@ -3693,7 +3693,7 @@ AwsDefaultConfigCommandParse() {
 # @description display command options and arguments help for AwsDefaultConfigCommand
 AwsDefaultConfigCommandHelp() {
   echo -e "${__HELP_TITLE_COLOR}SYNOPSIS:${__RESET_COLOR}"
-  Array::wrap2 ' ' 76 4 "    " "Default aws config using saml2aws"
+  helpDescriptionFunction
 
   echo
   echo

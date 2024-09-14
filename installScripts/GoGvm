@@ -2629,7 +2629,9 @@ testInstall() {
 
 configure() {
   # install latest version only the first time
-  if [[ ! -f "${HOME}/.gvm/latestVersionInitialized" ]]; then
+  if [[ -f "${HOME}/.gvm/latestVersionInitialized" ]]; then
+    Log::displaySkipped "go latest version is installed only the first time, use gvm command to switch go version"
+  else
     Log::displayInfo "Retrieve list of go version available"
     # install latest version
     local latestVersion
@@ -2641,21 +2643,15 @@ configure() {
     gvm "${latestVersion}" -s
 
     touch "${HOME}/.gvm/latestVersionInitialized"
-  else
-    Log::displaySkipped "go latest version is installed only the first time, use gvm command to switch go version"
   fi
 }
 
 testConfigure() {
   local failures=0
   Assert::fileExists "${HOME}/.bash-dev-env/profile.d/golang.sh" || ((++failures))
-  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/gogvm.sh" || ((++failures))
   # shellcheck source=src/_binaries/Go/conf/.bash-dev-env/profile.d/golang.sh
   source "${HOME}/.bash-dev-env/profile.d/golang.sh" || ((++failures))
-  # shellcheck source=src/_installScripts/GoGvm/conf/.bash-dev-env/profile.d/gogvm.sh
-  source "${HOME}/.bash-dev-env/profile.d/gogvm.sh" || ((++failures))
   Version::checkMinimal "go" "version" "1.22.1" || ((++failures))
-  Version::checkMinimal "gvm" "version" "1.0.22" || ((++failures))
   return "${failures}"
 }
 

@@ -14,7 +14,7 @@ err_report() {
   exit 1
 }
 # shellcheck disable=SC2016
-Framework::trapAdd 'err_report $LINENO' ERR
+trap 'err_report $LINENO' ERR
 
 # shellcheck disable=SC2317
 declare -g summaryDisplayed="0"
@@ -78,12 +78,12 @@ summary() {
   exit "${installResultCode}"
 }
 # shellcheck disable=SC2016
-Framework::trapAdd 'summary "$?" "${INSTALL_START}"' EXIT INT TERM ABRT
+trap 'summary "$?" "${INSTALL_START}"' EXIT INT TERM ABRT
 
 executeScript() {
   local configName="$1"
   local -a installCmd=(
-    "${INSTALL_SCRIPTS_ROOT_DIR}/${configName}"
+    "${BASH_DEV_ENV_ROOT_DIR}/${configName}"
   )
   if [[ "${SKIP_INSTALL}" = "1" ]]; then
     installCmd+=(--skip-install)
@@ -111,18 +111,18 @@ executeScripts() {
   local configName
   for configName in "${CONFIG_LIST[@]}"; do
     if [[ "${SKIP_INSTALL}" = "0" ]] &&
-      SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${configName}" isInstallImplemented; then
+      SKIP_REQUIRES=1 "${BASH_DEV_ENV_ROOT_DIR}/${configName}" isInstallImplemented; then
       ((++installConfigCount))
     fi
     if [[ "${SKIP_CONFIGURE}" = "0" ]] &&
-      SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${configName}" isConfigureImplemented; then
+      SKIP_REQUIRES=1 "${BASH_DEV_ENV_ROOT_DIR}/${configName}" isConfigureImplemented; then
       ((++configConfigCount))
     fi
     if [[ "${SKIP_TEST}" = "0" ]]; then
-      if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${configName}" isTestInstallImplemented; then
+      if SKIP_REQUIRES=1 "${BASH_DEV_ENV_ROOT_DIR}/${configName}" isTestInstallImplemented; then
         ((++installTestConfigCount))
       fi
-      if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${configName}" isTestConfigureImplemented; then
+      if SKIP_REQUIRES=1 "${BASH_DEV_ENV_ROOT_DIR}/${configName}" isTestConfigureImplemented; then
         ((++configTestConfigCount))
       fi
     fi
@@ -136,7 +136,7 @@ executeScripts() {
           local rc="$1"
           local -a statFiles=()
           local scriptName="${currentConfigName//\//@}"
-          local scriptCmd="${INSTALL_SCRIPTS_ROOT_DIR}/${currentConfigName}"
+          local scriptCmd="${BASH_DEV_ENV_ROOT_DIR}/${currentConfigName}"
           if [[ "${SKIP_INSTALL}" = "0" ]] &&
             SKIP_REQUIRES=1 "${scriptCmd}" isInstallImplemented; then
             Stats::aggregateStats \
@@ -175,7 +175,7 @@ executeScripts() {
             "${statFiles[@]}"
           exit "${rc}"
         }
-        Framework::trapAdd 'aggregateStat "$?"' EXIT INT TERM ABRT
+        trap 'aggregateStat "$?"' EXIT INT TERM ABRT
 
         rm -f \
           "${STATS_DIR:-#}/${scriptName}"-{install,config,test-install,test-configuration,global,current}.stat \
@@ -193,7 +193,7 @@ executeScripts() {
   done
 }
 
-Profiles::checkScriptsExistence "${INSTALL_SCRIPTS_ROOT_DIR}" "" "${CONFIG_LIST[@]}"
+Profiles::checkScriptsExistence "${BASH_DEV_ENV_ROOT_DIR}" "" "${CONFIG_LIST[@]}"
 Log::displayInfo "Will Install ${CONFIG_LIST[*]}"
 
 # Start install process

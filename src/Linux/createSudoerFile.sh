@@ -18,7 +18,7 @@ Linux::createSudoerFile() {
       fi
       exit "${rc}"
     }
-    Framework::trapAdd cleanSudoer EXIT HUP QUIT ABRT TERM
+    trap cleanSudoer EXIT HUP QUIT ABRT TERM
 
     Log::displayInfo "Creating sudoer file"
     echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" |

@@ -1029,6 +1029,19 @@ File::garbageCollect() {
   find "${path}" -depth -maxdepth "${maxdepth}" -type f -mtime "${mtime}" -print -delete
 }
 
+
+# @description print the resolved path relative to DIR
+# do not check for path existence
+# @arg $1 srcFile:String the file to resolve
+# @arg $2 relativeTo:String the directory
+# @stdout the resolved path relative to DIR
+File::relativeToDir() {
+  local srcFile="$1"
+  local relativeTo="$2"
+
+  realpath -m --relative-to="${relativeTo}" "${srcFile}"
+}
+
 # shellcheck disable=SC2120
 
 # @description uniq command need input file to be sorted
@@ -1051,43 +1064,6 @@ Filters::uniqUnsorted() {
 # @arg $1 templateName:String template name to use(optional)
 Framework::createTempFile() {
   mktemp -p "${TMPDIR:-/tmp}" -t "${1:-}.XXXXXXXXXXXX"
-}
-
-
-# @description appends a command to a trap
-# when you define a trap, an eventual existing trap is replaced by the new one.
-# This method allows to add trap on several signals without removing previous handler.
-#
-# @example
-#   trap "echo '- SIGUSR1 original'" SIGUSR1
-#   Framework::trapAdd "echo '- SIGUSR1&2 overridden'" SIGUSR1 SIGUSR2
-#   kill -SIGUSR1 $$
-#   # output
-#   # - SIGUSR1 original
-#   # - SIGUSR1&2 overridden
-#   kill -SIGUSR2 $$
-#   # output
-#   # - SIGUSR1&2 overridden
-#
-# @arg $1 trapAddCmd:String command to execute if trap
-# @arg $@ signals:String[] signals to trap
-# @exitcode 1 if traps not provided
-# @see https://stackoverflow.com/a/7287873
-Framework::trapAdd() {
-  local trapAddCmd="$1"
-  shift || Log::fatal "${FUNCNAME[0]} usage error"
-  # helper fn to get existing trap command from `trap -p` output
-  # shellcheck disable=SC2317
-  extract_trap_cmd() { printf '%s\n' "$3"; }
-  for trapAddName in "$@"; do
-    trap -- "$(
-      # print existing trap command with newline
-      eval "extract_trap_cmd $(trap -p "${trapAddName}")"
-      # print the new trap command
-      printf '%s\n' "${trapAddCmd}"
-    )" "${trapAddName}" ||
-      Log::fatal "unable to add to trap ${trapAddName}"
-  done
 }
 
 
@@ -1379,7 +1355,7 @@ Linux::createSudoerFile() {
       fi
       exit "${rc}"
     }
-    Framework::trapAdd cleanSudoer EXIT HUP QUIT ABRT TERM
+    trap cleanSudoer EXIT HUP QUIT ABRT TERM
 
     Log::displayInfo "Creating sudoer file"
     echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" |
@@ -2599,48 +2575,80 @@ commandOptionParseFinished() {
 
 
 generateSoftwaresList() {
-  local description
-  local list
+  local directory="$1"
+  local relativeDir="$2"
+  local description list softName
+
   list="$(
-    Conf::list "${INSTALL_SCRIPTS_ROOT_DIR}" "" "" "-type f" "" |
+    Conf::list "${directory}" "" "" "-type f" "" |
       grep -v -E '^(_.*|MandatorySoftwares)$' || true
   )"
   local -i maxLineLength
   maxLineLength="$(wc -L <<<"${list}")"
   while read -r soft; do
-    echo -en "  - ${__HELP_TITLE_COLOR}${soft} ${__HELP_EXAMPLE}"
-    printf -- '_%.0s' $(seq "$((maxLineLength - ${#soft} + 1))")
-    description="$(SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${soft}" helpDescription 2>/dev/null)"
+    softName="${relativeDir}/${soft}"
+    description="$(SKIP_REQUIRES=1 "${directory}/${soft}" helpDescription 2>/dev/null)"
     if [[ -z "${description}" ]]; then
-      echo " <No description available>"
-    else
-      sed '2,$s/^/      /' <<<" ${description}"
+      description="<No description available>"
     fi
-    echo -en "${__RESET_COLOR}"
+    description="$(printf -- '_%.0s' $(seq "$((maxLineLength - ${#softName} + 1))")) ${description}"
+    description="  - ${__HELP_TITLE_COLOR}${softName} ${__HELP_EXAMPLE}${description}${__RESET_COLOR}"
+    echo -e " ${description}" | sed '2,$s/^/      /'
   done <<<"${list}"
+}
+
+softwaresListCacheFile() {
+  local relativeDir="$1"
+  directoryName="$(sed -E 's#/#_#g' <<<"${relativeDir}")"
+  echo "${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_dev_env_${directoryName}_arg_help_cache"
+}
+
+generateSoftwaresListCache() {
+  local directory="$1"
+  local relativeDir="$2"
+  local softwaresListHelpTempFile="$3"
+
+  if [[ ! -f "${softwaresListHelpTempFile}" ]] ||
+    (($(File::elapsedTimeSinceLastModification "${softwaresListHelpTempFile}") > help_cache_max_duration))
+  then
+    echo >&2 -n "Generating softwares list cache (directory ${relativeDir}) ..."
+    generateSoftwaresList "${directory}" "${relativeDir}" > "${softwaresListHelpTempFile}" || rm -f "${softwaresListHelpTempFile}"
+    echo >&2 -e "\033[2K" # erase line (Generating softwares list cache ...)
+  fi
+}
+
+displayAvailableSoftwares() {
+  local directory="$1"
+
+  local relativeDir
+  relativeDir="$(File::relativeToDir "${directory}" "${BASH_DEV_ENV_ROOT_DIR}")"
+  local softwaresListHelpTempFile
+  softwaresListHelpTempFile="$(softwaresListCacheFile "${relativeDir}")"
+
+  generateSoftwaresListCache "${directory}" "${relativeDir}" "${softwaresListHelpTempFile}"
+  echo -e "  ${__HELP_TITLE_COLOR}Available Softwares (directory ${relativeDir}):${__RESET_COLOR}"
+  cat "${softwaresListHelpTempFile}"
 }
 
 declare -i help_cache_max_duration=86400
 helpLongDescriptionFunction() {
   LOAD_SSH_KEY=0 afterParseCallback
-  local softwaresListHelpTempFile
-  softwaresListHelpTempFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_dev_env_install_software_arg_help_cache"
-
-  if [[ ! -f "${softwaresListHelpTempFile}" ]] ||
-    (($(File::elapsedTimeSinceLastModification "${softwaresListHelpTempFile}") > help_cache_max_duration))
-  then
-    echo >&2 -n "Generating softwares list cache ..."
-    generateSoftwaresList > "${softwaresListHelpTempFile}" || rm -f "${softwaresListHelpTempFile}"
-    echo >&2 -e "\033[2K" # erase line (Generating softwares list cache ...)
-  fi
 
   echo "  Install or update softwares (kube, aws, composer, node, ...)."
   echo "  Configure Home environment (git config, kube, motd, ssh, dns, ...)."
   echo "  And check configurations."
   echo
-  echo -e "  ${__HELP_TITLE_COLOR}Available softwares:${__RESET_COLOR}"
-  cat "${softwaresListHelpTempFile}"
+  displayAvailableSoftwares "${INSTALL_SCRIPTS_ROOT_DIR}"
   echo
+  local altDir
+  for altDir in "${BASH_DEV_ENV_ROOT_DIR}/srcAlt/"*; do
+    if [[ ! -d "${altDir}/installScripts" ]]; then
+      continue
+    fi
+    displayAvailableSoftwares "${altDir}/installScripts"
+    echo
+  done
+
   profilesHelpList
 }
 
@@ -3465,7 +3473,7 @@ err_report() {
   exit 1
 }
 # shellcheck disable=SC2016
-Framework::trapAdd 'err_report $LINENO' ERR
+trap 'err_report $LINENO' ERR
 
 # shellcheck disable=SC2317
 declare -g summaryDisplayed="0"
@@ -3529,12 +3537,12 @@ summary() {
   exit "${installResultCode}"
 }
 # shellcheck disable=SC2016
-Framework::trapAdd 'summary "$?" "${INSTALL_START}"' EXIT INT TERM ABRT
+trap 'summary "$?" "${INSTALL_START}"' EXIT INT TERM ABRT
 
 executeScript() {
   local configName="$1"
   local -a installCmd=(
-    "${INSTALL_SCRIPTS_ROOT_DIR}/${configName}"
+    "${BASH_DEV_ENV_ROOT_DIR}/${configName}"
   )
   if [[ "${SKIP_INSTALL}" = "1" ]]; then
     installCmd+=(--skip-install)
@@ -3562,18 +3570,18 @@ executeScripts() {
   local configName
   for configName in "${CONFIG_LIST[@]}"; do
     if [[ "${SKIP_INSTALL}" = "0" ]] &&
-      SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${configName}" isInstallImplemented; then
+      SKIP_REQUIRES=1 "${BASH_DEV_ENV_ROOT_DIR}/${configName}" isInstallImplemented; then
       ((++installConfigCount))
     fi
     if [[ "${SKIP_CONFIGURE}" = "0" ]] &&
-      SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${configName}" isConfigureImplemented; then
+      SKIP_REQUIRES=1 "${BASH_DEV_ENV_ROOT_DIR}/${configName}" isConfigureImplemented; then
       ((++configConfigCount))
     fi
     if [[ "${SKIP_TEST}" = "0" ]]; then
-      if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${configName}" isTestInstallImplemented; then
+      if SKIP_REQUIRES=1 "${BASH_DEV_ENV_ROOT_DIR}/${configName}" isTestInstallImplemented; then
         ((++installTestConfigCount))
       fi
-      if SKIP_REQUIRES=1 "${INSTALL_SCRIPTS_ROOT_DIR}/${configName}" isTestConfigureImplemented; then
+      if SKIP_REQUIRES=1 "${BASH_DEV_ENV_ROOT_DIR}/${configName}" isTestConfigureImplemented; then
         ((++configTestConfigCount))
       fi
     fi
@@ -3587,7 +3595,7 @@ executeScripts() {
           local rc="$1"
           local -a statFiles=()
           local scriptName="${currentConfigName//\//@}"
-          local scriptCmd="${INSTALL_SCRIPTS_ROOT_DIR}/${currentConfigName}"
+          local scriptCmd="${BASH_DEV_ENV_ROOT_DIR}/${currentConfigName}"
           if [[ "${SKIP_INSTALL}" = "0" ]] &&
             SKIP_REQUIRES=1 "${scriptCmd}" isInstallImplemented; then
             Stats::aggregateStats \
@@ -3626,7 +3634,7 @@ executeScripts() {
             "${statFiles[@]}"
           exit "${rc}"
         }
-        Framework::trapAdd 'aggregateStat "$?"' EXIT INT TERM ABRT
+        trap 'aggregateStat "$?"' EXIT INT TERM ABRT
 
         rm -f \
           "${STATS_DIR:-#}/${scriptName}"-{install,config,test-install,test-configuration,global,current}.stat \
@@ -3644,7 +3652,7 @@ executeScripts() {
   done
 }
 
-Profiles::checkScriptsExistence "${INSTALL_SCRIPTS_ROOT_DIR}" "" "${CONFIG_LIST[@]}"
+Profiles::checkScriptsExistence "${BASH_DEV_ENV_ROOT_DIR}" "" "${CONFIG_LIST[@]}"
 Log::displayInfo "Will Install ${CONFIG_LIST[*]}"
 
 # Start install process

@@ -12,8 +12,7 @@ binData:
     default:
       functionName: AwsDefaultConfigCommand
       version: "3.0"
-      copyrightBeginYear: 2022
+      copyrightBeginYear: 2024
       definitionFiles:
         11: ${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/AwsDefaultConfig/AwsDefaultConfig.sh
       commandName: AwsDefaultConfig
-      help: Default aws config using saml2aws

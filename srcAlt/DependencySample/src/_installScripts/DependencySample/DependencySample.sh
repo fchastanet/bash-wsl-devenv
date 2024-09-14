@@ -1,30 +1,25 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/srcAlt/DependencySample/installScripts/DependencySample
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "DependencySample"
-}
 
 helpDescription() {
-  echo "DependencySample"
+  echo "this is an example that can be used to debug or as a template for other install scripts"
 }
 
-# jscpd:ignore-start
 dependencies() {
   echo "installScripts/MandatorySoftwares"
 }
-helpVariables() { :; }
+
+# jscpd:ignore-start
+fortunes() { :; }
 listVariables() { :; }
+helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
-fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
+isTestInstallImplemented() { :; }
 # jscpd:ignore-end
 
 install() {
