@@ -20,6 +20,10 @@ isInterfaceMandatoryFunctionImplemented() {
   isFunctionImplemented testConfigure || return 1
 }
 
+scriptName() {
+  echo "{{ .Data.binData.commands.default.commandName }}"
+}
+
 beforeParseCallback() {
   defaultBeforeParseCallback
   isInterfaceMandatoryFunctionImplemented
