@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/AwsDefaultConfig
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/AwsDefaultConfig/conf" as conf_dir
-# EMBED "${FRAMEWORK_ROOT_DIR}/src/UI/talk.ps1" as talkScript
-
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
+# @embed "${FRAMEWORK_ROOT_DIR}/src/UI/talk.ps1" as talkScript
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/AwsDefaultConfig/conf" as conf_dir
 
 scriptName() {
   echo "AwsDefaultConfig"
@@ -48,6 +42,10 @@ breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 install() { :; }
 testInstall() { :; }
+isInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
+isTestInstallImplemented() { :; }
 # jscpd:ignore-end
 
 configure() {

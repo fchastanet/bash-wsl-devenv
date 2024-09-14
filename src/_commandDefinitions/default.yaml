@@ -1,0 +1,20 @@
+---
+extends:
+  - "${FRAMEWORK_ROOT_DIR}/src/_binaries/commandDefinitions/frameworkConfig.yaml"
+  - "${FRAMEWORK_ROOT_DIR}/src/_binaries/commandDefinitions/defaultCommand.yaml"
+  - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/frameworkConfig.yaml"
+
+# export here all the variables that will be used in your templates
+vars:
+  REPOSITORY_URL: https://github.com/fchastanet/bash-dev-env
+
+binData:
+  commands:
+    default:
+      license: MIT License
+      beforeParseCallbacks:
+        - beforeParseCallback
+      help: helpDescriptionFunction
+      longDescription: helpLongDescriptionFunction
+      definitionFiles:
+        50: "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/default.sh"

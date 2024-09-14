@@ -1,0 +1,41 @@
+---
+binData:
+  commands:
+    default:
+      optionGroups:
+        zzzGroupSkipOptionsGroup:
+          title: "SKIP OPTIONS:"
+      options:
+        - variableName: SKIP_CONFIGURE
+          group: zzzGroupSkipOptionsGroup
+          type: Boolean
+          help: Skip software configuration.
+          alts:
+            - --skip-config
+            - --skip-configure
+            - --skip-configuration
+            - -sc
+        - variableName: SKIP_INSTALL
+          group: zzzGroupSkipOptionsGroup
+          type: Boolean
+          help: Skip software installation.
+          alts:
+            - --skip-install
+            - --skip-installation
+            - -si
+        - variableName: SKIP_TEST
+          group: zzzGroupSkipOptionsGroup
+          type: Boolean
+          help: Skip software installation test.
+          alts:
+            - --skip-test
+            - --skip-tests
+            - -st
+        - variableName: SKIP_DEPENDENCIES
+          group: zzzGroupSkipOptionsGroup
+          type: Boolean
+          help: Install the software requested without resolving dependencies.
+          alts:
+            - --skip-deps
+            - --skip-dependencies
+            - -sd

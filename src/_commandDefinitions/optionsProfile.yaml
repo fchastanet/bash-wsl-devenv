@@ -1,0 +1,29 @@
+---
+binData:
+  commands:
+    default:
+      definitionFiles:
+        20: ${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/optionsProfile.sh
+
+      args:
+        - variableName: CONFIG_LIST
+          name: softwares
+          help: softwareArgHelpFunction
+          type: StringArray
+          min: 0
+          max: -1
+
+      optionGroups:
+        zzzGroupInstall:
+          title: "INSTALL OPTIONS:"
+      options:
+        - variableName: PROFILE
+          group: zzzGroupInstall
+          type: String
+          help: profileHelpFunction
+          helpValueName: profile
+          callbacks:
+            - validateProfile
+          alts:
+            - "--profile"
+            - "-p"

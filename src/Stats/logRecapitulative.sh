@@ -8,7 +8,7 @@ Stats::logRecapitulative() {
   local logRecapitulativeAwkScript
   logRecapitulativeAwkScript="$(
     cat <<'EOF'
-.INCLUDE "${TEMPLATE_DIR}/Stats/logRecapitulative.awk"
+{{ includeFile "${BASH_DEV_ENV_ROOT_DIR}/src/Stats/logRecapitulative.awk" }}
 EOF
   )"
 
