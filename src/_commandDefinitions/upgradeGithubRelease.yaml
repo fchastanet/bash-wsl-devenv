@@ -1,0 +1,11 @@
+---
+extends:
+  - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/installScript.yaml"
+
+binData:
+  commands:
+    default: &defaultCommand
+      beforeParseCallbacks:
+        - upgradeGithubReleaseBeforeParseCallback
+      definitionFiles:
+        51: "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/upgradeGithubRelease.sh"
