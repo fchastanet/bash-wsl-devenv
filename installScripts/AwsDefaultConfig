@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/AwsDefaultConfig/AwsDefaultConfig-binary.yaml
+# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Aws/AwsDefaultConfig-binary.yaml
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -3899,7 +3899,7 @@ AwsDefaultConfigCommandHelp() {
   # ------------------------------------------
   echo
   echo -n -e "${__HELP_TITLE_COLOR}SOURCE FILE: ${__RESET_COLOR}"
-  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/AwsDefaultConfig/AwsDefaultConfig-binary.yaml"
+  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Aws/AwsDefaultConfig-binary.yaml"
   # ------------------------------------------
   # license section
   # ------------------------------------------
