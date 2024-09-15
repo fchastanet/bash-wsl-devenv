@@ -1,13 +1,7 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/DockerCompose
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
 
-.INCLUDE "$(dynamicTemplateDir "_includes/_githubReleaseScript.tpl")"
-
-scriptName() {
-  echo "DockerCompose"
+helpDescription() {
+  echo "docker-compose tool"
 }
 
 install() {

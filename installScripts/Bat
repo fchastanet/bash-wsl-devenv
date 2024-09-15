@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Bat/Bat-binary.yaml
+# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/GithubReleases/Bat-binary.yaml
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -3247,20 +3247,6 @@ fortunes() {
   fi
 }
 
-# jscpd:ignore-start
-dependencies() { :; }
-listVariables() { :; }
-helpVariables() { :; }
-defaultVariables() { :; }
-checkVariables() { :; }
-breakOnConfigFailure() { :; }
-breakOnTestFailure() { :; }
-isInstallImplemented() { :; }
-isConfigureImplemented() { :; }
-isTestConfigureImplemented() { :; }
-isTestInstallImplemented() { :; }
-# jscpd:ignore-end
-
 install() {
   SUDO=sudo INSTALL_CALLBACK=Linux::installDeb Github::upgradeRelease \
     "/usr/bin/bat" \
@@ -3416,6 +3402,22 @@ afterParseCallback() {
 upgradeGithubReleaseBeforeParseCallback() {
   Linux::requireJqCommand
 }
+
+# jscpd:ignore-start
+dependencies() { :; }
+listVariables() { :; }
+helpVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
+isTestInstallImplemented() { :; }
+configure() { :; }
+testConfigure() { :; }
+# jscpd:ignore-end
 
 
 # ------------------------------------------
@@ -4139,7 +4141,7 @@ BatCommandHelp() {
   # ------------------------------------------
   echo
   echo -n -e "${__HELP_TITLE_COLOR}SOURCE FILE: ${__RESET_COLOR}"
-  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Bat/Bat-binary.yaml"
+  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/GithubReleases/Bat-binary.yaml"
   # ------------------------------------------
   # license section
   # ------------------------------------------

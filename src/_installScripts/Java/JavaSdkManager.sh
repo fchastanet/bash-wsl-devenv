@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/SdkManager
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
 
-.INCLUDE "$(dynamicTemplateDir "_includes/_githubReleaseScript.tpl")"
-
-scriptName() {
-  echo "SdkManager"
+helpDescription() {
+  echo "CLI tool which enables you to login"
+  echo "and retrieve AWS temporary credentials using a SAML IDP"
 }
 
 dependencies() {
@@ -20,6 +15,19 @@ fortunes() {
   echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- check ${__HELP_EXAMPLE}<https://sdkman.io/sdks>${__RESET_COLOR} to see the list of sdks like ${__HELP_EXAMPLE}scala${__RESET_COLOR}, ${__HELP_EXAMPLE}gradle${__RESET_COLOR}, ... that can be easily installed."
   echo '%'
 }
+
+# jscpd:ignore-start
+listVariables() { :; }
+helpVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
+isTestInstallImplemented() { :; }
+# jscpd:ignore-end
 
 install() {
   Linux::Apt::installIfNecessary --no-install-recommends zip

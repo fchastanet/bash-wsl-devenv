@@ -15,7 +15,7 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "installScripts/SdkManager"
+  echo "installScripts/JavaSdkManager"
 }
 
 fortunes() {
