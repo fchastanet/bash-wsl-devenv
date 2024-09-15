@@ -1,13 +1,10 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Oq
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
 
-.INCLUDE "$(dynamicTemplateDir "_includes/_githubReleaseScript.tpl")"
-
-scriptName() {
-  echo "Oq"
+helpDescription() {
+  echo "A performant, and portable jq wrapper"
+  echo "to facilitate the consumption and output"
+  echo "of formats other than JSON."
+  echo "Using jq filters to transform the data."
 }
 
 fortunes() {

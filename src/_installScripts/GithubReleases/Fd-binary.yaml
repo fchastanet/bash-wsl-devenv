@@ -2,17 +2,17 @@ extends:
   - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/upgradeGithubRelease.yaml"
 
 vars:
-  SRC_FILE_PATH: src/_installScripts/Bat/Bat-binary.yaml
+  SRC_FILE_PATH: src/_installScripts/GithubReleases/Fd-binary.yaml
 
 compilerConfig:
-  targetFile: "${BASH_DEV_ENV_ROOT_DIR}/installScripts/Bat"
+  targetFile: "${BASH_DEV_ENV_ROOT_DIR}/installScripts/Fd"
   relativeRootDirBasedOnTargetDir: ..
 binData:
   commands:
     default:
-      functionName: BatCommand
+      functionName: FdCommand
       version: "3.0"
       copyrightBeginYear: 2024
       definitionFiles:
-        11: ${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/Bat/Bat.sh
-      commandName: Bat
+        11: ${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/GithubReleases/Fd.sh
+      commandName: Fd

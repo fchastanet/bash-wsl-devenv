@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# @embed  "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/Bat/conf" as conf_dir
+# @embed  "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/GithubReleases/Bat-conf" as conf_dir
 
 helpDescription() {
   echo "A cat(1) clone with syntax highlighting and Git integration"
@@ -21,20 +21,6 @@ fortunes() {
     echo "%"
   fi
 }
-
-# jscpd:ignore-start
-dependencies() { :; }
-listVariables() { :; }
-helpVariables() { :; }
-defaultVariables() { :; }
-checkVariables() { :; }
-breakOnConfigFailure() { :; }
-breakOnTestFailure() { :; }
-isInstallImplemented() { :; }
-isConfigureImplemented() { :; }
-isTestConfigureImplemented() { :; }
-isTestInstallImplemented() { :; }
-# jscpd:ignore-end
 
 install() {
   SUDO=sudo INSTALL_CALLBACK=Linux::installDeb Github::upgradeRelease \

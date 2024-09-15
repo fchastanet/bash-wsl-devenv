@@ -18,7 +18,7 @@ CONFIG_LIST+=(
   "installScripts/MotdDefaultConfig"
   "installScripts/AwsDefaultConfig"
   "installScripts/KubeDefaultConfig"
-  "installScripts/SdkManagerDependencies"
+  "installScripts/JavaSdkManagerDependencies"
   "installScripts/Fortune"
   "installScripts/Saml2Aws"
   "installScripts/ShellZsh"

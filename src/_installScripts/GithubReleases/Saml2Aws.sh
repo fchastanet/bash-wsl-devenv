@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Saml2Aws
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
 
-.INCLUDE "$(dynamicTemplateDir "_includes/_githubReleaseScript.tpl")"
-
-scriptName() {
-  echo "Saml2Aws"
+helpDescription() {
+  echo "CLI tool which enables you to login"
+  echo "and retrieve AWS temporary credentials using a SAML IDP"
 }
 
 dependencies() {
