@@ -1,18 +1,9 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Composer
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/Composer/conf" as conf_dir
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/Composer/conf" as conf_dir
 
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "Composer"
-}
 
 helpDescription() {
-  echo "Composer"
+  echo "This is an example that can be used to debug or as a template for other install scripts"
 }
 
 dependencies() {
@@ -20,13 +11,17 @@ dependencies() {
 }
 
 # jscpd:ignore-start
-helpVariables() { :; }
+fortunes() { :; }
 listVariables() { :; }
+helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
-fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
+isTestInstallImplemented() { :; }
 # jscpd:ignore-end
 
 install() {
