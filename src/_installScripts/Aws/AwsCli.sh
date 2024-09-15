@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/AwsCli
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "AwsCli"
-}
 
 helpDescription() {
   echo "AwsCli"
@@ -32,6 +22,12 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+configure() { :; }
+testConfigure() { :; }
+isInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
+isTestInstallImplemented() { :; }
 # jscpd:ignore-end
 
 install() {
@@ -62,6 +58,3 @@ install() {
 testInstall() {
   Version::checkMinimal "aws" --version "2.13.32" || return 1
 }
-
-configure() { :; }
-testConfigure() { :; }

@@ -2,7 +2,7 @@ extends:
   - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/installScript.yaml"
 
 vars:
-  SRC_FILE_PATH: src/_installScripts/AwsDefaultConfig/AwsDefaultConfig-binary.yaml
+  SRC_FILE_PATH: src/_installScripts/Aws/AwsDefaultConfig-binary.yaml
 
 compilerConfig:
   targetFile: "${BASH_DEV_ENV_ROOT_DIR}/installScripts/AwsDefaultConfig"
@@ -14,5 +14,5 @@ binData:
       version: "3.0"
       copyrightBeginYear: 2024
       definitionFiles:
-        11: ${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/AwsDefaultConfig/AwsDefaultConfig.sh
+        11: ${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/Aws/AwsDefaultConfig.sh
       commandName: AwsDefaultConfig
