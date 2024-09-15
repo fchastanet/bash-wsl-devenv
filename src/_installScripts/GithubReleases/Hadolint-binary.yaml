@@ -2,17 +2,17 @@ extends:
   - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/upgradeGithubRelease.yaml"
 
 vars:
-  SRC_FILE_PATH: src/_installScripts/GithubReleases/DockerCompose-binary.yaml
+  SRC_FILE_PATH: src/_installScripts/GithubReleases/Hadolint-binary.yaml
 
 compilerConfig:
-  targetFile: "${BASH_DEV_ENV_ROOT_DIR}/installScripts/DockerCompose"
+  targetFile: "${BASH_DEV_ENV_ROOT_DIR}/installScripts/Hadolint"
   relativeRootDirBasedOnTargetDir: ..
 binData:
   commands:
     default:
-      functionName: DockerComposeCommand
+      functionName: HadolintCommand
       version: "3.0"
       copyrightBeginYear: 2024
       definitionFiles:
-        11: ${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/GithubReleases/DockerCompose.sh
-      commandName: DockerCompose
+        11: ${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/GithubReleases/Hadolint.sh
+      commandName: Hadolint

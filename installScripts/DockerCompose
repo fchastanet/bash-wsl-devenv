@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/GithubReleases/DockerCompose-binary.yaml
+# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Docker/DockerCompose-binary.yaml
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -3690,7 +3690,7 @@ DockerComposeCommandHelp() {
   # ------------------------------------------
   echo
   echo -n -e "${__HELP_TITLE_COLOR}SOURCE FILE: ${__RESET_COLOR}"
-  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/GithubReleases/DockerCompose-binary.yaml"
+  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Docker/DockerCompose-binary.yaml"
   # ------------------------------------------
   # license section
   # ------------------------------------------
