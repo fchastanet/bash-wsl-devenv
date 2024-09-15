@@ -50,6 +50,7 @@ GITHUB
 gnupg
 gofmt
 gogvm
+goimports
 goserver
 gpgsign
 graphviz
