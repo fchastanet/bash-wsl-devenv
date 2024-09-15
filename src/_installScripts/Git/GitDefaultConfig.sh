@@ -1,18 +1,13 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/GitDefaultConfig
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/GitDefaultConfig/conf" as conf_dir
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/Git/GitDefaultConfig-conf" as conf_dir
 
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "GitDefaultConfig"
+gitDefaultConfigBeforeParseCallback() {
+  Ssh::requireSshKeygenCommand
+  Ssh::requireSshKeyscanCommand
 }
 
 helpDescription() {
-  echo "GitDefaultConfig"
+  echo "Default .gitconfig with aliases"
 }
 
 dependencies() {
@@ -25,15 +20,23 @@ fortunes() {
   echo "%"
 }
 
+listVariables() {
+  echo "GIT_USERNAME"
+  echo "GIT_USER_MAIL"
+  echo "BASE_MNT_C"
+}
+
 # jscpd:ignore-start
-helpVariables() { :; }
 listVariables() { :; }
+helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
-install() { :; }
-testInstall() { :; }
+isInstallImplemented() { :; }
+isTestInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
 # jscpd:ignore-end
 
 configure() {
