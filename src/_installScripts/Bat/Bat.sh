@@ -1,14 +1,8 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Bat
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/Bat/conf" as conf_dir
+# @embed  "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/Bat/conf" as conf_dir
 
-.INCLUDE "$(dynamicTemplateDir "_includes/_githubReleaseScript.tpl")"
-
-scriptName() {
-  echo "Bat"
+helpDescription() {
+  echo "A cat(1) clone with syntax highlighting and Git integration"
 }
 
 fortunes() {
@@ -26,8 +20,21 @@ fortunes() {
     echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- Run ${__HELP_EXAMPLE}installAndConfigure Bat${__RESET_COLOR} to initialize ${__HELP_EXAMPLE}bat${__RESET_COLOR} (file pre-visualization tool)."
     echo "%"
   fi
-
 }
+
+# jscpd:ignore-start
+dependencies() { :; }
+listVariables() { :; }
+helpVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
+isTestInstallImplemented() { :; }
+# jscpd:ignore-end
 
 install() {
   SUDO=sudo INSTALL_CALLBACK=Linux::installDeb Github::upgradeRelease \
