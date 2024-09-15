@@ -1,31 +1,31 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Tig
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "Tig"
-}
 
 helpDescription() {
-  echo "Tig"
+  echo "Tig: text-mode interface for Git"
+  echo "Tig is an ncurses-based text-mode interface for git."
+  echo "It functions mainly as a Git repository browser, but"
+  echo "can also assist in staging changes for commit at chunk"
+  echo "level and act as a pager for output from various Git commands."
 }
 
 fortunes() {
   echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- use ${__HELP_EXAMPLE}tig${__RESET_COLOR} command to browse git repository's logs."
   echo "%"
 }
+
 # jscpd:ignore-start
-dependencies() { :; }
-helpVariables() { :; }
 listVariables() { :; }
+helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+isTestInstallImplemented() { :; }
+configure() { :; }
+isConfigureImplemented() { :; }
+testConfigure() { :; }
+isTestConfigureImplemented() { :; }
 # jscpd:ignore-end
 
 install() {
@@ -36,6 +36,3 @@ install() {
 testInstall() {
   Assert::commandExists tig
 }
-
-configure() { :; }
-testConfigure() { :; }

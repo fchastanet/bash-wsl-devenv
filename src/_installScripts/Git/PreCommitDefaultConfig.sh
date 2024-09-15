@@ -1,18 +1,10 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/PreCommitDefaultConfig
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/PreCommitDefaultConfig/.pre-commit-config-test.yaml" as preCommitConfigTest
-
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "PreCommitDefaultConfig"
-}
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/Git/PreCommitDefaultConfig-conf/.pre-commit-config-test.yaml" as preCommitConfigTest
 
 helpDescription() {
-  echo "PreCommitDefaultConfig"
+  echo "Default configuration for pre-commit."
+  echo "Configure git so pre-commit will be"
+  echo "automatically installed in new repositories."
 }
 
 dependencies() {
@@ -28,14 +20,16 @@ fortunes() {
 }
 
 # jscpd:ignore-start
-helpVariables() { :; }
 listVariables() { :; }
+helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
-install() { :; }
-testInstall() { :; }
+isInstallImplemented() { :; }
+isTestInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
 # jscpd:ignore-end
 
 configure() {

@@ -1,17 +1,7 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/PreCommit
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "PreCommit"
-}
 
 helpDescription() {
-  echo "PreCommit"
+  echo "A framework for managing and maintaining multi-language pre-commit hooks."
 }
 
 dependencies() {
@@ -25,12 +15,20 @@ fortunes() {
   echo "%"
 }
 
-helpVariables() { :; }
+# jscpd:ignore-start
 listVariables() { :; }
+helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+isTestInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
+configure() { :; }
+testConfigure() { :; }
+# jscpd:ignore-end
 
 install() {
   if [[ ! -f "${HOME}/.virtualenvs/python3/bin/activate" ]]; then
@@ -53,6 +51,3 @@ testInstall() {
   Version::checkMinimal "pre-commit" "--version" "3.6.2" || ((++failures))
   return "${failures}"
 }
-
-configure() { :; }
-testConfigure() { :; }
