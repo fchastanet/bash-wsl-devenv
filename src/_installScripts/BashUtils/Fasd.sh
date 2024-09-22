@@ -2,7 +2,11 @@
 # @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/BashUtils/Fasd-conf" as conf_dir
 
 helpDescription() {
-  echo "$(scriptName) - configuration for bash shell only allows to search files quickly"
+  echo "$(scriptName) - configuration for bash shell only allowing to search files quickly"
+}
+
+helpLongDescription() {
+  helpDescription
   echo "Following aliases are available:"
   echo "  - alias 'a' - search files/directories based on a pattern"
   echo "  - alias 'd' - search directories based on a pattern"
