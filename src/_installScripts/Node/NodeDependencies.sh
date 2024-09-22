@@ -1,31 +1,39 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/NodeDependencies
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "NodeDependencies"
-}
 
 helpDescription() {
-  echo "NodeDependencies"
+  echo "Node dependencies mainly code checkers"
+}
+
+helpLongDescription() {
+  helpDescription
+  echo "$(scriptName) -- the following linters are available: "
+  echo -e "  - ${__HELP_EXAMPLE}npm-check-updates${__RESET_COLOR}"
+  echo -e "  - ${__HELP_EXAMPLE}prettier${__RESET_COLOR}"
+  echo -e "  - ${__HELP_EXAMPLE}sass-lint${__RESET_COLOR}"
+  echo -e "  - ${__HELP_EXAMPLE}stylelint${__RESET_COLOR}"
+  echo -e "  - ${__HELP_EXAMPLE}hjson${__RESET_COLOR}"
 }
 
 dependencies() {
   echo "installScripts/NodeNpm"
 }
 
+fortunes() {
+  helpLongDescription
+  echo "%"
+}
+
 # jscpd:ignore-start
-helpVariables() { :; }
 listVariables() { :; }
+helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
-fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
+isTestInstallImplemented() { :; }
 # jscpd:ignore-end
 
 install() {
@@ -33,12 +41,14 @@ install() {
     Log::displaySkipped "node dependencies skipped as node not installed"
     return 0
   fi
-  # shellcheck source=src/_binaries/NodeNpm/conf/.bash-dev-env/profile.d/n_path.sh
+  # shellcheck source=src/_installScripts/Node/NodeNpm-conf/.bash-dev-env/profile.d/n_path.sh
   source "${HOME}/.bash-dev-env/profile.d/n_path.sh"
 
   # npm install
   npmInstall() {
-    if ! npm -g list "$1" >/dev/null; then
+    if npm -g list "$1" >/dev/null; then
+      Log::displaySkipped "npm package $1 already installed"
+    else
       Log::displayInfo "install npm package $1 globally"
       npm install -g "$1"
     fi
@@ -60,12 +70,12 @@ install() {
 
 testInstall() {
   local -i failures=0
-  # shellcheck source=src/_binaries/NodeNpm/conf/.bash-dev-env/profile.d/n_path.sh
+  # shellcheck source=src/_installScripts/Node/NodeNpm-conf/.bash-dev-env/profile.d/n_path.sh
   source "${HOME}/.bash-dev-env/profile.d/n_path.sh"
-  Version::checkMinimal "npm-check-updates" "--version" "11.5.13" || ((++failures))
-  Version::checkMinimal "prettier" "--version" "2.3.0" || ((++failures))
+  Version::checkMinimal "npm-check-updates" "--version" "17.1.3" || ((++failures))
+  Version::checkMinimal "prettier" "--version" "3.3.3" || ((++failures))
   Version::checkMinimal "sass-lint" "--version" "1.13.1" || ((++failures))
-  Version::checkMinimal "stylelint" "--version" "13.13.1" || ((++failures))
+  Version::checkMinimal "stylelint" "--version" "16.9.0" || ((++failures))
   Version::checkMinimal "hjson" "--version" "3.2.1" || ((++failures))
   return "${failures}"
 }

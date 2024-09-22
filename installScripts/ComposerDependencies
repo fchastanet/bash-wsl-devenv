@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/GithubReleases/Saml2Aws-binary.yaml
+# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Php/ComposerDependencies-binary.yaml
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -1062,121 +1062,6 @@ Framework::createTempFile() {
 }
 
 
-# @description intermediate callback that is used by Github::upgradeRelease
-# or Github::installRelease
-# if installCallback is not set, it allows to:
-#   - copy the downloaded file to the right target file
-#   - and set the execution bit
-# else
-#   installCallback is called with newSoftware, targetFile, version arguments
-# fi
-# @warning do not use this function as callback for Github::upgradeRelease or Github::installRelease, as it would result to an infinite loop
-# @arg $1 newSoftware:String the downloaded software file
-# @arg $2 targetFile:String where we want to copy the file
-# @arg $3 version:String the version that has been downloaded
-# @arg $4 installCallback:Function (optional) the callback to call with 3 first arguments
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode * on failure
-# @see Github::upgradeRelease
-# @see Github::installRelease
-# @internal
-Github::defaultInstall() {
-  local newSoftware="$1"
-  local targetFile="$2"
-  local version="$3"
-  local installCallback=$4
-  # shellcheck disable=SC2086
-  if ! ${SUDO:-} test -d "${targetFile%/*}"; then
-    ${SUDO:-} mkdir -p "${targetFile%/*}"
-  fi
-  if [[ "$(type -t "${installCallback}")" = "function" ]]; then
-    ${installCallback} "${newSoftware}" "${targetFile}" "${version}"
-  else
-    ${SUDO:-} mv "${newSoftware}" "${targetFile}"
-    ${SUDO:-} chmod +x "${targetFile}"
-    hash -r
-    ${SUDO:-} rm -f "${newSoftware}" || true
-    Log::displaySuccess "Version ${version} installed in ${targetFile}"
-  fi
-}
-
-
-# @description github repository eg: kubernetes-sigs/kind
-# @arg $1 githubUrl:String eg: https://github.com/kubernetes-sigs/kind/releases/download/@latestVersion@/kind-linux-amd64
-# @exitcode 1 if no matching repo found in provided url, 0 otherwise
-# @stdout the repo in the form owner/repo
-Github::extractRepoFromGithubUrl() {
-  local githubUrl="$1"
-  local result
-  result="$(sed -n -E 's#^https://github.com/([^/]+/[^/]+)/.*$#\1#p' <<<"${githubUrl}")"
-  if [[ -z "${result}" ]]; then
-    return 1
-  fi
-  echo "${result}"
-}
-
-
-# @description check if specified release software version exists in github
-# @arg $1 releaseUrl:String eg: https://github.com/kubernetes-sigs/kind/releases/download/v1.0.0/kind-linux-amd64
-# @exitcode 1 on failure
-# @exitcode 0 if release version exists
-# @env CURL_CONNECT_TIMEOUT number of seconds before giving up host connection
-Github::isReleaseVersionExist() {
-  local releaseUrl="$1"
-
-  curl \
-    -L \
-    --connect-timeout "${CURL_CONNECT_TIMEOUT:-5}" \
-    -o /dev/null \
-    --silent \
-    --head \
-    --fail \
-    "${releaseUrl}"
-}
-
-
-# @description upgrade given binary to latest github release using retry
-#
-# downloadReleaseUrl argument : the placeholder @latestVersion@ will be replaced by the latest release version
-# @arg $1 targetFile:String target binary file (eg: /usr/local/bin/kind)
-# @arg $2 downloadReleaseUrl:String github release url (eg: https://github.com/kubernetes-sigs/kind/releases/download/@latestVersion@/kind-linux-amd64)
-# @arg $3 softVersionArg:String parameter to add to existing command to compute current version
-# @arg $4 softVersionCallback:Function function called to get software version (default: Version::getCommandVersionFromPlainText will call software with argument --version)
-# @arg $5 installCallback:Function function called to install the file retrieved on github (default copy as is and set execution bit)
-# @arg $6 softVersionCallback:Function function to call to filter the version retrieved from github (Default: Version::parse)
-# @stdout log messages about retry, install, upgrade
-# @env SOFT_VERSION_CALLBACK pass softVersionCallback by env variable instead of passing it by arg
-# @env INSTALL_CALLBACK pass installCallback by env variable instead of passing it by arg
-# @env CURL_CONNECT_TIMEOUT number of seconds before giving up host connection
-# @env EXACT_VERSION if provided, retrieve exact version instead of the latest
-Github::upgradeRelease() {
-  local targetFile="$1"
-  local downloadReleaseUrl="$2"
-  local softVersionArg="${3:---version}"
-  local softVersionCallback="${4:-${SOFT_VERSION_CALLBACK:-Version::getCommandVersionFromPlainText}}"
-  # shellcheck disable=SC2034
-  local installCallback="${5:-${INSTALL_CALLBACK:-}}"
-  local parseGithubVersionCallback="${6:-${PARSE_VERSION_CALLBACK:-Version::parse}}"
-
-  local repo
-  repo="$(Github::extractRepoFromGithubUrl "${downloadReleaseUrl}")"
-  local releasesUrl="https://api.github.com/repos/${repo}/releases/latest"
-
-  # shellcheck disable=SC2317
-  extractVersion() {
-    Version::githubApiExtractVersion | "${parseGithubVersionCallback}"
-  }
-  FILTER_LAST_VERSION_CALLBACK=${FILTER_LAST_VERSION_CALLBACK:-extractVersion} \
-    SOFT_VERSION_CALLBACK="${softVersionCallback}" \
-    Web::upgradeRelease \
-    "${targetFile}" \
-    "${releasesUrl}" \
-    "${downloadReleaseUrl}" \
-    "${softVersionArg}" \
-    "${EXACT_VERSION:-}"
-}
-
-
 # @description the command launch different actions(install, configure, test)
 # depending on the options selected
 # @see src/_includes/install.skip.options.tpl
@@ -1631,18 +1516,6 @@ Linux::getDistributorId() {
     source /etc/os-release
     echo "${ID}"
   )
-}
-
-
-# @description ensure command jq is available
-# @exitcode 1 if jq command not available
-# @stderr diagnostics information is displayed
-Linux::requireJqCommand() {
-  export REQUIRE_FUNCTION_LINUX_REQUIRE_JQ_COMMAND_LOADED=1
-
-  if [[ "${SKIP_REQUIRE_JQ:-0}" = "0" && "${SKIP_REQUIRES:-0}" = "0" ]]; then
-    Assert::commandExists jq
-  fi
 }
 
 
@@ -2438,33 +2311,6 @@ Version::compare() {
 }
 
 
-# @description extract software version number
-# @arg $1 command:String the command that will be called with --version parameter
-# @arg $2 argVersion:String  allows to override default --version parameter
-Version::getCommandVersionFromPlainText() {
-  local command="$1"
-  local argVersion="${2:---version}"
-  "${command}" "${argVersion}" 2>&1 |
-    Version::parse # keep only version numbers
-}
-
-
-# @description extract version number from github api
-# @noargs
-# @stdin json result of github API
-# @exitcode 1 if jq or Version::parse fails
-# @stdout the version parsed
-Version::githubApiExtractVersion() {
-
-  if [[ "${REQUIRE_FUNCTION_LINUX_REQUIRE_JQ_COMMAND_LOADED:-0}" != 1 ]]; then
-    echo >&2 "Requirement Linux::requireJqCommand has not been loaded"
-    exit 1
-  fi
-
-  jq -r ".tag_name"
-}
-
-
 # @description filter to keep only version number from a string
 # @arg $@ files:String[] the files to filter
 # @exitcode * if one of the filter command fails
@@ -2478,87 +2324,6 @@ Version::parse() {
     -e 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/' \
     -e '//{p;Q}' \
     "$@"
-}
-
-
-# @description Retrieve the latest version number of a web release
-# @arg $1 releaseListUrl:String the url from which version list can be retrieved
-# @stdout log messages about retry
-# @env CURL_CONNECT_TIMEOUT number of seconds before giving up host connection
-Web::getReleases() {
-  local releaseListUrl="$1"
-  # Get latest release from GitHub api
-  Retry::parameterized "${RETRY_MAX_RETRY:-5}" "${RETRY_DELAY_BETWEEN_RETRIES:-15}" "Retrieving release versions list ..." curl \
-    -L \
-    --connect-timeout "${CURL_CONNECT_TIMEOUT:-5}" \
-    --fail \
-    --silent \
-    "${releaseListUrl}"
-}
-
-
-# @description upgrade given binary to latest release using retry
-#
-# releasesUrl argument : the placeholder @latestVersion@ will be replaced by the latest release version
-# @arg $1 targetFile:String target binary file (eg: /usr/local/bin/kind)
-# @arg $2 releasesUrl:String url on which we can query all available versions (eg: "https://go.dev/dl/?mode=json")
-# @arg $3 downloadReleaseUrl:String url from which the software will be downloaded (eg: https://storage.googleapis.com/golang/go@latestVersion@.linux-amd64.tar.gz)
-# @arg $4 softVersionArg:String parameter to add to existing command to compute current version
-# @arg $5 exactVersion:String if you want to retrieve a specific version instead of the latest
-# @stdout log messages about retry, install, upgrade
-# @env FILTER_LAST_VERSION_CALLBACK a callback to filter the latest version from releasesUrl
-# @env SOFT_VERSION_CALLBACK a callback to execute command version
-# @env PARSE_VERSION_CALLBACK a callback to parse the version of the existing command
-# @env INSTALL_CALLBACK a callback to install the software downloaded
-# @env CURL_CONNECT_TIMEOUT number of seconds before giving up host connection
-Web::upgradeRelease() {
-  local targetFile="$1"
-  local releasesUrl="$2"
-  local downloadReleaseUrl="$3"
-  local softVersionArg="${4:---version}"
-  local exactVersion="${5:-}"
-  # options from env variables
-  local filterLastVersionCallback="${FILTER_LAST_VERSION_CALLBACK:-Version::parse}"
-  local softVersionCallback="${SOFT_VERSION_CALLBACK:-Version::getCommandVersionFromPlainText}"
-  local installCallback="${INSTALL_CALLBACK:-}"
-  local latestVersion
-  latestVersion="$(Web::getReleases "${releasesUrl}" | ${filterLastVersionCallback})" || {
-    Log::displayError "latest version not found on ${releasesUrl}"
-    return 1
-  }
-  Log::displayInfo "Latest version found is ${latestVersion}"
-
-  local currentVersion="not existing"
-  if [[ -f "${targetFile}" ]]; then
-    currentVersion="$(${softVersionCallback} "${targetFile}" "${softVersionArg}" 2>&1 || true)"
-  fi
-  if [[ -z "${exactVersion}" ]]; then
-    exactVersion="${latestVersion}"
-  fi
-  local url="${downloadReleaseUrl//@latestVersion@/${exactVersion}}"
-  if [[ -n "${exactVersion}" ]] && ! Github::isReleaseVersionExist "${url}"; then
-    Log::displayError "${targetFile} version ${exactVersion} doesn't exist on github"
-    return 2
-  fi
-  if [[ "${currentVersion}" = "${exactVersion}" ]]; then
-    Log::displayInfo "${targetFile} version ${exactVersion} already installed"
-  else
-    if [[ -z "${currentVersion}" ]]; then
-      Log::displayInfo "Installing ${targetFile} with version ${exactVersion}"
-    else
-      Log::displayInfo "Upgrading ${targetFile} from version ${currentVersion} to ${exactVersion}"
-    fi
-    Log::displayInfo "Using url ${url}"
-    newSoftware=$(mktemp -p "${TMPDIR:-/tmp}" -t web.newSoftware.XXXX)
-    Retry::default curl \
-      -L \
-      --connect-timeout "${CURL_CONNECT_TIMEOUT:-5}" \
-      -o "${newSoftware}" \
-      --fail \
-      "${url}"
-
-    Github::defaultInstall "${newSoftware}" "${targetFile}" "${exactVersion}" "${installCallback}"
-  fi
 }
 # FUNCTIONS
 
@@ -2584,7 +2349,7 @@ isInterfaceMandatoryFunctionImplemented() {
 }
 
 scriptName() {
-  echo "Saml2Aws"
+  echo "ComposerDependencies"
 }
 
 beforeParseCallback() {
@@ -2911,50 +2676,74 @@ commandOptionParseFinished() {
 
 
 helpDescription() {
-  echo "$(scriptName) - CLI tool which enables you to login to AWS."
+  echo "Composer dependencies mainly code checkers"
 }
 
 helpLongDescription() {
   helpDescription
-  echo "It retrieves AWS temporary credentials using a SAML IDP"
+  echo "$(scriptName) -- the following linters are available: "
+  echo -e "  - ${__HELP_EXAMPLE}phpmd${__RESET_COLOR}"
+  echo -e "  - ${__HELP_EXAMPLE}phpcs${__RESET_COLOR}"
+  echo -e "  - ${__HELP_EXAMPLE}php-cs-fixer${__RESET_COLOR}"
+  echo -e "  - ${__HELP_EXAMPLE}phpstan${__RESET_COLOR}"
+  echo -e "  - ${__HELP_EXAMPLE}psalm${__RESET_COLOR}"
 }
 
 dependencies() {
-  echo "installScripts/AwsCli"
+  echo "installScripts/Composer"
 }
 
 fortunes() {
-  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- use ${__HELP_EXAMPLE}aws-login${__RESET_COLOR} alias "
-  echo -e "to log to aws using saml2aws (see ${__HELP_EXAMPLE}<https://github.com/Versent/saml2aws>${__RESET_COLOR})."
-  if ! command -v saml2aws &>/dev/null; then
-    echo
-    echo -e "install it using ${__HELP_EXAMPLE}installAndConfigure Saml2Aws${__RESET_COLOR}."
-  fi
+  helpLongDescription
   echo "%"
 }
 
-# @see https://github.com/fchastanet/my-documents/blob/master/HowTo/Saml2Aws.md
-saml2awsInstallCallback() {
-  sudo tar xzvf "$1" -C /usr/local/bin saml2aws
-  sudo chmod +x /usr/local/bin/saml2aws
-  hash -r
-  sudo rm -f "$1"
-}
+# jscpd:ignore-start
+listVariables() { :; }
+helpVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
+isTestInstallImplemented() { :; }
+configure() { :; }
+testConfigure() { :; }
+# jscpd:ignore-end
 
 install() {
-  SUDO=sudo INSTALL_CALLBACK=saml2awsInstallCallback Github::upgradeRelease \
-    /usr/local/bin/saml2aws \
-    "https://github.com/Versent/saml2aws/releases/download/v@latestVersion@/saml2aws_@latestVersion@_linux_amd64.tar.gz"
+  Log::displayInfo "Installing composer dependencies"
+  composer global require --dev --no-interaction \
+    'squizlabs/php_codesniffer=*' \
+    'phpmd/phpmd=*' \
+    'friendsofphp/php-cs-fixer=*' \
+    'phpstan/phpstan=*' \
+    'vimeo/psalm=*'
+  composer global update
 }
 
 testInstall() {
-  Version::checkMinimal "saml2aws" --version "2.36.10" || return 1
+  # composer dependencies
+  # shellcheck source=src/_installScripts/Php/Composer-conf/.bash-dev-env/profile.d/composer_path.sh
+  source "${HOME}/.bash-dev-env/profile.d/composer_path.sh" || {
+    Log::displayError "Composer script failed to install '${HOME}/.bash-dev-env/profile.d/composer_path.sh'"
+    ((++failures))
+  }
+  Version::checkMinimal "phpcs" --version "3.10.3" || ((++failures))
+  Version::checkMinimal "phpmd" --version "2.15.0" || ((++failures))
+  Version::checkMinimal "php-cs-fixer" --version "3.64.0" || ((++failures))
+  Version::checkMinimal "phpstan" --version "1.12.4" || ((++failures))
+  Version::checkMinimal "psalm" --version "5.26.1" || ((++failures))
+
+  return "${failures}"
 }
 
 
 
 optionHelpCallback() {
-  "Saml2AwsCommandHelp"
+  "ComposerDependenciesCommandHelp"
   exit 0
 }
 
@@ -2979,30 +2768,8 @@ afterParseCallback() {
 }
 
 
-
-upgradeGithubReleaseBeforeParseCallback() {
-  Linux::requireJqCommand
-}
-
-# jscpd:ignore-start
-dependencies() { :; }
-listVariables() { :; }
-helpVariables() { :; }
-defaultVariables() { :; }
-checkVariables() { :; }
-breakOnConfigFailure() { :; }
-breakOnTestFailure() { :; }
-isInstallImplemented() { :; }
-isConfigureImplemented() { :; }
-isTestConfigureImplemented() { :; }
-isTestInstallImplemented() { :; }
-configure() { :; }
-testConfigure() { :; }
-# jscpd:ignore-end
-
-
 # ------------------------------------------
-# Command Saml2AwsCommand
+# Command ComposerDependenciesCommand
 # ------------------------------------------
 
 # options variables initialization
@@ -3027,8 +2794,8 @@ declare optionVersion="0"
 declare optionQuiet="0"
 # arguments variables initialization
 declare command="install"
-# @description parse command options and arguments for Saml2AwsCommand
-Saml2AwsCommandParse() {
+# @description parse command options and arguments for ComposerDependenciesCommand
+ComposerDependenciesCommandParse() {
   Log::displayDebug "Command ${SCRIPT_NAME} - parse arguments: ${BASH_FRAMEWORK_ARGV[*]}"
   Log::displayDebug "Command ${SCRIPT_NAME} - parse filtered arguments: ${BASH_FRAMEWORK_ARGV_FILTERED[*]}"
   SKIP_CONFIGURE="0"
@@ -3513,8 +3280,8 @@ Saml2AwsCommandParse() {
 
 }
 
-# @description display command options and arguments help for Saml2AwsCommand
-Saml2AwsCommandHelp() {
+# @description display command options and arguments help for ComposerDependenciesCommand
+ComposerDependenciesCommandHelp() {
   echo -e "${__HELP_TITLE_COLOR}SYNOPSIS:${__RESET_COLOR}"
   helpDescriptionFunction
 
@@ -3522,7 +3289,7 @@ Saml2AwsCommandHelp() {
   # ------------------------------------------
   # usage section
   # ------------------------------------------
-  Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" "Saml2Aws [OPTIONS] [ARGUMENTS]"
+  Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" "ComposerDependencies [OPTIONS] [ARGUMENTS]"
   echo
   # ------------------------------------------
   # usage/options section
@@ -3530,7 +3297,7 @@ Saml2AwsCommandHelp() {
   optionsAltList=("[--skip-config|--skip-configure|--skip-configuration|-sc]" "[--skip-install|--skip-installation|-si]" "[--skip-test|--skip-tests|-st]" "[--skip-deps|--skip-dependencies|-sd]" "[--prepare-export|-e]" "[--profile|-p <profile>]" "[--help|-h]" "[--config]" "[--bash-framework-config <bash-framework-config>]" "[--verbose|-v]" "[-vv]" "[-vvv]" "[--log-level <log-level>]" "[--log-file <log-file>]" "[--display-level <display-level>]" "[--no-color]" "[--theme <theme>]" "[--version]" "[--quiet|-q]"
   )
   Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" \
-    "Saml2Aws" "${optionsAltList[@]}"
+    "ComposerDependencies" "${optionsAltList[@]}"
   echo
 
   # ------------------------------------------
@@ -3720,7 +3487,7 @@ Saml2AwsCommandHelp() {
   # ------------------------------------------
   echo
   echo -n -e "${__HELP_TITLE_COLOR}SOURCE FILE: ${__RESET_COLOR}"
-  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/GithubReleases/Saml2Aws-binary.yaml"
+  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Php/ComposerDependencies-binary.yaml"
   # ------------------------------------------
   # license section
   # ------------------------------------------
@@ -3735,9 +3502,8 @@ Saml2AwsCommandHelp() {
 
 
 beforeParseCallback
-upgradeGithubReleaseBeforeParseCallback
 
-Saml2AwsCommandParse "$@"
+ComposerDependenciesCommandParse "$@"
 MAIN_FUNCTION_NAME="main"
 main() {
 
