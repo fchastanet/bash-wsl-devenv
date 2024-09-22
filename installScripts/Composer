@@ -2762,6 +2762,110 @@ Version::parse() {
 }
 # FUNCTIONS
 
+# shellcheck disable=SC2034
+declare commandFunctionName="installScriptCommand"
+
+isInterfaceMandatoryFunctionImplemented() {
+  isFunctionImplemented helpDescription || return 1
+  isFunctionImplemented helpLongDescription || return 1
+  isFunctionImplemented scriptName || return 1
+  isFunctionImplemented dependencies || return 1
+  isFunctionImplemented listVariables || return 1
+  isFunctionImplemented fortunes || return 1
+  isFunctionImplemented helpVariables || return 1
+  isFunctionImplemented defaultVariables || return 1
+  isFunctionImplemented checkVariables || return 1
+  isFunctionImplemented breakOnConfigFailure || return 1
+  isFunctionImplemented breakOnTestFailure || return 1
+  isFunctionImplemented install || return 1
+  isFunctionImplemented testInstall || return 1
+  isFunctionImplemented configure || return 1
+  isFunctionImplemented testConfigure || return 1
+}
+
+scriptName() {
+  echo "Composer"
+}
+
+beforeParseCallback() {
+  defaultBeforeParseCallback
+  isInterfaceMandatoryFunctionImplemented
+}
+
+commandHelpFunction() {
+  echo "Available commands:"
+  echo ""
+}
+
+listOrNone() {
+  local string="$1"
+  if [[ -z "${string:-}" ]]; then
+    echo -e "${__HELP_EXAMPLE}None${__HELP_NORMAL}" | sed 's/^/    /'
+  else
+    echo -ne "${__HELP_OPTION_COLOR}"
+    echo -e "${string}" | sed 's/^/    - /'
+    echo -ne "${__HELP_NORMAL}"
+  fi
+}
+
+helpDescriptionFunction() {
+  helpDescription
+  echo
+}
+
+helpLongDescription() {
+  helpDescription
+}
+
+helpLongDescriptionFunction() {
+  helpLongDescription | sed 's/^/  /'
+  echo
+
+  echo -e "  ${__HELP_TITLE}List of needed variables:${__HELP_NORMAL}"
+  listOrNone "$(helpVariables)"
+  echo
+  echo -e "  ${__HELP_TITLE}List of dependencies:${__HELP_NORMAL}"
+  listOrNone "$(dependencies)"
+}
+
+isFunctionImplemented() {
+  local functionName="$1"
+  if ! Assert::functionExists "${functionName}"; then
+    Log::displayError "Function ${functionName} is not implemented"
+    return 1
+  fi
+}
+
+isInstallImplemented() {
+  ! InstallScripts::scriptFunctionEmpty install
+}
+
+isTestInstallImplemented() {
+  ! InstallScripts::scriptFunctionEmpty testInstall
+}
+
+isConfigureImplemented() {
+  ! InstallScripts::scriptFunctionEmpty configure
+}
+
+isTestConfigureImplemented() {
+  ! InstallScripts::scriptFunctionEmpty testConfigure
+}
+
+fullScriptName() {
+  File::relativeToDir "${REAL_SCRIPT_FILE}" "${BASH_DEV_ENV_ROOT_DIR}"
+}
+
+argsInstallScriptCommandCallback() {
+  if [[ -n "${command}" ]]; then
+    if Array::contains "${command}" install testInstall configure testConfigure; then
+      afterParseCallback
+    fi
+    "${command}"; exit $?
+  fi
+}
+
+
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -3015,7 +3119,7 @@ declare -gx embed_dir_conf_dir="${PERSISTENT_TMPDIR:-/tmp}/4c32cd35d8c0efad139c8
 
 
 helpDescription() {
-  echo "This is an example that can be used to debug or as a template for other install scripts"
+  echo "A Dependency Manager for PHP"
 }
 
 dependencies() {
@@ -3087,106 +3191,6 @@ testConfigure() {
   Assert::dirExists "${HOME}/.config" || ((++failures))
   Assert::fileExists "${HOME}/.bash-dev-env/profile.d/composer_path.sh" || ((++failures))
   exit "${failures}"
-}
-
-
-
-# shellcheck disable=SC2034
-declare commandFunctionName="installScriptCommand"
-
-isInterfaceMandatoryFunctionImplemented() {
-  isFunctionImplemented helpDescription || return 1
-  isFunctionImplemented scriptName || return 1
-  isFunctionImplemented dependencies || return 1
-  isFunctionImplemented listVariables || return 1
-  isFunctionImplemented fortunes || return 1
-  isFunctionImplemented helpVariables || return 1
-  isFunctionImplemented defaultVariables || return 1
-  isFunctionImplemented checkVariables || return 1
-  isFunctionImplemented breakOnConfigFailure || return 1
-  isFunctionImplemented breakOnTestFailure || return 1
-  isFunctionImplemented install || return 1
-  isFunctionImplemented testInstall || return 1
-  isFunctionImplemented configure || return 1
-  isFunctionImplemented testConfigure || return 1
-}
-
-scriptName() {
-  echo "Composer"
-}
-
-beforeParseCallback() {
-  defaultBeforeParseCallback
-  isInterfaceMandatoryFunctionImplemented
-}
-
-commandHelpFunction() {
-  echo "Available commands:"
-  echo ""
-}
-
-listOrNone() {
-  local string="$1"
-  if [[ -z "${string:-}" ]]; then
-    echo -e "${__HELP_EXAMPLE}None${__HELP_NORMAL}" | sed 's/^/    /'
-  else
-    echo -ne "${__HELP_OPTION_COLOR}"
-    echo -e "${string}" | sed 's/^/    - /'
-    echo -ne "${__HELP_NORMAL}"
-  fi
-}
-
-helpDescriptionFunction() {
-  helpDescription
-  echo
-}
-
-helpLongDescriptionFunction() {
-  helpDescription | sed 's/^/  /'
-  echo
-
-  echo -e "  ${__HELP_TITLE}List of needed variables:${__HELP_NORMAL}"
-  listOrNone "$(helpVariables)"
-  echo
-  echo -e "  ${__HELP_TITLE}List of dependencies:${__HELP_NORMAL}"
-  listOrNone "$(dependencies)"
-}
-
-isFunctionImplemented() {
-  local functionName="$1"
-  if ! Assert::functionExists "${functionName}"; then
-    Log::displayError "Function ${functionName} is not implemented"
-    return 1
-  fi
-}
-
-isInstallImplemented() {
-  ! InstallScripts::scriptFunctionEmpty install
-}
-
-isTestInstallImplemented() {
-  ! InstallScripts::scriptFunctionEmpty testInstall
-}
-
-isConfigureImplemented() {
-  ! InstallScripts::scriptFunctionEmpty configure
-}
-
-isTestConfigureImplemented() {
-  ! InstallScripts::scriptFunctionEmpty testConfigure
-}
-
-fullScriptName() {
-  File::relativeToDir "${REAL_SCRIPT_FILE}" "${BASH_DEV_ENV_ROOT_DIR}"
-}
-
-argsInstallScriptCommandCallback() {
-  if [[ -n "${command}" ]]; then
-    if Array::contains "${command}" install testInstall configure testConfigure; then
-      afterParseCallback
-    fi
-    "${command}"; exit $?
-  fi
 }
 
 
@@ -3734,8 +3738,6 @@ ComposerCommandHelp() {
   echo -e "${__HELP_TITLE_COLOR}SYNOPSIS:${__RESET_COLOR}"
   helpDescriptionFunction
 
-  echo
-  echo
 
   # ------------------------------------------
   # usage section

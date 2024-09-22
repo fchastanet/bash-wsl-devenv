@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 
 helpDescription() {
-  echo "A performant, and portable jq wrapper"
+  echo "$(scriptName) - A performant, and portable jq wrapper"
+}
+
+helpLongDescription() {
+  helpDescription
   echo "to facilitate the consumption and output"
   echo "of formats other than JSON."
   echo "Using jq filters to transform the data."

@@ -3,7 +3,7 @@
 
 
 helpDescription() {
-  echo "This is an example that can be used to debug or as a template for other install scripts"
+  echo "A Dependency Manager for PHP"
 }
 
 dependencies() {

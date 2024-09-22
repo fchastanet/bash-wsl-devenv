@@ -10,3 +10,4 @@ binData:
     default: &defaultCommand
       mainFile: ${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/installScript-main.sh
       help: helpDescriptionFunction
+      longDescription: helpLongDescriptionFunction

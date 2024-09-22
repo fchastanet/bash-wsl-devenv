@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 
 helpDescription() {
-  echo "Tig: text-mode interface for Git"
+  echo "$(scriptName) - text-mode interface for Git"
+}
+
+helpLongDescription() {
+  helpDescription
   echo "Tig is an ncurses-based text-mode interface for git."
   echo "It functions mainly as a Git repository browser, but"
   echo "can also assist in staging changes for commit at chunk"
