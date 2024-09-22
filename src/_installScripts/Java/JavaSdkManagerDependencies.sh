@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 
 helpDescription() {
-  echo "Install useful dependencies using"
+  echo "$(scriptName) - Installs useful dependencies using sdkman."
+}
+
+helpLongDescription() {
+  helpDescription
   echo "The Software Development Kit Manager (sdkman)."
   echo "- gradle"
 }

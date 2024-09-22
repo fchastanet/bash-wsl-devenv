@@ -3,9 +3,14 @@
 
 helpDescription() {
   echo "Default configuration for pre-commit."
+}
+
+helpLongDescription() {
+  echo "Default configuration for pre-commit."
   echo "Configure git so pre-commit will be"
   echo "automatically installed in new repositories."
 }
+
 
 dependencies() {
   echo "installScripts/PreCommit"

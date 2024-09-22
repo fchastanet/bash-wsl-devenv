@@ -5,6 +5,7 @@ declare commandFunctionName="installScriptCommand"
 
 isInterfaceMandatoryFunctionImplemented() {
   isFunctionImplemented helpDescription || return 1
+  isFunctionImplemented helpLongDescription || return 1
   isFunctionImplemented scriptName || return 1
   isFunctionImplemented dependencies || return 1
   isFunctionImplemented listVariables || return 1
@@ -50,8 +51,12 @@ helpDescriptionFunction() {
   echo
 }
 
+helpLongDescription() {
+  helpDescription
+}
+
 helpLongDescriptionFunction() {
-  helpDescription | sed 's/^/  /'
+  helpLongDescription | sed 's/^/  /'
   echo
 
   echo -e "  ${__HELP_TITLE}List of needed variables:${__HELP_NORMAL}"

@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
 helpDescription() {
-  echo "CLI tool which enables you to login"
-  echo "and retrieve AWS temporary credentials using a SAML IDP"
+  echo "$(scriptName) - tool managing parallel versions of multiple Software Development Kits"
 }
 
 dependencies() {

@@ -2689,6 +2689,110 @@ Version::compare() {
 }
 # FUNCTIONS
 
+# shellcheck disable=SC2034
+declare commandFunctionName="installScriptCommand"
+
+isInterfaceMandatoryFunctionImplemented() {
+  isFunctionImplemented helpDescription || return 1
+  isFunctionImplemented helpLongDescription || return 1
+  isFunctionImplemented scriptName || return 1
+  isFunctionImplemented dependencies || return 1
+  isFunctionImplemented listVariables || return 1
+  isFunctionImplemented fortunes || return 1
+  isFunctionImplemented helpVariables || return 1
+  isFunctionImplemented defaultVariables || return 1
+  isFunctionImplemented checkVariables || return 1
+  isFunctionImplemented breakOnConfigFailure || return 1
+  isFunctionImplemented breakOnTestFailure || return 1
+  isFunctionImplemented install || return 1
+  isFunctionImplemented testInstall || return 1
+  isFunctionImplemented configure || return 1
+  isFunctionImplemented testConfigure || return 1
+}
+
+scriptName() {
+  echo "Fasd"
+}
+
+beforeParseCallback() {
+  defaultBeforeParseCallback
+  isInterfaceMandatoryFunctionImplemented
+}
+
+commandHelpFunction() {
+  echo "Available commands:"
+  echo ""
+}
+
+listOrNone() {
+  local string="$1"
+  if [[ -z "${string:-}" ]]; then
+    echo -e "${__HELP_EXAMPLE}None${__HELP_NORMAL}" | sed 's/^/    /'
+  else
+    echo -ne "${__HELP_OPTION_COLOR}"
+    echo -e "${string}" | sed 's/^/    - /'
+    echo -ne "${__HELP_NORMAL}"
+  fi
+}
+
+helpDescriptionFunction() {
+  helpDescription
+  echo
+}
+
+helpLongDescription() {
+  helpDescription
+}
+
+helpLongDescriptionFunction() {
+  helpLongDescription | sed 's/^/  /'
+  echo
+
+  echo -e "  ${__HELP_TITLE}List of needed variables:${__HELP_NORMAL}"
+  listOrNone "$(helpVariables)"
+  echo
+  echo -e "  ${__HELP_TITLE}List of dependencies:${__HELP_NORMAL}"
+  listOrNone "$(dependencies)"
+}
+
+isFunctionImplemented() {
+  local functionName="$1"
+  if ! Assert::functionExists "${functionName}"; then
+    Log::displayError "Function ${functionName} is not implemented"
+    return 1
+  fi
+}
+
+isInstallImplemented() {
+  ! InstallScripts::scriptFunctionEmpty install
+}
+
+isTestInstallImplemented() {
+  ! InstallScripts::scriptFunctionEmpty testInstall
+}
+
+isConfigureImplemented() {
+  ! InstallScripts::scriptFunctionEmpty configure
+}
+
+isTestConfigureImplemented() {
+  ! InstallScripts::scriptFunctionEmpty testConfigure
+}
+
+fullScriptName() {
+  File::relativeToDir "${REAL_SCRIPT_FILE}" "${BASH_DEV_ENV_ROOT_DIR}"
+}
+
+argsInstallScriptCommandCallback() {
+  if [[ -n "${command}" ]]; then
+    if Array::contains "${command}" install testInstall configure testConfigure; then
+      afterParseCallback
+    fi
+    "${command}"; exit $?
+  fi
+}
+
+
 
 declare -a BASH_FRAMEWORK_ARGV_FILTERED=()
 
@@ -2941,7 +3045,11 @@ declare -gx embed_dir_conf_dir="${PERSISTENT_TMPDIR:-/tmp}/63977cbc47a725c1fde0a
 
 
 helpDescription() {
-  echo "$(scriptName) - configuration for bash shell only allows to search files quickly"
+  echo "$(scriptName) - configuration for bash shell only allowing to search files quickly"
+}
+
+helpLongDescription() {
+  helpDescription
   echo "Following aliases are available:"
   echo "  - alias 'a' - search files/directories based on a pattern"
   echo "  - alias 'd' - search directories based on a pattern"
@@ -3017,106 +3125,6 @@ testConfigure() {
   Assert::fileExists "${HOME}/.bash-dev-env/completions.d/fasd.bash" || ((++failures))
   Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/fasd.bash" || ((++failures))
   return "${failures}"
-}
-
-
-
-# shellcheck disable=SC2034
-declare commandFunctionName="installScriptCommand"
-
-isInterfaceMandatoryFunctionImplemented() {
-  isFunctionImplemented helpDescription || return 1
-  isFunctionImplemented scriptName || return 1
-  isFunctionImplemented dependencies || return 1
-  isFunctionImplemented listVariables || return 1
-  isFunctionImplemented fortunes || return 1
-  isFunctionImplemented helpVariables || return 1
-  isFunctionImplemented defaultVariables || return 1
-  isFunctionImplemented checkVariables || return 1
-  isFunctionImplemented breakOnConfigFailure || return 1
-  isFunctionImplemented breakOnTestFailure || return 1
-  isFunctionImplemented install || return 1
-  isFunctionImplemented testInstall || return 1
-  isFunctionImplemented configure || return 1
-  isFunctionImplemented testConfigure || return 1
-}
-
-scriptName() {
-  echo "Fasd"
-}
-
-beforeParseCallback() {
-  defaultBeforeParseCallback
-  isInterfaceMandatoryFunctionImplemented
-}
-
-commandHelpFunction() {
-  echo "Available commands:"
-  echo ""
-}
-
-listOrNone() {
-  local string="$1"
-  if [[ -z "${string:-}" ]]; then
-    echo -e "${__HELP_EXAMPLE}None${__HELP_NORMAL}" | sed 's/^/    /'
-  else
-    echo -ne "${__HELP_OPTION_COLOR}"
-    echo -e "${string}" | sed 's/^/    - /'
-    echo -ne "${__HELP_NORMAL}"
-  fi
-}
-
-helpDescriptionFunction() {
-  helpDescription
-  echo
-}
-
-helpLongDescriptionFunction() {
-  helpDescription | sed 's/^/  /'
-  echo
-
-  echo -e "  ${__HELP_TITLE}List of needed variables:${__HELP_NORMAL}"
-  listOrNone "$(helpVariables)"
-  echo
-  echo -e "  ${__HELP_TITLE}List of dependencies:${__HELP_NORMAL}"
-  listOrNone "$(dependencies)"
-}
-
-isFunctionImplemented() {
-  local functionName="$1"
-  if ! Assert::functionExists "${functionName}"; then
-    Log::displayError "Function ${functionName} is not implemented"
-    return 1
-  fi
-}
-
-isInstallImplemented() {
-  ! InstallScripts::scriptFunctionEmpty install
-}
-
-isTestInstallImplemented() {
-  ! InstallScripts::scriptFunctionEmpty testInstall
-}
-
-isConfigureImplemented() {
-  ! InstallScripts::scriptFunctionEmpty configure
-}
-
-isTestConfigureImplemented() {
-  ! InstallScripts::scriptFunctionEmpty testConfigure
-}
-
-fullScriptName() {
-  File::relativeToDir "${REAL_SCRIPT_FILE}" "${BASH_DEV_ENV_ROOT_DIR}"
-}
-
-argsInstallScriptCommandCallback() {
-  if [[ -n "${command}" ]]; then
-    if Array::contains "${command}" install testInstall configure testConfigure; then
-      afterParseCallback
-    fi
-    "${command}"; exit $?
-  fi
 }
 
 
@@ -3664,8 +3672,6 @@ FasdCommandHelp() {
   echo -e "${__HELP_TITLE_COLOR}SYNOPSIS:${__RESET_COLOR}"
   helpDescriptionFunction
 
-  echo
-  echo
 
   # ------------------------------------------
   # usage section
