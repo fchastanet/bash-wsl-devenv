@@ -1,28 +1,24 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Php
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "Php"
-}
 
 helpDescription() {
-  echo "Php"
+  echo "PHP is a popular general-purpose scripting language that powers everything from your blog to the most popular websites in the world."
 }
 
 # jscpd:ignore-start
+fortunes() { :; }
 dependencies() { :; }
-helpVariables() { :; }
 listVariables() { :; }
+helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
-fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+configure() { :; }
+isConfigureImplemented() { :; }
+testConfigure() { :; }
+isTestConfigureImplemented() { :; }
+isTestInstallImplemented() { :; }
 # jscpd:ignore-end
 
 install() {
@@ -52,6 +48,3 @@ testInstall() {
   checkPhpModuleExists xml || ((++failures))
   return "${failures}"
 }
-
-configure() { :; }
-testConfigure() { :; }
