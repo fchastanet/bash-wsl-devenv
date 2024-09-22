@@ -1,18 +1,16 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Fzf
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/Fzf/conf" as conf_dir
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/BashUtils/Fzf-conf" as conf_dir
 
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "Fzf"
+fzfBeforeParseCallback() {
+  Git::requireGitCommand
 }
 
 helpDescription() {
-  echo "fzf is a general-purpose command-line fuzzy finder."
+  echo "Fzf fuzzy finder for files and more ..."
+}
+
+helpLongDescription() {
+  echo "Fzf is a general-purpose command-line fuzzy finder."
   echo "It's an interactive Unix filter for command-line"
   echo "that can be used with any list; files, command"
   echo "history, processes, hostnames, bookmarks, git"
@@ -25,15 +23,6 @@ dependencies() {
   echo "installScripts/Bat"
 }
 
-# jscpd:ignore-start
-helpVariables() { :; }
-listVariables() { :; }
-defaultVariables() { :; }
-checkVariables() { :; }
-breakOnConfigFailure() { :; }
-breakOnTestFailure() { :; }
-# jscpd:ignore-end
-
 fortunes() {
   if [[ "${USER_SHELL}" = "/usr/bin/zsh" && -f "${HOME}/.fzf/shell/key-bindings.zsh" ]]; then
     echo -e "$(scriptName) -- ${__HELP_EXAMPLE}CTRL-T${__RESET_COLOR} -- Paste the selected file path(s) into the command line."
@@ -44,6 +33,19 @@ fortunes() {
     echo "%"
   fi
 }
+
+# jscpd:ignore-start
+listVariables() { :; }
+helpVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
+isTestInstallImplemented() { :; }
+# jscpd:ignore-end
 
 fzfInstall() {
   sudo tar -xvzf "$1" --directory /usr/local/bin
