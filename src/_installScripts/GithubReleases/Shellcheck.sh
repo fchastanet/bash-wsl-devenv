@@ -4,6 +4,11 @@ helpDescription() {
   echo "ShellCheck, a static analysis tool for shell scripts."
 }
 
+fortunes() {
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- the following linter is available: ${__HELP_EXAMPLE}shellcheck${__RESET_COLOR}"
+  echo "%"
+}
+
 shellcheckInstallCallback() {
   local archive="$1"
   local targetFile="$2"

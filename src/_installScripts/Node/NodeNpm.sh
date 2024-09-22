@@ -1,33 +1,37 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/NodeNpm
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/NodeNpm/conf" as conf_dir
-
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "NodeNpm"
-}
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/Node/NodeNpm-conf" as conf_dir
 
 helpDescription() {
-  echo "NodeNpm"
+  echo "$(scriptName) -- Installs node and npm using n tool"
+}
+
+helpLongDescription() {
+  helpDescription
+  echo -e "${__HELP_EXAMPLE}n${__RESET_COLOR} tool helps to easily switch from one ${__HELP_EXAMPLE}node${__RESET_COLOR} version to another."
 }
 
 fortunes() {
-  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}n${__RESET_COLOR} -- tool to easily switch from one ${__HELP_EXAMPLE}node${__RESET_COLOR} version to another."
+  helpLongDescription
   echo "%"
 }
 
+
 # jscpd:ignore-start
 dependencies() { :; }
-helpVariables() { :; }
 listVariables() { :; }
+helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+configure() { :; }
+isConfigureImplemented() { :; }
+testConfigure() { :; }
+isTestConfigureImplemented() { :; }
+isTestInstallImplemented() { :; }
+configure() { :; }
+testConfigure() { :; }
 # jscpd:ignore-end
 
 install() {
@@ -57,12 +61,10 @@ install() {
 testInstall() {
   local -i failures=0
   Assert::fileExists "${HOME}/.bash-dev-env/profile.d/n_path.sh" || ((++failures))
-  # shellcheck source=src/_binaries/NodeNpm/conf/.bash-dev-env/profile.d/n_path.sh
+  # shellcheck source=src/_installScripts/Node/NodeNpm-conf/.bash-dev-env/profile.d/n_path.sh
   source "${HOME}/.bash-dev-env/profile.d/n_path.sh" || ((++failures))
-  Version::checkMinimal "node" "-v" "20.6.1" || ((++failures))
-  Version::checkMinimal "npm" "-v" "10.3.0" || ((++failures))
+  Version::checkMinimal "n" "--version" "10.0.0" || ((++failures))
+  Version::checkMinimal "node" "-v" "22.9.0" || ((++failures))
+  Version::checkMinimal "npm" "-v" "10.8.3" || ((++failures))
   return "${failures}"
 }
-
-configure() { :; }
-testConfigure() { :; }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/GithubReleases/Saml2Aws-binary.yaml
+# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/GithubReleases/ShFmt-binary.yaml
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -2584,7 +2584,7 @@ isInterfaceMandatoryFunctionImplemented() {
 }
 
 scriptName() {
-  echo "Saml2Aws"
+  echo "ShFmt"
 }
 
 beforeParseCallback() {
@@ -2911,50 +2911,32 @@ commandOptionParseFinished() {
 
 
 helpDescription() {
-  echo "$(scriptName) - CLI tool which enables you to login to AWS."
-}
-
-helpLongDescription() {
-  helpDescription
-  echo "It retrieves AWS temporary credentials using a SAML IDP"
+  echo "A shell parser, formatter, and interpreter. Supports POSIX Shell, Bash, and mksh."
 }
 
 dependencies() {
-  echo "installScripts/AwsCli"
+  echo "installScripts/Go"
 }
 
 fortunes() {
-  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- use ${__HELP_EXAMPLE}aws-login${__RESET_COLOR} alias "
-  echo -e "to log to aws using saml2aws (see ${__HELP_EXAMPLE}<https://github.com/Versent/saml2aws>${__RESET_COLOR})."
-  if ! command -v saml2aws &>/dev/null; then
-    echo
-    echo -e "install it using ${__HELP_EXAMPLE}installAndConfigure Saml2Aws${__RESET_COLOR}."
-  fi
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- the following linter is available: ${__HELP_EXAMPLE}shfmt${__RESET_COLOR}"
   echo "%"
 }
 
-# @see https://github.com/fchastanet/my-documents/blob/master/HowTo/Saml2Aws.md
-saml2awsInstallCallback() {
-  sudo tar xzvf "$1" -C /usr/local/bin saml2aws
-  sudo chmod +x /usr/local/bin/saml2aws
-  hash -r
-  sudo rm -f "$1"
-}
-
 install() {
-  SUDO=sudo INSTALL_CALLBACK=saml2awsInstallCallback Github::upgradeRelease \
-    /usr/local/bin/saml2aws \
-    "https://github.com/Versent/saml2aws/releases/download/v@latestVersion@/saml2aws_@latestVersion@_linux_amd64.tar.gz"
+  SUDO=sudo Github::upgradeRelease \
+    /usr/local/bin/shfmt \
+    "https://github.com/mvdan/sh/releases/download/v@latestVersion@/shfmt_v@latestVersion@_linux_amd64"
 }
 
 testInstall() {
-  Version::checkMinimal "saml2aws" --version "2.36.10" || return 1
+  Version::checkMinimal "shfmt" --version "3.9.0" || return 1
 }
 
 
 
 optionHelpCallback() {
-  "Saml2AwsCommandHelp"
+  "ShFmtCommandHelp"
   exit 0
 }
 
@@ -3002,7 +2984,7 @@ testConfigure() { :; }
 
 
 # ------------------------------------------
-# Command Saml2AwsCommand
+# Command ShFmtCommand
 # ------------------------------------------
 
 # options variables initialization
@@ -3027,8 +3009,8 @@ declare optionVersion="0"
 declare optionQuiet="0"
 # arguments variables initialization
 declare command="install"
-# @description parse command options and arguments for Saml2AwsCommand
-Saml2AwsCommandParse() {
+# @description parse command options and arguments for ShFmtCommand
+ShFmtCommandParse() {
   Log::displayDebug "Command ${SCRIPT_NAME} - parse arguments: ${BASH_FRAMEWORK_ARGV[*]}"
   Log::displayDebug "Command ${SCRIPT_NAME} - parse filtered arguments: ${BASH_FRAMEWORK_ARGV_FILTERED[*]}"
   SKIP_CONFIGURE="0"
@@ -3513,8 +3495,8 @@ Saml2AwsCommandParse() {
 
 }
 
-# @description display command options and arguments help for Saml2AwsCommand
-Saml2AwsCommandHelp() {
+# @description display command options and arguments help for ShFmtCommand
+ShFmtCommandHelp() {
   echo -e "${__HELP_TITLE_COLOR}SYNOPSIS:${__RESET_COLOR}"
   helpDescriptionFunction
 
@@ -3522,7 +3504,7 @@ Saml2AwsCommandHelp() {
   # ------------------------------------------
   # usage section
   # ------------------------------------------
-  Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" "Saml2Aws [OPTIONS] [ARGUMENTS]"
+  Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" "ShFmt [OPTIONS] [ARGUMENTS]"
   echo
   # ------------------------------------------
   # usage/options section
@@ -3530,7 +3512,7 @@ Saml2AwsCommandHelp() {
   optionsAltList=("[--skip-config|--skip-configure|--skip-configuration|-sc]" "[--skip-install|--skip-installation|-si]" "[--skip-test|--skip-tests|-st]" "[--skip-deps|--skip-dependencies|-sd]" "[--prepare-export|-e]" "[--profile|-p <profile>]" "[--help|-h]" "[--config]" "[--bash-framework-config <bash-framework-config>]" "[--verbose|-v]" "[-vv]" "[-vvv]" "[--log-level <log-level>]" "[--log-file <log-file>]" "[--display-level <display-level>]" "[--no-color]" "[--theme <theme>]" "[--version]" "[--quiet|-q]"
   )
   Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" \
-    "Saml2Aws" "${optionsAltList[@]}"
+    "ShFmt" "${optionsAltList[@]}"
   echo
 
   # ------------------------------------------
@@ -3720,7 +3702,7 @@ Saml2AwsCommandHelp() {
   # ------------------------------------------
   echo
   echo -n -e "${__HELP_TITLE_COLOR}SOURCE FILE: ${__RESET_COLOR}"
-  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/GithubReleases/Saml2Aws-binary.yaml"
+  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/GithubReleases/ShFmt-binary.yaml"
   # ------------------------------------------
   # license section
   # ------------------------------------------
@@ -3737,7 +3719,7 @@ Saml2AwsCommandHelp() {
 beforeParseCallback
 upgradeGithubReleaseBeforeParseCallback
 
-Saml2AwsCommandParse "$@"
+ShFmtCommandParse "$@"
 MAIN_FUNCTION_NAME="main"
 main() {
 

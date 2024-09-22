@@ -1,0 +1,18 @@
+extends:
+  - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/installScript.yaml"
+
+vars:
+  SRC_FILE_PATH: src/_installScripts/Node/NodeNpm-binary.yaml
+
+compilerConfig:
+  targetFile: "${BASH_DEV_ENV_ROOT_DIR}/installScripts/NodeNpm"
+  relativeRootDirBasedOnTargetDir: ..
+binData:
+  commands:
+    default:
+      functionName: NodeNpmCommand
+      version: "3.0"
+      copyrightBeginYear: 2024
+      definitionFiles:
+        11: ${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/Node/NodeNpm.sh
+      commandName: NodeNpm
