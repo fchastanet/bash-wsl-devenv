@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Anacron
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "Anacron"
-}
 
 helpDescription() {
-  echo "Anacron"
+  echo "$(scriptName) - runs commands periodically"
+}
+
+helpLongDescription() {
+  helpDescription
+  echo
+  echo "Anacron can be used to execute commands periodically,"
+  echo "with a frequency specified in days. Unlike cron(8),"
+  echo "it does not assume that the machine is running continuously."
+  echo "Hence, it can be used on machines that aren't running 24 hours"
+  echo "a day, to control daily, weekly, and monthly jobs that are"
+  echo "usually controlled by cron."
 }
 
 fortunes() {
@@ -22,12 +23,18 @@ fortunes() {
 
 # jscpd:ignore-start
 dependencies() { :; }
-helpVariables() { :; }
 listVariables() { :; }
+helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+configure() { :; }
+isConfigureImplemented() { :; }
+testConfigure() { :; }
+isTestConfigureImplemented() { :; }
+isTestInstallImplemented() { :; }
 # jscpd:ignore-end
 
 install() {
