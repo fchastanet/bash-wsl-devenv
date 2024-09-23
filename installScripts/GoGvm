@@ -319,41 +319,6 @@ Assert::emailAddress() {
 }
 
 
-# @description asserts that first argument is file that exists with specified ownership
-# @arg $1 file:String
-# @arg $2 user:String expected owner user name of the file (default: USERNAME or id -un command)
-# @arg $3 group:String expected owner group name of the file (default: USERGROUP or id -gn command)
-# @env USERNAME String if arg $2 is not provided
-# @env USERGROUP String if arg $3 is not provided
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode 1 if missing file
-# @exitcode 2 if incorrect user ownership
-# @exitcode 3 if incorrect group ownership
-# @stderr diagnostics information is displayed
-Assert::fileExists() {
-  local file="$1"
-  local user="${2:-${USERNAME}}"
-  local group="${3:-${USERGROUP}}"
-  if [[ -n "${user}" ]]; then
-    Log::displayInfo "Check ${file} exists with user ${user}:${group}"
-  else
-    Log::displayInfo "Check ${file} exists"
-  fi
-  if ! ${SUDO:-} test -f "${file}" &>/dev/null; then
-    Log::displayError "missing file ${file}"
-    return 1
-  fi
-  if [[ -n "${user}" && "${user}" != "$(${SUDO:-} stat -c '%U' "${file}")" ]]; then
-    Log::displayError "incorrect user ownership on file ${file}"
-    return 2
-  fi
-  if [[ -n "${group}" && "${group}" != "$(${SUDO:-} stat -c '%G' "${file}")" ]]; then
-    Log::displayError "incorrect group ownership on file ${file}"
-    return 3
-  fi
-}
-
-
 # @description check if argument respects 2 or more words separated by a space
 # it supports accentuated characters and names with hyphen(-)
 # @arg $1 firstNameLastName:String
@@ -1127,7 +1092,7 @@ InstallScripts::command() {
     # shellcheck disable=SC2154
     hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh" "${embed_dir_hooks_dir}/${hookName}.sh")"
     if [[ -n "${hook}" && -f "${hook}" && -x "${hook}" ]]; then
-      # shellcheck source=src/_binaries/SimpleTest/hooks/preInstall.sh
+      # shellcheck source=src/_installScripts/_Defaults/SimpleTest-hooks/preInstall.sh
       source "${hook}" || {
         Log::displayError "${scriptName} - unable to load hook '${hook}'"
         exit 1
@@ -2787,9 +2752,6 @@ configure() {
 
 testConfigure() {
   local failures=0
-  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/golang.sh" || ((++failures))
-  # shellcheck source=src/_binaries/Go/conf/.bash-dev-env/profile.d/golang.sh
-  source "${HOME}/.bash-dev-env/profile.d/golang.sh" || ((++failures))
   Version::checkMinimal "go" "version" "1.22.1" || ((++failures))
   return "${failures}"
 }

@@ -104,6 +104,7 @@ megalinter
 meslo
 Meslo
 minikube
+mksh
 mlocate
 Mlocate
 mysql
@@ -155,6 +156,7 @@ usermod
 userprofile
 vcxsrv
 venv
+venvs
 virtualbox
 virtualenv
 VIRTUALENV

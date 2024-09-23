@@ -25,9 +25,7 @@ checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 isInstallImplemented() { :; }
-configure() { :; }
 isConfigureImplemented() { :; }
-testConfigure() { :; }
 isTestConfigureImplemented() { :; }
 isTestInstallImplemented() { :; }
 configure() { :; }
