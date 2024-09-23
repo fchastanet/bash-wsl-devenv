@@ -31,13 +31,13 @@ testConfigure() { :; }
 # jscpd:ignore-end
 
 install() {
-  if [[ ! -f "${HOME}/.virtualenvs/python3/bin/activate" ]]; then
+  if [[ ! -f "${HOME}/.venvs/python3/bin/activate" ]]; then
     Log::displayError "VirtualEnv has not been installed correctly"
     return 1
   fi
   # Load virtualenv
   # shellcheck source=/dev/null
-  source "${HOME}/.virtualenvs/python3/bin/activate"
+  source "${HOME}/.venvs/python3/bin/activate"
 
   pip install --user pre-commit
   # update precommit repo
