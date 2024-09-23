@@ -1,0 +1,20 @@
+extends:
+  - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/installScript.yaml"
+
+vars:
+  SRC_FILE_PATH: src/_installScripts/UI/Font-binary.yaml
+
+compilerConfig:
+  targetFile: "${BASH_DEV_ENV_ROOT_DIR}/installScripts/Font"
+  relativeRootDirBasedOnTargetDir: ..
+binData:
+  commands:
+    default:
+      functionName: FontCommand
+      version: "3.0"
+      copyrightBeginYear: 2024
+      beforeParseCallbacks:
+        - fontBeforeParseCallback
+      definitionFiles:
+        11: ${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/UI/Font.sh
+      commandName: Font

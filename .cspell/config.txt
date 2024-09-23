@@ -234,7 +234,7 @@ xmlreader
 xmlseclibs
 xmlwriter
 Xresources
-Xvsb
+Xvfb
 xzvf
 zcompdump
 ZINIT
