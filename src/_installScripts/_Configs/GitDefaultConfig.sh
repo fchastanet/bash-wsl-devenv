@@ -27,7 +27,6 @@ listVariables() {
 }
 
 # jscpd:ignore-start
-listVariables() { :; }
 helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }

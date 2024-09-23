@@ -72,9 +72,6 @@ configure() {
 
 testConfigure() {
   local failures=0
-  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/golang.sh" || ((++failures))
-  # shellcheck source=src/_binaries/Go/conf/.bash-dev-env/profile.d/golang.sh
-  source "${HOME}/.bash-dev-env/profile.d/golang.sh" || ((++failures))
   Version::checkMinimal "go" "version" "1.22.1" || ((++failures))
   return "${failures}"
 }

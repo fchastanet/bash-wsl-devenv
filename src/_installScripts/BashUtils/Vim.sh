@@ -6,7 +6,9 @@ helpDescription() {
 
 helpLongDescription() {
   helpDescription
-  echo "Vim is a highly configurable text editor built to make creating and changing any kind of text very efficient. It is included as "vi" with most UNIX systems and with Apple OS X."
+  echo "Vim is a highly configurable text editor built to make creating and changing"
+  echo "any kind of text very efficient. It is included as 'vi' with most UNIX systems"
+  echo "and with Apple OS X."
   echo "Vim is rock stable and is continuously being developed to become even better."
   echo "Among its features are:"
   echo

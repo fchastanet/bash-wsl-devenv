@@ -25,8 +25,8 @@
     "vendor/bash-tools-framework/**",
     "vendor/bash-tools-framework/.cspell/*",
     "src/_binaries/installScripts/**",
-    "src/_binaries/ShellBash/conf/.bash-dev-env/ShellBash.md",
-    "src/_binaries/ShellZsh/conf/.bash-dev-env/ShellZsh.md",
+    "src/_installScripts/_Configs/ShellBashDefaultConfig-conf/.bash-dev-env/ShellBash.md",
+    "src/_installScripts/_Configs/ShellZshDefaultConfig-conf/.bash-dev-env/ShellZsh.md",
     "src/engine/installScript/_optionsParse.sh",
     "srcAlt/**",
     "**/DISCLAIMER.md"
