@@ -1,15 +1,5 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/MandatorySoftwares
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/MandatorySoftwares/conf" as conf_dir
-
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "MandatorySoftwares"
-}
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/_Defaults/MandatorySoftwares-conf" as conf_dir
 
 helpDescription() {
   echo "MandatorySoftwares"
@@ -22,15 +12,21 @@ fortunes() {
   fi
 }
 
+# jscpd:ignore-start
 dependencies() { :; }
-helpVariables() { :; }
 listVariables() { :; }
+helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
+isTestInstallImplemented() { :; }
+# jscpd:ignore-end
 
-removeSystemdService() {
+disableSystemdService() {
   local service="$?"
   Log::displayInfo "remove unneeded systemd service : ${service}"
   if systemctl list-units --full -all | grep -Fq "${service}"; then
@@ -39,16 +35,15 @@ removeSystemdService() {
 }
 
 install() {
-  # remove unneeded systemd service
-  # sshd is not needed and cause port 22 usage conflict
-  removeSystemdService ssh.service
+  Log::displayInfo "disable unneeded systemd service : sshd is not needed and cause port 22 usage conflict"
+  disableSystemdService ssh.service
   sudo systemctl daemon-reload
   sudo systemctl reset-failed
 
   Linux::Apt::remove \
     openssh-server
 
-  # configure language support
+  Log::displayInfo "configure language support"
   Linux::Apt::installIfNecessary --no-install-recommends \
     language-selector-common
   # shellcheck disable=SC2046

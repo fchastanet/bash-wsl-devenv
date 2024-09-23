@@ -2385,10 +2385,15 @@ helpLongDescription() {
 helpLongDescriptionFunction() {
   helpLongDescription | sed 's/^/  /'
   echo
-
+  local variables
+  variables="$(listVariables)"
   echo -e "  ${__HELP_TITLE}List of needed variables:${__HELP_NORMAL}"
-  listOrNone "$(helpVariables)"
+  listOrNone "${variables}"
   echo
+  if [[ -n "${variables}" ]]; then
+    echo -e "$(helpVariables)" | sed 's/^/    /'
+    echo
+  fi
   echo -e "  ${__HELP_TITLE}List of dependencies:${__HELP_NORMAL}"
   listOrNone "$(dependencies)"
 }
