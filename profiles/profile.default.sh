@@ -14,8 +14,6 @@ CONFIG_LIST+=(
 
 # Code Checkers
 CONFIG_LIST+=(
-  "installScripts/ComposerDependencies"
-  "installScripts/NodeDependencies"
   "installScripts/ShFmt"
   "installScripts/Hadolint"
   "installScripts/Shellcheck"
@@ -24,17 +22,30 @@ CONFIG_LIST+=(
 # optional packages
 CONFIG_LIST+=(
   "installScripts/Docker"
+  "installScripts/Fortune"
+  "installScripts/Saml2Aws"
+  "installScripts/BashTools"
+  "installScripts/Oq"
+  "installScripts/PlantUml"
+)
+
+# SDK
+CONFIG_LIST+=(
+  "installScripts/JavaSdkManagerDependencies"
+  "installScripts/ComposerDependencies"
+  "installScripts/NodeDependencies"
+  "installScripts/GoGvm"
+)
+
+# default configuration
+CONFIG_LIST+=(
+  "installScripts/ShellZshDefaultConfig"
+  "installScripts/ShellBashDefaultConfig"
   "installScripts/MotdDefaultConfig"
   "installScripts/AwsDefaultConfig"
   "installScripts/KubeDefaultConfig"
-  "installScripts/JavaSdkManagerDependencies"
-  "installScripts/Fortune"
-  "installScripts/Saml2Aws"
-  "installScripts/ShellZsh"
-  "installScripts/BashTools"
+  "installScripts/GitDefaultConfig"
   "installScripts/PreCommitDefaultConfig"
-  "installScripts/Oq"
-  "installScripts/PlantUml"
 )
 
 # Mandatory packages

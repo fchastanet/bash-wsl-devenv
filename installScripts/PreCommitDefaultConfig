@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Git/PreCommitDefaultConfig-binary.yaml
+# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/_Configs/PreCommitDefaultConfig-binary.yaml
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -2289,13 +2289,13 @@ helpLongDescription() {
 helpLongDescriptionFunction() {
   helpLongDescription | sed 's/^/  /'
   echo
-  local variables
-  variables="$(listVariables)"
   echo -e "  ${__HELP_TITLE}List of needed variables:${__HELP_NORMAL}"
-  listOrNone "${variables}"
+  listOrNone "$(listVariables)"
   echo
+  local variables
+  variables="$(helpVariables)"
   if [[ -n "${variables}" ]]; then
-    echo -e "$(helpVariables)" | sed 's/^/    /'
+    echo -e "${variables}" | sed 's/^/    /'
     echo
   fi
   echo -e "  ${__HELP_TITLE}List of dependencies:${__HELP_NORMAL}"
@@ -3470,7 +3470,7 @@ PreCommitDefaultConfigCommandHelp() {
   # ------------------------------------------
   echo
   echo -n -e "${__HELP_TITLE_COLOR}SOURCE FILE: ${__RESET_COLOR}"
-  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Git/PreCommitDefaultConfig-binary.yaml"
+  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/_Configs/PreCommitDefaultConfig-binary.yaml"
   # ------------------------------------------
   # license section
   # ------------------------------------------
