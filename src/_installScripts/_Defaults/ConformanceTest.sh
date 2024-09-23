@@ -1,29 +1,26 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/ConformanceTest
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
 
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
+helpDescription() {
   echo "ConformanceTest"
 }
 
-helpDescription() {
+helpLongDescription() {
   echo "ConformanceTest checks that environment prerequisites are set correctly"
   echo "It checks also validity of .env file content"
 }
 
 # jscpd:ignore-start
 dependencies() { :; }
-helpVariables() { :; }
 listVariables() { :; }
+helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
-fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
+isTestInstallImplemented() { :; }
 # jscpd:ignore-end
 
 install() {

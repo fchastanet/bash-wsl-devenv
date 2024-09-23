@@ -1,29 +1,26 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/SimpleTest
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/SimpleTest/hooks" as hooks_dir
-
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "SimpleTest"
-}
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/_Defaults/SimpleTest-hooks" as hooks_dir
 
 helpDescription() {
   echo "SimpleTest"
 }
 
+helpLongDescription() {
+  echo "SimpleTest"
+}
+
 # jscpd:ignore-start
 dependencies() { :; }
-helpVariables() { :; }
 listVariables() { :; }
+helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
-fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
+isTestInstallImplemented() { :; }
 # jscpd:ignore-end
 
 install() {

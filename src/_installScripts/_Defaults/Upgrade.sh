@@ -1,36 +1,15 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Upgrade
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "Upgrade"
-}
 
 helpDescription() {
   echo "Upgrade ubuntu apt softwares"
 }
 
-# jscpd:ignore-start
-dependencies() { :; }
-fortunes() { :; }
-breakOnConfigFailure() { :; }
-breakOnTestFailure() { :; }
-# jscpd:ignore-end
-
 helpVariables() {
-  # shellcheck disable=SC2317
-  cat <<EOF
-  ${__HELP_EXAMPLE}UPGRADE_UBUNTU_VERSION${__HELP_NORMAL}
-    possible values:
-    0             => no upgrade at all
-    lts (default) => UPGRADE to latest ubuntu lts version
-    dev           => UPGRADE to latest ubuntu dev version
-
-EOF
+  echo "${__HELP_EXAMPLE}UPGRADE_UBUNTU_VERSION${__HELP_NORMAL}"
+  echo "  possible values:"
+  echo "  - 0             => no upgrade at all"
+  echo "  - lts (default) => UPGRADE to latest ubuntu lts version"
+  echo "  - dev           => UPGRADE to latest ubuntu dev version"
 }
 
 listVariables() {
@@ -49,6 +28,19 @@ checkVariables() {
     return 1
   fi
 }
+
+# jscpd:ignore-start
+dependencies() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
+isTestInstallImplemented() { :; }
+testInstall() { :; }
+configure() { :; }
+testConfigure() { :; }
+# jscpd:ignore-end
 
 install() {
   Linux::Apt::update
@@ -89,7 +81,3 @@ install() {
   Log::displayInfo "restore to lts development release"
   sudo sed -i -E 's/^Prompt=.*$/Prompt=lts/g' /etc/update-manager/release-upgrades
 }
-
-testInstall() { :; }
-configure() { :; }
-testConfigure() { :; }
