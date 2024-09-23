@@ -1,0 +1,20 @@
+extends:
+  - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/installScript.yaml"
+
+vars:
+  SRC_FILE_PATH: src/_installScripts/BashUtils/BashTools-binary.yaml
+
+compilerConfig:
+  targetFile: "${BASH_DEV_ENV_ROOT_DIR}/installScripts/BashTools"
+  relativeRootDirBasedOnTargetDir: ..
+binData:
+  commands:
+    default:
+      functionName: BashToolsCommand
+      version: "3.0"
+      copyrightBeginYear: 2024
+      beforeParseCallbacks:
+        - bashToolsBeforeParseCallback
+      definitionFiles:
+        11: ${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/BashUtils/BashTools.sh
+      commandName: BashTools
