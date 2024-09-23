@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Git/GitDefaultConfig-binary.yaml
+# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/_Configs/GitDefaultConfig-binary.yaml
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -2739,13 +2739,13 @@ helpLongDescription() {
 helpLongDescriptionFunction() {
   helpLongDescription | sed 's/^/  /'
   echo
-  local variables
-  variables="$(listVariables)"
   echo -e "  ${__HELP_TITLE}List of needed variables:${__HELP_NORMAL}"
-  listOrNone "${variables}"
+  listOrNone "$(listVariables)"
   echo
+  local variables
+  variables="$(helpVariables)"
   if [[ -n "${variables}" ]]; then
-    echo -e "$(helpVariables)" | sed 's/^/    /'
+    echo -e "${variables}" | sed 's/^/    /'
     echo
   fi
   echo -e "  ${__HELP_TITLE}List of dependencies:${__HELP_NORMAL}"
@@ -3051,7 +3051,7 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "installScripts/ShellBash"
+  echo "installScripts/ShellBashDefaultConfig"
   echo "installScripts/Tig"
 }
 
@@ -3894,7 +3894,7 @@ GitDefaultConfigCommandHelp() {
   # ------------------------------------------
   echo
   echo -n -e "${__HELP_TITLE_COLOR}SOURCE FILE: ${__RESET_COLOR}"
-  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Git/GitDefaultConfig-binary.yaml"
+  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/_Configs/GitDefaultConfig-binary.yaml"
   # ------------------------------------------
   # license section
   # ------------------------------------------

@@ -1,17 +1,7 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/ShellZsh
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/ShellZsh/conf" as conf_dir
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/bin/loadConfigFiles" as loadConfigFiles
-# EMBED "${FRAMEWORK_ROOT_DIR}/src/UI/talk.ps1" as talkScript
-
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "ShellZsh"
-}
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/_Configs/ShellZshDefaultConfig-conf" as conf_dir
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/bin/loadConfigFiles" as loadConfigFiles
+# @embed "${FRAMEWORK_ROOT_DIR}/src/UI/talk.ps1" as talkScript
 
 helpDescription() {
   echo "Default Zsh configuration"
@@ -52,6 +42,10 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+isTestInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
 # jscpd:ignore-end
 
 install() {
@@ -133,6 +127,7 @@ declare -a confFiles=(
   "${HOME}/.zprofile"
   "${HOME}/.p10k.zsh"
 )
+
 testConfigure() {
   local -i failures=0
   local file

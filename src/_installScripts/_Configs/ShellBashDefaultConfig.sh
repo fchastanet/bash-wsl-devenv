@@ -1,20 +1,10 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/ShellBash
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/ShellBash/conf" as conf_dir
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/bin/loadConfigFiles" as loadConfigFiles
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/bin/fixWslDate" as fixWslDate
-
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "ShellBash"
-}
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/_Configs/ShellBashDefaultConfig-conf" as conf_dir
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/bin/loadConfigFiles" as loadConfigFiles
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/bin/fixWslDate" as fixWslDate
 
 helpDescription() {
-  echo "ShellBash"
+  echo "Default configuration for bash"
 }
 
 dependencies() {
@@ -36,12 +26,16 @@ fortunes() {
 }
 
 # jscpd:ignore-start
-helpVariables() { :; }
 listVariables() { :; }
+helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+isTestInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
 # jscpd:ignore-end
 
 install() {

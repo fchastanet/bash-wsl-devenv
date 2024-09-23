@@ -5,7 +5,7 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "installScripts/ShellBash"
+  echo "installScripts/ShellBashDefaultConfig"
 }
 
 fortunes() {

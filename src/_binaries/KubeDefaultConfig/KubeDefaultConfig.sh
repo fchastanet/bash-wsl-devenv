@@ -16,7 +16,6 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "installScripts/ShellBash"
   echo "installScripts/Saml2Aws"
   echo "installScripts/Docker"
   echo "installScripts/Go"

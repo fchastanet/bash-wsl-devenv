@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/_Defaults/Clean-binary.yaml
+# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/_Configs/ShellBashDefaultConfig-binary.yaml
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -319,6 +319,41 @@ Assert::emailAddress() {
 }
 
 
+# @description asserts that first argument is file that exists with specified ownership
+# @arg $1 file:String
+# @arg $2 user:String expected owner user name of the file (default: USERNAME or id -un command)
+# @arg $3 group:String expected owner group name of the file (default: USERGROUP or id -gn command)
+# @env USERNAME String if arg $2 is not provided
+# @env USERGROUP String if arg $3 is not provided
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode 1 if missing file
+# @exitcode 2 if incorrect user ownership
+# @exitcode 3 if incorrect group ownership
+# @stderr diagnostics information is displayed
+Assert::fileExists() {
+  local file="$1"
+  local user="${2:-${USERNAME}}"
+  local group="${3:-${USERGROUP}}"
+  if [[ -n "${user}" ]]; then
+    Log::displayInfo "Check ${file} exists with user ${user}:${group}"
+  else
+    Log::displayInfo "Check ${file} exists"
+  fi
+  if ! ${SUDO:-} test -f "${file}" &>/dev/null; then
+    Log::displayError "missing file ${file}"
+    return 1
+  fi
+  if [[ -n "${user}" && "${user}" != "$(${SUDO:-} stat -c '%U' "${file}")" ]]; then
+    Log::displayError "incorrect user ownership on file ${file}"
+    return 2
+  fi
+  if [[ -n "${group}" && "${group}" != "$(${SUDO:-} stat -c '%G' "${file}")" ]]; then
+    Log::displayError "incorrect group ownership on file ${file}"
+    return 3
+  fi
+}
+
+
 # @description check if argument respects 2 or more words separated by a space
 # it supports accentuated characters and names with hyphen(-)
 # @arg $1 firstNameLastName:String
@@ -413,6 +448,34 @@ Assert::wsl() {
 }
 
 
+# @description Backup given file in the same directory or in BACKUP_DIR directory
+# backup file name is composed by following fields separated by -:
+#   - if BACKUP_DIR is not empty then escaped dir name separated by @
+#   - filename(without path)
+#   - date with format %Y%m%d_%H:%M:%S (Eg: 20240326_14:45:08)
+# @arg $1 file:String the file to backup
+# @stderr messages about backup file location
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_DIR if not set backup the file in the same directory as original file
+# @exitcode 1 on copy failure
+Backup::file() {
+  local file="$1"
+  if [[ -f "${file}" ]]; then
+    local backupFile fileDirname escapedDirname
+    fileDirname="${file%/*}"
+    escapedDirname=${fileDirname/\//}      # remove first slash
+    escapedDirname=${escapedDirname//\//@} # replace all slashes by @
+    if [[ -z "${BACKUP_DIR:-}" ]]; then
+      backupFile="${fileDirname}/${file##*/}-$(date +"%Y%m%d_%H:%M:%S")"
+    else
+      backupFile="${BACKUP_DIR}/${escapedDirname}@${file##*/}-$(date +"%Y%m%d_%H:%M:%S")"
+    fi
+    Log::displayInfo "Backup file '${file}' to ${backupFile}"
+    ${SUDO:-} cp "${file}" "${backupFile}"
+  fi
+}
+
+
 # @description get property value from file
 # if not present compute it using propertyNotFoundCallback (if provided) and store it in property file
 # @arg $1 propertyFile:String the file in which the property will be searched
@@ -453,6 +516,35 @@ Cache::getPropertyValue2() {
 }
 
 
+# @description convert base64 encoded back to target dir
+# it is advised to include the md5sum of the binFile in the path of the target dir
+#
+# @arg $1 targetDir:string the directory in which tar archive will be untarred
+# @arg $2 base64:string the base64 encoded tar czf archive
+# @stderr diagnostics information is displayed
+Compiler::Embed::extractDirFromBase64() {
+
+  if [[ "${REQUIRE_FUNCTION_LINUX_REQUIRE_TAR_COMMAND_LOADED:-0}" != 1 ]]; then
+    echo >&2 "Requirement Linux::requireTarCommand has not been loaded"
+    exit 1
+  fi
+
+  local targetDir="$1"
+  local base64="$2"
+
+  if [[ ! -d "${targetDir}" ]]; then
+    mkdir -p "${targetDir}"
+    (
+      cd "${targetDir}" || exit 1
+      base64 -d <<<"${base64}" | tar -xzf - 2>/dev/null || {
+        Log::displayError "untar failure, invalid base64 string"
+        exit 1
+      }
+    ) || return 1
+  fi
+}
+
+
 # @description convert base64 encoded back to target file
 # if target file is executable prepend dir of target
 # file to PATH to make binary available everywhere
@@ -483,6 +575,40 @@ Compiler::Embed::extractFileFromBase64() {
 }
 
 
+# @description copy folder structure to target directory
+# merge embedDir with overridden directory if provided and available
+# @arg $1 embedDir:String the path embedded
+# @arg $2 overrideDir:String the path overridden
+# @arg $3 subDir:String the sub-directory to copy from embedDir and/or overrideDir
+# @arg $4 targetDir:String the target directory (default: ${HOME}/${subDir})
+# @env SUDO String allows to use custom sudo prefix command
+# @env HOME used for default value of targetDir arg
+# @env OVERWRITE_CONFIG_FILES indicates if target directory should be overwritten if it exists
+# @env PRETTY_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @env IGNORE_MISSING_SOURCE_DIR
+Conf::copyStructure() {
+  local embedDir="$1"
+  local overrideDir="$2"
+  local subDir="$3"
+  local targetDir="${4:-${HOME}/${subDir}}"
+
+  local configDir
+  # shellcheck disable=SC2154
+  configDir="$(Conf::getOverriddenDir "${embedDir}" "${overrideDir}")"
+  if [[ -d "${configDir}/${subDir}" ]]; then
+    # shellcheck disable=SC2154
+    OVERWRITE_CONFIG_FILES=${OVERWRITE_CONFIG_FILES:-1} \
+      PRETTY_ROOT_DIR="${embedDir%/*}" \
+      Install::structure "${configDir}/${subDir}" "${targetDir}"
+  elif [[ "${IGNORE_MISSING_SOURCE_DIR:-0}" = "1" ]]; then
+    return 0
+  else
+    Log::displayError "Directory ${subDir} does not exists in '${embedDir}' or '${overrideDir}'"
+    return 1
+  fi
+}
+
+
 # @description select right file to load depending if file exists in this order:
 # - from conf.override
 # - from embedded file if provided
@@ -504,6 +630,45 @@ Conf::dynamicConfFile() {
     Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
     return 1
   fi
+}
+
+
+# @description generate temp directory where default
+# and overridden directories have been merged
+#   - if overridden dir exists, create a new temp folder
+#     - copy all files from default folder
+#     - overwrite with files from overridden folder
+#     - (Later) delete files listed in .remove$$ file
+#     - return the path of this temp folder
+#   - else just return the default folder path
+# Then it is easier to pick overridden or default files/folders
+#
+# @arg $1 defaultDir:String usually the embed directory
+# @arg $2 overriddenDirPath:String the path to the directory
+#   that could be overridden
+# @exitcode 1 if default dir does not exist
+# @exitcode 2 if error during copy
+Conf::getOverriddenDir() {
+  local defaultDir="$1"
+  local overriddenDirPath="$2"
+
+  if [[ ! -d "${defaultDir}" ]]; then
+    Log::displayError "Directory ${defaultDir} does not exists"
+    return 1
+  fi
+  if [[ ! -d "${overriddenDirPath}" || -z "$(ls -A "${overriddenDirPath}")" ]]; then
+    Log::displayInfo "Conf::getOverriddenDir - directory ${overriddenDirPath} does not exist, keep default one ${defaultDir}"
+    echo "${defaultDir}"
+    return 0
+  fi
+  local tempDir
+  tempDir="$(mktemp -d)"
+  (
+    shopt -s dotglob
+    cp -R "${defaultDir}/." "${tempDir}"
+    cp -R "${overriddenDirPath}/." "${tempDir}"
+  ) || return 2
+  echo "${tempDir}"
 }
 
 
@@ -1031,6 +1196,224 @@ Framework::createTempFile() {
 }
 
 
+# @description installs file to given directory
+#
+# callbacks parameters `${fromFile} ${targetFile} $@`
+# @arg $1 fromFile - original file to copy
+# @arg $2 targetFile - target file
+# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
+# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
+# @arg $5 successCallback:Function the callback to call when file is installed successfully, by default setUserRights callback is called
+# @arg $6 failureCallback:Function the callback to call when file installation has failed, by default unableToCopyCallback callback is called
+# @arg $@ callbacksParams:String[] additional parameters passed to callbacks
+# @exitcode 1 if fromFile is not readable
+# @exitcode 2 if backup file failure
+# @exitcode 3 if copy failure
+# @exitcode 0 on success or if OVERWRITE_CONFIG_FILES=0
+# @exitcode 0 on success or if CHANGE_WINDOWS_FILES=0 and target file is a windows file
+# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing directory
+# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target file is in windows file system, overwrite it
+# @env USERNAME (default: root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @env BASE_MNT_C String windows C drive base PATH
+# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_BEFORE_INSTALL Boolean (default: 1) backup file before installing the file
+Install::file() {
+  local fromFile="$1"
+  local targetFile="$2"
+  local userName="${3:-${USERNAME:-root}}"
+  local userGroup="${4:-${USERGROUP:-root}}"
+  local successCallback=${5:-Install::setUserRightsCallback}
+  local failureCallback=${6:-Install::unableToCopyCallback}
+  shift 6 || true
+
+  if [[ ! -f "${fromFile}" || ! -r "${fromFile}" ]]; then
+    Log::displayError "cannot read source file '${fromFile}'"
+    return 1
+  fi
+
+  # skip if OVERWRITE_CONFIG_FILES is 0 and target file exists
+  if [[ "${OVERWRITE_CONFIG_FILES}" = "0" && -f "${targetFile}" ]]; then
+    Log::displayWarning "File '${targetFile}' exists - Skip install (because OVERWRITE_CONFIG_FILES=0 in .env file)"
+    return 0
+  fi
+
+  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
+  if [[ "${CHANGE_WINDOWS_FILES}" = "0" && "${targetFile}" =~ ^${BASE_MNT_C} ]]; then
+    Log::displayWarning "File '${targetFile}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
+    return 0
+  fi
+
+  local targetDir="${targetFile%/*}"
+  if ! ${SUDO} test -d "${targetDir}"; then
+    ${SUDO:-} mkdir -p "${targetDir}"
+    ${SUDO:-} chown "${userName}":"${userGroup}" "${targetDir}"
+  fi
+  local fromDir="${fromFile%/*}"
+  local fromFilename="${fromFile##*/}"
+
+  local prettyFromDir
+  # shellcheck disable=SC2295
+  prettyFromDir="${fromDir#${PRETTY_ROOT_DIR:-${FRAMEWORK_ROOT_DIR}}/}"
+  if diff -q "${fromFile}" "${targetFile}" &>/dev/null; then
+    Log::displayStatus "No changes detected. No need to update '${targetFile}' from '${prettyFromDir}/${fromFilename}'"
+    return 0
+  fi
+
+  if [[ "${BACKUP_BEFORE_INSTALL:-1}" = "1" ]]; then
+    Backup::file "${targetFile}" || return 2
+  fi
+
+  if ${SUDO:-} cp "${fromFile}" "${targetFile}"; then
+    # shellcheck disable=SC2295
+    Log::displaySuccess "Installed file '${targetFile}' from '${prettyFromDir}/${fromFilename}'"
+    ${successCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${prettyFromDir}" "${fromFilename}"
+  else
+    # shellcheck disable=SC2295
+    Log::displayError "unable to copy file '${targetFile}' from '${fromDir#${FRAMEWORK_ROOT_DIR}/}/${fromFilename}'"
+    ${failureCallback} "${fromFile}" "${targetFile}" "${userName}" "${userGroup}" "${prettyFromDir}" "${fromFilename}"
+    return 3
+  fi
+}
+
+
+# @description install callback
+#   set file with root ownership and execution bit
+# @arg $1 fromFile:String
+# @arg $2 targetFile:String
+# @arg $3 userName:String (optional) (default: ${USERNAME}) the user name that will be used to set target files ownership
+# @arg $4 userGroup:String (optional) (default: ${USERNAME}) the group name that will be used to set target files ownership
+# @env USERNAME (default: root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: root) the group name that will be used to set target files ownership
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode 1 on any failure
+# @see Install::file
+Install::setUserRightsCallback() {
+  # shellcheck disable=SC2034 # $1 not used
+  local fromFile="$1"
+  local targetFile="$2"
+  local userName="${3:-${USERNAME:-root}}"
+  local userGroup="${4:-${USERGROUP:-root}}"
+
+  ${SUDO:-} chown "${userName}":"${userGroup}" "${targetFile}"
+}
+
+
+# @description install dir to given directory but backup it before
+# @arg $1 fromDir:String the source base directory
+# @arg $2 toDir:String the target base directory
+# @env OVERWRITE_CONFIG_FILES Boolean (default:0) if 1 will overwrite existing files
+# @env CHANGE_WINDOWS_FILES Boolean (default:0) if 1 and target directory is in windows file system, overwrite it
+# @env USERNAME (default: ${USERNAME} if SUDO empty else root) the user name that will be used to set target files ownership
+# @env USERGROUP (default: ${USERGROUP} if SUDO empty else root) the group name that will be used to set target files ownership
+# @env BASE_MNT_C String windows C drive base PATH
+# @env PRETTY_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @env SUDO String allows to use custom sudo prefix command
+# @env BACKUP_BEFORE_INSTALL Boolean (default:1) backup directory before installing the dir
+# @exitcode 1 if source directory is not readable
+# @exitcode 2 if error during structure replication
+# @exitcode 2 if error during file copy
+# @exitcode 0 if copy successful
+# @exitcode 0 with warning message if CHANGE_WINDOWS_FILES=0 and target directory in C drive
+# @stderr diagnostics information is displayed, skipped information if OVERWRITE_CONFIG_FILES or CHANGE_WINDOWS_FILES are set to 1
+Install::structure() {
+  local fromDir="$1"
+  local toDir="$2"
+  local userName="root"
+  local userGroup="root"
+  if [[ -z "${SUDO:-}" ]]; then
+    userName="${USERNAME:-root}"
+    userGroup="${USERGROUP:-root}"
+  fi
+
+  if [[ ! -d "${fromDir}" || ! -r "${fromDir}" ]]; then
+    Log::displayError "Install::structure - cannot read source directory '${fromDir}'"
+    return 1
+  fi
+
+  # skip if CHANGE_WINDOWS_FILES is 0 and target dir is c drive
+  if [[ "${CHANGE_WINDOWS_FILES:-0}" = "0" && "${toDir}" =~ ^${BASE_MNT_C:-/mnt/c} ]]; then
+    Log::displayWarning "Install::structure - Directory '${fromDir}' - Skip install (because CHANGE_WINDOWS_FILES=0 in .env file)"
+    return 0
+  fi
+
+  # first replicate directory structure
+  # shellcheck disable=SC2317
+  createStructure() {
+    local dir="$1"
+    if ! ${SUDO} test -d "${dir}"; then
+      if ! ${SUDO:-} mkdir -p "${dir}"; then
+        Log::displayError "Install::structure - impossible to create directory '${dir}'"
+        exit 1
+      fi
+    fi
+
+    if ! ${SUDO:-} chown "${userName}":"${userGroup}" "${dir}"; then
+      Log::displayError "Install::structure - impossible to update directory owner '${dir}' with ${userName}:${userGroup}"
+      exit 1
+    fi
+  }
+  local dir
+
+  (
+    local dir
+    shopt -s lastpipe
+    # -links 2 allows to exclude empty directories
+    ${SUDO:-} find "${fromDir}" -depth -type d -links 2 -print0 |
+      while read -rd '' dir; do
+        if ! createStructure "${toDir}/${dir#"${fromDir}"}"; then
+          # error already reported by createStructure
+          exit 1
+        fi
+      done || {
+      if [[ "${PIPESTATUS[0]}" != "0" ]]; then
+        Log::displayError "Install::structure - replicated directory structure - find directories on '${fromDir}' resulted in an error"
+        exit 2
+      fi
+    }
+  ) || return 2
+
+  # for each file, copy it
+  (
+    local file
+    shopt -s lastpipe
+    ${SUDO:-} find "${fromDir}" -depth -type f -print0 |
+      while read -rd '' file; do
+        local localFile="${file#"${fromDir}/"}"
+        if ! Install::file "${fromDir}/${localFile}" "${toDir}/${localFile}"; then
+          # error already reported by Install::file
+          exit 1
+        fi
+      done || {
+      if [[ "${PIPESTATUS[0]}" != "0" ]]; then
+        Log::displayError "Install::structure - replicated file structure - find files on '${fromDir}' resulted in an error"
+        exit 2
+      fi
+    }
+  ) || return 3
+
+  # shellcheck disable=SC2295
+  Log::displaySuccess "Installed directory '${toDir#${PRETTY_ROOT_DIR}/}' from '${fromDir#${PRETTY_ROOT_DIR}/}'"
+}
+
+
+# @description install callback
+#   default callback used called when file copy has failed
+# @arg $1 fromFile:String
+# @arg $2 targetFile:String
+# @env FRAMEWORK_ROOT_DIR used to make paths relative to this directory to reduce length of messages
+# @exitcode 1 always fail
+# @stderr diagnostics information is displayed
+# @see Install::file
+Install::unableToCopyCallback() {
+  local fromDir="$1"
+  local fileName="$2"
+  local targetFile="$3"
+  Log::fatal "unable to copy file '${fromDir#"${FRAMEWORK_ROOT_DIR}/"}/${fileName}' to '${targetFile}'"
+}
+
+
 # @description the command launch different actions(install, configure, test)
 # depending on the options selected
 # @see src/_includes/install.skip.options.tpl
@@ -1492,6 +1875,8 @@ Linux::getDistributorId() {
 # @exitcode 1 if tar command not available
 # @stderr diagnostics information is displayed
 Linux::requireTarCommand() {
+  export REQUIRE_FUNCTION_LINUX_REQUIRE_TAR_COMMAND_LOADED=1
+
   Assert::commandExists tar
 }
 
@@ -1576,6 +1961,20 @@ Log::displayError() {
 # @arg $1 message:String the message to display
 # @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
 # @env LOG_CONTEXT String allows to contextualize the log
+Log::displayHelp() {
+  local type="${2:-HELP}"
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    Log::computeDuration
+    echo -e "${__HELP_COLOR}${type}    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logHelp "$1" "${type}"
+}
+
+
+# @description Display message using info color (bg light blue/fg white)
+# @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
 Log::displayInfo() {
   local type="${2:-INFO}"
   if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
@@ -1596,6 +1995,33 @@ Log::displaySkipped() {
     echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
   Log::logSkipped "$1"
+}
+
+
+# @description Display message using info color (blue) but warning level
+# @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
+Log::displayStatus() {
+  local type="${2:-STATUS}"
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
+    Log::computeDuration
+    echo -e "${__INFO_COLOR}${type}  - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logStatus "$1" "${type}"
+}
+
+
+# @description Display message using success color (bg green/fg white)
+# @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
+Log::displaySuccess() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    Log::computeDuration
+    echo -e "${__SUCCESS_COLOR}SUCCESS - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logSuccess "$1"
 }
 
 
@@ -1667,6 +2093,15 @@ Log::logFatal() {
 
 # @description log message to file
 # @arg $1 message:String the message to display
+Log::logHelp() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-HELP}" "$1"
+  fi
+}
+
+
+# @description log message to file
+# @arg $1 message:String the message to display
 Log::logInfo() {
   if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
     Log::logMessage "${2:-INFO}" "$1"
@@ -1716,6 +2151,24 @@ Log::logMessage() {
 Log::logSkipped() {
   if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
     Log::logMessage "${2:-SKIPPED}" "$1"
+  fi
+}
+
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logStatus() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_WARNING)); then
+    Log::logMessage "${2:-STATUS}" "$1"
+  fi
+}
+
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logSuccess() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-SUCCESS}" "$1"
   fi
 }
 
@@ -2201,7 +2654,7 @@ isInterfaceMandatoryFunctionImplemented() {
 }
 
 scriptName() {
-  echo "Clean"
+  echo "ShellBashDefaultConfig"
 }
 
 beforeParseCallback() {
@@ -2531,13 +2984,53 @@ commandOptionParseFinished() {
 }
 
 
+Linux::requireTarCommand
+Compiler::Embed::extractDirFromBase64 \
+  "${PERSISTENT_TMPDIR:-/tmp}/65ee3af207f6c09ff8a0ff00fc5345ef01e1defbc2cb93406affb718ffbefb08/conf_dir" \
+  "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"
+
+declare -gx embed_dir_conf_dir="${PERSISTENT_TMPDIR:-/tmp}/65ee3af207f6c09ff8a0ff00fc5345ef01e1defbc2cb93406affb718ffbefb08/conf_dir"
+
+Linux::requireTarCommand
+Compiler::Embed::extractFileFromBase64 \
+  "${PERSISTENT_TMPDIR:-/tmp}/5e427bfb617fb2c95ecd2317839d173a1f8c7b5acbf734cc783bcc0ca35c5852/loadConfigFiles" \
+  "IyEvdXNyL2Jpbi9lbnYgYmFzaAojIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjCiMgR0VORVJBVEVEIEZBQ0FERSBGUk9NIGh0dHBzOi8vZ2l0aHViLmNvbS9mY2hhc3RhbmV0L2Jhc2gtZGV2LWVudi90cmVlL21hc3Rlci9zcmMvX2JpbmFyaWVzL190b29scy9sb2FkQ29uZmlnRmlsZXMuc2gKIyBETyBOT1QgRURJVCBJVAojIEBnZW5lcmF0ZWQKIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIwojIHNoZWxsY2hlY2sgZGlzYWJsZT1TQzIyODgsU0MyMDM0CiMgQklOX0ZJTEU9JHtCQVNIX0RFVl9FTlZfUk9PVF9ESVJ9L2Jpbi9sb2FkQ29uZmlnRmlsZXMKIyBWQVJfUkVMQVRJVkVfRlJBTUVXT1JLX0RJUl9UT19DVVJSRU5UX0RJUj0KIyBWQVJfTE9BRF9SRVFVSVJFUz0wCiMgVkFSX0xPQURfQ09ORklHPTAKIyBGQUNBREUKCiMgZW5zdXJlIHRoYXQgbm8gdXNlciBhbGlhc2VzIGNvdWxkIGludGVyZmVyZSB3aXRoCiMgY29tbWFuZHMgdXNlZCBpbiB0aGlzIHNjcmlwdAp1bmFsaWFzIC1hIHx8IHRydWUKc2hvcHQgLXUgZXhwYW5kX2FsaWFzZXMKCiMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMjAzNAooKGZhaWx1cmVzID0gMCkpIHx8IHRydWUKCiMgQmFzaCB3aWxsIHJlbWVtYmVyICYgcmV0dXJuIHRoZSBoaWdoZXN0IGV4aXQgY29kZSBpbiBhIGNoYWluIG9mIHBpcGVzLgojIFRoaXMgd2F5IHlvdSBjYW4gY2F0Y2ggdGhlIGVycm9yIGluc2lkZSBwaXBlcywgZS5nLiBteXNxbGR1bXAgfCBnemlwCnNldCAtbyBwaXBlZmFpbApzZXQgLW8gZXJyZXhpdAoKIyBDb21tYW5kIFN1YnN0aXR1dGlvbiBjYW4gaW5oZXJpdCBlcnJleGl0IG9wdGlvbiBzaW5jZSBiYXNoIHY0LjQKc2hvcHQgLXMgaW5oZXJpdF9lcnJleGl0IHx8IHRydWUKCiMgaWYgc2V0LCBhbmQgam9iIGNvbnRyb2wgaXMgbm90IGFjdGl2ZSwgdGhlIHNoZWxsIHJ1bnMgdGhlIGxhc3QgY29tbWFuZAojIG9mIGEgcGlwZWxpbmUgbm90IGV4ZWN1dGVkIGluIHRoZSBiYWNrZ3JvdW5kIGluIHRoZSBjdXJyZW50IHNoZWxsCiMgZW52aXJvbm1lbnQuCnNob3B0IC1zIGxhc3RwaXBlCgojIGEgbG9nIGlzIGdlbmVyYXRlZCB3aGVuIGEgY29tbWFuZCBmYWlscwpzZXQgLW8gZXJydHJhY2UKCiMgdXNlIG51bGxnbG9iIHNvIHRoYXQgKGZpbGUqLnBocCkgd2lsbCByZXR1cm4gYW4gZW1wdHkgYXJyYXkgaWYgbm8gZmlsZQojIG1hdGNoZXMgdGhlIHdpbGRjYXJkCnNob3B0IC1zIG51bGxnbG9iCgojIGVuc3VyZSByZWdleHAgYXJlIGludGVycHJldGVkIHdpdGhvdXQgYWNjZW50dWF0ZWQgY2hhcmFjdGVycwpleHBvcnQgTENfQUxMPVBPU0lYCgpleHBvcnQgVEVSTT14dGVybS0yNTZjb2xvcgoKIyBhdm9pZCBpbnRlcmFjdGl2ZSBpbnN0YWxsCmV4cG9ydCBERUJJQU5fRlJPTlRFTkQ9bm9uaW50ZXJhY3RpdmUKZXhwb3J0IERFQkNPTkZfTk9OSU5URVJBQ1RJVkVfU0VFTj10cnVlCgojIHN0b3JlIGNvbW1hbmQgYXJndW1lbnRzIGZvciBsYXRlciB1c2FnZQojIHNoZWxsY2hlY2sgZGlzYWJsZT1TQzIwMzQKZGVjbGFyZSAtYSBCQVNIX0ZSQU1FV09SS19BUkdWPSgiJEAiKQojIHNoZWxsY2hlY2sgZGlzYWJsZT1TQzIwMzQKZGVjbGFyZSAtYSBPUklHSU5BTF9CQVNIX0ZSQU1FV09SS19BUkdWPSgiJEAiKQoKIyBAc2VlIGh0dHBzOi8vdW5peC5zdGFja2V4Y2hhbmdlLmNvbS9hLzM4Njg1NgojIHNoZWxsY2hlY2sgZGlzYWJsZT1TQzIzMTcKaW50ZXJydXB0TWFuYWdlbWVudCgpIHsKICAjIHJlc3RvcmUgU0lHSU5UIGhhbmRsZXIKICB0cmFwIC0gSU5UCiAgIyBlbnN1cmUgdGhhdCBDdHJsLUMgaXMgdHJhcHBlZCBieSB0aGlzIHNjcmlwdCBhbmQgbm90IGJ5IHN1YiBwcm9jZXNzCiAgIyByZXBvcnQgdG8gdGhlIHBhcmVudCB0aGF0IHdlIGhhdmUgaW5kZWVkIGJlZW4gaW50ZXJydXB0ZWQKICBraWxsIC1zIElOVCAiJCQiCn0KdHJhcCBpbnRlcnJ1cHRNYW5hZ2VtZW50IElOVApTQ1JJUFRfTkFNRT0kezAjIyovfQpSRUFMX1NDUklQVF9GSUxFPSIkKHJlYWRsaW5rIC1lICIkKHJlYWxwYXRoICIke0JBU0hfU09VUkNFWzBdfSIpIikiCmlmIFtbIC1uICIke0VNQkVEX0NVUlJFTlRfRElSfSIgXV07IHRoZW4KICBDVVJSRU5UX0RJUj0iJHtFTUJFRF9DVVJSRU5UX0RJUn0iCmVsc2UKICBDVVJSRU5UX0RJUj0iJHtSRUFMX1NDUklQVF9GSUxFJS8qfSIKZmkKCiMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIwojIFRlbXAgZGlyIG1hbmFnZW1lbnQKIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjCgpLRUVQX1RFTVBfRklMRVM9IiR7S0VFUF9URU1QX0ZJTEVTOi0wfSIKZXhwb3J0IEtFRVBfVEVNUF9GSUxFUwoKIyBQRVJTSVNURU5UX1RNUERJUiBpcyBub3QgZGVsZXRlZCBieSB0cmFwcwpQRVJTSVNURU5UX1RNUERJUj0iJHtUTVBESVI6LS90bXB9L2Jhc2gtZnJhbWV3b3JrIgpleHBvcnQgUEVSU0lTVEVOVF9UTVBESVIKaWYgW1sgISAtZCAiJHtQRVJTSVNURU5UX1RNUERJUn0iIF1dOyB0aGVuCiAgbWtkaXIgLXAgIiR7UEVSU0lTVEVOVF9UTVBESVJ9IgpmaQoKIyBzaGVsbGNoZWNrIGRpc2FibGU9U0MyMDM0ClRNUERJUj0iJChta3RlbXAgLWQgLXAgIiR7UEVSU0lTVEVOVF9UTVBESVI6LS90bXB9IiAtdCBiYXNoLWZyYW1ld29yay0kJC1YWFhYWFgpIgpleHBvcnQgVE1QRElSCgojIHRlbXAgZGlyIGNsZWFuaW5nCiMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMjMxNwpjbGVhbk9uRXhpdCgpIHsKICBsb2NhbCByYz0kPwogIGlmIFtbICIke0tFRVBfVEVNUF9GSUxFUzotMH0iID0gIjEiIF1dOyB0aGVuCiAgICBMb2c6OmRpc3BsYXlJbmZvICJLRUVQX1RFTVBfRklMRVM9MSB0ZW1wIGZpbGVzIGtlcHQgaGVyZSAnJHtUTVBESVJ9JyIKICBlbGlmIFtbIC1uICIke1RNUERJUit4eHh9IiBdXTsgdGhlbgogICAgTG9nOjpkaXNwbGF5RGVidWcgIktFRVBfVEVNUF9GSUxFUz0wIHJlbW92aW5nIHRlbXAgZmlsZXMgJyR7VE1QRElSfSciCiAgICBybSAtUmYgIiR7VE1QRElSOi0vdG1wL2Zha2V9IiA+L2Rldi9udWxsIDI+JjEKICBmaQogIGV4aXQgIiR7cmN9Igp9CnRyYXAgY2xlYW5PbkV4aXQgRVhJVCBIVVAgUVVJVCBBQlJUIFRFUk0KCiMgQGRlc2NyaXB0aW9uIExvZyBuYW1lc3BhY2UgcHJvdmlkZXMgMiBraW5kIG9mIGZ1bmN0aW9ucwojIC0gTG9nOjpkaXNwbGF5KiBhbGxvd3MgdG8gZGlzcGxheSBnaXZlbiBtZXNzYWdlIHdpdGgKIyAgIGdpdmVuIGRpc3BsYXkgbGV2ZWwKIyAtIExvZzo6bG9nKiBhbGxvd3MgdG8gbG9nIGdpdmVuIG1lc3NhZ2Ugd2l0aAojICAgZ2l2ZW4gbG9nIGxldmVsCiMgTG9nOjpkaXNwbGF5KiBmdW5jdGlvbnMgYXV0b21hdGljYWxseSBsb2cgdGhlIG1lc3NhZ2UgdG9vCiMgQHNlZSBFbnY6OnJlcXVpcmVMb2FkIHRvIGxvYWQgdGhlIGRpc3BsYXkgYW5kIGxvZyBsZXZlbCBmcm9tIC5lbnYgZmlsZQoKIyBAZGVzY3JpcHRpb24gbG9nIGxldmVsIG9mZgpleHBvcnQgX19MRVZFTF9PRkY9MAojIEBkZXNjcmlwdGlvbiBsb2cgbGV2ZWwgZXJyb3IKZXhwb3J0IF9fTEVWRUxfRVJST1I9MQojIEBkZXNjcmlwdGlvbiBsb2cgbGV2ZWwgd2FybmluZwpleHBvcnQgX19MRVZFTF9XQVJOSU5HPTIKIyBAZGVzY3JpcHRpb24gbG9nIGxldmVsIGluZm8KZXhwb3J0IF9fTEVWRUxfSU5GTz0zCiMgQGRlc2NyaXB0aW9uIGxvZyBsZXZlbCBzdWNjZXNzCmV4cG9ydCBfX0xFVkVMX1NVQ0NFU1M9MwojIEBkZXNjcmlwdGlvbiBsb2cgbGV2ZWwgZGVidWcKZXhwb3J0IF9fTEVWRUxfREVCVUc9NAoKIyBAZGVzY3JpcHRpb24gdmVyYm9zZSBsZXZlbCBvZmYKZXhwb3J0IF9fVkVSQk9TRV9MRVZFTF9PRkY9MAojIEBkZXNjcmlwdGlvbiB2ZXJib3NlIGxldmVsIGluZm8KZXhwb3J0IF9fVkVSQk9TRV9MRVZFTF9JTkZPPTEKIyBAZGVzY3JpcHRpb24gdmVyYm9zZSBsZXZlbCBpbmZvCmV4cG9ydCBfX1ZFUkJPU0VfTEVWRUxfREVCVUc9MgojIEBkZXNjcmlwdGlvbiB2ZXJib3NlIGxldmVsIGluZm8KZXhwb3J0IF9fVkVSQk9TRV9MRVZFTF9UUkFDRT0zCgojIEBkZXNjcmlwdGlvbiBEaXNwbGF5IG1lc3NhZ2UgdXNpbmcgaW5mbyBjb2xvciAoYmcgbGlnaHQgYmx1ZS9mZyB3aGl0ZSkKIyBAYXJnICQxIG1lc3NhZ2U6U3RyaW5nIHRoZSBtZXNzYWdlIHRvIGRpc3BsYXkKIyBAZW52IERJU1BMQVlfRFVSQVRJT04gaW50IChkZWZhdWx0IDApIGlmIDEgZGlzcGxheSBlbGFwc2VkIHRpbWUgaW5mb3JtYXRpb24gYmV0d2VlbiAyIGluZm8gbG9ncwojIEBlbnYgTE9HX0NPTlRFWFQgU3RyaW5nIGFsbG93cyB0byBjb250ZXh0dWFsaXplIHRoZSBsb2cKTG9nOjpkaXNwbGF5SW5mbygpIHsKICBsb2NhbCB0eXBlPSIkezI6LUlORk99IgogIGlmICgoQkFTSF9GUkFNRVdPUktfRElTUExBWV9MRVZFTCA+PSBfX0xFVkVMX0lORk8pKTsgdGhlbgogICAgTG9nOjpjb21wdXRlRHVyYXRpb24KICAgIGVjaG8gLWUgIiR7X19JTkZPX0NPTE9SfSR7dHlwZX0gICAgLSAke0xPR19DT05URVhUOi19JHtMT0dfTEFTVF9EVVJBVElPTl9TVFI6LX0kezF9JHtfX1JFU0VUX0NPTE9SfSIgPiYyCiAgZmkKICBMb2c6OmxvZ0luZm8gIiQxIiAiJHt0eXBlfSIKfQoKIyBAZGVzY3JpcHRpb24gRGlzcGxheSBtZXNzYWdlIHVzaW5nIGRlYnVnIGNvbG9yIChncmF5KQojIEBhcmcgJDEgbWVzc2FnZTpTdHJpbmcgdGhlIG1lc3NhZ2UgdG8gZGlzcGxheQojIEBlbnYgRElTUExBWV9EVVJBVElPTiBpbnQgKGRlZmF1bHQgMCkgaWYgMSBkaXNwbGF5IGVsYXBzZWQgdGltZSBpbmZvcm1hdGlvbiBiZXR3ZWVuIDIgaW5mbyBsb2dzCiMgQGVudiBMT0dfQ09OVEVYVCBTdHJpbmcgYWxsb3dzIHRvIGNvbnRleHR1YWxpemUgdGhlIGxvZwpMb2c6OmRpc3BsYXlEZWJ1ZygpIHsKICBpZiAoKEJBU0hfRlJBTUVXT1JLX0RJU1BMQVlfTEVWRUwgPj0gX19MRVZFTF9ERUJVRykpOyB0aGVuCiAgICBMb2c6OmNvbXB1dGVEdXJhdGlvbgogICAgZWNobyAtZSAiJHtfX0RFQlVHX0NPTE9SfURFQlVHICAgLSAke0xPR19DT05URVhUOi19JHtMT0dfTEFTVF9EVVJBVElPTl9TVFI6LX0kezF9JHtfX1JFU0VUX0NPTE9SfSIgPiYyCiAgZmkKICBMb2c6OmxvZ0RlYnVnICIkMSIKfQoKIyBAZGVzY3JpcHRpb24gY2hlY2tzIGlmIGZ1bmN0aW9uIG5hbWUgcHJvdmlkZWQgZXhpc3RzCiMgQGFyZyAkMSBmdW5jdGlvbk5hbWU6U3RyaW5nCiMgQGV4aXRjb2RlIDEgaWYgZnVuY3Rpb24gbmFtZSBkb2Vzbid0IGV4aXN0CkFzc2VydDo6ZnVuY3Rpb25FeGlzdHMoKSB7CiAgZGVjbGFyZSAtRiAiJDEiID4vZGV2L251bGwKfQoKIyBAZGVzY3JpcHRpb24gZW5zdXJlIENPTU1BTkRfQklOX0RJUiBlbnYgdmFyIGlzIHNldAojIGFuZCBQQVRIIGNvcnJlY3RseSBwcmVwYXJlZAojIEBub2FyZ3MKIyBAc2V0IENPTU1BTkRfQklOX0RJUiBzdHJpbmcgdGhlIGRpcmVjdG9yeSB3aGVyZSB0byBmaW5kIHRoaXMgY29tbWFuZAojIEBzZXQgUEFUSCBzdHJpbmcgYWRkIGRpcmVjdG9yeSB3aGVyZSB0byBmaW5kIHRoaXMgY29tbWFuZCBiaW5hcnkKQ29tcGlsZXI6OkZhY2FkZTo6cmVxdWlyZUNvbW1hbmRCaW5EaXIoKSB7CiAgQ09NTUFORF9CSU5fRElSPSIke0NVUlJFTlRfRElSfSIKICBFbnY6OnBhdGhQcmVwZW5kICIke0NPTU1BTkRfQklOX0RJUn0iCn0KCmRlY2xhcmUgLWcgRklSU1RfTE9HX0RBVEUgTE9HX0xBU1RfTE9HX0RBVEUgTE9HX0xBU1RfTE9HX0RBVEVfSU5JVCBMT0dfTEFTVF9EVVJBVElPTl9TVFIKRklSU1RfTE9HX0RBVEU9IiR7RVBPQ0hSRUFMVElNRS9bXjAtOV0vfSIKTE9HX0xBU1RfTE9HX0RBVEU9IiR7RklSU1RfTE9HX0RBVEV9IgpMT0dfTEFTVF9MT0dfREFURV9JTklUPTEKTE9HX0xBU1RfRFVSQVRJT05fU1RSPSIiCgojIEBkZXNjcmlwdGlvbiBjb21wdXRlIGR1cmF0aW9uIHNpbmNlIGxhc3QgY2FsbCB0byB0aGlzIGZ1bmN0aW9uCiMgdGhlIHJlc3VsdCBpcyBzZXQgaW4gZm9sbG93aW5nIGVudiB2YXJpYWJsZXMuCiMgaW4gc3Muc3NzIChzZWNvbmRzIGZvbGxvd2VkIGJ5IG1pbGxpc2Vjb25kcyBwcmVjaXNpb24gMyBkZWNpbWFscykKIyBAbm9hcmdzCiMgQGVudiBESVNQTEFZX0RVUkFUSU9OIGludCAoZGVmYXVsdCAwKSBpZiAxIGRpc3BsYXkgZWxhcHNlZCB0aW1lIGluZm9ybWF0aW9uIGJldHdlZW4gMiBpbmZvIGxvZ3MKIyBAc2V0IExPR19MQVNUX0xPR19EQVRFX0lOSVQgaW50IChkZWZhdWx0IDEpIHNldCB0byAwIGF0IGZpcnN0IGNhbGwsIGFsbG93cyB0byBkZXRlY3QgcmVmZXJlbmNlIGxvZwojIEBzZXQgTE9HX0xBU1RfRFVSQVRJT05fU1RSIFN0cmluZyB0aGUgbGFzdCBkdXJhdGlvbiBkaXNwbGF5ZWQKIyBAc2V0IExPR19MQVNUX0xPR19EQVRFIFN0cmluZyB0aGUgbGFzdCBsb2cgZGF0ZSB0aGF0IHdpbGwgYmUgdXNlZCB0byBjb21wdXRlIG5leHQgZGlmZgpMb2c6OmNvbXB1dGVEdXJhdGlvbigpIHsKICBpZiAoKCR7RElTUExBWV9EVVJBVElPTjotMH0gPT0gMSkpOyB0aGVuCiAgICBsb2NhbCAtaSBkdXJhdGlvbj0wCiAgICBsb2NhbCAtaSBkZWx0YT0wCiAgICBsb2NhbCAtaSBjdXJyZW50TG9nRGF0ZQogICAgY3VycmVudExvZ0RhdGU9IiR7RVBPQ0hSRUFMVElNRS9bXjAtOV0vfSIKICAgIGlmICgoTE9HX0xBU1RfTE9HX0RBVEVfSU5JVCA9PSAxKSk7IHRoZW4KICAgICAgTE9HX0xBU1RfTE9HX0RBVEVfSU5JVD0wCiAgICAgIExPR19MQVNUX0RVUkFUSU9OX1NUUj0iUmVmIgogICAgZWxzZQogICAgICBkdXJhdGlvbj0kKCgoY3VycmVudExvZ0RhdGUgLSBGSVJTVF9MT0dfREFURSkgLyAxMDAwMDAwKSkKICAgICAgZGVsdGE9JCgoKGN1cnJlbnRMb2dEYXRlIC0gTE9HX0xBU1RfTE9HX0RBVEUpIC8gMTAwMDAwMCkpCiAgICAgIExPR19MQVNUX0RVUkFUSU9OX1NUUj0iJHtkdXJhdGlvbn1zLyske2RlbHRhfXMiCiAgICBmaQogICAgTE9HX0xBU1RfTE9HX0RBVEU9IiR7Y3VycmVudExvZ0RhdGV9IgogICAgIyBzaGVsbGNoZWNrIGRpc2FibGU9U0MyMDM0CiAgICBsb2NhbCBtaWNyb1NlY29uZHM9IiR7RVBPQ0hSRUFMVElNRSMqLn0iCiAgICBMT0dfTEFTVF9EVVJBVElPTl9TVFI9IiQocHJpbnRmICclKCVUKVQuJTAzLjBmXG4nICIke0VQT0NIU0VDT05EU30iICIke21pY3JvU2Vjb25kczowOjN9IikoJHtMT0dfTEFTVF9EVVJBVElPTl9TVFJ9KSAtICIKICBlbHNlCiAgICAjIHNoZWxsY2hlY2sgZGlzYWJsZT1TQzIwMzQKICAgIExPR19MQVNUX0RVUkFUSU9OX1NUUj0iIgogIGZpCn0KCiMgQGRlc2NyaXB0aW9uIGxvZyBtZXNzYWdlIHRvIGZpbGUKIyBAYXJnICQxIG1lc3NhZ2U6U3RyaW5nIHRoZSBtZXNzYWdlIHRvIGRpc3BsYXkKTG9nOjpsb2dJbmZvKCkgewogIGlmICgoQkFTSF9GUkFNRVdPUktfTE9HX0xFVkVMID49IF9fTEVWRUxfSU5GTykpOyB0aGVuCiAgICBMb2c6OmxvZ01lc3NhZ2UgIiR7MjotSU5GT30iICIkMSIKICBmaQp9CgojIEBkZXNjcmlwdGlvbiBsb2cgbWVzc2FnZSB0byBmaWxlCiMgQGFyZyAkMSBtZXNzYWdlOlN0cmluZyB0aGUgbWVzc2FnZSB0byBkaXNwbGF5CkxvZzo6bG9nRGVidWcoKSB7CiAgaWYgKChCQVNIX0ZSQU1FV09SS19MT0dfTEVWRUwgPj0gX19MRVZFTF9ERUJVRykpOyB0aGVuCiAgICBMb2c6OmxvZ01lc3NhZ2UgIiR7MjotREVCVUd9IiAiJDEiCiAgZmkKfQoKIyBAZGVzY3JpcHRpb24gcHJlcGVuZCBkaXJlY3RvcmllcyB0byB0aGUgUEFUSCBlbnZpcm9ubWVudCB2YXJpYWJsZQojIEBhcmcgJEAgYXJnczpTdHJpbmdbXSBsaXN0IG9mIGRpcmVjdG9yaWVzIHRvIHByZXBlbmQKIyBAc2V0IFBBVEggdXBkYXRlIFBBVEggd2l0aCB0aGUgZGlyZWN0b3JpZXMgcHJlcGVuZGVkCkVudjo6cGF0aFByZXBlbmQoKSB7CiAgbG9jYWwgYXJnCiAgZm9yIGFyZyBpbiAiJEAiOyBkbwogICAgaWYgW1sgLWQgIiR7YXJnfSIgJiYgIjoke1BBVEh9OiIgIT0gKiI6JHthcmd9OiIqIF1dOyB0aGVuCiAgICAgIFBBVEg9IiQocmVhbHBhdGggIiR7YXJnfSIpOiR7UEFUSH0iCiAgICBmaQogIGRvbmUKfQoKIyBAZGVzY3JpcHRpb24gSW50ZXJuYWw6IGNvbW1vbiBsb2cgbWVzc2FnZQojIEBleGFtcGxlIHRleHQKIyAgIFtkYXRlXXxbbGV2ZWxNc2ddfG1lc3NhZ2UKIwojIEBleGFtcGxlIHRleHQKIyAgIDIwMjAtMDEtMTkgMTk6MjA6MjF8RVJST1IgIHxsb2cgZXJyb3IKIyAgIDIwMjAtMDEtMTkgMTk6MjA6MjF8U0tJUFBFRHxsb2cgc2tpcHBlZAojCiMgQGFyZyAkMSBsZXZlbE1zZzpTdHJpbmcgbWVzc2FnZSdzIGxldmVsIGRlc2NyaXB0aW9uIChlZzogU1RBVFVTLCBFUlJPUiwgLi4uKQojIEBhcmcgJDIgbXNnOlN0cmluZyB0aGUgbWVzc2FnZSB0byBkaXNwbGF5CiMgQGVudiBCQVNIX0ZSQU1FV09SS19MT0dfRklMRSBTdHJpbmcgbG9nIGZpbGUgdG8gdXNlLCBkbyBub3RoaW5nIGlmIGVtcHR5CiMgQGVudiBCQVNIX0ZSQU1FV09SS19MT0dfTEVWRUwgaW50IGxvZyBsZXZlbCBsb2cgb25seSBpZiA+IE9GRiBvciBmYXRhbCBtZXNzYWdlcwojIEBzdGRlcnIgZGlhZ25vc3RpY3MgaW5mb3JtYXRpb24gaXMgZGlzcGxheWVkCiMgQHJlcXVpcmUgRW52OjpyZXF1aXJlTG9hZAojIEByZXF1aXJlIExvZzo6cmVxdWlyZUxvYWQKTG9nOjpsb2dNZXNzYWdlKCkgewogIGxvY2FsIGxldmVsTXNnPSIkMSIKICBsb2NhbCBtc2c9IiQyIgogIGxvY2FsIGRhdGUKCiAgaWYgW1sgLW4gIiR7QkFTSF9GUkFNRVdPUktfTE9HX0ZJTEV9IiBdXSAmJiAoKEJBU0hfRlJBTUVXT1JLX0xPR19MRVZFTCA+IF9fTEVWRUxfT0ZGKSk7IHRoZW4KICAgIGRhdGU9IiQoZGF0ZSAnKyVZLSVtLSVkICVIOiVNOiVTJykiCiAgICB0b3VjaCAiJHtCQVNIX0ZSQU1FV09SS19MT0dfRklMRX0iCiAgICBwcmludGYgIiVzfCU3c3wlc1xuIiAiJHtkYXRlfSIgIiR7bGV2ZWxNc2d9IiAiJHttc2d9IiA+PiIke0JBU0hfRlJBTUVXT1JLX0xPR19GSUxFfSIKICBmaQp9CgojIEBkZXNjcmlwdGlvbiBlbnN1cmUgZW52IGZpbGVzIGFyZSBsb2FkZWQKIyBAYXJnICRAIGxpc3Qgb2YgZGVmYXVsdCBmaWxlcyB0byBsb2FkIGF0IHRoZSBlbmQKIyBAZXhpdGNvZGUgMSBpZiBvbmUgb2YgZW52IGZpbGVzIGZhaWxzIHRvIGxvYWQKIyBAc3RkZXJyIGRpYWdub3N0aWNzIGluZm9ybWF0aW9uIGlzIGRpc3BsYXllZAojIHNoZWxsY2hlY2sgZGlzYWJsZT1TQzIxMjAKRW52OjpyZXF1aXJlTG9hZCgpIHsKICBsb2NhbCAtYSBkZWZhdWx0RmlsZXM9KCIkQCIpCiAgIyBnZXQgbGlzdCBvZiBwb3NzaWJsZSBjb25maWcgZmlsZXMKICBsb2NhbCAtYSBjb25maWdGaWxlcz0oKQogIGlmIFtbIC1uICIke0JBU0hfRlJBTUVXT1JLX0VOVl9GSUxFU1swXSsxfSIgXV07IHRoZW4KICAgICMgQkFTSF9GUkFNRVdPUktfRU5WX0ZJTEVTIGlzIGFuIGFycmF5CiAgICBjb25maWdGaWxlcys9KCIke0JBU0hfRlJBTUVXT1JLX0VOVl9GSUxFU1tAXX0iKQogIGZpCiAgbG9jYWwgbG9jYWxGcmFtZXdvcmtDb25maWdGaWxlCiAgbG9jYWxGcmFtZXdvcmtDb25maWdGaWxlPSIkKHB3ZCkvLmZyYW1ld29yay1jb25maWciCiAgaWYgW1sgLWYgIiR7bG9jYWxGcmFtZXdvcmtDb25maWdGaWxlfSIgXV07IHRoZW4KICAgIGNvbmZpZ0ZpbGVzKz0oIiR7bG9jYWxGcmFtZXdvcmtDb25maWdGaWxlfSIpCiAgZmkKICBpZiBbWyAtZiAiJHtGUkFNRVdPUktfUk9PVF9ESVJ9Ly5mcmFtZXdvcmstY29uZmlnIiBdXTsgdGhlbgogICAgY29uZmlnRmlsZXMrPSgiJHtGUkFNRVdPUktfUk9PVF9ESVJ9Ly5mcmFtZXdvcmstY29uZmlnIikKICBmaQogIGNvbmZpZ0ZpbGVzKz0oIiR7b3B0aW9uRW52RmlsZXNbQF19IikKICBjb25maWdGaWxlcys9KCIke2RlZmF1bHRGaWxlc1tAXX0iKQoKICBmb3IgZmlsZSBpbiAiJHtjb25maWdGaWxlc1tAXX0iOyBkbwogICAgIyBzaGVsbGNoZWNrIHNvdXJjZT0vLmZyYW1ld29yay1jb25maWcKICAgIENVUlJFTlRfTE9BREVEX0VOVl9GSUxFPSIke2ZpbGV9IiBzb3VyY2UgIiR7ZmlsZX0iIHx8IHsKICAgICAgTG9nOjpkaXNwbGF5RXJyb3IgIndoaWxlIGxvYWRpbmcgY29uZmlnIGZpbGU6ICR7ZmlsZX0iCiAgICAgIHJldHVybiAxCiAgICB9CiAgZG9uZQp9CgojIEBkZXNjcmlwdGlvbiBhY3RpdmF0ZSBvciBub3QgTG9nOjpkaXNwbGF5KiBhbmQgTG9nOjpsb2cqIGZ1bmN0aW9ucwojIGJhc2VkIG9uIEJBU0hfRlJBTUVXT1JLX0RJU1BMQVlfTEVWRUwgYW5kIEJBU0hfRlJBTUVXT1JLX0xPR19MRVZFTAojIGVudmlyb25tZW50IHZhcmlhYmxlcyBsb2FkZWQgYnkgRW52OjpyZXF1aXJlTG9hZAojIHRyeSB0byBjcmVhdGUgbG9nIGZpbGUgYW5kIHJvdGF0ZSBpdCBpZiBuZWNlc3NhcnkKIyBAbm9hcmdzCiMgQHNldCBCQVNIX0ZSQU1FV09SS19MT0dfTEVWRUwgaW50IHRvIE9GRiBsZXZlbCBpZiBCQVNIX0ZSQU1FV09SS19MT0dfRklMRSBpcyBlbXB0eSBvciBub3Qgd3JpdGFibGUKIyBAZW52IEJBU0hfRlJBTUVXT1JLX0RJU1BMQVlfTEVWRUwgaW50CiMgQGVudiBCQVNIX0ZSQU1FV09SS19MT0dfTEVWRUwgaW50CiMgQGVudiBCQVNIX0ZSQU1FV09SS19MT0dfRklMRSBTdHJpbmcKIyBAZW52IEJBU0hfRlJBTUVXT1JLX0xPR19GSUxFX01BWF9ST1RBVElPTiBpbnQgZG8gbG9nIHJvdGF0aW9uIGlmID4gMAojIEBleGl0Y29kZSAwIGFsd2F5cyBzdWNjZXNzZnVsCiMgQHN0ZGVyciBkaWFnbm9zdGljcyBpbmZvcm1hdGlvbiBhYm91dCBsb2cgZmlsZSBpcyBkaXNwbGF5ZWQKIyBAcmVxdWlyZSBFbnY6OnJlcXVpcmVMb2FkCiMgQHJlcXVpcmUgVUk6OnJlcXVpcmVUaGVtZQpMb2c6OnJlcXVpcmVMb2FkKCkgewogIGlmIFtbIC16ICIke0JBU0hfRlJBTUVXT1JLX0xPR19GSUxFOi19IiBdXTsgdGhlbgogICAgQkFTSF9GUkFNRVdPUktfTE9HX0xFVkVMPSR7X19MRVZFTF9PRkZ9CiAgICBleHBvcnQgQkFTSF9GUkFNRVdPUktfTE9HX0xFVkVMCiAgZmkKCiAgaWYgKChCQVNIX0ZSQU1FV09SS19MT0dfTEVWRUwgPiBfX0xFVkVMX09GRikpOyB0aGVuCiAgICBpZiBbWyAhIC1mICIke0JBU0hfRlJBTUVXT1JLX0xPR19GSUxFfSIgXV07IHRoZW4KICAgICAgaWYgW1sgISAtZCAiJHtCQVNIX0ZSQU1FV09SS19MT0dfRklMRSUvKn0iIF1dOyB0aGVuCiAgICAgICAgaWYgISBta2RpciAtcCAiJHtCQVNIX0ZSQU1FV09SS19MT0dfRklMRSUvKn0iIDI+L2Rldi9udWxsOyB0aGVuCiAgICAgICAgICBCQVNIX0ZSQU1FV09SS19MT0dfTEVWRUw9JHtfX0xFVkVMX09GRn0KICAgICAgICAgIGVjaG8gLWUgIiR7X19FUlJPUl9DT0xPUn1FUlJPUiAgIC0gZGlyZWN0b3J5ICR7QkFTSF9GUkFNRVdPUktfTE9HX0ZJTEUlLyp9IGlzIG5vdCB3cml0YWJsZSR7X19SRVNFVF9DT0xPUn0iID4mMgogICAgICAgIGZpCiAgICAgIGVsaWYgISB0b3VjaCAtLW5vLWNyZWF0ZSAiJHtCQVNIX0ZSQU1FV09SS19MT0dfRklMRX0iIDI+L2Rldi9udWxsOyB0aGVuCiAgICAgICAgQkFTSF9GUkFNRVdPUktfTE9HX0xFVkVMPSR7X19MRVZFTF9PRkZ9CiAgICAgICAgZWNobyAtZSAiJHtfX0VSUk9SX0NPTE9SfUVSUk9SICAgLSBGaWxlICR7QkFTSF9GUkFNRVdPUktfTE9HX0ZJTEV9IGlzIG5vdCB3cml0YWJsZSR7X19SRVNFVF9DT0xPUn0iID4mMgogICAgICBmaQogICAgZWxpZiBbWyAhIC13ICIke0JBU0hfRlJBTUVXT1JLX0xPR19GSUxFfSIgXV07IHRoZW4KICAgICAgQkFTSF9GUkFNRVdPUktfTE9HX0xFVkVMPSR7X19MRVZFTF9PRkZ9CiAgICAgIGVjaG8gLWUgIiR7X19FUlJPUl9DT0xPUn1FUlJPUiAgIC0gRmlsZSAke0JBU0hfRlJBTUVXT1JLX0xPR19GSUxFfSBpcyBub3Qgd3JpdGFibGUke19fUkVTRVRfQ09MT1J9IiA+JjIKICAgIGZpCiAgZmkKCiAgaWYgKChCQVNIX0ZSQU1FV09SS19MT0dfTEVWRUwgPiBfX0xFVkVMX09GRikpOyB0aGVuCiAgICAjIHdpbGwgYWx3YXlzIGJlIGNyZWF0ZWQgZXZlbiBpZiBub3QgaW4gaW5mbyBsZXZlbAogICAgTG9nOjpsb2dNZXNzYWdlICJJTkZPIiAiTG9nZ2luZyB0byBmaWxlICR7QkFTSF9GUkFNRVdPUktfTE9HX0ZJTEV9IC0gTG9nIGxldmVsICR7QkFTSF9GUkFNRVdPUktfTE9HX0xFVkVMfSIKICAgIGlmICgoQkFTSF9GUkFNRVdPUktfTE9HX0ZJTEVfTUFYX1JPVEFUSU9OID4gMCkpOyB0aGVuCiAgICAgIExvZzo6cm90YXRlICIke0JBU0hfRlJBTUVXT1JLX0xPR19GSUxFfSIgIiR7QkFTSF9GUkFNRVdPUktfTE9HX0ZJTEVfTUFYX1JPVEFUSU9OfSIKICAgIGZpCiAgZmkKfQoKIyBAZGVzY3JpcHRpb24gRGlzcGxheSBtZXNzYWdlIHVzaW5nIGVycm9yIGNvbG9yIChyZWQpCiMgQGFyZyAkMSBtZXNzYWdlOlN0cmluZyB0aGUgbWVzc2FnZSB0byBkaXNwbGF5CiMgQGVudiBESVNQTEFZX0RVUkFUSU9OIGludCAoZGVmYXVsdCAwKSBpZiAxIGRpc3BsYXkgZWxhcHNlZCB0aW1lIGluZm9ybWF0aW9uIGJldHdlZW4gMiBpbmZvIGxvZ3MKIyBAZW52IExPR19DT05URVhUIFN0cmluZyBhbGxvd3MgdG8gY29udGV4dHVhbGl6ZSB0aGUgbG9nCkxvZzo6ZGlzcGxheUVycm9yKCkgewogIGlmICgoQkFTSF9GUkFNRVdPUktfRElTUExBWV9MRVZFTCA+PSBfX0xFVkVMX0VSUk9SKSk7IHRoZW4KICAgIExvZzo6Y29tcHV0ZUR1cmF0aW9uCiAgICBlY2hvIC1lICIke19fRVJST1JfQ09MT1J9RVJST1IgICAtICR7TE9HX0NPTlRFWFQ6LX0ke0xPR19MQVNUX0RVUkFUSU9OX1NUUjotfSR7MX0ke19fUkVTRVRfQ09MT1J9IiA+JjIKICBmaQogIExvZzo6bG9nRXJyb3IgIiQxIgp9CgojIEBkZXNjcmlwdGlvbiBUbyBiZSBjYWxsZWQgYmVmb3JlIGxvZ2dpbmcgaW4gdGhlIGxvZyBmaWxlCiMgQGFyZyAkMSBmaWxlOnN0cmluZyBsb2cgZmlsZSBuYW1lCiMgQGFyZyAkMiBtYXhMb2dGaWxlc0NvdW50OmludCBtYXhpbXVtIG51bWJlciBvZiBsb2cgZmlsZXMKTG9nOjpyb3RhdGUoKSB7CiAgbG9jYWwgZmlsZT0iJDEiCiAgbG9jYWwgbWF4TG9nRmlsZXNDb3VudD0iJHsyOi01fSIKCiAgaWYgW1sgISAtZiAiJHtmaWxlfSIgXV07IHRoZW4KICAgIExvZzo6ZGlzcGxheURlYnVnICJMb2cgZmlsZSAke2ZpbGV9IGRvZXNuJ3QgZXhpc3QgeWV0IgogICAgcmV0dXJuIDAKICBmaQogIGxvY2FsIGkKICBmb3IgKChpID0gbWF4TG9nRmlsZXNDb3VudCAtIDE7IGkgPiAwOyBpLS0pKTsgZG8KICAgIExvZzo6ZGlzcGxheUluZm8gIkxvZyByb3RhdGlvbiAke2ZpbGV9LiR7aX0gdG8gJHtmaWxlfS4kKChpICsgMSkpIgogICAgbXYgIiR7ZmlsZX0uInsiJHtpfSIsIiQoKGkgKyAxKSkifSAmPi9kZXYvbnVsbCB8fCB0cnVlCiAgZG9uZQogIGlmIGNwICIke2ZpbGV9IiAiJHtmaWxlfS4xIiAmPi9kZXYvbnVsbDsgdGhlbgogICAgZWNobyA+IiR7ZmlsZX0iICMgcmVzZXQgbG9nIGZpbGUKICAgIExvZzo6ZGlzcGxheUluZm8gIkxvZyByb3RhdGlvbiAke2ZpbGV9IHRvICR7ZmlsZX0uMSIKICBmaQp9CgojIEBkZXNjcmlwdGlvbiBsb2FkIGNvbG9yIHRoZW1lCiMgQG5vYXJncwojIEBlbnYgQkFTSF9GUkFNRVdPUktfVEhFTUUgU3RyaW5nIHRoZW1lIHRvIHVzZQojIEBlbnYgTE9BRF9USEVNRSBpbnQgMCB0byBhdm9pZCBsb2FkaW5nIHRoZW1lCiMgQGV4aXRjb2RlIDAgYWx3YXlzIHN1Y2Nlc3NmdWwKVUk6OnJlcXVpcmVUaGVtZSgpIHsKICBpZiBbWyAiJHtMT0FEX1RIRU1FOi0xfSIgPSAiMSIgXV07IHRoZW4KICAgIFVJOjp0aGVtZSAiJHtCQVNIX0ZSQU1FV09SS19USEVNRS1kZWZhdWx0fSIKICBmaQp9CgojIEBkZXNjcmlwdGlvbiBsb2cgbWVzc2FnZSB0byBmaWxlCiMgQGFyZyAkMSBtZXNzYWdlOlN0cmluZyB0aGUgbWVzc2FnZSB0byBkaXNwbGF5CkxvZzo6bG9nRXJyb3IoKSB7CiAgaWYgKChCQVNIX0ZSQU1FV09SS19MT0dfTEVWRUwgPj0gX19MRVZFTF9FUlJPUikpOyB0aGVuCiAgICBMb2c6OmxvZ01lc3NhZ2UgIiR7MjotRVJST1J9IiAiJDEiCiAgZmkKfQoKIyBAZGVzY3JpcHRpb24gbG9hZCBjb2xvcnMgdGhlbWUgY29uc3RhbnRzCiMgQHdhcm5pbmcgaWYgdHR5IG5vdCBvcGVuZWQsIG5vQ29sb3IgdGhlbWUgd2lsbCBiZSBjaG9zZW4KIyBAYXJnICQxIHRoZW1lOlN0cmluZyB0aGUgdGhlbWUgdG8gdXNlIChkZWZhdWx0LCBub0NvbG9yKQojIEBhcmcgJEAgYXJnczpTdHJpbmdbXQojIEBzZXQgX19FUlJPUl9DT0xPUiBTdHJpbmcgaW5kaWNhdGUgZXJyb3Igc3RhdHVzCiMgQHNldCBfX0lORk9fQ09MT1IgU3RyaW5nIGluZGljYXRlIGluZm8gc3RhdHVzCiMgQHNldCBfX1NVQ0NFU1NfQ09MT1IgU3RyaW5nIGluZGljYXRlIHN1Y2Nlc3Mgc3RhdHVzCiMgQHNldCBfX1dBUk5JTkdfQ09MT1IgU3RyaW5nIGluZGljYXRlIHdhcm5pbmcgc3RhdHVzCiMgQHNldCBfX1NLSVBQRURfQ09MT1IgU3RyaW5nIGluZGljYXRlIHNraXBwZWQgc3RhdHVzCiMgQHNldCBfX0RFQlVHX0NPTE9SIFN0cmluZyBpbmRpY2F0ZSBkZWJ1ZyBzdGF0dXMKIyBAc2V0IF9fSEVMUF9DT0xPUiBTdHJpbmcgaW5kaWNhdGUgaGVscCBzdGF0dXMKIyBAc2V0IF9fVEVTVF9DT0xPUiBTdHJpbmcgbm90IHVzZWQKIyBAc2V0IF9fVEVTVF9FUlJPUl9DT0xPUiBTdHJpbmcgbm90IHVzZWQKIyBAc2V0IF9fSEVMUF9USVRMRV9DT0xPUiBTdHJpbmcgdXNlZCB0byBkaXNwbGF5IGhlbHAgdGl0bGUgaW4gaGVscCBzdHJpbmdzCiMgQHNldCBfX0hFTFBfT1BUSU9OX0NPTE9SIFN0cmluZyB1c2VkIHRvIGRpc3BsYXkgaGlnaGxpZ2h0IG9wdGlvbnMgaW4gaGVscCBzdHJpbmdzCiMKIyBAc2V0IF9fUkVTRVRfQ09MT1IgU3RyaW5nIHJlc2V0IGRlZmF1bHQgY29sb3IKIwojIEBzZXQgX19IRUxQX0VYQU1QTEUgU3RyaW5nIHRvIHJlbW92ZQojIEBzZXQgX19IRUxQX1RJVExFIFN0cmluZyB0byByZW1vdmUKIyBAc2V0IF9fSEVMUF9OT1JNQUwgU3RyaW5nIHRvIHJlbW92ZQojIHNoZWxsY2hlY2sgZGlzYWJsZT1TQzIwMzQKVUk6OnRoZW1lKCkgewogIGxvY2FsIHRoZW1lPSIkezEtZGVmYXVsdH0iCiAgaWYgW1sgISAiJHt0aGVtZX0iID1+IC1mb3JjZSQgXV0gJiYgISBBc3NlcnQ6OnR0eTsgdGhlbgogICAgdGhlbWU9Im5vQ29sb3IiCiAgZmkKICBjYXNlICIke3RoZW1lfSIgaW4KICAgIGRlZmF1bHQgfCBkZWZhdWx0LWZvcmNlKQogICAgICB0aGVtZT0iZGVmYXVsdCIKICAgICAgOzsKICAgIG5vQ29sb3IpIDs7CiAgICAqKQogICAgICBMb2c6OmZhdGFsICJpbnZhbGlkIHRoZW1lIHByb3ZpZGVkIgogICAgICA7OwogIGVzYWMKICBpZiBbWyAiJHt0aGVtZX0iID0gImRlZmF1bHQiIF1dOyB0aGVuCiAgICBCQVNIX0ZSQU1FV09SS19USEVNRT0iZGVmYXVsdCIKICAgICMgY2hlY2sgY29sb3JzIGFwcGxpY2FibGUgaHR0cHM6Ly9taXNjLmZsb2dpc29mdC5jb20vYmFzaC90aXBfY29sb3JzX2FuZF9mb3JtYXR0aW5nCiAgICBfX0VSUk9SX0NPTE9SPSdcZVszMW0nICAgICAgICAgIyBSZWQKICAgIF9fSU5GT19DT0xPUj0nXGVbNDRtJyAgICAgICAgICAjIHdoaXRlIG9uIGxpZ2h0Qmx1ZQogICAgX19TVUNDRVNTX0NPTE9SPSdcZVszMm0nICAgICAgICMgR3JlZW4KICAgIF9fV0FSTklOR19DT0xPUj0nXGVbMzNtJyAgICAgICAjIFllbGxvdwogICAgX19TS0lQUEVEX0NPTE9SPSdcZVszM20nICAgICAgICMgWWVsbG93CiAgICBfX0RFQlVHX0NPTE9SPSdcZVszN20nICAgICAgICAgIyBHcmF5CiAgICBfX0hFTFBfQ09MT1I9J1xlWzc7NDk7MzNtJyAgICAgIyBCbGFjayBvbiBHb2xkCiAgICBfX1RFU1RfQ09MT1I9J1xlWzEwMG0nICAgICAgICAgIyBMaWdodCBtYWdlbnRhCiAgICBfX1RFU1RfRVJST1JfQ09MT1I9J1xlWzQxbScgICAgIyB3aGl0ZSBvbiByZWQKICAgIF9fSEVMUF9USVRMRV9DT0xPUj0iXGVbMTszN20iICAjIEJvbGQKICAgIF9fSEVMUF9PUFRJT05fQ09MT1I9IlxlWzE7MzRtIiAjIEJsdWUKICAgICMgSW50ZXJuYWw6IHJlc2V0IGNvbG9yCiAgICBfX1JFU0VUX0NPTE9SPSdcZVswbScgIyBSZXNldCBDb2xvcgogICAgIyBzaGVsbGNoZWNrIGRpc2FibGU9U0MyMTU1LFNDMjAzNAogICAgX19IRUxQX0VYQU1QTEU9IiQoZWNobyAtZSAiXGVbMjs5N20iKSIKICAgICMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMjE1NSxTQzIwMzQKICAgIF9fSEVMUF9USVRMRT0iJChlY2hvIC1lICJcZVsxOzM3bSIpIgogICAgIyBzaGVsbGNoZWNrIGRpc2FibGU9U0MyMTU1LFNDMjAzNAogICAgX19IRUxQX05PUk1BTD0iJChlY2hvIC1lICJcMDMzWzBtIikiCiAgZWxzZQogICAgQkFTSF9GUkFNRVdPUktfVEhFTUU9Im5vQ29sb3IiCiAgICAjIGNoZWNrIGNvbG9ycyBhcHBsaWNhYmxlIGh0dHBzOi8vbWlzYy5mbG9naXNvZnQuY29tL2Jhc2gvdGlwX2NvbG9yc19hbmRfZm9ybWF0dGluZwogICAgX19FUlJPUl9DT0xPUj0nJwogICAgX19JTkZPX0NPTE9SPScnCiAgICBfX1NVQ0NFU1NfQ09MT1I9JycKICAgIF9fV0FSTklOR19DT0xPUj0nJwogICAgX19TS0lQUEVEX0NPTE9SPScnCiAgICBfX0RFQlVHX0NPTE9SPScnCiAgICBfX0hFTFBfQ09MT1I9JycKICAgIF9fVEVTVF9DT0xPUj0nJwogICAgX19URVNUX0VSUk9SX0NPTE9SPScnCiAgICBfX0hFTFBfVElUTEVfQ09MT1I9JycKICAgIF9fSEVMUF9PUFRJT05fQ09MT1I9JycKICAgICMgSW50ZXJuYWw6IHJlc2V0IGNvbG9yCiAgICBfX1JFU0VUX0NPTE9SPScnCiAgICBfX0hFTFBfRVhBTVBMRT0nJwogICAgX19IRUxQX1RJVExFPScnCiAgICBfX0hFTFBfTk9STUFMPScnCiAgZmkKfQoKIyBAZGVzY3JpcHRpb24gY2hlY2sgaWYgdHR5IChpbnRlcmFjdGl2ZSBtb2RlKSBpcyBhY3RpdmUKIyBAbm9hcmdzCiMgQGV4aXRjb2RlIDEgaWYgdHR5IG5vdCBhY3RpdmUKIyBAZW52IE5PTl9JTlRFUkFDVElWRSBpZiAxIGNvbnNpZGVyIGFzIG5vdCBpbnRlcmFjdGl2ZSBldmVuIGlmIGVudmlyb25tZW50IGlzIGludGVyYWN0aXZlCiMgQGVudiBJTlRFUkFDVElWRSBpZiAxIGNvbnNpZGVyIGFzIGludGVyYWN0aXZlIGV2ZW4gaWYgZW52aXJvbm1lbnQgaXMgbm90IGludGVyYWN0aXZlCkFzc2VydDo6dHR5KCkgewogIGlmIFtbICIke05PTl9JTlRFUkFDVElWRTotMH0iID0gIjEiIF1dOyB0aGVuCiAgICByZXR1cm4gMQogIGZpCiAgaWYgW1sgIiR7SU5URVJBQ1RJVkU6LTB9IiA9ICIxIiBdXTsgdGhlbgogICAgcmV0dXJuIDAKICBmaQogIHR0eSAtcwp9CgojIEBkZXNjcmlwdGlvbiBEaXNwbGF5IG1lc3NhZ2UgdXNpbmcgZXJyb3IgY29sb3IgKHJlZCkgYW5kIGV4aXQgaW1tZWRpYXRlbHkgd2l0aCBlcnJvciBzdGF0dXMgMQojIEBhcmcgJDEgbWVzc2FnZTpTdHJpbmcgdGhlIG1lc3NhZ2UgdG8gZGlzcGxheQojIEBlbnYgRElTUExBWV9EVVJBVElPTiBpbnQgKGRlZmF1bHQgMCkgaWYgMSBkaXNwbGF5IGVsYXBzZWQgdGltZSBpbmZvcm1hdGlvbiBiZXR3ZWVuIDIgaW5mbyBsb2dzCiMgQGVudiBMT0dfQ09OVEVYVCBTdHJpbmcgYWxsb3dzIHRvIGNvbnRleHR1YWxpemUgdGhlIGxvZwpMb2c6OmZhdGFsKCkgewogIExvZzo6Y29tcHV0ZUR1cmF0aW9uCiAgZWNobyAtZSAiJHtfX0VSUk9SX0NPTE9SfUZBVEFMICAgLSAke0xPR19DT05URVhUOi19JHtMT0dfTEFTVF9EVVJBVElPTl9TVFI6LX0kezF9JHtfX1JFU0VUX0NPTE9SfSIgPiYyCiAgTG9nOjpsb2dGYXRhbCAiJDEiCiAgZXhpdCAxCn0KCiMgQGRlc2NyaXB0aW9uIGxvZyBtZXNzYWdlIHRvIGZpbGUKIyBAYXJnICQxIG1lc3NhZ2U6U3RyaW5nIHRoZSBtZXNzYWdlIHRvIGRpc3BsYXkKTG9nOjpsb2dGYXRhbCgpIHsKICBMb2c6OmxvZ01lc3NhZ2UgIiR7MjotRkFUQUx9IiAiJDEiCn0KCiMgRlVOQ1RJT05TCgpmYWNhZGVfbWFpbl9sb2FkQ29uZmlnRmlsZXNzaCgpIHsKCmlmIEFzc2VydDo6ZnVuY3Rpb25FeGlzdHMgaW5pdEZhY2FkZTsgdGhlbgogIGluaXRGYWNhZGUKZmkKTE9BRF9MT0NBTEVfQ09ORklHPSIxIgoKIyBAcmVxdWlyZSBDb21waWxlcjo6RmFjYWRlOjpyZXF1aXJlQ29tbWFuZEJpbkRpcgoKZGVjbGFyZSBkaXI9IiQxIgppZiBbWyAhIC1kICIke2Rpcn0iIF1dOyB0aGVuCiAgcmV0dXJuIDEKZmkKc2hpZnQgfHwgdHJ1ZQpkZWNsYXJlIC1hIGV4dGVuc2lvbnM9KCIkQCIpCmlmICgoJHsjZXh0ZW5zaW9uc1tAXX0gPCAxKSk7IHRoZW4KICBleGl0IDIKZmkKZGVjbGFyZSAtYSBmaW5kQ21kPSgKICBmaW5kICIke2Rpcn0iIC1leGVjdXRhYmxlIC10eXBlICdmLGwnICcoJwopCmZvciBleHQgaW4gIiR7ZXh0ZW5zaW9uc1tAXX0iOyBkbwogIGZpbmRDbWQrPSgtbmFtZSBcKi4iJHtleHR9IiAtbykKZG9uZQp1bnNldCAnZmluZENtZFstMV0nCmZpbmRDbWQrPSgnKScgLXByaW50ZiAnJXBcbicpCgoiJHtmaW5kQ21kW0BdfSIgMj4vZGV2L251bGwgfCBhd2sgLXYgZXh0PSIkKHByaW50ZiAnJXN8JyAiJHtleHRlbnNpb25zW0BdfSIpIiAnCiAgQkVHSU4gewogICAgRlM9Ii4iOwogICAgc3BsaXQoZXh0LCBleHRBcnIsICJ8Iik7CiAgICBmb3IgKGkgaW4gZXh0QXJyKSB7CiAgICAgIGV4dEluZGV4W2V4dEFycltpXV0gPSBpOwogICAgfQogIH0KICBmdW5jdGlvbiBiYXNlbmFtZVdpdGhvdXRFeHRlbnNpb24oZmlsZSkgewogICAgc3ViKCIuKi8iLCAiIiwgZmlsZSkKICAgIHN1YigvXC5bXi5dKyQvLCAiIiwgZmlsZSkKICAgIHJldHVybiBmaWxlCiAgfQogIHsKICAgIGlmICgkTkYgaW4gZXh0SW5kZXgpIHsKICAgICAgZmlsZUJhc2U9YmFzZW5hbWVXaXRob3V0RXh0ZW5zaW9uKCQwKQogICAgICBwcmludCBmaWxlQmFzZSAiXHQiIGV4dEluZGV4WyRORl0gIlx0IiAkMDsKICAgIH0KICB9CicgfCBzb3J0IC10JCdcdCcgLWsxLDEgLWsyLDIgfCBjdXQgLWYzLQoKfQoKZmFjYWRlX21haW5fbG9hZENvbmZpZ0ZpbGVzc2ggIiRAIgo=" \
+  "755"
+
+declare -gx embed_file_loadConfigFiles="${PERSISTENT_TMPDIR:-/tmp}/5e427bfb617fb2c95ecd2317839d173a1f8c7b5acbf734cc783bcc0ca35c5852/loadConfigFiles"
+
+Linux::requireTarCommand
+Compiler::Embed::extractFileFromBase64 \
+  "${PERSISTENT_TMPDIR:-/tmp}/a48184c232fc660e5cb5f0efbd8392d70bef6024313a307f77dbdfb3bd5ecb9d/fixWslDate" \
+  "IyEvdXNyL2Jpbi9lbnYgYmFzaAojIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjCiMgR0VORVJBVEVEIEZBQ0FERSBGUk9NIGh0dHBzOi8vZ2l0aHViLmNvbS9mY2hhc3RhbmV0L2Jhc2gtZGV2LWVudi90cmVlL21hc3Rlci9zcmMvX2JpbmFyaWVzL190b29scy9maXhXc2xEYXRlLnNoCiMgRE8gTk9UIEVESVQgSVQKIyBAZ2VuZXJhdGVkCiMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMKIyBzaGVsbGNoZWNrIGRpc2FibGU9U0MyMjg4LFNDMjAzNAojIEJJTl9GSUxFPSR7QkFTSF9ERVZfRU5WX1JPT1RfRElSfS9iaW4vZml4V3NsRGF0ZQojIFZBUl9SRUxBVElWRV9GUkFNRVdPUktfRElSX1RPX0NVUlJFTlRfRElSPQojIFZBUl9MT0FEX1JFUVVJUkVTPTAKIyBWQVJfTE9BRF9DT05GSUc9MAojIEZBQ0FERQoKIyBlbnN1cmUgdGhhdCBubyB1c2VyIGFsaWFzZXMgY291bGQgaW50ZXJmZXJlIHdpdGgKIyBjb21tYW5kcyB1c2VkIGluIHRoaXMgc2NyaXB0CnVuYWxpYXMgLWEgfHwgdHJ1ZQpzaG9wdCAtdSBleHBhbmRfYWxpYXNlcwoKIyBzaGVsbGNoZWNrIGRpc2FibGU9U0MyMDM0CigoZmFpbHVyZXMgPSAwKSkgfHwgdHJ1ZQoKIyBCYXNoIHdpbGwgcmVtZW1iZXIgJiByZXR1cm4gdGhlIGhpZ2hlc3QgZXhpdCBjb2RlIGluIGEgY2hhaW4gb2YgcGlwZXMuCiMgVGhpcyB3YXkgeW91IGNhbiBjYXRjaCB0aGUgZXJyb3IgaW5zaWRlIHBpcGVzLCBlLmcuIG15c3FsZHVtcCB8IGd6aXAKc2V0IC1vIHBpcGVmYWlsCnNldCAtbyBlcnJleGl0CgojIENvbW1hbmQgU3Vic3RpdHV0aW9uIGNhbiBpbmhlcml0IGVycmV4aXQgb3B0aW9uIHNpbmNlIGJhc2ggdjQuNApzaG9wdCAtcyBpbmhlcml0X2VycmV4aXQgfHwgdHJ1ZQoKIyBpZiBzZXQsIGFuZCBqb2IgY29udHJvbCBpcyBub3QgYWN0aXZlLCB0aGUgc2hlbGwgcnVucyB0aGUgbGFzdCBjb21tYW5kCiMgb2YgYSBwaXBlbGluZSBub3QgZXhlY3V0ZWQgaW4gdGhlIGJhY2tncm91bmQgaW4gdGhlIGN1cnJlbnQgc2hlbGwKIyBlbnZpcm9ubWVudC4Kc2hvcHQgLXMgbGFzdHBpcGUKCiMgYSBsb2cgaXMgZ2VuZXJhdGVkIHdoZW4gYSBjb21tYW5kIGZhaWxzCnNldCAtbyBlcnJ0cmFjZQoKIyB1c2UgbnVsbGdsb2Igc28gdGhhdCAoZmlsZSoucGhwKSB3aWxsIHJldHVybiBhbiBlbXB0eSBhcnJheSBpZiBubyBmaWxlCiMgbWF0Y2hlcyB0aGUgd2lsZGNhcmQKc2hvcHQgLXMgbnVsbGdsb2IKCiMgZW5zdXJlIHJlZ2V4cCBhcmUgaW50ZXJwcmV0ZWQgd2l0aG91dCBhY2NlbnR1YXRlZCBjaGFyYWN0ZXJzCmV4cG9ydCBMQ19BTEw9UE9TSVgKCmV4cG9ydCBURVJNPXh0ZXJtLTI1NmNvbG9yCgojIGF2b2lkIGludGVyYWN0aXZlIGluc3RhbGwKZXhwb3J0IERFQklBTl9GUk9OVEVORD1ub25pbnRlcmFjdGl2ZQpleHBvcnQgREVCQ09ORl9OT05JTlRFUkFDVElWRV9TRUVOPXRydWUKCiMgc3RvcmUgY29tbWFuZCBhcmd1bWVudHMgZm9yIGxhdGVyIHVzYWdlCiMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMjAzNApkZWNsYXJlIC1hIEJBU0hfRlJBTUVXT1JLX0FSR1Y9KCIkQCIpCiMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMjAzNApkZWNsYXJlIC1hIE9SSUdJTkFMX0JBU0hfRlJBTUVXT1JLX0FSR1Y9KCIkQCIpCgojIEBzZWUgaHR0cHM6Ly91bml4LnN0YWNrZXhjaGFuZ2UuY29tL2EvMzg2ODU2CiMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMjMxNwppbnRlcnJ1cHRNYW5hZ2VtZW50KCkgewogICMgcmVzdG9yZSBTSUdJTlQgaGFuZGxlcgogIHRyYXAgLSBJTlQKICAjIGVuc3VyZSB0aGF0IEN0cmwtQyBpcyB0cmFwcGVkIGJ5IHRoaXMgc2NyaXB0IGFuZCBub3QgYnkgc3ViIHByb2Nlc3MKICAjIHJlcG9ydCB0byB0aGUgcGFyZW50IHRoYXQgd2UgaGF2ZSBpbmRlZWQgYmVlbiBpbnRlcnJ1cHRlZAogIGtpbGwgLXMgSU5UICIkJCIKfQp0cmFwIGludGVycnVwdE1hbmFnZW1lbnQgSU5UClNDUklQVF9OQU1FPSR7MCMjKi99ClJFQUxfU0NSSVBUX0ZJTEU9IiQocmVhZGxpbmsgLWUgIiQocmVhbHBhdGggIiR7QkFTSF9TT1VSQ0VbMF19IikiKSIKaWYgW1sgLW4gIiR7RU1CRURfQ1VSUkVOVF9ESVJ9IiBdXTsgdGhlbgogIENVUlJFTlRfRElSPSIke0VNQkVEX0NVUlJFTlRfRElSfSIKZWxzZQogIENVUlJFTlRfRElSPSIke1JFQUxfU0NSSVBUX0ZJTEUlLyp9IgpmaQoKIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjCiMgVGVtcCBkaXIgbWFuYWdlbWVudAojIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMKCktFRVBfVEVNUF9GSUxFUz0iJHtLRUVQX1RFTVBfRklMRVM6LTB9IgpleHBvcnQgS0VFUF9URU1QX0ZJTEVTCgojIFBFUlNJU1RFTlRfVE1QRElSIGlzIG5vdCBkZWxldGVkIGJ5IHRyYXBzClBFUlNJU1RFTlRfVE1QRElSPSIke1RNUERJUjotL3RtcH0vYmFzaC1mcmFtZXdvcmsiCmV4cG9ydCBQRVJTSVNURU5UX1RNUERJUgppZiBbWyAhIC1kICIke1BFUlNJU1RFTlRfVE1QRElSfSIgXV07IHRoZW4KICBta2RpciAtcCAiJHtQRVJTSVNURU5UX1RNUERJUn0iCmZpCgojIHNoZWxsY2hlY2sgZGlzYWJsZT1TQzIwMzQKVE1QRElSPSIkKG1rdGVtcCAtZCAtcCAiJHtQRVJTSVNURU5UX1RNUERJUjotL3RtcH0iIC10IGJhc2gtZnJhbWV3b3JrLSQkLVhYWFhYWCkiCmV4cG9ydCBUTVBESVIKCiMgdGVtcCBkaXIgY2xlYW5pbmcKIyBzaGVsbGNoZWNrIGRpc2FibGU9U0MyMzE3CmNsZWFuT25FeGl0KCkgewogIGxvY2FsIHJjPSQ/CiAgaWYgW1sgIiR7S0VFUF9URU1QX0ZJTEVTOi0wfSIgPSAiMSIgXV07IHRoZW4KICAgIExvZzo6ZGlzcGxheUluZm8gIktFRVBfVEVNUF9GSUxFUz0xIHRlbXAgZmlsZXMga2VwdCBoZXJlICcke1RNUERJUn0nIgogIGVsaWYgW1sgLW4gIiR7VE1QRElSK3h4eH0iIF1dOyB0aGVuCiAgICBMb2c6OmRpc3BsYXlEZWJ1ZyAiS0VFUF9URU1QX0ZJTEVTPTAgcmVtb3ZpbmcgdGVtcCBmaWxlcyAnJHtUTVBESVJ9JyIKICAgIHJtIC1SZiAiJHtUTVBESVI6LS90bXAvZmFrZX0iID4vZGV2L251bGwgMj4mMQogIGZpCiAgZXhpdCAiJHtyY30iCn0KdHJhcCBjbGVhbk9uRXhpdCBFWElUIEhVUCBRVUlUIEFCUlQgVEVSTQoKIyBAZGVzY3JpcHRpb24gTG9nIG5hbWVzcGFjZSBwcm92aWRlcyAyIGtpbmQgb2YgZnVuY3Rpb25zCiMgLSBMb2c6OmRpc3BsYXkqIGFsbG93cyB0byBkaXNwbGF5IGdpdmVuIG1lc3NhZ2Ugd2l0aAojICAgZ2l2ZW4gZGlzcGxheSBsZXZlbAojIC0gTG9nOjpsb2cqIGFsbG93cyB0byBsb2cgZ2l2ZW4gbWVzc2FnZSB3aXRoCiMgICBnaXZlbiBsb2cgbGV2ZWwKIyBMb2c6OmRpc3BsYXkqIGZ1bmN0aW9ucyBhdXRvbWF0aWNhbGx5IGxvZyB0aGUgbWVzc2FnZSB0b28KIyBAc2VlIEVudjo6cmVxdWlyZUxvYWQgdG8gbG9hZCB0aGUgZGlzcGxheSBhbmQgbG9nIGxldmVsIGZyb20gLmVudiBmaWxlCgojIEBkZXNjcmlwdGlvbiBsb2cgbGV2ZWwgb2ZmCmV4cG9ydCBfX0xFVkVMX09GRj0wCiMgQGRlc2NyaXB0aW9uIGxvZyBsZXZlbCBlcnJvcgpleHBvcnQgX19MRVZFTF9FUlJPUj0xCiMgQGRlc2NyaXB0aW9uIGxvZyBsZXZlbCB3YXJuaW5nCmV4cG9ydCBfX0xFVkVMX1dBUk5JTkc9MgojIEBkZXNjcmlwdGlvbiBsb2cgbGV2ZWwgaW5mbwpleHBvcnQgX19MRVZFTF9JTkZPPTMKIyBAZGVzY3JpcHRpb24gbG9nIGxldmVsIHN1Y2Nlc3MKZXhwb3J0IF9fTEVWRUxfU1VDQ0VTUz0zCiMgQGRlc2NyaXB0aW9uIGxvZyBsZXZlbCBkZWJ1ZwpleHBvcnQgX19MRVZFTF9ERUJVRz00CgojIEBkZXNjcmlwdGlvbiB2ZXJib3NlIGxldmVsIG9mZgpleHBvcnQgX19WRVJCT1NFX0xFVkVMX09GRj0wCiMgQGRlc2NyaXB0aW9uIHZlcmJvc2UgbGV2ZWwgaW5mbwpleHBvcnQgX19WRVJCT1NFX0xFVkVMX0lORk89MQojIEBkZXNjcmlwdGlvbiB2ZXJib3NlIGxldmVsIGluZm8KZXhwb3J0IF9fVkVSQk9TRV9MRVZFTF9ERUJVRz0yCiMgQGRlc2NyaXB0aW9uIHZlcmJvc2UgbGV2ZWwgaW5mbwpleHBvcnQgX19WRVJCT1NFX0xFVkVMX1RSQUNFPTMKCiMgQGRlc2NyaXB0aW9uIERpc3BsYXkgbWVzc2FnZSB1c2luZyBpbmZvIGNvbG9yIChiZyBsaWdodCBibHVlL2ZnIHdoaXRlKQojIEBhcmcgJDEgbWVzc2FnZTpTdHJpbmcgdGhlIG1lc3NhZ2UgdG8gZGlzcGxheQojIEBlbnYgRElTUExBWV9EVVJBVElPTiBpbnQgKGRlZmF1bHQgMCkgaWYgMSBkaXNwbGF5IGVsYXBzZWQgdGltZSBpbmZvcm1hdGlvbiBiZXR3ZWVuIDIgaW5mbyBsb2dzCiMgQGVudiBMT0dfQ09OVEVYVCBTdHJpbmcgYWxsb3dzIHRvIGNvbnRleHR1YWxpemUgdGhlIGxvZwpMb2c6OmRpc3BsYXlJbmZvKCkgewogIGxvY2FsIHR5cGU9IiR7MjotSU5GT30iCiAgaWYgKChCQVNIX0ZSQU1FV09SS19ESVNQTEFZX0xFVkVMID49IF9fTEVWRUxfSU5GTykpOyB0aGVuCiAgICBMb2c6OmNvbXB1dGVEdXJhdGlvbgogICAgZWNobyAtZSAiJHtfX0lORk9fQ09MT1J9JHt0eXBlfSAgICAtICR7TE9HX0NPTlRFWFQ6LX0ke0xPR19MQVNUX0RVUkFUSU9OX1NUUjotfSR7MX0ke19fUkVTRVRfQ09MT1J9IiA+JjIKICBmaQogIExvZzo6bG9nSW5mbyAiJDEiICIke3R5cGV9Igp9CgojIEBkZXNjcmlwdGlvbiBEaXNwbGF5IG1lc3NhZ2UgdXNpbmcgZGVidWcgY29sb3IgKGdyYXkpCiMgQGFyZyAkMSBtZXNzYWdlOlN0cmluZyB0aGUgbWVzc2FnZSB0byBkaXNwbGF5CiMgQGVudiBESVNQTEFZX0RVUkFUSU9OIGludCAoZGVmYXVsdCAwKSBpZiAxIGRpc3BsYXkgZWxhcHNlZCB0aW1lIGluZm9ybWF0aW9uIGJldHdlZW4gMiBpbmZvIGxvZ3MKIyBAZW52IExPR19DT05URVhUIFN0cmluZyBhbGxvd3MgdG8gY29udGV4dHVhbGl6ZSB0aGUgbG9nCkxvZzo6ZGlzcGxheURlYnVnKCkgewogIGlmICgoQkFTSF9GUkFNRVdPUktfRElTUExBWV9MRVZFTCA+PSBfX0xFVkVMX0RFQlVHKSk7IHRoZW4KICAgIExvZzo6Y29tcHV0ZUR1cmF0aW9uCiAgICBlY2hvIC1lICIke19fREVCVUdfQ09MT1J9REVCVUcgICAtICR7TE9HX0NPTlRFWFQ6LX0ke0xPR19MQVNUX0RVUkFUSU9OX1NUUjotfSR7MX0ke19fUkVTRVRfQ09MT1J9IiA+JjIKICBmaQogIExvZzo6bG9nRGVidWcgIiQxIgp9CgojIEBkZXNjcmlwdGlvbiBjaGVja3MgaWYgZnVuY3Rpb24gbmFtZSBwcm92aWRlZCBleGlzdHMKIyBAYXJnICQxIGZ1bmN0aW9uTmFtZTpTdHJpbmcKIyBAZXhpdGNvZGUgMSBpZiBmdW5jdGlvbiBuYW1lIGRvZXNuJ3QgZXhpc3QKQXNzZXJ0OjpmdW5jdGlvbkV4aXN0cygpIHsKICBkZWNsYXJlIC1GICIkMSIgPi9kZXYvbnVsbAp9CgojIEBkZXNjcmlwdGlvbiBlbnN1cmUgcnVubmluZyB1c2VyIGlzIHJvb3QKIyBAZXhpdGNvZGUgMSBpZiBjdXJyZW50IHVzZXIgaXMgbm90IHJvb3QKIyBAc3RkZXJyIGRpYWdub3N0aWNzIGluZm9ybWF0aW9uIGlzIGRpc3BsYXllZApMaW51eDo6cmVxdWlyZUV4ZWN1dGVkQXNSb290KCkgewogIGlmIFtbICIkKGlkIC11KSIgIT0gIjAiIF1dOyB0aGVuCiAgICBMb2c6OmZhdGFsICJ0aGlzIHNjcmlwdCBzaG91bGQgYmUgZXhlY3V0ZWQgYXMgcm9vdCIKICBmaQp9CgojIEBkZXNjcmlwdGlvbiBlbnN1cmUgQ09NTUFORF9CSU5fRElSIGVudiB2YXIgaXMgc2V0CiMgYW5kIFBBVEggY29ycmVjdGx5IHByZXBhcmVkCiMgQG5vYXJncwojIEBzZXQgQ09NTUFORF9CSU5fRElSIHN0cmluZyB0aGUgZGlyZWN0b3J5IHdoZXJlIHRvIGZpbmQgdGhpcyBjb21tYW5kCiMgQHNldCBQQVRIIHN0cmluZyBhZGQgZGlyZWN0b3J5IHdoZXJlIHRvIGZpbmQgdGhpcyBjb21tYW5kIGJpbmFyeQpDb21waWxlcjo6RmFjYWRlOjpyZXF1aXJlQ29tbWFuZEJpbkRpcigpIHsKICBDT01NQU5EX0JJTl9ESVI9IiR7Q1VSUkVOVF9ESVJ9IgogIEVudjo6cGF0aFByZXBlbmQgIiR7Q09NTUFORF9CSU5fRElSfSIKfQoKZGVjbGFyZSAtZyBGSVJTVF9MT0dfREFURSBMT0dfTEFTVF9MT0dfREFURSBMT0dfTEFTVF9MT0dfREFURV9JTklUIExPR19MQVNUX0RVUkFUSU9OX1NUUgpGSVJTVF9MT0dfREFURT0iJHtFUE9DSFJFQUxUSU1FL1teMC05XS99IgpMT0dfTEFTVF9MT0dfREFURT0iJHtGSVJTVF9MT0dfREFURX0iCkxPR19MQVNUX0xPR19EQVRFX0lOSVQ9MQpMT0dfTEFTVF9EVVJBVElPTl9TVFI9IiIKCiMgQGRlc2NyaXB0aW9uIGNvbXB1dGUgZHVyYXRpb24gc2luY2UgbGFzdCBjYWxsIHRvIHRoaXMgZnVuY3Rpb24KIyB0aGUgcmVzdWx0IGlzIHNldCBpbiBmb2xsb3dpbmcgZW52IHZhcmlhYmxlcy4KIyBpbiBzcy5zc3MgKHNlY29uZHMgZm9sbG93ZWQgYnkgbWlsbGlzZWNvbmRzIHByZWNpc2lvbiAzIGRlY2ltYWxzKQojIEBub2FyZ3MKIyBAZW52IERJU1BMQVlfRFVSQVRJT04gaW50IChkZWZhdWx0IDApIGlmIDEgZGlzcGxheSBlbGFwc2VkIHRpbWUgaW5mb3JtYXRpb24gYmV0d2VlbiAyIGluZm8gbG9ncwojIEBzZXQgTE9HX0xBU1RfTE9HX0RBVEVfSU5JVCBpbnQgKGRlZmF1bHQgMSkgc2V0IHRvIDAgYXQgZmlyc3QgY2FsbCwgYWxsb3dzIHRvIGRldGVjdCByZWZlcmVuY2UgbG9nCiMgQHNldCBMT0dfTEFTVF9EVVJBVElPTl9TVFIgU3RyaW5nIHRoZSBsYXN0IGR1cmF0aW9uIGRpc3BsYXllZAojIEBzZXQgTE9HX0xBU1RfTE9HX0RBVEUgU3RyaW5nIHRoZSBsYXN0IGxvZyBkYXRlIHRoYXQgd2lsbCBiZSB1c2VkIHRvIGNvbXB1dGUgbmV4dCBkaWZmCkxvZzo6Y29tcHV0ZUR1cmF0aW9uKCkgewogIGlmICgoJHtESVNQTEFZX0RVUkFUSU9OOi0wfSA9PSAxKSk7IHRoZW4KICAgIGxvY2FsIC1pIGR1cmF0aW9uPTAKICAgIGxvY2FsIC1pIGRlbHRhPTAKICAgIGxvY2FsIC1pIGN1cnJlbnRMb2dEYXRlCiAgICBjdXJyZW50TG9nRGF0ZT0iJHtFUE9DSFJFQUxUSU1FL1teMC05XS99IgogICAgaWYgKChMT0dfTEFTVF9MT0dfREFURV9JTklUID09IDEpKTsgdGhlbgogICAgICBMT0dfTEFTVF9MT0dfREFURV9JTklUPTAKICAgICAgTE9HX0xBU1RfRFVSQVRJT05fU1RSPSJSZWYiCiAgICBlbHNlCiAgICAgIGR1cmF0aW9uPSQoKChjdXJyZW50TG9nRGF0ZSAtIEZJUlNUX0xPR19EQVRFKSAvIDEwMDAwMDApKQogICAgICBkZWx0YT0kKCgoY3VycmVudExvZ0RhdGUgLSBMT0dfTEFTVF9MT0dfREFURSkgLyAxMDAwMDAwKSkKICAgICAgTE9HX0xBU1RfRFVSQVRJT05fU1RSPSIke2R1cmF0aW9ufXMvKyR7ZGVsdGF9cyIKICAgIGZpCiAgICBMT0dfTEFTVF9MT0dfREFURT0iJHtjdXJyZW50TG9nRGF0ZX0iCiAgICAjIHNoZWxsY2hlY2sgZGlzYWJsZT1TQzIwMzQKICAgIGxvY2FsIG1pY3JvU2Vjb25kcz0iJHtFUE9DSFJFQUxUSU1FIyoufSIKICAgIExPR19MQVNUX0RVUkFUSU9OX1NUUj0iJChwcmludGYgJyUoJVQpVC4lMDMuMGZcbicgIiR7RVBPQ0hTRUNPTkRTfSIgIiR7bWljcm9TZWNvbmRzOjA6M30iKSgke0xPR19MQVNUX0RVUkFUSU9OX1NUUn0pIC0gIgogIGVsc2UKICAgICMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMjAzNAogICAgTE9HX0xBU1RfRFVSQVRJT05fU1RSPSIiCiAgZmkKfQoKIyBAZGVzY3JpcHRpb24gbG9nIG1lc3NhZ2UgdG8gZmlsZQojIEBhcmcgJDEgbWVzc2FnZTpTdHJpbmcgdGhlIG1lc3NhZ2UgdG8gZGlzcGxheQpMb2c6OmxvZ0luZm8oKSB7CiAgaWYgKChCQVNIX0ZSQU1FV09SS19MT0dfTEVWRUwgPj0gX19MRVZFTF9JTkZPKSk7IHRoZW4KICAgIExvZzo6bG9nTWVzc2FnZSAiJHsyOi1JTkZPfSIgIiQxIgogIGZpCn0KCiMgQGRlc2NyaXB0aW9uIGxvZyBtZXNzYWdlIHRvIGZpbGUKIyBAYXJnICQxIG1lc3NhZ2U6U3RyaW5nIHRoZSBtZXNzYWdlIHRvIGRpc3BsYXkKTG9nOjpsb2dEZWJ1ZygpIHsKICBpZiAoKEJBU0hfRlJBTUVXT1JLX0xPR19MRVZFTCA+PSBfX0xFVkVMX0RFQlVHKSk7IHRoZW4KICAgIExvZzo6bG9nTWVzc2FnZSAiJHsyOi1ERUJVR30iICIkMSIKICBmaQp9CgojIEBkZXNjcmlwdGlvbiBEaXNwbGF5IG1lc3NhZ2UgdXNpbmcgZXJyb3IgY29sb3IgKHJlZCkgYW5kIGV4aXQgaW1tZWRpYXRlbHkgd2l0aCBlcnJvciBzdGF0dXMgMQojIEBhcmcgJDEgbWVzc2FnZTpTdHJpbmcgdGhlIG1lc3NhZ2UgdG8gZGlzcGxheQojIEBlbnYgRElTUExBWV9EVVJBVElPTiBpbnQgKGRlZmF1bHQgMCkgaWYgMSBkaXNwbGF5IGVsYXBzZWQgdGltZSBpbmZvcm1hdGlvbiBiZXR3ZWVuIDIgaW5mbyBsb2dzCiMgQGVudiBMT0dfQ09OVEVYVCBTdHJpbmcgYWxsb3dzIHRvIGNvbnRleHR1YWxpemUgdGhlIGxvZwpMb2c6OmZhdGFsKCkgewogIExvZzo6Y29tcHV0ZUR1cmF0aW9uCiAgZWNobyAtZSAiJHtfX0VSUk9SX0NPTE9SfUZBVEFMICAgLSAke0xPR19DT05URVhUOi19JHtMT0dfTEFTVF9EVVJBVElPTl9TVFI6LX0kezF9JHtfX1JFU0VUX0NPTE9SfSIgPiYyCiAgTG9nOjpsb2dGYXRhbCAiJDEiCiAgZXhpdCAxCn0KCiMgQGRlc2NyaXB0aW9uIHByZXBlbmQgZGlyZWN0b3JpZXMgdG8gdGhlIFBBVEggZW52aXJvbm1lbnQgdmFyaWFibGUKIyBAYXJnICRAIGFyZ3M6U3RyaW5nW10gbGlzdCBvZiBkaXJlY3RvcmllcyB0byBwcmVwZW5kCiMgQHNldCBQQVRIIHVwZGF0ZSBQQVRIIHdpdGggdGhlIGRpcmVjdG9yaWVzIHByZXBlbmRlZApFbnY6OnBhdGhQcmVwZW5kKCkgewogIGxvY2FsIGFyZwogIGZvciBhcmcgaW4gIiRAIjsgZG8KICAgIGlmIFtbIC1kICIke2FyZ30iICYmICI6JHtQQVRIfToiICE9ICoiOiR7YXJnfToiKiBdXTsgdGhlbgogICAgICBQQVRIPSIkKHJlYWxwYXRoICIke2FyZ30iKToke1BBVEh9IgogICAgZmkKICBkb25lCn0KCiMgQGRlc2NyaXB0aW9uIEludGVybmFsOiBjb21tb24gbG9nIG1lc3NhZ2UKIyBAZXhhbXBsZSB0ZXh0CiMgICBbZGF0ZV18W2xldmVsTXNnXXxtZXNzYWdlCiMKIyBAZXhhbXBsZSB0ZXh0CiMgICAyMDIwLTAxLTE5IDE5OjIwOjIxfEVSUk9SICB8bG9nIGVycm9yCiMgICAyMDIwLTAxLTE5IDE5OjIwOjIxfFNLSVBQRUR8bG9nIHNraXBwZWQKIwojIEBhcmcgJDEgbGV2ZWxNc2c6U3RyaW5nIG1lc3NhZ2UncyBsZXZlbCBkZXNjcmlwdGlvbiAoZWc6IFNUQVRVUywgRVJST1IsIC4uLikKIyBAYXJnICQyIG1zZzpTdHJpbmcgdGhlIG1lc3NhZ2UgdG8gZGlzcGxheQojIEBlbnYgQkFTSF9GUkFNRVdPUktfTE9HX0ZJTEUgU3RyaW5nIGxvZyBmaWxlIHRvIHVzZSwgZG8gbm90aGluZyBpZiBlbXB0eQojIEBlbnYgQkFTSF9GUkFNRVdPUktfTE9HX0xFVkVMIGludCBsb2cgbGV2ZWwgbG9nIG9ubHkgaWYgPiBPRkYgb3IgZmF0YWwgbWVzc2FnZXMKIyBAc3RkZXJyIGRpYWdub3N0aWNzIGluZm9ybWF0aW9uIGlzIGRpc3BsYXllZAojIEByZXF1aXJlIEVudjo6cmVxdWlyZUxvYWQKIyBAcmVxdWlyZSBMb2c6OnJlcXVpcmVMb2FkCkxvZzo6bG9nTWVzc2FnZSgpIHsKICBsb2NhbCBsZXZlbE1zZz0iJDEiCiAgbG9jYWwgbXNnPSIkMiIKICBsb2NhbCBkYXRlCgogIGlmIFtbIC1uICIke0JBU0hfRlJBTUVXT1JLX0xPR19GSUxFfSIgXV0gJiYgKChCQVNIX0ZSQU1FV09SS19MT0dfTEVWRUwgPiBfX0xFVkVMX09GRikpOyB0aGVuCiAgICBkYXRlPSIkKGRhdGUgJyslWS0lbS0lZCAlSDolTTolUycpIgogICAgdG91Y2ggIiR7QkFTSF9GUkFNRVdPUktfTE9HX0ZJTEV9IgogICAgcHJpbnRmICIlc3wlN3N8JXNcbiIgIiR7ZGF0ZX0iICIke2xldmVsTXNnfSIgIiR7bXNnfSIgPj4iJHtCQVNIX0ZSQU1FV09SS19MT0dfRklMRX0iCiAgZmkKfQoKIyBAZGVzY3JpcHRpb24gbG9nIG1lc3NhZ2UgdG8gZmlsZQojIEBhcmcgJDEgbWVzc2FnZTpTdHJpbmcgdGhlIG1lc3NhZ2UgdG8gZGlzcGxheQpMb2c6OmxvZ0ZhdGFsKCkgewogIExvZzo6bG9nTWVzc2FnZSAiJHsyOi1GQVRBTH0iICIkMSIKfQoKIyBAZGVzY3JpcHRpb24gZW5zdXJlIGVudiBmaWxlcyBhcmUgbG9hZGVkCiMgQGFyZyAkQCBsaXN0IG9mIGRlZmF1bHQgZmlsZXMgdG8gbG9hZCBhdCB0aGUgZW5kCiMgQGV4aXRjb2RlIDEgaWYgb25lIG9mIGVudiBmaWxlcyBmYWlscyB0byBsb2FkCiMgQHN0ZGVyciBkaWFnbm9zdGljcyBpbmZvcm1hdGlvbiBpcyBkaXNwbGF5ZWQKIyBzaGVsbGNoZWNrIGRpc2FibGU9U0MyMTIwCkVudjo6cmVxdWlyZUxvYWQoKSB7CiAgbG9jYWwgLWEgZGVmYXVsdEZpbGVzPSgiJEAiKQogICMgZ2V0IGxpc3Qgb2YgcG9zc2libGUgY29uZmlnIGZpbGVzCiAgbG9jYWwgLWEgY29uZmlnRmlsZXM9KCkKICBpZiBbWyAtbiAiJHtCQVNIX0ZSQU1FV09SS19FTlZfRklMRVNbMF0rMX0iIF1dOyB0aGVuCiAgICAjIEJBU0hfRlJBTUVXT1JLX0VOVl9GSUxFUyBpcyBhbiBhcnJheQogICAgY29uZmlnRmlsZXMrPSgiJHtCQVNIX0ZSQU1FV09SS19FTlZfRklMRVNbQF19IikKICBmaQogIGxvY2FsIGxvY2FsRnJhbWV3b3JrQ29uZmlnRmlsZQogIGxvY2FsRnJhbWV3b3JrQ29uZmlnRmlsZT0iJChwd2QpLy5mcmFtZXdvcmstY29uZmlnIgogIGlmIFtbIC1mICIke2xvY2FsRnJhbWV3b3JrQ29uZmlnRmlsZX0iIF1dOyB0aGVuCiAgICBjb25maWdGaWxlcys9KCIke2xvY2FsRnJhbWV3b3JrQ29uZmlnRmlsZX0iKQogIGZpCiAgaWYgW1sgLWYgIiR7RlJBTUVXT1JLX1JPT1RfRElSfS8uZnJhbWV3b3JrLWNvbmZpZyIgXV07IHRoZW4KICAgIGNvbmZpZ0ZpbGVzKz0oIiR7RlJBTUVXT1JLX1JPT1RfRElSfS8uZnJhbWV3b3JrLWNvbmZpZyIpCiAgZmkKICBjb25maWdGaWxlcys9KCIke29wdGlvbkVudkZpbGVzW0BdfSIpCiAgY29uZmlnRmlsZXMrPSgiJHtkZWZhdWx0RmlsZXNbQF19IikKCiAgZm9yIGZpbGUgaW4gIiR7Y29uZmlnRmlsZXNbQF19IjsgZG8KICAgICMgc2hlbGxjaGVjayBzb3VyY2U9Ly5mcmFtZXdvcmstY29uZmlnCiAgICBDVVJSRU5UX0xPQURFRF9FTlZfRklMRT0iJHtmaWxlfSIgc291cmNlICIke2ZpbGV9IiB8fCB7CiAgICAgIExvZzo6ZGlzcGxheUVycm9yICJ3aGlsZSBsb2FkaW5nIGNvbmZpZyBmaWxlOiAke2ZpbGV9IgogICAgICByZXR1cm4gMQogICAgfQogIGRvbmUKfQoKIyBAZGVzY3JpcHRpb24gYWN0aXZhdGUgb3Igbm90IExvZzo6ZGlzcGxheSogYW5kIExvZzo6bG9nKiBmdW5jdGlvbnMKIyBiYXNlZCBvbiBCQVNIX0ZSQU1FV09SS19ESVNQTEFZX0xFVkVMIGFuZCBCQVNIX0ZSQU1FV09SS19MT0dfTEVWRUwKIyBlbnZpcm9ubWVudCB2YXJpYWJsZXMgbG9hZGVkIGJ5IEVudjo6cmVxdWlyZUxvYWQKIyB0cnkgdG8gY3JlYXRlIGxvZyBmaWxlIGFuZCByb3RhdGUgaXQgaWYgbmVjZXNzYXJ5CiMgQG5vYXJncwojIEBzZXQgQkFTSF9GUkFNRVdPUktfTE9HX0xFVkVMIGludCB0byBPRkYgbGV2ZWwgaWYgQkFTSF9GUkFNRVdPUktfTE9HX0ZJTEUgaXMgZW1wdHkgb3Igbm90IHdyaXRhYmxlCiMgQGVudiBCQVNIX0ZSQU1FV09SS19ESVNQTEFZX0xFVkVMIGludAojIEBlbnYgQkFTSF9GUkFNRVdPUktfTE9HX0xFVkVMIGludAojIEBlbnYgQkFTSF9GUkFNRVdPUktfTE9HX0ZJTEUgU3RyaW5nCiMgQGVudiBCQVNIX0ZSQU1FV09SS19MT0dfRklMRV9NQVhfUk9UQVRJT04gaW50IGRvIGxvZyByb3RhdGlvbiBpZiA+IDAKIyBAZXhpdGNvZGUgMCBhbHdheXMgc3VjY2Vzc2Z1bAojIEBzdGRlcnIgZGlhZ25vc3RpY3MgaW5mb3JtYXRpb24gYWJvdXQgbG9nIGZpbGUgaXMgZGlzcGxheWVkCiMgQHJlcXVpcmUgRW52OjpyZXF1aXJlTG9hZAojIEByZXF1aXJlIFVJOjpyZXF1aXJlVGhlbWUKTG9nOjpyZXF1aXJlTG9hZCgpIHsKICBpZiBbWyAteiAiJHtCQVNIX0ZSQU1FV09SS19MT0dfRklMRTotfSIgXV07IHRoZW4KICAgIEJBU0hfRlJBTUVXT1JLX0xPR19MRVZFTD0ke19fTEVWRUxfT0ZGfQogICAgZXhwb3J0IEJBU0hfRlJBTUVXT1JLX0xPR19MRVZFTAogIGZpCgogIGlmICgoQkFTSF9GUkFNRVdPUktfTE9HX0xFVkVMID4gX19MRVZFTF9PRkYpKTsgdGhlbgogICAgaWYgW1sgISAtZiAiJHtCQVNIX0ZSQU1FV09SS19MT0dfRklMRX0iIF1dOyB0aGVuCiAgICAgIGlmIFtbICEgLWQgIiR7QkFTSF9GUkFNRVdPUktfTE9HX0ZJTEUlLyp9IiBdXTsgdGhlbgogICAgICAgIGlmICEgbWtkaXIgLXAgIiR7QkFTSF9GUkFNRVdPUktfTE9HX0ZJTEUlLyp9IiAyPi9kZXYvbnVsbDsgdGhlbgogICAgICAgICAgQkFTSF9GUkFNRVdPUktfTE9HX0xFVkVMPSR7X19MRVZFTF9PRkZ9CiAgICAgICAgICBlY2hvIC1lICIke19fRVJST1JfQ09MT1J9RVJST1IgICAtIGRpcmVjdG9yeSAke0JBU0hfRlJBTUVXT1JLX0xPR19GSUxFJS8qfSBpcyBub3Qgd3JpdGFibGUke19fUkVTRVRfQ09MT1J9IiA+JjIKICAgICAgICBmaQogICAgICBlbGlmICEgdG91Y2ggLS1uby1jcmVhdGUgIiR7QkFTSF9GUkFNRVdPUktfTE9HX0ZJTEV9IiAyPi9kZXYvbnVsbDsgdGhlbgogICAgICAgIEJBU0hfRlJBTUVXT1JLX0xPR19MRVZFTD0ke19fTEVWRUxfT0ZGfQogICAgICAgIGVjaG8gLWUgIiR7X19FUlJPUl9DT0xPUn1FUlJPUiAgIC0gRmlsZSAke0JBU0hfRlJBTUVXT1JLX0xPR19GSUxFfSBpcyBub3Qgd3JpdGFibGUke19fUkVTRVRfQ09MT1J9IiA+JjIKICAgICAgZmkKICAgIGVsaWYgW1sgISAtdyAiJHtCQVNIX0ZSQU1FV09SS19MT0dfRklMRX0iIF1dOyB0aGVuCiAgICAgIEJBU0hfRlJBTUVXT1JLX0xPR19MRVZFTD0ke19fTEVWRUxfT0ZGfQogICAgICBlY2hvIC1lICIke19fRVJST1JfQ09MT1J9RVJST1IgICAtIEZpbGUgJHtCQVNIX0ZSQU1FV09SS19MT0dfRklMRX0gaXMgbm90IHdyaXRhYmxlJHtfX1JFU0VUX0NPTE9SfSIgPiYyCiAgICBmaQogIGZpCgogIGlmICgoQkFTSF9GUkFNRVdPUktfTE9HX0xFVkVMID4gX19MRVZFTF9PRkYpKTsgdGhlbgogICAgIyB3aWxsIGFsd2F5cyBiZSBjcmVhdGVkIGV2ZW4gaWYgbm90IGluIGluZm8gbGV2ZWwKICAgIExvZzo6bG9nTWVzc2FnZSAiSU5GTyIgIkxvZ2dpbmcgdG8gZmlsZSAke0JBU0hfRlJBTUVXT1JLX0xPR19GSUxFfSAtIExvZyBsZXZlbCAke0JBU0hfRlJBTUVXT1JLX0xPR19MRVZFTH0iCiAgICBpZiAoKEJBU0hfRlJBTUVXT1JLX0xPR19GSUxFX01BWF9ST1RBVElPTiA+IDApKTsgdGhlbgogICAgICBMb2c6OnJvdGF0ZSAiJHtCQVNIX0ZSQU1FV09SS19MT0dfRklMRX0iICIke0JBU0hfRlJBTUVXT1JLX0xPR19GSUxFX01BWF9ST1RBVElPTn0iCiAgICBmaQogIGZpCn0KCiMgQGRlc2NyaXB0aW9uIERpc3BsYXkgbWVzc2FnZSB1c2luZyBlcnJvciBjb2xvciAocmVkKQojIEBhcmcgJDEgbWVzc2FnZTpTdHJpbmcgdGhlIG1lc3NhZ2UgdG8gZGlzcGxheQojIEBlbnYgRElTUExBWV9EVVJBVElPTiBpbnQgKGRlZmF1bHQgMCkgaWYgMSBkaXNwbGF5IGVsYXBzZWQgdGltZSBpbmZvcm1hdGlvbiBiZXR3ZWVuIDIgaW5mbyBsb2dzCiMgQGVudiBMT0dfQ09OVEVYVCBTdHJpbmcgYWxsb3dzIHRvIGNvbnRleHR1YWxpemUgdGhlIGxvZwpMb2c6OmRpc3BsYXlFcnJvcigpIHsKICBpZiAoKEJBU0hfRlJBTUVXT1JLX0RJU1BMQVlfTEVWRUwgPj0gX19MRVZFTF9FUlJPUikpOyB0aGVuCiAgICBMb2c6OmNvbXB1dGVEdXJhdGlvbgogICAgZWNobyAtZSAiJHtfX0VSUk9SX0NPTE9SfUVSUk9SICAgLSAke0xPR19DT05URVhUOi19JHtMT0dfTEFTVF9EVVJBVElPTl9TVFI6LX0kezF9JHtfX1JFU0VUX0NPTE9SfSIgPiYyCiAgZmkKICBMb2c6OmxvZ0Vycm9yICIkMSIKfQoKIyBAZGVzY3JpcHRpb24gVG8gYmUgY2FsbGVkIGJlZm9yZSBsb2dnaW5nIGluIHRoZSBsb2cgZmlsZQojIEBhcmcgJDEgZmlsZTpzdHJpbmcgbG9nIGZpbGUgbmFtZQojIEBhcmcgJDIgbWF4TG9nRmlsZXNDb3VudDppbnQgbWF4aW11bSBudW1iZXIgb2YgbG9nIGZpbGVzCkxvZzo6cm90YXRlKCkgewogIGxvY2FsIGZpbGU9IiQxIgogIGxvY2FsIG1heExvZ0ZpbGVzQ291bnQ9IiR7MjotNX0iCgogIGlmIFtbICEgLWYgIiR7ZmlsZX0iIF1dOyB0aGVuCiAgICBMb2c6OmRpc3BsYXlEZWJ1ZyAiTG9nIGZpbGUgJHtmaWxlfSBkb2Vzbid0IGV4aXN0IHlldCIKICAgIHJldHVybiAwCiAgZmkKICBsb2NhbCBpCiAgZm9yICgoaSA9IG1heExvZ0ZpbGVzQ291bnQgLSAxOyBpID4gMDsgaS0tKSk7IGRvCiAgICBMb2c6OmRpc3BsYXlJbmZvICJMb2cgcm90YXRpb24gJHtmaWxlfS4ke2l9IHRvICR7ZmlsZX0uJCgoaSArIDEpKSIKICAgIG12ICIke2ZpbGV9LiJ7IiR7aX0iLCIkKChpICsgMSkpIn0gJj4vZGV2L251bGwgfHwgdHJ1ZQogIGRvbmUKICBpZiBjcCAiJHtmaWxlfSIgIiR7ZmlsZX0uMSIgJj4vZGV2L251bGw7IHRoZW4KICAgIGVjaG8gPiIke2ZpbGV9IiAjIHJlc2V0IGxvZyBmaWxlCiAgICBMb2c6OmRpc3BsYXlJbmZvICJMb2cgcm90YXRpb24gJHtmaWxlfSB0byAke2ZpbGV9LjEiCiAgZmkKfQoKIyBAZGVzY3JpcHRpb24gbG9hZCBjb2xvciB0aGVtZQojIEBub2FyZ3MKIyBAZW52IEJBU0hfRlJBTUVXT1JLX1RIRU1FIFN0cmluZyB0aGVtZSB0byB1c2UKIyBAZW52IExPQURfVEhFTUUgaW50IDAgdG8gYXZvaWQgbG9hZGluZyB0aGVtZQojIEBleGl0Y29kZSAwIGFsd2F5cyBzdWNjZXNzZnVsClVJOjpyZXF1aXJlVGhlbWUoKSB7CiAgaWYgW1sgIiR7TE9BRF9USEVNRTotMX0iID0gIjEiIF1dOyB0aGVuCiAgICBVSTo6dGhlbWUgIiR7QkFTSF9GUkFNRVdPUktfVEhFTUUtZGVmYXVsdH0iCiAgZmkKfQoKIyBAZGVzY3JpcHRpb24gbG9nIG1lc3NhZ2UgdG8gZmlsZQojIEBhcmcgJDEgbWVzc2FnZTpTdHJpbmcgdGhlIG1lc3NhZ2UgdG8gZGlzcGxheQpMb2c6OmxvZ0Vycm9yKCkgewogIGlmICgoQkFTSF9GUkFNRVdPUktfTE9HX0xFVkVMID49IF9fTEVWRUxfRVJST1IpKTsgdGhlbgogICAgTG9nOjpsb2dNZXNzYWdlICIkezI6LUVSUk9SfSIgIiQxIgogIGZpCn0KCiMgQGRlc2NyaXB0aW9uIGxvYWQgY29sb3JzIHRoZW1lIGNvbnN0YW50cwojIEB3YXJuaW5nIGlmIHR0eSBub3Qgb3BlbmVkLCBub0NvbG9yIHRoZW1lIHdpbGwgYmUgY2hvc2VuCiMgQGFyZyAkMSB0aGVtZTpTdHJpbmcgdGhlIHRoZW1lIHRvIHVzZSAoZGVmYXVsdCwgbm9Db2xvcikKIyBAYXJnICRAIGFyZ3M6U3RyaW5nW10KIyBAc2V0IF9fRVJST1JfQ09MT1IgU3RyaW5nIGluZGljYXRlIGVycm9yIHN0YXR1cwojIEBzZXQgX19JTkZPX0NPTE9SIFN0cmluZyBpbmRpY2F0ZSBpbmZvIHN0YXR1cwojIEBzZXQgX19TVUNDRVNTX0NPTE9SIFN0cmluZyBpbmRpY2F0ZSBzdWNjZXNzIHN0YXR1cwojIEBzZXQgX19XQVJOSU5HX0NPTE9SIFN0cmluZyBpbmRpY2F0ZSB3YXJuaW5nIHN0YXR1cwojIEBzZXQgX19TS0lQUEVEX0NPTE9SIFN0cmluZyBpbmRpY2F0ZSBza2lwcGVkIHN0YXR1cwojIEBzZXQgX19ERUJVR19DT0xPUiBTdHJpbmcgaW5kaWNhdGUgZGVidWcgc3RhdHVzCiMgQHNldCBfX0hFTFBfQ09MT1IgU3RyaW5nIGluZGljYXRlIGhlbHAgc3RhdHVzCiMgQHNldCBfX1RFU1RfQ09MT1IgU3RyaW5nIG5vdCB1c2VkCiMgQHNldCBfX1RFU1RfRVJST1JfQ09MT1IgU3RyaW5nIG5vdCB1c2VkCiMgQHNldCBfX0hFTFBfVElUTEVfQ09MT1IgU3RyaW5nIHVzZWQgdG8gZGlzcGxheSBoZWxwIHRpdGxlIGluIGhlbHAgc3RyaW5ncwojIEBzZXQgX19IRUxQX09QVElPTl9DT0xPUiBTdHJpbmcgdXNlZCB0byBkaXNwbGF5IGhpZ2hsaWdodCBvcHRpb25zIGluIGhlbHAgc3RyaW5ncwojCiMgQHNldCBfX1JFU0VUX0NPTE9SIFN0cmluZyByZXNldCBkZWZhdWx0IGNvbG9yCiMKIyBAc2V0IF9fSEVMUF9FWEFNUExFIFN0cmluZyB0byByZW1vdmUKIyBAc2V0IF9fSEVMUF9USVRMRSBTdHJpbmcgdG8gcmVtb3ZlCiMgQHNldCBfX0hFTFBfTk9STUFMIFN0cmluZyB0byByZW1vdmUKIyBzaGVsbGNoZWNrIGRpc2FibGU9U0MyMDM0ClVJOjp0aGVtZSgpIHsKICBsb2NhbCB0aGVtZT0iJHsxLWRlZmF1bHR9IgogIGlmIFtbICEgIiR7dGhlbWV9IiA9fiAtZm9yY2UkIF1dICYmICEgQXNzZXJ0Ojp0dHk7IHRoZW4KICAgIHRoZW1lPSJub0NvbG9yIgogIGZpCiAgY2FzZSAiJHt0aGVtZX0iIGluCiAgICBkZWZhdWx0IHwgZGVmYXVsdC1mb3JjZSkKICAgICAgdGhlbWU9ImRlZmF1bHQiCiAgICAgIDs7CiAgICBub0NvbG9yKSA7OwogICAgKikKICAgICAgTG9nOjpmYXRhbCAiaW52YWxpZCB0aGVtZSBwcm92aWRlZCIKICAgICAgOzsKICBlc2FjCiAgaWYgW1sgIiR7dGhlbWV9IiA9ICJkZWZhdWx0IiBdXTsgdGhlbgogICAgQkFTSF9GUkFNRVdPUktfVEhFTUU9ImRlZmF1bHQiCiAgICAjIGNoZWNrIGNvbG9ycyBhcHBsaWNhYmxlIGh0dHBzOi8vbWlzYy5mbG9naXNvZnQuY29tL2Jhc2gvdGlwX2NvbG9yc19hbmRfZm9ybWF0dGluZwogICAgX19FUlJPUl9DT0xPUj0nXGVbMzFtJyAgICAgICAgICMgUmVkCiAgICBfX0lORk9fQ09MT1I9J1xlWzQ0bScgICAgICAgICAgIyB3aGl0ZSBvbiBsaWdodEJsdWUKICAgIF9fU1VDQ0VTU19DT0xPUj0nXGVbMzJtJyAgICAgICAjIEdyZWVuCiAgICBfX1dBUk5JTkdfQ09MT1I9J1xlWzMzbScgICAgICAgIyBZZWxsb3cKICAgIF9fU0tJUFBFRF9DT0xPUj0nXGVbMzNtJyAgICAgICAjIFllbGxvdwogICAgX19ERUJVR19DT0xPUj0nXGVbMzdtJyAgICAgICAgICMgR3JheQogICAgX19IRUxQX0NPTE9SPSdcZVs3OzQ5OzMzbScgICAgICMgQmxhY2sgb24gR29sZAogICAgX19URVNUX0NPTE9SPSdcZVsxMDBtJyAgICAgICAgICMgTGlnaHQgbWFnZW50YQogICAgX19URVNUX0VSUk9SX0NPTE9SPSdcZVs0MW0nICAgICMgd2hpdGUgb24gcmVkCiAgICBfX0hFTFBfVElUTEVfQ09MT1I9IlxlWzE7MzdtIiAgIyBCb2xkCiAgICBfX0hFTFBfT1BUSU9OX0NPTE9SPSJcZVsxOzM0bSIgIyBCbHVlCiAgICAjIEludGVybmFsOiByZXNldCBjb2xvcgogICAgX19SRVNFVF9DT0xPUj0nXGVbMG0nICMgUmVzZXQgQ29sb3IKICAgICMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMjE1NSxTQzIwMzQKICAgIF9fSEVMUF9FWEFNUExFPSIkKGVjaG8gLWUgIlxlWzI7OTdtIikiCiAgICAjIHNoZWxsY2hlY2sgZGlzYWJsZT1TQzIxNTUsU0MyMDM0CiAgICBfX0hFTFBfVElUTEU9IiQoZWNobyAtZSAiXGVbMTszN20iKSIKICAgICMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMjE1NSxTQzIwMzQKICAgIF9fSEVMUF9OT1JNQUw9IiQoZWNobyAtZSAiXDAzM1swbSIpIgogIGVsc2UKICAgIEJBU0hfRlJBTUVXT1JLX1RIRU1FPSJub0NvbG9yIgogICAgIyBjaGVjayBjb2xvcnMgYXBwbGljYWJsZSBodHRwczovL21pc2MuZmxvZ2lzb2Z0LmNvbS9iYXNoL3RpcF9jb2xvcnNfYW5kX2Zvcm1hdHRpbmcKICAgIF9fRVJST1JfQ09MT1I9JycKICAgIF9fSU5GT19DT0xPUj0nJwogICAgX19TVUNDRVNTX0NPTE9SPScnCiAgICBfX1dBUk5JTkdfQ09MT1I9JycKICAgIF9fU0tJUFBFRF9DT0xPUj0nJwogICAgX19ERUJVR19DT0xPUj0nJwogICAgX19IRUxQX0NPTE9SPScnCiAgICBfX1RFU1RfQ09MT1I9JycKICAgIF9fVEVTVF9FUlJPUl9DT0xPUj0nJwogICAgX19IRUxQX1RJVExFX0NPTE9SPScnCiAgICBfX0hFTFBfT1BUSU9OX0NPTE9SPScnCiAgICAjIEludGVybmFsOiByZXNldCBjb2xvcgogICAgX19SRVNFVF9DT0xPUj0nJwogICAgX19IRUxQX0VYQU1QTEU9JycKICAgIF9fSEVMUF9USVRMRT0nJwogICAgX19IRUxQX05PUk1BTD0nJwogIGZpCn0KCiMgQGRlc2NyaXB0aW9uIGNoZWNrIGlmIHR0eSAoaW50ZXJhY3RpdmUgbW9kZSkgaXMgYWN0aXZlCiMgQG5vYXJncwojIEBleGl0Y29kZSAxIGlmIHR0eSBub3QgYWN0aXZlCiMgQGVudiBOT05fSU5URVJBQ1RJVkUgaWYgMSBjb25zaWRlciBhcyBub3QgaW50ZXJhY3RpdmUgZXZlbiBpZiBlbnZpcm9ubWVudCBpcyBpbnRlcmFjdGl2ZQojIEBlbnYgSU5URVJBQ1RJVkUgaWYgMSBjb25zaWRlciBhcyBpbnRlcmFjdGl2ZSBldmVuIGlmIGVudmlyb25tZW50IGlzIG5vdCBpbnRlcmFjdGl2ZQpBc3NlcnQ6OnR0eSgpIHsKICBpZiBbWyAiJHtOT05fSU5URVJBQ1RJVkU6LTB9IiA9ICIxIiBdXTsgdGhlbgogICAgcmV0dXJuIDEKICBmaQogIGlmIFtbICIke0lOVEVSQUNUSVZFOi0wfSIgPSAiMSIgXV07IHRoZW4KICAgIHJldHVybiAwCiAgZmkKICB0dHkgLXMKfQoKIyBGVU5DVElPTlMKCmZhY2FkZV9tYWluX2ZpeFdzbERhdGVzaCgpIHsKCmlmIEFzc2VydDo6ZnVuY3Rpb25FeGlzdHMgaW5pdEZhY2FkZTsgdGhlbgogIGluaXRGYWNhZGUKZmkKTE9BRF9MT0NBTEVfQ09ORklHPSIxIgoKIyBAcmVxdWlyZSBDb21waWxlcjo6RmFjYWRlOjpyZXF1aXJlQ29tbWFuZEJpbkRpcgoKTGludXg6OnJlcXVpcmVFeGVjdXRlZEFzUm9vdApnZXREYXRlKCkgewogIHdnZXQgLS1tZXRob2Q9SEVBRCAtcVNPLSAtLW1heC1yZWRpcmVjdD0wIGdvb2dsZS5jb20gMj4mMSB8CiAgICBzZWQgLW4gJ3MvXiAqRGF0ZTogKi8vcCcKfQpkYXRlIC1zICIkKGdldERhdGUpIiAmPi9kZXYvbnVsbAoKfQoKZmFjYWRlX21haW5fZml4V3NsRGF0ZXNoICIkQCIK" \
+  "755"
+
+declare -gx embed_file_fixWslDate="${PERSISTENT_TMPDIR:-/tmp}/a48184c232fc660e5cb5f0efbd8392d70bef6024313a307f77dbdfb3bd5ecb9d/fixWslDate"
+
 
 helpDescription() {
-  echo "Clean"
+  echo "Default configuration for bash"
+}
+
+dependencies() {
+  echo "installScripts/Bat"
+  echo "installScripts/Fasd"
+  # font needed for displaying bash prompt
+  echo "installScripts/Font"
+  echo "installScripts/Fzf"
+  echo "installScripts/Vim"
+}
+
+fortunes() {
+  if [[ "${USER_SHELL}" = "/usr/bin/bash" ]]; then
+    if command -v zsh &>/dev/null; then
+      echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}Bash${__RESET_COLOR} is set as default shell, you can switch to zsh using ${__HELP_EXAMPLE}chsh -s /usr/bin/zsh${__RESET_COLOR}."
+      echo "%"
+    fi
+  fi
 }
 
 # jscpd:ignore-start
-dependencies() { :; }
 listVariables() { :; }
 helpVariables() { :; }
 defaultVariables() { :; }
@@ -2545,26 +3038,137 @@ checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 isInstallImplemented() { :; }
+isTestInstallImplemented() { :; }
 isConfigureImplemented() { :; }
 isTestConfigureImplemented() { :; }
-isTestInstallImplemented() { :; }
-configure() { :; }
-testInstall() { :; }
-testConfigure() { :; }
 # jscpd:ignore-end
 
 install() {
-  # some cleaning
-  Log::displayInfo "==> Clean up"
-  sudo apt-get -y autoremove --purge
-  sudo apt-get -y clean
-  sudo apt-get -y autoclean
+  Linux::Apt::installIfNecessary --no-install-recommends \
+    bash-completion
+}
+
+testInstall() {
+  Assert::fileExists /etc/profile.d/bash_completion.sh root root || return 1
+}
+
+configure() {
+  if [[ "${PREFERRED_SHELL}" = "ShellBash" ]]; then
+    if [[ "${USER_SHELL}" != "/usr/bin/bash" ]]; then
+      usermod --shell /usr/bin/bash "${USERNAME}"
+      USER_SHELL="/usr/bin/bash"
+      Log::displayHelp "You have to log in/log out to make bash by default"
+    fi
+    if command -v zsh &>/dev/null; then
+      Log::displayHelp "Bash is set as default shell, you can switch back to zsh using 'chsh -s /usr/bin/zsh'"
+    fi
+  fi
+
+  mkdir -p "${HOME}/.bash-dev-env/interactive.d" || return 1
+  Retry::default curl -o "${HOME}/.bash-dev-env/interactive.d/git-prompt.sh" \
+    https://raw.githubusercontent.com/git/git/master/contrib/completion/git-prompt.sh || return 1
+  chmod +x "${HOME}/.bash-dev-env/interactive.d/git-prompt.sh"
+
+  # shellcheck disable=SC2154
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".bash-dev-env"
+
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".vscode"
+
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    "home" \
+    "${HOME}"
+
+  local configDir
+  # shellcheck disable=SC2154
+  configDir="$(Conf::getOverriddenDir "${embed_dir_conf_dir}" "${CONF_OVERRIDE_DIR}/$(scriptName)")"
+
+  SUDO=sudo Install::file \
+    "${configDir}/home/.vimrc" "/root/.vimrc" root root
+  SUDO=sudo Install::file \
+    "${configDir}/home/.inputrc" "/root/.inputrc" root root
+  # shellcheck disable=SC2154
+  OVERWRITE_CONFIG_FILES=1 Install::file \
+    "${embed_file_loadConfigFiles}" \
+    "${HOME}/.bash-dev-env/loadConfigFiles"
+  # shellcheck disable=SC2154
+  OVERWRITE_CONFIG_FILES=1 Install::file \
+    "${embed_file_fixWslDate}" \
+    "${HOME}/.bash-dev-env/fixWslDate"
+  Log::displayInfo "Creating sudoer file for fixWslDate command ..."
+  local sudoerFile="/etc/sudoers.d/bash-dev-env-fixWslDate-no-password"
+  echo "${USERNAME} ALL=(ALL) NOPASSWD: ${HOME}/.bash-dev-env/fixWslDate" |
+    sudo tee "${sudoerFile}" >/dev/null
+  sudo chmod 0440 "${sudoerFile}"
+
+  Log::displayInfo "disable bell"
+  sudo sed -i -e 's/;set bell-style none/set bell-style none/g' /etc/inputrc
+}
+
+testConfigure() {
+  local -i failures=0
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/git-prompt.sh" || ((++failures))
+
+  Assert::fileExists "${HOME}/.bash_logout" || ((++failures))
+  Assert::fileExists "${HOME}/.bashrc" || ((++failures))
+  Assert::fileExists "${HOME}/.dir_colors" || ((++failures))
+  Assert::fileExists "${HOME}/.inputrc" || ((++failures))
+  Assert::fileExists "${HOME}/.profile" || ((++failures))
+  Assert::fileExists "${HOME}/.vimrc" || ((++failures))
+  Assert::fileExists "${HOME}/.Xresources" || ((++failures))
+
+  SUDO=sudo Assert::fileExists /root/.vimrc root root || ((++failures))
+  SUDO=sudo Assert::fileExists /root/.inputrc root root || ((++failures))
+
+  Assert::fileExists "${HOME}/.bash-dev-env/loadConfigFiles" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/colors.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/filesDirectory.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/miscellaneous.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/ssh.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/xserver.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/DISCLAIMER.md" || ((++failures))
+
+  Assert::fileExists "${HOME}/.bash-dev-env/completions.d/makeTargets.bash" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/completions.d/DISCLAIMER.md" || ((++failures))
+
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/zzz_bash_prompt.bash" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/bash_navigation.bash" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/dir_colors.bash" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/interactive.d/DISCLAIMER.md" || ((++failures))
+
+  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/DISCLAIMER.md" || ((++failures))
+
+  Assert::fileExists "${HOME}/.vscode/argv.json" || ((++failures))
+  Assert::fileExists "${HOME}/.vscode/settings.json" || ((++failures))
+
+  # check font in windows terminal configuration
+  local terminalConfFile
+  # cspell:ignore wekyb, bbwe
+  terminalConfFile="${WINDOWS_PROFILE_DIR}/AppData/Local/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/settings.json"
+  if [[ -f "${terminalConfFile}" ]]; then
+    if ! grep -q '"face": "MesloLGS NF"' "${terminalConfFile}"; then
+      local terminalConfFilePath
+      Linux::Wsl::cachedWslpath2 terminalConfFilePath -w "${terminalConfFile}"
+      Log::displayHelp "Please change your terminal settings(${terminalConfFilePath}) to use font 'MesloLGS NF' for wsl profile"
+    fi
+  else
+    Log::displayHelp "File ${terminalConfFile} does not exist - please use windows terminal for better shell display results"
+  fi
+
+  return "${failures}"
 }
 
 
 
 optionHelpCallback() {
-  "CleanCommandHelp"
+  "ShellBashDefaultConfigCommandHelp"
   exit 0
 }
 
@@ -2590,7 +3194,7 @@ afterParseCallback() {
 
 
 # ------------------------------------------
-# Command CleanCommand
+# Command ShellBashDefaultConfigCommand
 # ------------------------------------------
 
 # options variables initialization
@@ -2615,8 +3219,8 @@ declare optionVersion="0"
 declare optionQuiet="0"
 # arguments variables initialization
 declare command="install"
-# @description parse command options and arguments for CleanCommand
-CleanCommandParse() {
+# @description parse command options and arguments for ShellBashDefaultConfigCommand
+ShellBashDefaultConfigCommandParse() {
   Log::displayDebug "Command ${SCRIPT_NAME} - parse arguments: ${BASH_FRAMEWORK_ARGV[*]}"
   Log::displayDebug "Command ${SCRIPT_NAME} - parse filtered arguments: ${BASH_FRAMEWORK_ARGV_FILTERED[*]}"
   SKIP_CONFIGURE="0"
@@ -3101,8 +3705,8 @@ CleanCommandParse() {
 
 }
 
-# @description display command options and arguments help for CleanCommand
-CleanCommandHelp() {
+# @description display command options and arguments help for ShellBashDefaultConfigCommand
+ShellBashDefaultConfigCommandHelp() {
   echo -e "${__HELP_TITLE_COLOR}SYNOPSIS:${__RESET_COLOR}"
   helpDescriptionFunction
 
@@ -3110,7 +3714,7 @@ CleanCommandHelp() {
   # ------------------------------------------
   # usage section
   # ------------------------------------------
-  Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" "Clean [OPTIONS] [ARGUMENTS]"
+  Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" "ShellBashDefaultConfig [OPTIONS] [ARGUMENTS]"
   echo
   # ------------------------------------------
   # usage/options section
@@ -3118,7 +3722,7 @@ CleanCommandHelp() {
   optionsAltList=("[--skip-config|--skip-configure|--skip-configuration|-sc]" "[--skip-install|--skip-installation|-si]" "[--skip-test|--skip-tests|-st]" "[--skip-deps|--skip-dependencies|-sd]" "[--prepare-export|-e]" "[--profile|-p <profile>]" "[--help|-h]" "[--config]" "[--bash-framework-config <bash-framework-config>]" "[--verbose|-v]" "[-vv]" "[-vvv]" "[--log-level <log-level>]" "[--log-file <log-file>]" "[--display-level <display-level>]" "[--no-color]" "[--theme <theme>]" "[--version]" "[--quiet|-q]"
   )
   Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" \
-    "Clean" "${optionsAltList[@]}"
+    "ShellBashDefaultConfig" "${optionsAltList[@]}"
   echo
 
   # ------------------------------------------
@@ -3308,7 +3912,7 @@ CleanCommandHelp() {
   # ------------------------------------------
   echo
   echo -n -e "${__HELP_TITLE_COLOR}SOURCE FILE: ${__RESET_COLOR}"
-  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/_Defaults/Clean-binary.yaml"
+  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/_Configs/ShellBashDefaultConfig-binary.yaml"
   # ------------------------------------------
   # license section
   # ------------------------------------------
@@ -3324,7 +3928,7 @@ CleanCommandHelp() {
 
 beforeParseCallback
 
-CleanCommandParse "$@"
+ShellBashDefaultConfigCommandParse "$@"
 MAIN_FUNCTION_NAME="main"
 main() {
 

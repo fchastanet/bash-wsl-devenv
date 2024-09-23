@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/Git/PreCommitDefaultConfig-conf/.pre-commit-config-test.yaml" as preCommitConfigTest
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/_Configs/PreCommitDefaultConfig-conf/.pre-commit-config-test.yaml" as preCommitConfigTest
 
 helpDescription() {
   echo "Default configuration for pre-commit."

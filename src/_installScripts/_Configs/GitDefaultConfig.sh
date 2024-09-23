@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/Git/GitDefaultConfig-conf" as conf_dir
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/_Configs/GitDefaultConfig-conf" as conf_dir
 
 gitDefaultConfigBeforeParseCallback() {
   Ssh::requireSshKeygenCommand
@@ -11,7 +11,7 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "installScripts/ShellBash"
+  echo "installScripts/ShellBashDefaultConfig"
   echo "installScripts/Tig"
 }
 
