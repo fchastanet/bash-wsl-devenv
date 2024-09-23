@@ -1,18 +1,38 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/BashTools
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/BashTools/conf" as conf_dir
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/BashUtils/BashTools-conf" as conf_dir
 
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "BashTools"
+bashToolsBeforeParseCallback() {
+  Git::requireGitCommand
 }
 
 helpDescription() {
-  echo "BashTools"
+  echo "BashTools collection from François Chastanet"
+}
+
+helpLongDescription() {
+  helpDescription
+  echo "A collection of several bash tools:"
+  echo "  - db import"
+  echo "  - db query multiple database or apply script"
+  echo "  - git tools"
+  echo "  - docker containers easy cli"
+  echo "  - and many more ..."
+  echo
+  echo "See https://github.com/fchastanet/bash-tools"
+  echo
+  echo "Using a bash framework allowing to easily:"
+  echo "  - import bash script"
+  echo "  - log"
+  echo "  - display log messages"
+  echo "  - database manipulation"
+  echo "  - user interaction"
+  echo "  - version comparison"
+  echo "  - and many more ..."
+  echo
+  echo "See https://github.com/fchastanet/bash-tools-framework"
+  echo
+  echo "All these bash scripts are 'compiled' by using"
+  echo "https://github.com/fchastanet/bash-compiler"
 }
 
 fortunes() {
@@ -34,12 +54,19 @@ dependencies() {
   echo "installScripts/PreCommitDefaultConfig"
 }
 
-helpVariables() { :; }
+
+# jscpd:ignore-start
 listVariables() { :; }
+helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
+isTestInstallImplemented() { :; }
+# jscpd:ignore-end
 
 install() {
   Tools::installBashTools
@@ -63,6 +90,7 @@ configure() {
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
     ".bash-tools"
 }
+
 testConfigure() {
   local -i failures=0
   Assert::dirExists "${HOME}/.bash-tools" || ((++failures))
