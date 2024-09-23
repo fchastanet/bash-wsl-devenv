@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Aws/AwsCli-binary.yaml
+# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/UI/Xvfb-binary.yaml
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -410,37 +410,6 @@ Assert::varExistsAndNotEmpty() {
 # @exitcode 1 on error
 Assert::wsl() {
   [[ "$(uname -o)" = "GNU/Linux" ]]
-}
-
-
-# @description ignore exit code 141 from simple command pipes
-# @example use with:
-#   local resultingStatus=0
-#   local -a originalPipeStatus=()
-#   cmd1 | cmd2 || Bash::handlePipelineFailure resultingStatus originalPipeStatus || true
-#   [[ "${resultingStatus}" = "0" ]]
-# @arg $1 resultingStatusCode:&int (passed by reference) (optional) resulting status code
-# @arg $2 originalStatus:int[] (passed by reference) (optional) copy of original PIPESTATUS array
-# @env PIPESTATUS assuming that this function is called like in the example provided
-# @see https://unix.stackexchange.com/a/709880/582856
-Bash::handlePipelineFailure() {
-  local -a pipeStatusBackup=("${PIPESTATUS[@]}")
-  local -n handlePipelineFailure_resultingStatusCode=$1
-  local -n handlePipelineFailure_originalStatus=$2
-  # shellcheck disable=SC2034
-  handlePipelineFailure_originalStatus=("${pipeStatusBackup[@]}")
-  handlePipelineFailure_resultingStatusCode=0
-  local statusCode
-  for statusCode in "${pipeStatusBackup[@]}"; do
-    if ((statusCode == 141)); then
-      return 0
-    elif ((statusCode > 0)); then
-      # shellcheck disable=SC2034
-      handlePipelineFailure_resultingStatusCode="${statusCode}"
-      break
-    fi
-  done
-  return "${handlePipelineFailure_resultingStatusCode}"
 }
 
 
@@ -1630,19 +1599,6 @@ Log::displaySkipped() {
 }
 
 
-# @description Display message using success color (bg green/fg white)
-# @arg $1 message:String the message to display
-# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
-# @env LOG_CONTEXT String allows to contextualize the log
-Log::displaySuccess() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    Log::computeDuration
-    echo -e "${__SUCCESS_COLOR}SUCCESS - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logSuccess "$1"
-}
-
-
 # @description Display message using warning color (yellow)
 # @arg $1 message:String the message to display
 # @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
@@ -1760,15 +1716,6 @@ Log::logMessage() {
 Log::logSkipped() {
   if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
     Log::logMessage "${2:-SKIPPED}" "$1"
-  fi
-}
-
-
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logSuccess() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SUCCESS}" "$1"
   fi
 }
 
@@ -2230,101 +2177,6 @@ UI::theme() {
     __HELP_NORMAL=''
   fi
 }
-
-
-# @description Check that command version is greater than expected minimal version
-# display warning if command version greater than expected minimal version
-# display error if command version less than expected minimal version and exit 1
-# @arg $1 commandName:String command path
-# @arg $2 argVersion:String command line parameters to launch to get command version
-# @arg $3 minimalVersion:String expected minimal command version
-# @arg $4 parseVersionCallback:Function
-# @arg $5 help:String optional help message to display if command does not exist
-# @exitcode 0 if command version greater or equal to expected minimal version
-# @exitcode 1 if command version less than expected minimal version
-# @exitcode 2 if command does not exist
-Version::checkMinimal() {
-  local commandName="$1"
-  local argVersion="$2"
-  local minimalVersion="$3"
-  local parseVersionCallback=${4:-Version::parse}
-  local help="${5:-}"
-
-  Assert::commandExists "${commandName}" "${help}" || return 2
-
-  # shellcheck disable=SC2034
-  local status=0
-  # shellcheck disable=SC2034
-  local -a pipeStatus=()
-  local version
-  version="$("${commandName}" "${argVersion}" 2>&1 | ${parseVersionCallback} || Bash::handlePipelineFailure status pipeStatus)"
-
-  Log::displayDebug "check ${commandName} version ${version} against minimal ${minimalVersion}"
-
-  local result=0
-  Version::compare "${version}" "${minimalVersion}" || result=$?
-  case "${result}" in
-    1)
-      Log::displayInfo "${commandName} version is ${version} greater than ${minimalVersion}"
-      ;;
-    2)
-      Log::displayError "${commandName} minimal version is ${minimalVersion}, your version is ${version}"
-      return 1
-      ;;
-    *)
-      Log::displaySuccess "${commandName} version is matching exactly the expected minimal version ${version}"
-      ;;
-  esac
-}
-
-
-# @description compare 2 version numbers
-# @arg $1 version1:String version 1
-# @arg $2 version2:String version 2
-# @exitcode 0 if equal
-# @exitcode 1 if version1 > version2
-# @exitcode 2 else
-Version::compare() {
-  if [[ "$1" = "$2" ]]; then
-    return 0
-  fi
-  local IFS=.
-  # shellcheck disable=2206
-  local i ver1=($1) ver2=($2)
-  # fill empty fields in ver1 with zeros
-  for ((i = ${#ver1[@]}; i < ${#ver2[@]}; i++)); do
-    ver1[i]=0
-  done
-  for ((i = 0; i < ${#ver1[@]}; i++)); do
-    if [[ -z "${ver2[i]+unset}" ]] || [[ -z ${ver2[i]} ]]; then
-      # fill empty fields in ver2 with zeros
-      ver2[i]=0
-    fi
-    if ((10#${ver1[i]} > 10#${ver2[i]})); then
-      return 1
-    fi
-    if ((10#${ver1[i]} < 10#${ver2[i]})); then
-      return 2
-    fi
-  done
-  return 0
-}
-
-
-# @description filter to keep only version number from a string
-# @arg $@ files:String[] the files to filter
-# @exitcode * if one of the filter command fails
-# @stdin you can use stdin as alternative to files argument
-# @stdout the filtered content
-# shellcheck disable=SC2120
-Version::parse() {
-  # match anything, print(p), exit on first match(Q)
-  sed -En \
-    -e 's/\x1b\[[0-9;]*[mGKHF]//g' \
-    -e 's/[^0-9]*(([0-9]+\.)*[0-9]+).*/\1/' \
-    -e '//{p;Q}' \
-    "$@"
-}
 # FUNCTIONS
 
 # shellcheck disable=SC2034
@@ -2349,7 +2201,7 @@ isInterfaceMandatoryFunctionImplemented() {
 }
 
 scriptName() {
-  echo "AwsCli"
+  echo "Xvfb"
 }
 
 beforeParseCallback() {
@@ -2676,68 +2528,72 @@ commandOptionParseFinished() {
 
 
 helpDescription() {
-  echo "AwsCli"
+  echo "$(scriptName) - installs xvfb"
 }
 
-dependencies() {
-  echo "installScripts/Xvfb"
-}
+helpLongDescription() {
+  helpDescription
+  echo "used to launch headless chrome (Eg.: using aws cli)"
+  echo "https://stackoverflow.com/a/61043049/3045926"
 
-fortunes() {
-  if ! command -v aws &>/dev/null; then
-    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- command ${__HELP_EXAMPLE}aws${__RESET_COLOR} not installed - install it using ${__HELP_EXAMPLE}installAndConfigure AwsCli${__RESET_COLOR}."
-    echo "%"
-  fi
 }
 
 # jscpd:ignore-start
-helpVariables() { :; }
+dependencies() { :; }
 listVariables() { :; }
+helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
-configure() { :; }
-testConfigure() { :; }
 isInstallImplemented() { :; }
+configure() { :; }
 isConfigureImplemented() { :; }
+testConfigure() { :; }
 isTestConfigureImplemented() { :; }
 isTestInstallImplemented() { :; }
 # jscpd:ignore-end
 
 install() {
-  # install aws-cli
-  if [[ -f "/usr/local/bin/aws" && -z "$(find /usr/local/bin/aws -mtime +6)" ]]; then
-    Log::displaySkipped "aws-cli installed as binary not older than 6 days"
-    exit 0
-  fi
+  Linux::Apt::installIfNecessary --no-install-recommends \
+    xvfb
 
-  (
-    cd /tmp || exit 1
-    rm -Rf ./aws
-    Retry::default curl \
-      --fail \
-      -o "awscli.zip" \
-      "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
-    unzip -o awscli.zip >/dev/null
-    if [[ -f /usr/local/bin/aws ]]; then
-      sudo ./aws/install --install-dir /usr/local/aws-cli --bin-dir /usr/local/bin --update
-    else
-      sudo ./aws/install --install-dir /usr/local/aws-cli --bin-dir /usr/local/bin
-    fi
-    rm -Rf ./aws
-    rm -f awscli.zip
-  )
+  # Dependencies to make "headless" chrome
+  SKIP_APT_GET_UPDATE=1 Linux::Apt::installIfNecessary --no-install-recommends \
+    gtk2-engines-pixbuf \
+    xorg \
+    xvfb
+
+  SKIP_APT_GET_UPDATE=1 Linux::Apt::installIfNecessary --no-install-recommends \
+    dbus-x11 \
+    xfonts-100dpi \
+    xfonts-75dpi \
+    xfonts-base \
+    xfonts-cyrillic \
+    xfonts-scalable
 }
 
 testInstall() {
-  Version::checkMinimal "aws" --version "2.13.32" || return 1
+  local -i failures=0
+  Log::displayInfo "Check if xvfb is installed"
+  sudo apt-cache show xvfb &>/dev/null || {
+    Log::displayError "xvfb not installed"
+    ((++failures))
+  }
+  Log::displayInfo "Check if xvfb is running"
+  local xdpyinfoResult
+  # capture only stderr: 3>&1 1>/dev/null 2>&3
+  xdpyinfoResult="$(xdpyinfo -display :0 3>&1 1>/dev/null 2>&3)" || {
+    Log::displayError "xdpyinfo returned that error : ${xdpyinfoResult}"
+    ((++failures))
+  }
+  return "${failures}"
 }
 
 
 
 optionHelpCallback() {
-  "AwsCliCommandHelp"
+  "XvfbCommandHelp"
   exit 0
 }
 
@@ -2763,7 +2619,7 @@ afterParseCallback() {
 
 
 # ------------------------------------------
-# Command AwsCliCommand
+# Command XvfbCommand
 # ------------------------------------------
 
 # options variables initialization
@@ -2788,8 +2644,8 @@ declare optionVersion="0"
 declare optionQuiet="0"
 # arguments variables initialization
 declare command="install"
-# @description parse command options and arguments for AwsCliCommand
-AwsCliCommandParse() {
+# @description parse command options and arguments for XvfbCommand
+XvfbCommandParse() {
   Log::displayDebug "Command ${SCRIPT_NAME} - parse arguments: ${BASH_FRAMEWORK_ARGV[*]}"
   Log::displayDebug "Command ${SCRIPT_NAME} - parse filtered arguments: ${BASH_FRAMEWORK_ARGV_FILTERED[*]}"
   SKIP_CONFIGURE="0"
@@ -3274,8 +3130,8 @@ AwsCliCommandParse() {
 
 }
 
-# @description display command options and arguments help for AwsCliCommand
-AwsCliCommandHelp() {
+# @description display command options and arguments help for XvfbCommand
+XvfbCommandHelp() {
   echo -e "${__HELP_TITLE_COLOR}SYNOPSIS:${__RESET_COLOR}"
   helpDescriptionFunction
 
@@ -3283,7 +3139,7 @@ AwsCliCommandHelp() {
   # ------------------------------------------
   # usage section
   # ------------------------------------------
-  Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" "AwsCli [OPTIONS] [ARGUMENTS]"
+  Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" "Xvfb [OPTIONS] [ARGUMENTS]"
   echo
   # ------------------------------------------
   # usage/options section
@@ -3291,7 +3147,7 @@ AwsCliCommandHelp() {
   optionsAltList=("[--skip-config|--skip-configure|--skip-configuration|-sc]" "[--skip-install|--skip-installation|-si]" "[--skip-test|--skip-tests|-st]" "[--skip-deps|--skip-dependencies|-sd]" "[--prepare-export|-e]" "[--profile|-p <profile>]" "[--help|-h]" "[--config]" "[--bash-framework-config <bash-framework-config>]" "[--verbose|-v]" "[-vv]" "[-vvv]" "[--log-level <log-level>]" "[--log-file <log-file>]" "[--display-level <display-level>]" "[--no-color]" "[--theme <theme>]" "[--version]" "[--quiet|-q]"
   )
   Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" \
-    "AwsCli" "${optionsAltList[@]}"
+    "Xvfb" "${optionsAltList[@]}"
   echo
 
   # ------------------------------------------
@@ -3481,7 +3337,7 @@ AwsCliCommandHelp() {
   # ------------------------------------------
   echo
   echo -n -e "${__HELP_TITLE_COLOR}SOURCE FILE: ${__RESET_COLOR}"
-  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Aws/AwsCli-binary.yaml"
+  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/UI/Xvfb-binary.yaml"
   # ------------------------------------------
   # license section
   # ------------------------------------------
@@ -3497,7 +3353,7 @@ AwsCliCommandHelp() {
 
 beforeParseCallback
 
-AwsCliCommandParse "$@"
+XvfbCommandParse "$@"
 MAIN_FUNCTION_NAME="main"
 main() {
 

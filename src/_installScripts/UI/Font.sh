@@ -1,29 +1,13 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Font
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/Font/Font.ps1" as fontScript
+# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/UI/Font.ps1" as fontScript
 
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "Font"
+fontBeforeParseCallback() {
+  Git::requireGitCommand
 }
 
 helpDescription() {
-  echo "Font"
+  echo "$(scriptName) - installs mesloLGS_NF font in windows"
 }
-
-# jscpd:ignore-start
-dependencies() { :; }
-helpVariables() { :; }
-listVariables() { :; }
-defaultVariables() { :; }
-checkVariables() { :; }
-breakOnConfigFailure() { :; }
-breakOnTestFailure() { :; }
-# jscpd:ignore-end
 
 fortunes() {
   if Assert::wsl; then
@@ -33,6 +17,22 @@ fortunes() {
     fi
   fi
 }
+
+# jscpd:ignore-start
+dependencies() { :; }
+listVariables() { :; }
+helpVariables() { :; }
+defaultVariables() { :; }
+checkVariables() { :; }
+breakOnConfigFailure() { :; }
+breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+configure() { :; }
+isConfigureImplemented() { :; }
+testConfigure() { :; }
+isTestConfigureImplemented() { :; }
+isTestInstallImplemented() { :; }
+# jscpd:ignore-end
 
 install() {
   if ! Assert::wsl; then
@@ -75,6 +75,3 @@ testInstall() {
   }
   return "${failures}"
 }
-
-configure() { :; }
-testConfigure() { :; }

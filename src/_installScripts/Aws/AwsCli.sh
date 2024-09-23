@@ -5,7 +5,7 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "installScripts/Xvsb"
+  echo "installScripts/Xvfb"
 }
 
 fortunes() {

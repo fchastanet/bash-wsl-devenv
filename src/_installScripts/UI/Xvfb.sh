@@ -1,34 +1,33 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Xvsb
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "Xvsb"
-}
 
 helpDescription() {
-  echo "Xvsb"
+  echo "$(scriptName) - installs xvfb"
+}
+
+helpLongDescription() {
+  helpDescription
+  echo "used to launch headless chrome (Eg.: using aws cli)"
+  echo "https://stackoverflow.com/a/61043049/3045926"
+
 }
 
 # jscpd:ignore-start
 dependencies() { :; }
-helpVariables() { :; }
 listVariables() { :; }
+helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
-fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+configure() { :; }
+isConfigureImplemented() { :; }
+testConfigure() { :; }
+isTestConfigureImplemented() { :; }
+isTestInstallImplemented() { :; }
 # jscpd:ignore-end
 
 install() {
-  # use to launch headless chrome (used by aws cli)
-  # https://stackoverflow.com/a/61043049/3045926
-  # Install Xvfb
   Linux::Apt::installIfNecessary --no-install-recommends \
     xvfb
 
@@ -63,6 +62,3 @@ testInstall() {
   }
   return "${failures}"
 }
-
-configure() { :; }
-testConfigure() { :; }

@@ -180,7 +180,6 @@ xsession
 Xsrv
 xvfb
 Xvfb
-Xvsb
 zcompdump
 zinit
 zshscript
