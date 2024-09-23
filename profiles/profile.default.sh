@@ -12,6 +12,15 @@ CONFIG_LIST+=(
   "installScripts/Upgrade"
 )
 
+# Code Checkers
+CONFIG_LIST+=(
+  "installScripts/ComposerDependencies"
+  "installScripts/NodeDependencies"
+  "installScripts/ShFmt"
+  "installScripts/Hadolint"
+  "installScripts/Shellcheck"
+)
+
 # optional packages
 CONFIG_LIST+=(
   "installScripts/Docker"
@@ -24,7 +33,6 @@ CONFIG_LIST+=(
   "installScripts/ShellZsh"
   "installScripts/BashTools"
   "installScripts/PreCommitDefaultConfig"
-  "installScripts/CodeCheckers"
   "installScripts/Oq"
   "installScripts/PlantUml"
 )
