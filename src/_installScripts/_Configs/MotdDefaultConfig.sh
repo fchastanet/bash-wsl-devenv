@@ -1,18 +1,8 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/MotdDefaultConfig
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/MotdDefaultConfig/conf" as conf_dir
-
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "MotdDefaultConfig"
-}
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/_Configs/MotdDefaultConfig-conf" as conf_dir
 
 helpDescription() {
-  echo "MotdDefaultConfig"
+  echo "Motd default configuration"
 }
 
 dependencies() {
@@ -30,14 +20,16 @@ fortunes() {
 }
 
 # jscpd:ignore-start
-helpVariables() { :; }
 listVariables() { :; }
+helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
-install() { :; }
-testInstall() { :; }
+isInstallImplemented() { :; }
+isTestInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
 # jscpd:ignore-end
 
 configure() {

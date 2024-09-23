@@ -1,31 +1,28 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/WslDefaultConfig
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/WslDefaultConfig/conf/etc/wsl.conf" as wslConf
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/_Configs/WslDefaultConfig-conf" as conf_dir
 
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "WslDefaultConfig"
+wslBeforeParseCallback() {
+  Git::requireGitCommand
+  Linux::requireSudoCommand
 }
 
 helpDescription() {
-  echo "WslDefaultConfig"
+  echo "Wsl default configuration"
 }
 
 # jscpd:ignore-start
 dependencies() { :; }
-helpVariables() { :; }
+fortunes() { :; }
 listVariables() { :; }
+helpVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
-fortunes() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
-install() { :; }
-testInstall() { :; }
+isInstallImplemented() { :; }
+isTestInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
 # jscpd:ignore-end
 
 configure() {
