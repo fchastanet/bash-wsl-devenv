@@ -22,7 +22,7 @@ CONFIG_LIST+=(
 # optional packages
 CONFIG_LIST+=(
   "installScripts/Docker"
-  "installScripts/Fortune"
+  "installScripts/FortunesForProfile"
   "installScripts/Saml2Aws"
   "installScripts/BashTools"
   "installScripts/Oq"

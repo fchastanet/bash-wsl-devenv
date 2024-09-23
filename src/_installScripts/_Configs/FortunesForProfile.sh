@@ -1,18 +1,13 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/installScripts/Fortune
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# IMPLEMENT InstallScripts::interface
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_binaries/Fortune/conf" as conf_dir
-
-.INCLUDE "$(dynamicTemplateDir "_includes/_installScript.tpl")"
-
-scriptName() {
-  echo "Fortune"
-}
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/_Configs/FortunesForProfile-conf" as conf_dir
 
 helpDescription() {
-  echo "Fortune"
+  echo "installs fortune software and generate fortunes"
+}
+
+helpLongDescription() {
+  helpDescription
+  echo "The fortunes generated are based on scripts selected in bash-dev-env"
 }
 
 dependencies() {
@@ -27,13 +22,24 @@ fortunes() {
   fi
 }
 
+listVariables() {
+  echo "PROFILE"
+}
+
+helpVariables() {
+  echo "${__HELP_EXAMPLE}PROFILE${__HELP_NORMAL}"
+  echo "  The profile selected when calling the install command"
+}
+
 # jscpd:ignore-start
-helpVariables() { :; }
-listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+isInstallImplemented() { :; }
+isTestInstallImplemented() { :; }
+isConfigureImplemented() { :; }
+isTestConfigureImplemented() { :; }
 # jscpd:ignore-end
 
 install() {
