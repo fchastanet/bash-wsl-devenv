@@ -8,7 +8,7 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "installScripts/ShellBash"
+  echo "installScripts/ShellBashDefaultConfig"
 }
 
 listVariables() {

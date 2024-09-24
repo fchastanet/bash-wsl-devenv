@@ -13,6 +13,7 @@ helpLongDescription() {
 
 # jscpd:ignore-start
 dependencies() { :; }
+fortunes() { :; }
 listVariables() { :; }
 helpVariables() { :; }
 defaultVariables() { :; }

@@ -4,6 +4,10 @@ binData:
     default:
       definitionFiles:
         20: ${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/optionsProfile.sh
+        21: ${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/optionsProfileHelp.sh
+
+      callbacks:
+        - commandCallback@20
 
       args:
         - variableName: CONFIG_LIST

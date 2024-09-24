@@ -61,9 +61,8 @@ commandCallback() {
     declare -ag allDepsResult=()
     # shellcheck disable=SC2034
     declare -Ag allDepsResultSeen=()
-
     Profiles::allDepsRecursive \
-      "${INSTALL_SCRIPTS_ROOT_DIR}" "${rootDependency}" "${CONFIG_LIST[@]}"
+      "${BASH_DEV_ENV_ROOT_DIR}" "${rootDependency}" "${CONFIG_LIST[@]}"
 
     CONFIG_LIST=("${allDepsResult[@]}")
   fi
