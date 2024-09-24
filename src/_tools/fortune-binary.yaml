@@ -1,0 +1,23 @@
+extends:
+  - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/optionsProfile.yaml"
+  - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/default.yaml"
+
+vars:
+  SRC_FILE_PATH: src/_tools/fortune-binary.yaml
+
+compilerConfig:
+  targetFile: "${BASH_DEV_ENV_ROOT_DIR}/bin/fortune"
+  relativeRootDirBasedOnTargetDir: ..
+binData:
+  commands:
+    default:
+      functionName: fortuneCommand
+      version: "3.0"
+      copyrightBeginYear: 2024
+      help: Generate fortune database
+      mainFile: ${BASH_DEV_ENV_ROOT_DIR}/src/_tools/fortune-main.sh
+      callbacks:
+        - afterParseCallback@10
+      definitionFiles:
+        22: ${BASH_DEV_ENV_ROOT_DIR}/src/_tools/fortune-options.sh
+      commandName: fortune

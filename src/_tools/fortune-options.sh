@@ -1,11 +1,9 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 helpLongDescriptionFunction() {
   LOAD_SSH_KEY=0 afterParseCallback
 
-  echo "  Install or update softwares (kube, aws, composer, node, ...)."
-  echo "  Configure Home environment (git config, kube, motd, ssh, dns, ...)."
-  echo "  And check configurations."
+  echo "  Generate fortune database based on list of softwares or on a profile."
   echo
   displayAvailableSoftwares "${INSTALL_SCRIPTS_ROOT_DIR}"
   echo

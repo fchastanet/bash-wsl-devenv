@@ -9,6 +9,7 @@ dependencies() {
 }
 
 # jscpd:ignore-start
+fortunes() { :; }
 listVariables() { :; }
 helpVariables() { :; }
 defaultVariables() { :; }
@@ -26,7 +27,6 @@ configure() {
   if [[ "${PREPARE_EXPORT}" = "1" ]]; then
     (
       Log::displayInfo "==> Clean up before export"
-      set -x
       git config --global --unset user.name || true
       git config --global --unset user.email || true
       rm -Rf "${BACKUP_DIR:?}/"* || true

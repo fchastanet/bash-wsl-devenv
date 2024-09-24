@@ -5,6 +5,7 @@ helpDescription() {
 }
 
 # jscpd:ignore-start
+fortunes() { :; }
 dependencies() { :; }
 listVariables() { :; }
 helpVariables() { :; }

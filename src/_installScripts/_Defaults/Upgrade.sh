@@ -30,6 +30,7 @@ checkVariables() {
 }
 
 # jscpd:ignore-start
+fortunes() { :; }
 dependencies() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }

@@ -18,6 +18,7 @@ fortunes() {
 }
 
 # jscpd:ignore-start
+dependencies() { :; }
 listVariables() { :; }
 helpVariables() { :; }
 defaultVariables() { :; }
