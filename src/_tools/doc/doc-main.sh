@@ -1,14 +1,6 @@
 #!/usr/bin/env bash
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/bin/doc
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-# FACADE
-# VAR_LOAD_REQUIRES=0
-# VAR_LOAD_CONFIG=0
-# shellcheck disable=SC2034
 
-declare copyrightBeginYear="2020"
-
-.INCLUDE "$(dynamicTemplateDir _binaries/_tools/doc.options.tpl)"
+LOAD_SSH_KEY=0 afterParseCallback
 
 runContainer() {
   local image="scrasnups/build:bash-tools-ubuntu-5.3"
@@ -25,6 +17,7 @@ runContainer() {
     --rm
     -e KEEP_TEMP_FILES="${KEEP_TEMP_FILES:-0}"
     -e BATS_FIX_TEST="${BATS_FIX_TEST:-0}"
+    -e BASH_DEV_ENV_CONFIG_LOADED=1
     -e ORIGINAL_DOC_DIR="${BASH_DEV_ENV_ROOT_DIR}/pages"
     -w /bash
     -v "${BASH_DEV_ENV_ROOT_DIR}:/bash"
@@ -77,16 +70,8 @@ generateDoc() {
   Log::displayStatus "Doc generated in ${ORIGINAL_DOC_DIR} folder"
 }
 
-run() {
-  if [[ "${IN_BASH_DOCKER:-}" != "You're in docker" ]]; then
-    runContainer
-  else
-    generateDoc
-  fi
-}
-
-if [[ "${BASH_FRAMEWORK_QUIET_MODE:-0}" = "1" ]]; then
-  run &>/dev/null
+if [[ "${IN_BASH_DOCKER:-}" != "You're in docker" ]]; then
+  runContainer
 else
-  run
+  generateDoc
 fi
