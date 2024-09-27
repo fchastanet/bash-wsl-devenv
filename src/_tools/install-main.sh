@@ -109,7 +109,11 @@ executeScripts() {
   local -i configConfigCount=0
   local -i configTestConfigCount=0
   local configName
+  local -i installScriptError=0
   for configName in "${CONFIG_LIST[@]}"; do
+    if ! SKIP_REQUIRES=1 "${BASH_DEV_ENV_ROOT_DIR}/${configName}" isInterfaceImplemented; then
+      ((++installScriptError))
+    fi
     if [[ "${SKIP_INSTALL}" = "0" ]] &&
       SKIP_REQUIRES=1 "${BASH_DEV_ENV_ROOT_DIR}/${configName}" isInstallImplemented; then
       ((++installConfigCount))
@@ -127,6 +131,9 @@ executeScripts() {
       fi
     fi
   done
+  if ((installScriptError > 0)); then
+    exit 1
+  fi
   # shellcheck disable=SC2317
   for currentConfigName in "${CONFIG_LIST[@]}"; do
     (

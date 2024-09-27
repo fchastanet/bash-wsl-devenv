@@ -3,7 +3,7 @@ extends:
   - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/default.yaml"
 
 vars:
-  SRC_FILE_PATH: src/_tools/doc/doc-binary.yaml
+  SRC_FILE_PATH: src/_tools/doc-binary.yaml
 
 compilerConfig:
   targetFile: "${BASH_DEV_ENV_ROOT_DIR}/bin/doc"
@@ -16,5 +16,5 @@ binData:
       copyrightBeginYear: 2020
       help: generate markdown documentation
       longDescription: generate markdown documentation
-      mainFile: ${BASH_DEV_ENV_ROOT_DIR}/src/_tools/doc/doc-main.sh
+      mainFile: ${BASH_DEV_ENV_ROOT_DIR}/src/_tools/doc-main.sh
       commandName: doc

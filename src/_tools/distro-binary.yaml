@@ -1,0 +1,54 @@
+extends:
+  - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/default.yaml"
+
+vars:
+  SRC_FILE_PATH: src/_tools/distro-binary.yaml
+  LOAD_LOCALE_CONFIG: "0"
+  LOAD_CONFIG: "0"
+
+compilerConfig:
+  targetFile: "${BASH_DEV_ENV_ROOT_DIR}/distro"
+  relativeRootDirBasedOnTargetDir: .
+binData:
+  commands:
+    default:
+      functionName: distroCommand
+      version: "3.0"
+      copyrightBeginYear: 2024
+      help: Launch wsl distribution.
+      longDescription: Launch wsl distribution specified by .env.distro file.
+      mainFile: ${BASH_DEV_ENV_ROOT_DIR}/src/_tools/distro-main.sh
+      commandName: distro
+      optionGroups:
+        zzzGroupDistro:
+          title: "DISTRO OPTIONS:"
+
+      options:
+        - variableName: optionSkipDistro
+          group: zzzGroupDistro
+          type: Boolean
+          help: Skip creating distro specified.
+          alts:
+            - "--skip-distro"
+            - "-d"
+        - variableName: optionSkipInstall
+          group: zzzGroupDistro
+          type: Boolean
+          help: Skip softwares installation.
+          alts:
+            - "--skip-install"
+            - "-i"
+        - variableName: optionExport
+          group: zzzGroupDistro
+          type: Boolean
+          help: Prepare the wsl image for export (remove all sensitive files).
+          alts:
+            - "--export"
+            - "-e"
+        - variableName: optionUpload
+          group: zzzGroupDistro
+          type: Boolean
+          help: Upload the wsl compressed image to s3 bucket.
+          alts:
+            - "--upload"
+            - "-u"
