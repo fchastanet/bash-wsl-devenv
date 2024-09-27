@@ -1343,6 +1343,38 @@ InstallScripts::command() {
 }
 
 
+# @description check that function is implemented
+InstallScripts::isFunctionImplemented() {
+  local functionName="$1"
+  if ! Assert::functionExists "${functionName}"; then
+    Log::displayError "$(scriptName) - Function ${functionName} is not implemented"
+    return 1
+  fi
+}
+
+
+# @description check that all needed functions are implemented
+InstallScripts::isInterfaceMandatoryFunctionImplemented() {
+  local -i failures=0
+  InstallScripts::isFunctionImplemented helpDescription || ((++failures))
+  InstallScripts::isFunctionImplemented helpLongDescription || ((++failures))
+  InstallScripts::isFunctionImplemented scriptName || ((++failures))
+  InstallScripts::isFunctionImplemented dependencies || ((++failures))
+  InstallScripts::isFunctionImplemented listVariables || ((++failures))
+  InstallScripts::isFunctionImplemented fortunes || ((++failures))
+  InstallScripts::isFunctionImplemented helpVariables || ((++failures))
+  InstallScripts::isFunctionImplemented defaultVariables || ((++failures))
+  InstallScripts::isFunctionImplemented checkVariables || ((++failures))
+  InstallScripts::isFunctionImplemented breakOnConfigFailure || ((++failures))
+  InstallScripts::isFunctionImplemented breakOnTestFailure || ((++failures))
+  InstallScripts::isFunctionImplemented install || ((++failures))
+  InstallScripts::isFunctionImplemented testInstall || ((++failures))
+  InstallScripts::isFunctionImplemented configure || ((++failures))
+  InstallScripts::isFunctionImplemented testConfigure || ((++failures))
+  return "${failures}"
+}
+
+
 # @description check if function is empty
 # @arg $1 function:Function
 # @exitcode 0 if function is considered empty (body with : or true)
@@ -2565,22 +2597,13 @@ Web::upgradeRelease() {
 # shellcheck disable=SC2034
 declare commandFunctionName="installScriptCommand"
 
-isInterfaceMandatoryFunctionImplemented() {
-  isFunctionImplemented helpDescription || return 1
-  isFunctionImplemented helpLongDescription || return 1
-  isFunctionImplemented scriptName || return 1
-  isFunctionImplemented dependencies || return 1
-  isFunctionImplemented listVariables || return 1
-  isFunctionImplemented fortunes || return 1
-  isFunctionImplemented helpVariables || return 1
-  isFunctionImplemented defaultVariables || return 1
-  isFunctionImplemented checkVariables || return 1
-  isFunctionImplemented breakOnConfigFailure || return 1
-  isFunctionImplemented breakOnTestFailure || return 1
-  isFunctionImplemented install || return 1
-  isFunctionImplemented testInstall || return 1
-  isFunctionImplemented configure || return 1
-  isFunctionImplemented testConfigure || return 1
+defaultBeforeParseCallback() {
+  Env::requireLoad
+  UI::requireTheme
+  Log::requireLoad
+  Linux::requireUbuntu
+  Linux::Wsl::requireWsl
+  InstallScripts::isInterfaceMandatoryFunctionImplemented
 }
 
 scriptName() {
@@ -2589,7 +2612,6 @@ scriptName() {
 
 beforeParseCallback() {
   defaultBeforeParseCallback
-  isInterfaceMandatoryFunctionImplemented
 }
 
 commandHelpFunction() {
@@ -2633,14 +2655,6 @@ helpLongDescriptionFunction() {
   listOrNone "$(dependencies)"
 }
 
-isFunctionImplemented() {
-  local functionName="$1"
-  if ! Assert::functionExists "${functionName}"; then
-    Log::displayError "Function ${functionName} is not implemented"
-    return 1
-  fi
-}
-
 isInstallImplemented() {
   ! InstallScripts::scriptFunctionEmpty install
 }
@@ -2663,9 +2677,15 @@ fullScriptName() {
 
 argsInstallScriptCommandCallback() {
   if [[ -n "${command}" ]]; then
-    if Array::contains "${command}" install testInstall configure testConfigure; then
-      afterParseCallback
-    fi
+    case "${command}" in
+      isInterfaceImplemented)
+        InstallScripts::isInterfaceMandatoryFunctionImplemented; exit $?
+        ;;
+      install|testInstall|configure|testConfigure)
+        afterParseCallback
+        ;;
+      *)
+    esac
     "${command}"; exit $?
   fi
 }
@@ -3479,11 +3499,11 @@ Saml2AwsCommandParse() {
 
         # Argument 1/1 - command
         # Argument command min 0 max 1
-        # Argument command authorizedValues: helpDescription|scriptName|dependencies|listVariables|fortunes|helpVariables|defaultVariables|checkVariables|breakOnConfigFailure|breakOnTestFailure|isInstallImplemented|install|isTestInstallImplemented|testInstall|isConfigureImplemented|configure|isTestConfigureImplemented|testConfigure
+        # Argument command authorizedValues: isInterfaceImplemented|helpDescription|scriptName|dependencies|listVariables|fortunes|helpVariables|defaultVariables|checkVariables|breakOnConfigFailure|breakOnTestFailure|isInstallImplemented|install|isTestInstallImplemented|testInstall|isConfigureImplemented|configure|isTestConfigureImplemented|testConfigure
         elif (( options_parse_parsedArgIndex >= minParsedArgIndex0 &&
           options_parse_parsedArgIndex < maxParsedArgIndex1 )); then
-          if [[ ! "${options_parse_arg}" =~ helpDescription|scriptName|dependencies|listVariables|fortunes|helpVariables|defaultVariables|checkVariables|breakOnConfigFailure|breakOnTestFailure|isInstallImplemented|install|isTestInstallImplemented|testInstall|isConfigureImplemented|configure|isTestConfigureImplemented|testConfigure ]]; then
-            Log::displayError "Command ${SCRIPT_NAME} - Argument command - value '${options_parse_arg}' is not part of authorized values(helpDescription, scriptName, dependencies, listVariables, fortunes, helpVariables, defaultVariables, checkVariables, breakOnConfigFailure, breakOnTestFailure, isInstallImplemented, install, isTestInstallImplemented, testInstall, isConfigureImplemented, configure, isTestConfigureImplemented, testConfigure)"
+          if [[ ! "${options_parse_arg}" =~ isInterfaceImplemented|helpDescription|scriptName|dependencies|listVariables|fortunes|helpVariables|defaultVariables|checkVariables|breakOnConfigFailure|breakOnTestFailure|isInstallImplemented|install|isTestInstallImplemented|testInstall|isConfigureImplemented|configure|isTestConfigureImplemented|testConfigure ]]; then
+            Log::displayError "Command ${SCRIPT_NAME} - Argument command - value '${options_parse_arg}' is not part of authorized values(isInterfaceImplemented, helpDescription, scriptName, dependencies, listVariables, fortunes, helpVariables, defaultVariables, checkVariables, breakOnConfigFailure, breakOnTestFailure, isInstallImplemented, install, isTestInstallImplemented, testInstall, isConfigureImplemented, configure, isTestConfigureImplemented, testConfigure)"
             return 1
           fi
           if ((options_parse_argParsedCountCommand >= 1 )); then
@@ -3550,6 +3570,8 @@ Saml2AwsCommandHelp() {
   echo
 
   echo "    Possible values:"
+  Array::wrap2 ' ' 76 8 "      - ${__OPTION_COLOR}isInterfaceImplemented:${__RESET_COLOR} Check if all commands below are available"
+  echo
   Array::wrap2 ' ' 76 8 "      - ${__OPTION_COLOR}helpDescription:${__RESET_COLOR} Show help description of this install script."
   echo
   Array::wrap2 ' ' 76 8 "      - ${__OPTION_COLOR}scriptName:${__RESET_COLOR} Show the internal name of this install script."

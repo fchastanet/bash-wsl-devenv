@@ -32,7 +32,7 @@ NON_FRAMEWORK_FILES_REGEXP="${NON_FRAMEWORK_FILES_REGEXP:-^bin/|.env.*$|^test.sh
 # describe the files that are allowed to not have an associated bats file
 BATS_FILE_NOT_NEEDED_REGEXP="${BATS_FILE_NOT_NEEDED_REGEXP:-.*}"
 # describe the files that are allowed to not have a function matching the filename
-FRAMEWORK_FILES_FUNCTION_MATCHING_IGNORE_REGEXP="${FRAMEWORK_FILES_FUNCTION_MATCHING_IGNORE_REGEXP:-^conf/|^.github/|^bin/|^install$|^distro$|^installScripts/|^srcAlt/.*/installScripts/|^\.framework-config$|\.tpl$|testsData/binaryFile$|^src/_binaries/|^src/_installScripts/|^srcAlt/.*/src/_installScripts/|^src/_commandDefinitions|^src/_tools}"
+FRAMEWORK_FILES_FUNCTION_MATCHING_IGNORE_REGEXP="${FRAMEWORK_FILES_FUNCTION_MATCHING_IGNORE_REGEXP:-^conf/|^.github/|^bin/|^install$|^distro$|^installScripts/|^srcAlt/.*/installScripts/|^\.framework-config$|\.tpl$|testsData/binaryFile$|^src/_binaries/|^src/_installScripts/|^srcAlt/.*/src/_installScripts/|^src/_commandDefinitions|^src/_tools|^checkInstallScripts.sh$}"
 # Source directories
 if [[ ! -v FRAMEWORK_SRC_DIRS ]]; then
   FRAMEWORK_SRC_DIRS=(

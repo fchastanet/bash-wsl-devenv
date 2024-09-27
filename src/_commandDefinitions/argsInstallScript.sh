@@ -3,22 +3,13 @@
 # shellcheck disable=SC2034
 declare commandFunctionName="installScriptCommand"
 
-isInterfaceMandatoryFunctionImplemented() {
-  isFunctionImplemented helpDescription || return 1
-  isFunctionImplemented helpLongDescription || return 1
-  isFunctionImplemented scriptName || return 1
-  isFunctionImplemented dependencies || return 1
-  isFunctionImplemented listVariables || return 1
-  isFunctionImplemented fortunes || return 1
-  isFunctionImplemented helpVariables || return 1
-  isFunctionImplemented defaultVariables || return 1
-  isFunctionImplemented checkVariables || return 1
-  isFunctionImplemented breakOnConfigFailure || return 1
-  isFunctionImplemented breakOnTestFailure || return 1
-  isFunctionImplemented install || return 1
-  isFunctionImplemented testInstall || return 1
-  isFunctionImplemented configure || return 1
-  isFunctionImplemented testConfigure || return 1
+defaultBeforeParseCallback() {
+  Env::requireLoad
+  UI::requireTheme
+  Log::requireLoad
+  Linux::requireUbuntu
+  Linux::Wsl::requireWsl
+  InstallScripts::isInterfaceMandatoryFunctionImplemented
 }
 
 scriptName() {
@@ -27,7 +18,6 @@ scriptName() {
 
 beforeParseCallback() {
   defaultBeforeParseCallback
-  isInterfaceMandatoryFunctionImplemented
 }
 
 commandHelpFunction() {
@@ -71,14 +61,6 @@ helpLongDescriptionFunction() {
   listOrNone "$(dependencies)"
 }
 
-isFunctionImplemented() {
-  local functionName="$1"
-  if ! Assert::functionExists "${functionName}"; then
-    Log::displayError "Function ${functionName} is not implemented"
-    return 1
-  fi
-}
-
 isInstallImplemented() {
   ! InstallScripts::scriptFunctionEmpty install
 }
@@ -101,9 +83,15 @@ fullScriptName() {
 
 argsInstallScriptCommandCallback() {
   if [[ -n "${command}" ]]; then
-    if Array::contains "${command}" install testInstall configure testConfigure; then
-      afterParseCallback
-    fi
+    case "${command}" in
+      isInterfaceImplemented)
+        InstallScripts::isInterfaceMandatoryFunctionImplemented; exit $?
+        ;;
+      install|testInstall|configure|testConfigure)
+        afterParseCallback
+        ;;
+      *)
+    esac
     "${command}"; exit $?
   fi
 }

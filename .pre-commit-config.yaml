@@ -175,3 +175,14 @@ repos:
     rev: v1.0.0
     hooks:
       - id: buildBashBinaries
+
+  - repo: local
+    hooks:
+      - id: checkInstallScripts
+        name: checkInstallScripts
+        entry: ./checkInstallScripts.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+        require_serial: true
+        stages: [pre-commit, pre-push, manual]

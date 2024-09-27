@@ -16,6 +16,8 @@ binData:
           callbacks:
             - argsInstallScriptCommandCallback
           authorizedValues:
+            - help: Check if all commands below are available
+              value: isInterfaceImplemented
             - help: Show help description of this install script.
               value: helpDescription
             - help: Show the internal name of this install script.

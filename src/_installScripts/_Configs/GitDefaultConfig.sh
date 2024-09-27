@@ -32,6 +32,8 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+install() { :; }
+testInstall() { :; }
 isInstallImplemented() { :; }
 isTestInstallImplemented() { :; }
 isConfigureImplemented() { :; }
