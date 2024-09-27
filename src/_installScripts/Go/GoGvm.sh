@@ -4,16 +4,13 @@ helpDescription() {
   echo "gvm tool allows to switch from one go version to another."
 }
 
-dependencies() {
-  echo "installScripts/Go"
-}
-
 fortunes() {
   echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- use gvm to switch go version"
   echo "%"
 }
 
 # jscpd:ignore-start
+dependencies() { :;}
 listVariables() { :; }
 helpVariables() { :; }
 defaultVariables() { :; }
