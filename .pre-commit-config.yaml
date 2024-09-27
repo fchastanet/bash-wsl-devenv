@@ -172,7 +172,7 @@ repos:
       - id: plantuml
 
   - repo: https://github.com/fchastanet/bash-compiler
-    rev: v1.0.0
+    rev: v1.0.1
     hooks:
       - id: buildBashBinaries
 
