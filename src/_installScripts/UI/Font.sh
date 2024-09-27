@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# EMBED "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/UI/Font.ps1" as fontScript
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/UI/Font.ps1" as fontScript
 
 fontBeforeParseCallback() {
   Git::requireGitCommand

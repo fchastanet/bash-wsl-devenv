@@ -54,7 +54,7 @@ installFromUbuntu24() {
     python3
     python-is-python3
     python3-pip
-    python3.9-venv
+    python3-venv
   )
   Linux::Apt::installIfNecessary --no-install-recommends "${packages[@]}"
 

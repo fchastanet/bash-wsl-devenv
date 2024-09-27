@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/_Configs/WslDefaultConfig-conf" as conf_dir
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/_Configs/WslDefaultConfig-conf/etc/wsl.conf" as wsl_conf
 
 wslBeforeParseCallback() {
   Git::requireGitCommand
@@ -33,7 +33,7 @@ configure() {
   if Assert::wsl && [[ ! -f "/etc/wsl.conf" ]]; then
     local fileToInstall
     # shellcheck disable=SC2154
-    fileToInstall="$(Conf::dynamicConfFile "etc/wsl.conf" "${embed_file_wslConf}")" || return 1
+    fileToInstall="$(Conf::dynamicConfFile "etc/wsl.conf" "${embed_file_wsl_conf}")" || return 1
     SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
       "${fileToInstall}" "/etc/wsl.conf" root root "Install::setUserRootCallback"
   fi

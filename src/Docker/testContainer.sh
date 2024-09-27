@@ -18,7 +18,7 @@ Docker::testContainer() {
 
   # if it was up before launching this script, no need to launch it and do not stop it
   local containerWasUp
-  containerWasUp="$(docker container inspect -f '{{.State.Status}}' "${containerName}" || true)"
+  containerWasUp="$(docker container inspect -f '{{"{{"}}.State.Status{{"}}"}}' "${containerName}" || true)"
 
   (
     cd "${dir}" || exit 1

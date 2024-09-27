@@ -13,7 +13,7 @@ helpDescription() {
 dependencies() {
   echo "installScripts/Saml2Aws"
   echo "installScripts/Docker"
-  echo "installScripts/Go"
+  echo "installScripts/GoGvm"
 }
 
 fortunes() {

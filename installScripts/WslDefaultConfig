@@ -549,35 +549,6 @@ Command::captureOutputAndExitCode() {
 }
 
 
-# @description convert base64 encoded back to target dir
-# it is advised to include the md5sum of the binFile in the path of the target dir
-#
-# @arg $1 targetDir:string the directory in which tar archive will be untarred
-# @arg $2 base64:string the base64 encoded tar czf archive
-# @stderr diagnostics information is displayed
-Compiler::Embed::extractDirFromBase64() {
-
-  if [[ "${REQUIRE_FUNCTION_LINUX_REQUIRE_TAR_COMMAND_LOADED:-0}" != 1 ]]; then
-    echo >&2 "Requirement Linux::requireTarCommand has not been loaded"
-    exit 1
-  fi
-
-  local targetDir="$1"
-  local base64="$2"
-
-  if [[ ! -d "${targetDir}" ]]; then
-    mkdir -p "${targetDir}"
-    (
-      cd "${targetDir}" || exit 1
-      base64 -d <<<"${base64}" | tar -xzf - 2>/dev/null || {
-        Log::displayError "untar failure, invalid base64 string"
-        exit 1
-      }
-    ) || return 1
-  fi
-}
-
-
 # @description convert base64 encoded back to target file
 # if target file is executable prepend dir of target
 # file to PATH to make binary available everywhere
@@ -974,8 +945,9 @@ Engine::Config::loadOsRelease() {
 # @env SSH_PRIVATE_KEY ssh key provided by env variable
 # @env AUTHORIZE_SSH_KEY_USAGE if 0, no ssh key is loaded
 # @env LOAD_SSH_KEY feature flag used in distro mode
+# @env SKIP_REQUIRES ignore loading if set to 1
 Engine::Config::loadSshKey() {
-  if [[ "${LOAD_SSH_KEY:-1}" = "0" ]]; then
+  if [[ "${LOAD_SSH_KEY:-1}" = "0" || "${SKIP_REQUIRES:-0}" = "1" ]]; then
     # ignore in distro mode
     return 0
   fi
@@ -1902,8 +1874,6 @@ Linux::requireSudoCommand() {
 # @exitcode 1 if tar command not available
 # @stderr diagnostics information is displayed
 Linux::requireTarCommand() {
-  export REQUIRE_FUNCTION_LINUX_REQUIRE_TAR_COMMAND_LOADED=1
-
   Assert::commandExists tar
 }
 
@@ -2977,11 +2947,12 @@ commandOptionParseFinished() {
 
 
 Linux::requireTarCommand
-Compiler::Embed::extractDirFromBase64 \
-  "${PERSISTENT_TMPDIR:-/tmp}/67f43f16be98a9f32536fa1ad4ea441e34f8ef0789127a1b19423b610f50fc9b/conf_dir" \
-  "H4sIAAAAAAAA/+zQwUrEMBAG4J7zFGHPxU7a4i0nfQTBQ+khNrNrsJlZOhNW317oosheZRGXfpf5+QkkGdSpOcl8NzHtqysBALjv+3UCwOWEtu++89o713ddZeFaD/qpiIalgl/fdfm5f2IIRTlzIR3NwqzW2yaTNoaPmpjEervLqCEGDXVJ0TsAqA9foeQgbx6gbev9Gp3bGTO8MOto5EMUc/S6FDRmwPcjLikjaZhHE0meChHOiQ7nE0XwOVHkkzySPITpFc/9X69os9lsbtJnAAAA//9DAJAcAAgAAA=="
+Compiler::Embed::extractFileFromBase64 \
+  "${PERSISTENT_TMPDIR:-/tmp}/c1af951ac001b1da80699a14ecfd4fd375da640ba719bc8fcbe0f563c3df542f/wsl_conf" \
+  "W2F1dG9tb3VudF0Kcm9vdCA9IC9tbnQvCm9wdGlvbnMgPSAibWV0YWRhdGEsdWlkPTEwMDAsZ2lkPTEwMDAsdW1hc2s9MDAyMixmbWFzaz0xMSIKCltib290XQpzeXN0ZW1kPXRydWUKCltleHBlcmltZW50YWxdCmRuc1R1bm5lbGluZz10cnVlCnVzZVdpbmRvd3NEbnNDYWNoZT10cnVlCg==" \
+  "644"
 
-declare -gx embed_dir_conf_dir="${PERSISTENT_TMPDIR:-/tmp}/67f43f16be98a9f32536fa1ad4ea441e34f8ef0789127a1b19423b610f50fc9b/conf_dir"
+declare -gx embed_file_wsl_conf="${PERSISTENT_TMPDIR:-/tmp}/c1af951ac001b1da80699a14ecfd4fd375da640ba719bc8fcbe0f563c3df542f/wsl_conf"
 
 
 wslBeforeParseCallback() {
@@ -3016,7 +2987,7 @@ configure() {
   if Assert::wsl && [[ ! -f "/etc/wsl.conf" ]]; then
     local fileToInstall
     # shellcheck disable=SC2154
-    fileToInstall="$(Conf::dynamicConfFile "etc/wsl.conf" "${embed_file_wslConf}")" || return 1
+    fileToInstall="$(Conf::dynamicConfFile "etc/wsl.conf" "${embed_file_wsl_conf}")" || return 1
     SUDO=sudo OVERWRITE_CONFIG_FILES=1 Install::file \
       "${fileToInstall}" "/etc/wsl.conf" root root "Install::setUserRootCallback"
   fi

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_tools/doc/doc-binary.yaml
+# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_tools/doc-binary.yaml
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -719,8 +719,9 @@ Engine::Config::loadOsRelease() {
 # @env SSH_PRIVATE_KEY ssh key provided by env variable
 # @env AUTHORIZE_SSH_KEY_USAGE if 0, no ssh key is loaded
 # @env LOAD_SSH_KEY feature flag used in distro mode
+# @env SKIP_REQUIRES ignore loading if set to 1
 Engine::Config::loadSshKey() {
-  if [[ "${LOAD_SSH_KEY:-1}" = "0" ]]; then
+  if [[ "${LOAD_SSH_KEY:-1}" = "0" || "${SKIP_REQUIRES:-0}" = "1" ]]; then
     # ignore in distro mode
     return 0
   fi
@@ -2563,7 +2564,7 @@ docCommandHelp() {
   # ------------------------------------------
   echo
   echo -n -e "${__HELP_TITLE_COLOR}SOURCE FILE: ${__RESET_COLOR}"
-  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_tools/doc/doc-binary.yaml"
+  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_tools/doc-binary.yaml"
   # ------------------------------------------
   # license section
   # ------------------------------------------

@@ -5,7 +5,7 @@ helpDescription() {
 }
 
 dependencies() {
-  echo "installScripts/Go"
+  echo "installScripts/GoGvm"
 }
 
 fortunes() {

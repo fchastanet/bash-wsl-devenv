@@ -782,8 +782,9 @@ Engine::Config::loadOsRelease() {
 # @env SSH_PRIVATE_KEY ssh key provided by env variable
 # @env AUTHORIZE_SSH_KEY_USAGE if 0, no ssh key is loaded
 # @env LOAD_SSH_KEY feature flag used in distro mode
+# @env SKIP_REQUIRES ignore loading if set to 1
 Engine::Config::loadSshKey() {
-  if [[ "${LOAD_SSH_KEY:-1}" = "0" ]]; then
+  if [[ "${LOAD_SSH_KEY:-1}" = "0" || "${SKIP_REQUIRES:-0}" = "1" ]]; then
     # ignore in distro mode
     return 0
   fi
@@ -2734,7 +2735,7 @@ isTestInstallImplemented() { :; }
 install() {
   # shellcheck source=/dev/null
   source "${HOME}/.sdkman/bin/sdkman-init.sh"
-  sdk install gradle
+  sdk install gradle </dev/null # </dev/null simulates non interactive mode => answers yes
 }
 
 testInstall() {

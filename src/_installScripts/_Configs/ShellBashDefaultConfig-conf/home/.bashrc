@@ -69,7 +69,7 @@ if [[ "$-" =~ .*i.* ]]; then
     local dir="$1"
     local file
     while IFS= read -r file; do
-      # shellcheck source=src/_binaries/MandatorySoftwares/conf/.bash-dev-env/aliases.d/bash-dev-env.sh
+      # shellcheck source=src/_installScripts/_Defaults/MandatorySoftwares-conf/.bash-dev-env/aliases.d/bash-dev-env.sh
       source "${file}"
     done < <("${HOME}/.bash-dev-env/loadConfigFiles" "${dir}" sh bash || echo)
   }
