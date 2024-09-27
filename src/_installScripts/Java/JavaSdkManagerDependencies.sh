@@ -34,7 +34,7 @@ isTestInstallImplemented() { :; }
 install() {
   # shellcheck source=/dev/null
   source "${HOME}/.sdkman/bin/sdkman-init.sh"
-  sdk install gradle
+  sdk install gradle </dev/null # </dev/null simulates non interactive mode => answers yes
 }
 
 testInstall() {

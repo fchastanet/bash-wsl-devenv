@@ -13,7 +13,12 @@ dependencies() {
 }
 
 fortunes() {
-  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}/opt/java/plantuml.jar${__RESET_COLOR} can be used for Vscode plantuml plugin to generate plantuml diagrams."
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- run ${__HELP_EXAMPLE}nohup java -jar /opt/java/plantuml.jar -picoweb &${__RESET_COLOR}"
+  echo -e "can be used as plantuml local web server for Vscode plantuml plugin to generate plantuml diagrams."
+  echo "%"
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- /opt/java/plantuml.jar now integrates elk and smetana layout engines"
+  echo -e "Set ${__HELP_EXAMPLE}!pragma layout elk${__RESET_COLOR} in your puml file to render using elk layout"
+  echo -e "Set ${__HELP_EXAMPLE}!pragma layout smetana${__RESET_COLOR} in your puml file to render using smetana layout"
   echo "%"
 }
 
@@ -49,5 +54,5 @@ testInstall() {
   # ensure java binary is available
   # shellcheck source=/dev/null
   source "${HOME}/.sdkman/bin/sdkman-init.sh"
-  Version::checkMinimal "plantumlVersionCallback" -version "1.2023.10" cat || return 1
+  Version::checkMinimal "plantumlVersionCallback" -version "1.2024.7" cat || return 1
 }

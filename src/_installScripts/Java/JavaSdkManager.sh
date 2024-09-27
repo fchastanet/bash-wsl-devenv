@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/Java/JavaSdkManager-conf" as conf_dir
 
 helpDescription() {
   echo "$(scriptName) - tool managing parallel versions of multiple Software Development Kits"
@@ -63,8 +64,15 @@ testInstall() {
 configure() {
   ln -sf "${HOME}/.sdkman/bin/sdkman-init.sh" "${HOME}/.bash-dev-env/profile.d/sdkman-init.sh"
   chmod +x "${HOME}/.sdkman/bin/sdkman-init.sh"
+
+  # shellcheck disable=SC2154
+  Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    ".sdkman"
 }
 
 testConfigure() {
   Assert::fileExists "${HOME}/.bash-dev-env/profile.d/sdkman-init.sh"
+  Assert::fileExists "${HOME}/.sdkman/etc/config"
 }
