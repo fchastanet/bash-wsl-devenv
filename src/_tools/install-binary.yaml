@@ -5,7 +5,7 @@ extends:
   - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/default.yaml"
 
 vars:
-  SRC_FILE_PATH: src/_tools/install/install-binary.yaml
+  SRC_FILE_PATH: src/_tools/install-binary.yaml
 
 compilerConfig:
   targetFile: "${BASH_DEV_ENV_ROOT_DIR}/install"
@@ -17,7 +17,7 @@ binData:
       version: "3.0"
       copyrightBeginYear: 2024
       definitionFiles:
-        12: ${BASH_DEV_ENV_ROOT_DIR}/src/_tools/install/install-options.sh
+        12: ${BASH_DEV_ENV_ROOT_DIR}/src/_tools/install-options.sh
       commandName: install
-      mainFile: ${BASH_DEV_ENV_ROOT_DIR}/src/_tools/install/install-main.sh
+      mainFile: ${BASH_DEV_ENV_ROOT_DIR}/src/_tools/install-main.sh
       help: Install or update softwares.

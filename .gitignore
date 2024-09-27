@@ -21,3 +21,6 @@ tmp
 
 bin/buildBinFiles
 src/_commandDefinitions/generated
+
+.env.distro.*
+!.env.distro.*.template
