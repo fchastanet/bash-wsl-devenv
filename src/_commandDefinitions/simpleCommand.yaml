@@ -11,8 +11,13 @@ binData:
     default:
       functionName: simpleCommand
       commandName: simpleCommand
+      author: "[François Chastanet](https://github.com/fchastanet)"
+      sourceFile: "${REPOSITORY_URL}/tree/master/${SRC_FILE_PATH}"
+      copyright: copyrightCallback
       license: MIT License
       help: helpDescriptionFunction
+      beforeParseCallbacks:
+        - beforeParseCallback
       definitionFiles:
         50: "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/simpleCommand.sh"
       optionGroups:

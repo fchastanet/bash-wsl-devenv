@@ -1,0 +1,20 @@
+extends:
+  - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/simpleCommand.yaml"
+
+vars:
+  SRC_FILE_PATH: src/_tools/fixWslDate-binary.yaml
+  LOAD_REQUIRES: "0"
+  LOAD_CONFIG: "0"
+
+compilerConfig:
+  targetFile: "${BASH_DEV_ENV_ROOT_DIR}/bin/fixWslDate"
+  relativeRootDirBasedOnTargetDir: .
+binData:
+  commands:
+    default:
+      version: "3.0"
+      copyrightBeginYear: 2024
+      help: "Fix linux date using google"
+      longDescription:
+        "Can be useful on wsl when date is not synchronized with host"
+      mainFile: ${BASH_DEV_ENV_ROOT_DIR}/src/_tools/fixWslDate-main.sh
