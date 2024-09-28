@@ -1,0 +1,20 @@
+extends:
+  - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/default.yaml"
+
+vars:
+  SRC_FILE_PATH: src/_tools/installRequirements-binary.yaml
+
+compilerConfig:
+  targetFile: "${BASH_DEV_ENV_ROOT_DIR}/bin/installRequirements"
+  relativeRootDirBasedOnTargetDir: ..
+binData:
+  commands:
+    default:
+      functionName: installRequirementsCommand
+      version: "3.0"
+      copyrightBeginYear: 2020
+      help: installs requirements
+      definitionFiles:
+        12: ${BASH_DEV_ENV_ROOT_DIR}/src/_tools/installRequirements-options.sh
+      mainFile: ${BASH_DEV_ENV_ROOT_DIR}/src/_tools/installRequirements-main.sh
+      commandName: installRequirements
