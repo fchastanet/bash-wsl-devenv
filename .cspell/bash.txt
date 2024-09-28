@@ -59,6 +59,7 @@ INT
 keychain
 KHTML
 killall
+lastpipe
 lazyload
 libkrb
 listall

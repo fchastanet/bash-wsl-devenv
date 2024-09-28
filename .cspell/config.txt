@@ -27,6 +27,7 @@ checkwinsize
 Clearlooks
 cmdhist
 codespell
+colour
 commandline
 COMPREPLY
 CONCAT

@@ -120,6 +120,7 @@ phpcs
 phpmd
 phpstan
 phpstorm
+picoweb
 pixbuf
 plantuml
 Plantuml
@@ -137,6 +138,7 @@ sdkmanager
 setaf
 Shellcheck
 shellcheck
+smetana
 SpacesAftertabs
 stylelint
 substr

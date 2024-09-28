@@ -94,7 +94,7 @@ languageSettings:
 
 # OVERRIDES
 overrides:
-  - filename: "**/*.{bats}"
+  - filename: "**/*.bats"
     languageId: shellscript
     dictionaries:
       - loremIpsum
@@ -119,17 +119,17 @@ overrides:
     dictionaries:
       - readme
 
-  - filename: "src/_binaries/MotdDefaultConfig/conf/etc/update-motd.d/**"
+  - filename: "**/update-motd.d/**"
     languageId: shellscript
 
   - filename:
       - .github/**
       - .*
       - "*.{yaml,yml}"
-      - src/_binaries/ShellBash/conf/home/.Xresources
-      - src/_binaries/GitDefaultConfig/conf/home/.config/tig/config
-      - src/_binaries/GitDefaultConfig/conf/home/.gitconfig
-      - src/_binaries/GitDefaultConfig/conf/home/.tigrc
+      - src/_installScripts/_Configs/ShellBashDefaultConfig-conf/home/.Xresources
+      - src/_installScripts/_Configs/GitDefaultConfig-conf/home/.config/tig/config
+      - src/_installScripts/_Configs/GitDefaultConfig-conf/.gitconfig
+      - src/_installScripts/_Configs/GitDefaultConfig-conf/.tigrc
     languageId: shellscript
     dictionaries:
       - config
