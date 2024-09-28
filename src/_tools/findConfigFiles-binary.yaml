@@ -3,8 +3,6 @@ extends:
 
 vars:
   SRC_FILE_PATH: src/_tools/findConfigFiles-binary.yaml
-  LOAD_REQUIRES: "0"
-  LOAD_CONFIG: "0"
 
 compilerConfig:
   targetFile: "${BASH_DEV_ENV_ROOT_DIR}/bin/findConfigFiles"

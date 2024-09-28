@@ -1,0 +1,27 @@
+extends:
+  - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/simpleCommand.yaml"
+
+vars:
+  SRC_FILE_PATH: src/_tools/installBashTools-binary.yaml
+
+compilerConfig:
+  targetFile: "${BASH_DEV_ENV_ROOT_DIR}/bin/installBashTools"
+  relativeRootDirBasedOnTargetDir: .
+binData:
+  commands:
+    default:
+      version: "3.0"
+      copyrightBeginYear: 2024
+      help: "Installs bash-tools"
+      longDescription: longDescriptionFunction
+      mainFile: ${BASH_DEV_ENV_ROOT_DIR}/src/_tools/installBashTools-main.sh
+      definitionFiles:
+        51: ${BASH_DEV_ENV_ROOT_DIR}/src/_tools/installBashTools-options.sh
+      args:
+        - variableName: targetDirectory
+          name: targetDirectory
+          help: directory in which bash tools will be installed
+          defaultValue: "${HOME}/fchastanet/bash-tools"
+          type: String
+          min: 0
+          max: 1
