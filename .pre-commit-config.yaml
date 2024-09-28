@@ -127,7 +127,6 @@ repos:
             ^distro$|
             ^install$|
             ^installScripts/|
-            \.tpl$|
             /testsData/|
             ^srcAlt/DependencySample/installScripts/|
           )

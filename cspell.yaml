@@ -94,7 +94,7 @@ languageSettings:
 
 # OVERRIDES
 overrides:
-  - filename: "**/*.{bats,tpl}"
+  - filename: "**/*.{bats}"
     languageId: shellscript
     dictionaries:
       - loremIpsum

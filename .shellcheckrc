@@ -7,4 +7,4 @@ enable=require-double-brackets
 source-path=SCRIPTDIR
 source-path=vendor/bash-tools-framework
 # special property used by shellcheckLint
-exclude=(\.bats$|\.tpl$|/testsData/|\.cache/pre-commit)
+exclude=(\.bats$|/testsData/|\.cache/pre-commit)

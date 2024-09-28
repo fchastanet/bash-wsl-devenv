@@ -2,7 +2,6 @@
 
 # @description the command launch different actions(install, configure, test)
 # depending on the options selected
-# @see src/_includes/install.skip.options.tpl
 # @env SKIP_INSTALL
 # @env SKIP_CONFIGURE
 # @env SKIP_TEST

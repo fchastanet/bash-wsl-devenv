@@ -164,6 +164,3 @@ Rules:
 - Each directory can be overridden in `conf.override/<profile>/.bash-dev-env`
 - Each file installed from `conf/**/.bash-dev-env` will be copied as read only
 - (Later) `conf.override/**/.remove` allows to list files not needed
-- (Later) All the files will be sourced and concatenated to one cache file
-  (could use bash-tpl)
-  - Cache will be invalidated based on find last modified file.
