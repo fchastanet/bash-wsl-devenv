@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED
+# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_tools/findConfigFiles-binary.yaml
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -737,6 +737,24 @@ optionHelpCallback() {
   exit 0
 }
 
+copyrightCallback() {
+  #
+  # shellcheck disable=SC2155,SC2154,SC2250
+  echo "Copyright (c) 2024-now François Chastanet"
+}
+
+Env::requireLoad() {
+  export REQUIRE_FUNCTION_ENV_REQUIRE_LOAD_LOADED=1
+}
+
+UI::requireTheme() {
+  export REQUIRE_FUNCTION_UI_REQUIRE_THEME_LOADED=1
+}
+
+Log::requireLoad() {
+  export REQUIRE_FUNCTION_LOG_REQUIRE_LOAD_LOADED=1
+}
+
 defaultBeforeParseCallback() {
   Env::requireLoad
   UI::requireTheme
@@ -760,12 +778,6 @@ optionVersionCallback() {
   # shellcheck disable=SC2154
   echo "${SCRIPT_NAME} version 3.0"
   exit 0
-}
-
-
-
-beforeParseCallback() {
- :;
 }
 
 
@@ -976,13 +988,31 @@ simpleCommandHelp() {
   echo -n -e "${__HELP_TITLE_COLOR}VERSION: ${__RESET_COLOR}"
   echo "3.0"
   # ------------------------------------------
+  # author section
+  # ------------------------------------------
+  echo
+  echo -n -e "${__HELP_TITLE_COLOR}AUTHOR: ${__RESET_COLOR}"
+  echo "[François Chastanet](https://github.com/fchastanet)"
+  # ------------------------------------------
+  # sourceFile section
+  # ------------------------------------------
+  echo
+  echo -n -e "${__HELP_TITLE_COLOR}SOURCE FILE: ${__RESET_COLOR}"
+  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_tools/findConfigFiles-binary.yaml"
+  # ------------------------------------------
   # license section
   # ------------------------------------------
   echo
   echo -n -e "${__HELP_TITLE_COLOR}LICENSE: ${__RESET_COLOR}"
   echo "MIT License"
+  # ------------------------------------------
+  # copyright section
+  # ------------------------------------------
+  Array::wrap2 ' ' 76 0 "$(copyrightCallback)"
 }
 
+
+beforeParseCallback
 
 simpleCommandParse "$@"
 MAIN_FUNCTION_NAME="main"

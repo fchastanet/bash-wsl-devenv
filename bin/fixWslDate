@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/_tools/fixWslDate.sh
+# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_tools/fixWslDate-binary.yaml
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
 # shellcheck disable=SC2288,SC2034
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/bin/fixWslDate
-# VAR_RELATIVE_FRAMEWORK_DIR_TO_CURRENT_DIR=
-# VAR_LOAD_REQUIRES=0
-# VAR_LOAD_CONFIG=0
-# FACADE
+
+
 
 # ensure that no user aliases could interfere with
 # commands used in this script
@@ -64,13 +61,6 @@ interruptManagement() {
   kill -s INT "$$"
 }
 trap interruptManagement INT
-SCRIPT_NAME=${0##*/}
-REAL_SCRIPT_FILE="$(readlink -e "$(realpath "${BASH_SOURCE[0]}")")"
-if [[ -n "${EMBED_CURRENT_DIR}" ]]; then
-  CURRENT_DIR="${EMBED_CURRENT_DIR}"
-else
-  CURRENT_DIR="${REAL_SCRIPT_FILE%/*}"
-fi
 
 ################################################
 # Temp dir management
@@ -104,6 +94,20 @@ cleanOnExit() {
 }
 trap cleanOnExit EXIT HUP QUIT ABRT TERM
 
+
+SCRIPT_NAME=${0##*/}
+REAL_SCRIPT_FILE="$(readlink -e "$(realpath "${BASH_SOURCE[0]}")")"
+if [[ -n "${EMBED_CURRENT_DIR}" ]]; then
+  CURRENT_DIR="${EMBED_CURRENT_DIR}"
+else
+  CURRENT_DIR="${REAL_SCRIPT_FILE%/*}"
+fi
+FRAMEWORK_ROOT_DIR="$(cd "${CURRENT_DIR}/." && pwd -P)"
+FRAMEWORK_SRC_DIR="${FRAMEWORK_ROOT_DIR}/src"
+FRAMEWORK_BIN_DIR="${FRAMEWORK_ROOT_DIR}/bin"
+FRAMEWORK_VENDOR_DIR="${FRAMEWORK_ROOT_DIR}/vendor"
+FRAMEWORK_VENDOR_BIN_DIR="${FRAMEWORK_ROOT_DIR}/vendor/bin"
+
 # @description Log namespace provides 2 kind of functions
 # - Log::display* allows to display given message with
 #   given display level
@@ -134,37 +138,187 @@ export __VERBOSE_LEVEL_DEBUG=2
 # @description verbose level info
 export __VERBOSE_LEVEL_TRACE=3
 
-# @description Display message using info color (bg light blue/fg white)
-# @arg $1 message:String the message to display
-# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
-# @env LOG_CONTEXT String allows to contextualize the log
-Log::displayInfo() {
-  local type="${2:-INFO}"
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    Log::computeDuration
-    echo -e "${__INFO_COLOR}${type}    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+
+# @description concatenate each element of an array with a separator
+# but wrapping text when line length is more than provided argument
+# The algorithm will try not to cut the array element if it can.
+# - if an arg can be placed on current line it will be,
+#   otherwise current line is printed and arg is added to the new
+#   current line
+# - Empty arg is interpreted as a new line.
+# - Add \r to arg in order to force break line and avoid following
+#   arg to be concatenated with current arg.
+#
+# @arg $1 glue:String
+# @arg $2 maxLineLength:int
+# @arg $3 indentNextLine:int
+# @arg $@ array:String[]
+Array::wrap2() {
+  local glue="${1-}"
+  local -i glueLength="${#glue}"
+  shift || true
+  local -i maxLineLength=$1
+  shift || true
+  local -i indentNextLine=$1
+  shift || true
+  local indentStr=""
+  if ((indentNextLine > 0)); then
+    indentStr="$(head -c "${indentNextLine}" </dev/zero | tr '\0' " ")"
   fi
-  Log::logInfo "$1" "${type}"
+  if (($# == 0)); then
+    return 0
+  fi
+
+  printCurrentLine() {
+    if ((isNewline == 0)) || ((previousLineEmpty == 1)); then
+      echo
+    fi
+    ((isNewline = 1))
+    echo -en "${indentStr}"
+    ((currentLineLength = indentNextLine)) || true
+  }
+  appendToCurrentLine() {
+    local text="$1"
+    local -i length=$2
+    ((currentLineLength += length)) || true
+    ((isNewline = 0)) || true
+    if [[ "${text: -1}" = $'\r' ]]; then
+      text="${text:0:-1}"
+      echo -en "${text%%+([[:blank:]])}"
+      printCurrentLine
+    else
+      echo -en "${text%%+([[:blank:]])}"
+    fi
+  }
+
+  (
+    local currentLine
+    local -i currentLineLength=0 isNewline=1 argLength=0
+    local -a additionalLines
+    local -i previousLineEmpty=0
+    local arg=""
+
+    while (($# > 0)); do
+      arg="$1"
+      shift || true
+
+      # replace tab by 2 spaces
+      arg="${arg//$'\t'/  }"
+      # remove trailing spaces
+      arg="${arg%[[:blank:]]}"
+      if [[ "${arg}" = $'\n' || -z "${arg}" ]]; then
+        printCurrentLine
+        ((previousLineEmpty = 1))
+        continue
+      else
+        if ((previousLineEmpty == 1)); then
+          printCurrentLine
+        fi
+        ((previousLineEmpty = 0)) || true
+      fi
+      # convert eol to args
+      mapfile -t additionalLines <<<"${arg}"
+      if ((${#additionalLines[@]} > 1)); then
+        set -- "${additionalLines[@]}" "$@"
+        continue
+      fi
+
+      ((argLength = ${#arg})) || true
+
+      # empty arg
+      if ((argLength == 0)); then
+        if ((isNewline == 0)); then
+          # isNewline = 0 means currentLine is not empty
+          printCurrentLine
+        fi
+        continue
+      fi
+
+      if ((isNewline == 0)); then
+        glueLength="${#glue}"
+      else
+        glueLength="0"
+      fi
+      if ((currentLineLength + argLength + glueLength > maxLineLength)); then
+        if ((argLength + glueLength > maxLineLength)); then
+          # arg is too long to even fit on one line
+          # we have to split the arg on current and next line
+          local -i remainingLineLength
+          ((remainingLineLength = maxLineLength - currentLineLength - glueLength))
+          appendToCurrentLine "${glue:0:${glueLength}}${arg:0:${remainingLineLength}}" "$((glueLength + remainingLineLength))"
+          printCurrentLine
+          arg="${arg:${remainingLineLength}}"
+          # remove leading spaces
+          arg="${arg##[[:blank:]]}"
+
+          set -- "${arg}" "$@"
+        else
+          # the arg can fit on next line
+          printCurrentLine
+          appendToCurrentLine "${arg}" "${argLength}"
+        fi
+      else
+        appendToCurrentLine "${glue:0:${glueLength}}${arg}" "$((glueLength + argLength))"
+      fi
+    done
+    if [[ "${currentLine}" != "" ]] && [[ ! "${currentLine}" =~ ^[\ \t]+$ ]]; then
+      printCurrentLine
+    fi
+  ) | sed -E -e 's/[[:blank:]]+$//'
 }
 
-# @description Display message using debug color (gray)
-# @arg $1 message:String the message to display
-# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
-# @env LOG_CONTEXT String allows to contextualize the log
-Log::displayDebug() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_DEBUG)); then
-    Log::computeDuration
-    echo -e "${__DEBUG_COLOR}DEBUG   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+
+# @description check if tty (interactive mode) is active
+# @noargs
+# @exitcode 1 if tty not active
+# @env NON_INTERACTIVE if 1 consider as not interactive even if environment is interactive
+# @env INTERACTIVE if 1 consider as interactive even if environment is not interactive
+Assert::tty() {
+  if [[ "${NON_INTERACTIVE:-0}" = "1" ]]; then
+    return 1
   fi
-  Log::logDebug "$1"
+  if [[ "${INTERACTIVE:-0}" = "1" ]]; then
+    return 0
+  fi
+  tty -s
 }
 
-# @description checks if function name provided exists
-# @arg $1 functionName:String
-# @exitcode 1 if function name doesn't exist
-Assert::functionExists() {
-  declare -F "$1" >/dev/null
+
+# @description ensure env files are loaded
+# @arg $@ list of default files to load at the end
+# @exitcode 1 if one of env files fails to load
+# @stderr diagnostics information is displayed
+# shellcheck disable=SC2120
+Env::requireLoad() {
+  export REQUIRE_FUNCTION_ENV_REQUIRE_LOAD_LOADED=1
+
+  local -a defaultFiles=("$@")
+  # get list of possible config files
+  local -a configFiles=()
+  if [[ -n "${BASH_FRAMEWORK_ENV_FILES[0]+1}" ]]; then
+    # BASH_FRAMEWORK_ENV_FILES is an array
+    configFiles+=("${BASH_FRAMEWORK_ENV_FILES[@]}")
+  fi
+  local localFrameworkConfigFile
+  localFrameworkConfigFile="$(pwd)/.framework-config"
+  if [[ -f "${localFrameworkConfigFile}" ]]; then
+    configFiles+=("${localFrameworkConfigFile}")
+  fi
+  if [[ -f "${FRAMEWORK_ROOT_DIR}/.framework-config" ]]; then
+    configFiles+=("${FRAMEWORK_ROOT_DIR}/.framework-config")
+  fi
+  configFiles+=("${optionEnvFiles[@]}")
+  configFiles+=("${defaultFiles[@]}")
+
+  for file in "${configFiles[@]}"; do
+    # shellcheck source=/.framework-config
+    CURRENT_LOADED_ENV_FILE="${file}" source "${file}" || {
+      Log::displayError "while loading config file: ${file}"
+      return 1
+    }
+  done
 }
+
 
 # @description ensure running user is root
 # @exitcode 1 if current user is not root
@@ -175,15 +329,6 @@ Linux::requireExecutedAsRoot() {
   fi
 }
 
-# @description ensure COMMAND_BIN_DIR env var is set
-# and PATH correctly prepared
-# @noargs
-# @set COMMAND_BIN_DIR string the directory where to find this command
-# @set PATH string add directory where to find this command binary
-Compiler::Facade::requireCommandBinDir() {
-  COMMAND_BIN_DIR="${CURRENT_DIR}"
-  Env::pathPrepend "${COMMAND_BIN_DIR}"
-}
 
 declare -g FIRST_LOG_DATE LOG_LAST_LOG_DATE LOG_LAST_LOG_DATE_INIT LOG_LAST_DURATION_STR
 FIRST_LOG_DATE="${EPOCHREALTIME/[^0-9]/}"
@@ -223,21 +368,46 @@ Log::computeDuration() {
   fi
 }
 
-# @description log message to file
+
+# @description Display message using debug color (gray)
 # @arg $1 message:String the message to display
-Log::logInfo() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-INFO}" "$1"
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
+Log::displayDebug() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_DEBUG)); then
+    Log::computeDuration
+    echo -e "${__DEBUG_COLOR}DEBUG   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
+  Log::logDebug "$1"
 }
 
-# @description log message to file
+
+# @description Display message using error color (red)
 # @arg $1 message:String the message to display
-Log::logDebug() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_DEBUG)); then
-    Log::logMessage "${2:-DEBUG}" "$1"
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
+Log::displayError() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_ERROR)); then
+    Log::computeDuration
+    echo -e "${__ERROR_COLOR}ERROR   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
+  Log::logError "$1"
 }
+
+
+# @description Display message using info color (bg light blue/fg white)
+# @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
+Log::displayInfo() {
+  local type="${2:-INFO}"
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    Log::computeDuration
+    echo -e "${__INFO_COLOR}${type}    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logInfo "$1" "${type}"
+}
+
 
 # @description Display message using error color (red) and exit immediately with error status 1
 # @arg $1 message:String the message to display
@@ -250,17 +420,40 @@ Log::fatal() {
   exit 1
 }
 
-# @description prepend directories to the PATH environment variable
-# @arg $@ args:String[] list of directories to prepend
-# @set PATH update PATH with the directories prepended
-Env::pathPrepend() {
-  local arg
-  for arg in "$@"; do
-    if [[ -d "${arg}" && ":${PATH}:" != *":${arg}:"* ]]; then
-      PATH="$(realpath "${arg}"):${PATH}"
-    fi
-  done
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logDebug() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_DEBUG)); then
+    Log::logMessage "${2:-DEBUG}" "$1"
+  fi
 }
+
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logError() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_ERROR)); then
+    Log::logMessage "${2:-ERROR}" "$1"
+  fi
+}
+
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logFatal() {
+  Log::logMessage "${2:-FATAL}" "$1"
+}
+
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logInfo() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-INFO}" "$1"
+  fi
+}
+
 
 # @description Internal: common log message
 # @example text
@@ -275,9 +468,18 @@ Env::pathPrepend() {
 # @env BASH_FRAMEWORK_LOG_FILE String log file to use, do nothing if empty
 # @env BASH_FRAMEWORK_LOG_LEVEL int log level log only if > OFF or fatal messages
 # @stderr diagnostics information is displayed
-# @require Env::requireLoad
-# @require Log::requireLoad
 Log::logMessage() {
+
+  if [[ "${REQUIRE_FUNCTION_ENV_REQUIRE_LOAD_LOADED:-0}" != 1 ]]; then
+    echo >&2 "Requirement Env::requireLoad has not been loaded"
+    exit 1
+  fi
+
+  if [[ "${REQUIRE_FUNCTION_LOG_REQUIRE_LOAD_LOADED:-0}" != 1 ]]; then
+    echo >&2 "Requirement Log::requireLoad has not been loaded"
+    exit 1
+  fi
+
   local levelMsg="$1"
   local msg="$2"
   local date
@@ -289,44 +491,6 @@ Log::logMessage() {
   fi
 }
 
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logFatal() {
-  Log::logMessage "${2:-FATAL}" "$1"
-}
-
-# @description ensure env files are loaded
-# @arg $@ list of default files to load at the end
-# @exitcode 1 if one of env files fails to load
-# @stderr diagnostics information is displayed
-# shellcheck disable=SC2120
-Env::requireLoad() {
-  local -a defaultFiles=("$@")
-  # get list of possible config files
-  local -a configFiles=()
-  if [[ -n "${BASH_FRAMEWORK_ENV_FILES[0]+1}" ]]; then
-    # BASH_FRAMEWORK_ENV_FILES is an array
-    configFiles+=("${BASH_FRAMEWORK_ENV_FILES[@]}")
-  fi
-  local localFrameworkConfigFile
-  localFrameworkConfigFile="$(pwd)/.framework-config"
-  if [[ -f "${localFrameworkConfigFile}" ]]; then
-    configFiles+=("${localFrameworkConfigFile}")
-  fi
-  if [[ -f "${FRAMEWORK_ROOT_DIR}/.framework-config" ]]; then
-    configFiles+=("${FRAMEWORK_ROOT_DIR}/.framework-config")
-  fi
-  configFiles+=("${optionEnvFiles[@]}")
-  configFiles+=("${defaultFiles[@]}")
-
-  for file in "${configFiles[@]}"; do
-    # shellcheck source=/.framework-config
-    CURRENT_LOADED_ENV_FILE="${file}" source "${file}" || {
-      Log::displayError "while loading config file: ${file}"
-      return 1
-    }
-  done
-}
 
 # @description activate or not Log::display* and Log::log* functions
 # based on BASH_FRAMEWORK_DISPLAY_LEVEL and BASH_FRAMEWORK_LOG_LEVEL
@@ -340,9 +504,20 @@ Env::requireLoad() {
 # @env BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION int do log rotation if > 0
 # @exitcode 0 always successful
 # @stderr diagnostics information about log file is displayed
-# @require Env::requireLoad
-# @require UI::requireTheme
 Log::requireLoad() {
+  export REQUIRE_FUNCTION_LOG_REQUIRE_LOAD_LOADED=1
+
+
+  if [[ "${REQUIRE_FUNCTION_ENV_REQUIRE_LOAD_LOADED:-0}" != 1 ]]; then
+    echo >&2 "Requirement Env::requireLoad has not been loaded"
+    exit 1
+  fi
+
+  if [[ "${REQUIRE_FUNCTION_UI_REQUIRE_THEME_LOADED:-0}" != 1 ]]; then
+    echo >&2 "Requirement UI::requireTheme has not been loaded"
+    exit 1
+  fi
+
   if [[ -z "${BASH_FRAMEWORK_LOG_FILE:-}" ]]; then
     BASH_FRAMEWORK_LOG_LEVEL=${__LEVEL_OFF}
     export BASH_FRAMEWORK_LOG_LEVEL
@@ -374,17 +549,6 @@ Log::requireLoad() {
   fi
 }
 
-# @description Display message using error color (red)
-# @arg $1 message:String the message to display
-# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
-# @env LOG_CONTEXT String allows to contextualize the log
-Log::displayError() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_ERROR)); then
-    Log::computeDuration
-    echo -e "${__ERROR_COLOR}ERROR   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logError "$1"
-}
 
 # @description To be called before logging in the log file
 # @arg $1 file:string log file name
@@ -408,24 +572,20 @@ Log::rotate() {
   fi
 }
 
+
 # @description load color theme
 # @noargs
 # @env BASH_FRAMEWORK_THEME String theme to use
 # @env LOAD_THEME int 0 to avoid loading theme
 # @exitcode 0 always successful
 UI::requireTheme() {
+  export REQUIRE_FUNCTION_UI_REQUIRE_THEME_LOADED=1
+
   if [[ "${LOAD_THEME:-1}" = "1" ]]; then
     UI::theme "${BASH_FRAMEWORK_THEME-default}"
   fi
 }
 
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logError() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_ERROR)); then
-    Log::logMessage "${2:-ERROR}" "$1"
-  fi
-}
 
 # @description load colors theme constants
 # @warning if tty not opened, noColor theme will be chosen
@@ -506,32 +666,220 @@ UI::theme() {
     __HELP_NORMAL=''
   fi
 }
-
-# @description check if tty (interactive mode) is active
-# @noargs
-# @exitcode 1 if tty not active
-# @env NON_INTERACTIVE if 1 consider as not interactive even if environment is interactive
-# @env INTERACTIVE if 1 consider as interactive even if environment is not interactive
-Assert::tty() {
-  if [[ "${NON_INTERACTIVE:-0}" = "1" ]]; then
-    return 1
-  fi
-  if [[ "${INTERACTIVE:-0}" = "1" ]]; then
-    return 0
-  fi
-  tty -s
-}
-
 # FUNCTIONS
 
-facade_main_fixWslDatesh() {
+optionHelpCallback() {
+  "simpleCommandHelp"
+  exit 0
+}
 
-if Assert::functionExists initFacade; then
-  initFacade
-fi
-LOAD_LOCALE_CONFIG="1"
+copyrightCallback() {
+  #
+  # shellcheck disable=SC2155,SC2154,SC2250
+  echo "Copyright (c) 2024-now François Chastanet"
+}
 
-# @require Compiler::Facade::requireCommandBinDir
+Env::requireLoad() {
+  export REQUIRE_FUNCTION_ENV_REQUIRE_LOAD_LOADED=1
+}
+
+UI::requireTheme() {
+  export REQUIRE_FUNCTION_UI_REQUIRE_THEME_LOADED=1
+}
+
+Log::requireLoad() {
+  export REQUIRE_FUNCTION_LOG_REQUIRE_LOAD_LOADED=1
+}
+
+defaultBeforeParseCallback() {
+  Env::requireLoad
+  UI::requireTheme
+  Log::requireLoad
+}
+
+beforeParseCallback() {
+  defaultBeforeParseCallback
+}
+
+defaultAfterParseCallback() {
+  :;
+}
+
+afterParseCallback() {
+  defaultAfterParseCallback
+}
+
+# shellcheck disable=SC2317 # if function is overridden
+optionVersionCallback() {
+  # shellcheck disable=SC2154
+  echo "${SCRIPT_NAME} version 3.0"
+  exit 0
+}
+
+
+# ------------------------------------------
+# Command simpleCommand
+# ------------------------------------------
+
+# options variables initialization
+declare optionHelp="0"
+declare optionVersion="0"
+# arguments variables initialization
+# @description parse command options and arguments for simpleCommand
+simpleCommandParse() {
+  Log::displayDebug "Command ${SCRIPT_NAME} - parse arguments: ${BASH_FRAMEWORK_ARGV[*]}"
+  Log::displayDebug "Command ${SCRIPT_NAME} - parse filtered arguments: ${BASH_FRAMEWORK_ARGV_FILTERED[*]}"
+  optionHelp="0"
+  local -i options_parse_optionParsedCountOptionHelp
+  ((options_parse_optionParsedCountOptionHelp = 0)) || true
+  optionVersion="0"
+  local -i options_parse_optionParsedCountOptionVersion
+  ((options_parse_optionParsedCountOptionVersion = 0)) || true
+
+
+  # shellcheck disable=SC2034
+  local -i options_parse_parsedArgIndex=0
+  while (($# > 0)); do
+    local options_parse_arg="$1"
+    local argOptDefaultBehavior=0
+    case "${options_parse_arg}" in
+      # Option 1/2
+      # optionHelp alts --help|-h
+      # type: Boolean min 0 max 1
+      --help | -h)
+        # shellcheck disable=SC2034
+        optionHelp="1"
+
+        if ((options_parse_optionParsedCountOptionHelp >= 1 )); then
+          Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+          return 1
+        fi
+        ((++options_parse_optionParsedCountOptionHelp))
+        optionHelpCallback "${options_parse_arg}" "${optionHelp}"
+
+        ;;
+
+      # Option 2/2
+      # optionVersion alts --version
+      # type: Boolean min 0 max 1
+      --version)
+        # shellcheck disable=SC2034
+        optionVersion="1"
+
+        if ((options_parse_optionParsedCountOptionVersion >= 1 )); then
+          Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+          return 1
+        fi
+        ((++options_parse_optionParsedCountOptionVersion))
+        optionVersionCallback "${options_parse_arg}" "${optionVersion}"
+
+        ;;
+
+      -*)
+        if [[ "${argOptDefaultBehavior}" = "0" ]]; then
+          Log::displayError "Command ${SCRIPT_NAME} - Invalid option ${options_parse_arg}"
+          return 1
+        fi
+        ;;
+      *)
+        if [[ "${argOptDefaultBehavior}" = "0" ]]; then
+          # too much args and no unknownArgumentCallbacks configured
+          Log::displayError "Command ${SCRIPT_NAME} - Argument - too much arguments provided: $*"
+          return 1
+        fi
+        ((incrementArg = 0))
+        if ((incrementArg == 1)); then
+          ((++options_parse_parsedArgIndex))
+        fi
+        ;;
+    esac
+    shift || true
+  done || return $?
+
+}
+
+# @description display command options and arguments help for simpleCommand
+simpleCommandHelp() {
+  echo -e "${__HELP_TITLE_COLOR}SYNOPSIS:${__RESET_COLOR}"
+  Array::wrap2 ' ' 76 4 "    " "Fix linux date using google"
+  echo
+  echo
+
+  # ------------------------------------------
+  # usage section
+  # ------------------------------------------
+  Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" "simpleCommand [OPTIONS] "
+  echo
+  # ------------------------------------------
+  # usage/options section
+  # ------------------------------------------
+  optionsAltList=("[--help|-h]" "[--version]"
+  )
+  Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" \
+    "simpleCommand" "${optionsAltList[@]}"
+  echo
+
+  # ------------------------------------------
+  # options section
+  # ------------------------------------------
+  echo
+  echo -e "${__HELP_TITLE_COLOR}GLOBAL OPTIONS:${__RESET_COLOR}"
+  echo -e "  ${__HELP_OPTION_COLOR}--help${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-h${__HELP_NORMAL} {single}"
+  Array::wrap2 ' ' 76 4 "    " "Displays this command help"
+  echo
+
+
+  echo -e "  ${__HELP_OPTION_COLOR}--version${__HELP_NORMAL} {single}"
+  Array::wrap2 ' ' 76 4 "    " "Print version information and quit."
+  echo
+
+  # ------------------------------------------
+  # longDescription section
+  # ------------------------------------------
+  echo
+  echo
+  echo -e "${__HELP_TITLE_COLOR}DESCRIPTION:${__RESET_COLOR}"
+  declare -a simpleCommandLongDescription=(
+  "Can be useful on wsl when date is not synchronized with host"
+  )
+  Array::wrap2 ' ' 76 0 "${simpleCommandLongDescription[@]}"
+  echo
+  # ------------------------------------------
+  # version section
+  # ------------------------------------------
+  echo
+  echo -n -e "${__HELP_TITLE_COLOR}VERSION: ${__RESET_COLOR}"
+  echo "3.0"
+  # ------------------------------------------
+  # author section
+  # ------------------------------------------
+  echo
+  echo -n -e "${__HELP_TITLE_COLOR}AUTHOR: ${__RESET_COLOR}"
+  echo "[François Chastanet](https://github.com/fchastanet)"
+  # ------------------------------------------
+  # sourceFile section
+  # ------------------------------------------
+  echo
+  echo -n -e "${__HELP_TITLE_COLOR}SOURCE FILE: ${__RESET_COLOR}"
+  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_tools/fixWslDate-binary.yaml"
+  # ------------------------------------------
+  # license section
+  # ------------------------------------------
+  echo
+  echo -n -e "${__HELP_TITLE_COLOR}LICENSE: ${__RESET_COLOR}"
+  echo "MIT License"
+  # ------------------------------------------
+  # copyright section
+  # ------------------------------------------
+  Array::wrap2 ' ' 76 0 "$(copyrightCallback)"
+}
+
+
+beforeParseCallback
+
+simpleCommandParse "$@"
+MAIN_FUNCTION_NAME="main"
+main() {
 
 Linux::requireExecutedAsRoot
 getDate() {
@@ -542,4 +890,14 @@ date -s "$(getDate)" &>/dev/null
 
 }
 
-facade_main_fixWslDatesh "$@"
+# if file is sourced avoid calling main function
+# shellcheck disable=SC2178
+BASH_SOURCE=".$0" # cannot be changed in bash
+# shellcheck disable=SC2128
+if test ".$0" == ".${BASH_SOURCE}"; then
+  if [[ "${BASH_FRAMEWORK_QUIET_MODE:-0}" = "1" ]]; then
+    main "$@" &>/dev/null
+  else
+    main "$@"
+  fi
+fi

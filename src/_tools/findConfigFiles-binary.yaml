@@ -17,8 +17,6 @@ binData:
       help: "allows to load several config files at once"
       longDescription: "useful for bash and zsh configuration loading"
       mainFile: ${BASH_DEV_ENV_ROOT_DIR}/src/_tools/findConfigFiles-main.sh
-      definitionFiles:
-        100: ${BASH_DEV_ENV_ROOT_DIR}/src/_tools/findConfigFiles-options.sh
       args:
         - variableName: directory
           name: directory
