@@ -71,7 +71,7 @@ if [[ "$-" =~ .*i.* ]]; then
     while IFS= read -r file; do
       # shellcheck source=src/_installScripts/_Defaults/MandatorySoftwares-conf/.bash-dev-env/aliases.d/bash-dev-env.sh
       source "${file}"
-    done < <("${HOME}/.bash-dev-env/loadConfigFiles" "${dir}" sh bash || echo)
+    done < <("${HOME}/.bash-dev-env/findConfigFiles" "${dir}" sh bash || echo)
   }
 
   loadConfigFiles "${HOME}/.bash-dev-env/aliases.d"

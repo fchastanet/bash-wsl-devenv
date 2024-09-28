@@ -49,7 +49,7 @@ loadConfigFiles() {
     # shellcheck source=src/_binaries/MandatorySoftwares/conf/.bash-dev-env/aliases.d/bash-dev-env.sh
     source "${file}"
   done < <(
-    "${HOME}/.bash-dev-env/loadConfigFiles" \
+    "${HOME}/.bash-dev-env/findConfigFiles" \
       "${dir}" "${extensions[@]}" || echo
   )
 }

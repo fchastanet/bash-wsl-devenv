@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/_Configs/ShellZshDefaultConfig-conf" as conf_dir
-# @embed "${BASH_DEV_ENV_ROOT_DIR}/bin/loadConfigFiles" as loadConfigFiles
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/bin/findConfigFiles" as findConfigFiles
 # @embed "${FRAMEWORK_ROOT_DIR}/src/UI/talk.ps1" as talkScript
 
 helpDescription() {
@@ -108,8 +108,8 @@ configure() {
 
   # shellcheck disable=SC2154
   OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${embed_file_loadConfigFiles}" \
-    "${HOME}/.bash-dev-env/loadConfigFiles"
+    "${embed_file_findConfigFiles}" \
+    "${HOME}/.bash-dev-env/findConfigFiles"
 }
 
 declare -a confFiles=(
@@ -122,7 +122,7 @@ declare -a confFiles=(
   "${HOME}/.bash-dev-env/themes.d/powerlevel10k.zsh"
   "${HOME}/.bash-dev-env/themes.d/pure.zsh"
   "${HOME}/.bash-dev-env/themes.d/starship.zsh"
-  "${HOME}/.bash-dev-env/loadConfigFiles"
+  "${HOME}/.bash-dev-env/findConfigFiles"
   "${HOME}/.zshrc"
   "${HOME}/.zprofile"
   "${HOME}/.p10k.zsh"
