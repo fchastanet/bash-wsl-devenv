@@ -2887,7 +2887,8 @@ FontCommandParse() {
   local -i options_parse_optionParsedCountOptionQuiet
   ((options_parse_optionParsedCountOptionQuiet = 0)) || true
 
-  command=""
+  command="install"
+
   local -i options_parse_argParsedCountCommand
   ((options_parse_argParsedCountCommand = 0)) || true
 
@@ -3369,6 +3370,9 @@ FontCommandHelp() {
   echo -e "      - ${__OPTION_COLOR}configure${__RESET_COLOR}"
   echo -e "      - ${__OPTION_COLOR}isTestConfigureImplemented${__RESET_COLOR}"
   echo -e "      - ${__OPTION_COLOR}testConfigure${__RESET_COLOR}"
+
+  Array::wrap2 ' ' 76 6 "    Default value: " "install"
+  echo
 
   # ------------------------------------------
   # options section

@@ -2649,15 +2649,16 @@ Stats::statusLine() {
 
 # @description install bash-tools
 Tools::installBashTools() {
+  local targetDir="$1"
   # shellcheck disable=SC2317
   function installBashTools() {
     (
-      cd "${HOME}/fchastanet/bash-tools" || return 1
+      cd "${targetDir}" || return 1
       ./install
     )
   }
   Git::cloneOrPullIfNoChanges \
-    "${HOME}/fchastanet/bash-tools" \
+    "${targetDir}" \
     "https://github.com/fchastanet/bash-tools.git" \
     installBashTools
 }
@@ -3204,7 +3205,7 @@ isTestInstallImplemented() { :; }
 # jscpd:ignore-end
 
 install() {
-  Tools::installBashTools
+  Tools::installBashTools "${HOME}/fchastanet/bash-tools"
 }
 
 testInstall() {
@@ -3350,7 +3351,8 @@ BashToolsCommandParse() {
   local -i options_parse_optionParsedCountOptionQuiet
   ((options_parse_optionParsedCountOptionQuiet = 0)) || true
 
-  command=""
+  command="install"
+
   local -i options_parse_argParsedCountCommand
   ((options_parse_argParsedCountCommand = 0)) || true
 
@@ -3832,6 +3834,9 @@ BashToolsCommandHelp() {
   echo -e "      - ${__OPTION_COLOR}configure${__RESET_COLOR}"
   echo -e "      - ${__OPTION_COLOR}isTestConfigureImplemented${__RESET_COLOR}"
   echo -e "      - ${__OPTION_COLOR}testConfigure${__RESET_COLOR}"
+
+  Array::wrap2 ' ' 76 6 "    Default value: " "install"
+  echo
 
   # ------------------------------------------
   # options section

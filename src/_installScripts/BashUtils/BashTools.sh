@@ -69,7 +69,7 @@ isTestInstallImplemented() { :; }
 # jscpd:ignore-end
 
 install() {
-  Tools::installBashTools
+  Tools::installBashTools "${HOME}/fchastanet/bash-tools"
 }
 
 testInstall() {

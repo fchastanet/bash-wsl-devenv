@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FACADE FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_binaries/_tools/installBashTools.sh
+# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_tools/installBashTools-binary.yaml
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
 # shellcheck disable=SC2288,SC2034
-# BIN_FILE=${BASH_DEV_ENV_ROOT_DIR}/bin/installBashTools
-# FACADE
+
+
 
 # ensure that no user aliases could interfere with
 # commands used in this script
@@ -61,13 +61,6 @@ interruptManagement() {
   kill -s INT "$$"
 }
 trap interruptManagement INT
-SCRIPT_NAME=${0##*/}
-REAL_SCRIPT_FILE="$(readlink -e "$(realpath "${BASH_SOURCE[0]}")")"
-if [[ -n "${EMBED_CURRENT_DIR}" ]]; then
-  CURRENT_DIR="${EMBED_CURRENT_DIR}"
-else
-  CURRENT_DIR="${REAL_SCRIPT_FILE%/*}"
-fi
 
 ################################################
 # Temp dir management
@@ -101,6 +94,20 @@ cleanOnExit() {
 }
 trap cleanOnExit EXIT HUP QUIT ABRT TERM
 
+
+SCRIPT_NAME=${0##*/}
+REAL_SCRIPT_FILE="$(readlink -e "$(realpath "${BASH_SOURCE[0]}")")"
+if [[ -n "${EMBED_CURRENT_DIR}" ]]; then
+  CURRENT_DIR="${EMBED_CURRENT_DIR}"
+else
+  CURRENT_DIR="${REAL_SCRIPT_FILE%/*}"
+fi
+FRAMEWORK_ROOT_DIR="$(cd "${CURRENT_DIR}/." && pwd -P)"
+FRAMEWORK_SRC_DIR="${FRAMEWORK_ROOT_DIR}/src"
+FRAMEWORK_BIN_DIR="${FRAMEWORK_ROOT_DIR}/bin"
+FRAMEWORK_VENDOR_DIR="${FRAMEWORK_ROOT_DIR}/vendor"
+FRAMEWORK_VENDOR_BIN_DIR="${FRAMEWORK_ROOT_DIR}/vendor/bin"
+
 # @description Log namespace provides 2 kind of functions
 # - Log::display* allows to display given message with
 #   given display level
@@ -131,279 +138,311 @@ export __VERBOSE_LEVEL_DEBUG=2
 # @description verbose level info
 export __VERBOSE_LEVEL_TRACE=3
 
-# @description Display message using info color (bg light blue/fg white)
-# @arg $1 message:String the message to display
-# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
-# @env LOG_CONTEXT String allows to contextualize the log
-Log::displayInfo() {
-  local type="${2:-INFO}"
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    Log::computeDuration
-    echo -e "${__INFO_COLOR}${type}    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+
+# @description concatenate each element of an array with a separator
+# but wrapping text when line length is more than provided argument
+# The algorithm will try not to cut the array element if it can.
+# - if an arg can be placed on current line it will be,
+#   otherwise current line is printed and arg is added to the new
+#   current line
+# - Empty arg is interpreted as a new line.
+# - Add \r to arg in order to force break line and avoid following
+#   arg to be concatenated with current arg.
+#
+# @arg $1 glue:String
+# @arg $2 maxLineLength:int
+# @arg $3 indentNextLine:int
+# @arg $@ array:String[]
+Array::wrap2() {
+  local glue="${1-}"
+  local -i glueLength="${#glue}"
+  shift || true
+  local -i maxLineLength=$1
+  shift || true
+  local -i indentNextLine=$1
+  shift || true
+  local indentStr=""
+  if ((indentNextLine > 0)); then
+    indentStr="$(head -c "${indentNextLine}" </dev/zero | tr '\0' " ")"
   fi
-  Log::logInfo "$1" "${type}"
-}
-
-# @description Display message using debug color (gray)
-# @arg $1 message:String the message to display
-# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
-# @env LOG_CONTEXT String allows to contextualize the log
-Log::displayDebug() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_DEBUG)); then
-    Log::computeDuration
-    echo -e "${__DEBUG_COLOR}DEBUG   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logDebug "$1"
-}
-
-# @description checks if function name provided exists
-# @arg $1 functionName:String
-# @exitcode 1 if function name doesn't exist
-Assert::functionExists() {
-  declare -F "$1" >/dev/null
-}
-
-envFileTemplate="$(
-  cat <<'EOF'
-# shellcheck disable=SC2034
-
-# -----------------------------------------------------------------------------
-# General information
-# -----------------------------------------------------------------------------
-
-# wsl username with default password wsl
-USERNAME="wsl"
-
-HOME="/home/wsl"
-
-WINDOWS_USERNAME="fchastanet"
-
-# -----------------------------------------------------------------------------
-# Git & SSH information
-# -----------------------------------------------------------------------------
-
-# if 1, it indicates you accept that your git key will be loaded.
-# if 0, configurations that need to be authenticated will be skipped.
-# Distro mode: in any case, your key is not copied.
-AUTHORIZE_SSH_KEY_USAGE=1
-
-# your login to connect to ssh servers if any
-SSH_LOGIN=""
-
-# your git full name 'FirstName LastName'
-GIT_USERNAME=""
-
-# email used for git 'ldap@domain.com'
-GIT_USER_MAIL=""
-
-# -----------------------------------------------------------------------------
-# AWS information
-# -----------------------------------------------------------------------------
-
-# email used to connect to aws
-AWS_USER_MAIL="fchastanet@gmail.com"
-
-# app id to connect to aws account
-AWS_APP_ID=""
-
-AWS_PROFILE=""
-AWS_DEFAULT_REGION=""
-AWS_TEST_SECRET_ID=""
-AWS_DEFAULT_DOCKER_REGISTRY_ID=""
-
-# -----------------------------------------------------------------------------
-# K8S information
-# -----------------------------------------------------------------------------
-
-# KubeDefaultConfig ~/.kube/config generation
-# aws region of the cluster (Eg: us-east-1)
-KUBE_CONFIG_REGION_CODE=
-
-# aws arn of the cluster.
-# Eg: arn:aws:ecs:region:aws_account_id:cluster/MyCluster
-KUBE_CONFIG_CLUSTER_ARN=
-
-# -----------------------------------------------------------------------------
-# Directories
-# -----------------------------------------------------------------------------
-
-# overridden conf directory that will be used to override
-# the default configuration that are embedded in binaries
-CONF_OVERRIDE_DIR="${BASH_DEV_ENV_ROOT_DIR}/conf.override"
-
-# where to install bash-tools, ...
-# shellcheck disable=SC2153
-PROJECTS_DIR="${HOME}/projects"
-
-# where overridden config files will be backed up
-BACKUP_DIR="${BASH_DEV_ENV_ROOT_DIR}/backup"
-# backup files/dirs before installing new file (usually 1, but 0 if using distro)
-BACKUP_BEFORE_INSTALL=1
-
-# logs directory
-LOGS_DIR="${BASH_DEV_ENV_ROOT_DIR}/logs"
-
-# installScripts root dir
-INSTALL_SCRIPTS_ROOT_DIR="${BASH_DEV_ENV_ROOT_DIR}"
-
-# -----------------------------------------------------------------------------
-# Installation configuration
-# -----------------------------------------------------------------------------
-
-# Configuration files are overwritten even if exists
-# !!!! First time initialization: let this value to 1 !!!!
-# Value 0:
-# - If target configuration file exists, displays a message and do not overwrite the file
-# - If target configuration file doesn't exist, installs the file
-# Value 1
-# - install or overwrite the file without checking existence
-OVERWRITE_CONFIG_FILES=1
-
-# Windows files can be overridden if 1
-# if 0
-# - skip changes to %USERPROFILE%/.wslconfig
-# - skip copying fonts
-CHANGE_WINDOWS_FILES=1
-
-# Indicate that install script can warn you using speaker when your input is needed
-CAN_TALK_DURING_INSTALLATION=1
-
-# if 0 install script will skip all interactive activity (saml2aws, ...),
-# so dependent installation will be skipped as well
-INSTALL_INTERACTIVE=1
-
-# display elapsed time since last log
-DISPLAY_DURATION=1
-
-# 0   => no upgrade at all
-# lts => UPGRADE to latest ubuntu lts version
-# dev => UPGRADE to latest ubuntu dev version
-# Use if you know what you are doing,
-# could cause some packages to not being available yet
-UPGRADE_UBUNTU_VERSION=0
-
-# -----------------------------------------------------------------------------
-# Profile configuration
-# -----------------------------------------------------------------------------
-
-# Choose your preferred shell
-# possible choices: ShellBash (Legacy experience), ShellZsh (Recommended experience)
-PREFERRED_SHELL="ShellZsh"
-
-# Zsh theme to use
-# possible choices: powerlevel10k/powerlevel10k, sindresorhus/pure, starship/starship
-ZSH_PREFERRED_THEME="powerlevel10k/powerlevel10k"
-
-# Display Fortune tooltip at bash/zsh session open
-SHOW_FORTUNES=1
-
-# Display MOTD at bash/zsh session open
-SHOW_MOTD=1
-
-# -----------------------------------------------------------------------------
-# WSLCONFIG
-# These parameters automatically configure %USERPROFILE%/.wslconfig file.
-# @see https://docs.microsoft.com/en-us/windows/wsl/wsl-config
-# -----------------------------------------------------------------------------
-
-# Recommended 50% of total memory
-WSLCONFIG_MAX_MEMORY=8GB
-
-# personally I prefer run out of memory instead of beginning swapping
-# So I know immediately if some processes have to be stopped
-WSLCONFIG_SWAP=0
-
-# -----------------------------------------------------------------------------
-# Hacks
-# on some configurations we have to force path of some windows commands
-# -----------------------------------------------------------------------------
-
-#POWERSHELL_BIN=/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
-#IPCONFIG_BIN=/mnt/c/Windows/system32/ipconfig.exe
-#WSL_EXE_BIN=/mnt/c/Windows/system32/wsl.exe
-
-# -----------------------------------------------------------------------------
-# General distribution information
-# -----------------------------------------------------------------------------
-
-# hostname of the distro
-DISTRO_HOSTNAME="wslHost"
-EOF
-)"
-
-# @description load .env file
-# @arg $1 envFile:String the file to load
-Engine::Config::loadConfig() {
-  if [[ "${BASH_DEV_ENV_CONFIG_LOADED:-0}" = "1" ]]; then
+  if (($# == 0)); then
     return 0
   fi
-  local envFile="${BASH_DEV_ENV_ROOT_DIR}/.env"
-  Engine::Config::createEnvFileFromTemplate \
-    "${envFile}" "${envFileTemplate}" || exit 1
-  set -o allexport
-  # shellcheck source=/.env.template
-  source <(echo "${envFileTemplate}")
-  # shellcheck source=/.env
-  source "${BASH_DEV_ENV_ROOT_DIR}/.env"
-  set +o allexport
-  export STATS_DIR="${LOGS_DIR}/stats"
-  if [[ ! -d "${STATS_DIR}" ]]; then
-    mkdir -p "${STATS_DIR}" || true
-  fi
-  export LOGS_INSTALL_SCRIPTS_DIR="${LOGS_DIR}/installScripts"
-  if [[ ! -d "${LOGS_INSTALL_SCRIPTS_DIR}" ]]; then
-    mkdir -p "${LOGS_INSTALL_SCRIPTS_DIR}" || true
-  fi
 
-  # load environment variables ID, VERSION_CODENAME
-  Engine::Config::loadOsRelease
-  Engine::Config::loadUserVariables
+  printCurrentLine() {
+    if ((isNewline == 0)) || ((previousLineEmpty == 1)); then
+      echo
+    fi
+    ((isNewline = 1))
+    echo -en "${indentStr}"
+    ((currentLineLength = indentNextLine)) || true
+  }
+  appendToCurrentLine() {
+    local text="$1"
+    local -i length=$2
+    ((currentLineLength += length)) || true
+    ((isNewline = 0)) || true
+    if [[ "${text: -1}" = $'\r' ]]; then
+      text="${text:0:-1}"
+      echo -en "${text%%+([[:blank:]])}"
+      printCurrentLine
+    else
+      echo -en "${text%%+([[:blank:]])}"
+    fi
+  }
 
-  if ! Engine::Config::checkEnv "${BASH_DEV_ENV_ROOT_DIR}/.env"; then
-    Log::displayError "one or more variables are invalid, check above logs and fix '${envFile}' file accordingly"
+  (
+    local currentLine
+    local -i currentLineLength=0 isNewline=1 argLength=0
+    local -a additionalLines
+    local -i previousLineEmpty=0
+    local arg=""
+
+    while (($# > 0)); do
+      arg="$1"
+      shift || true
+
+      # replace tab by 2 spaces
+      arg="${arg//$'\t'/  }"
+      # remove trailing spaces
+      arg="${arg%[[:blank:]]}"
+      if [[ "${arg}" = $'\n' || -z "${arg}" ]]; then
+        printCurrentLine
+        ((previousLineEmpty = 1))
+        continue
+      else
+        if ((previousLineEmpty == 1)); then
+          printCurrentLine
+        fi
+        ((previousLineEmpty = 0)) || true
+      fi
+      # convert eol to args
+      mapfile -t additionalLines <<<"${arg}"
+      if ((${#additionalLines[@]} > 1)); then
+        set -- "${additionalLines[@]}" "$@"
+        continue
+      fi
+
+      ((argLength = ${#arg})) || true
+
+      # empty arg
+      if ((argLength == 0)); then
+        if ((isNewline == 0)); then
+          # isNewline = 0 means currentLine is not empty
+          printCurrentLine
+        fi
+        continue
+      fi
+
+      if ((isNewline == 0)); then
+        glueLength="${#glue}"
+      else
+        glueLength="0"
+      fi
+      if ((currentLineLength + argLength + glueLength > maxLineLength)); then
+        if ((argLength + glueLength > maxLineLength)); then
+          # arg is too long to even fit on one line
+          # we have to split the arg on current and next line
+          local -i remainingLineLength
+          ((remainingLineLength = maxLineLength - currentLineLength - glueLength))
+          appendToCurrentLine "${glue:0:${glueLength}}${arg:0:${remainingLineLength}}" "$((glueLength + remainingLineLength))"
+          printCurrentLine
+          arg="${arg:${remainingLineLength}}"
+          # remove leading spaces
+          arg="${arg##[[:blank:]]}"
+
+          set -- "${arg}" "$@"
+        else
+          # the arg can fit on next line
+          printCurrentLine
+          appendToCurrentLine "${arg}" "${argLength}"
+        fi
+      else
+        appendToCurrentLine "${glue:0:${glueLength}}${arg}" "$((glueLength + argLength))"
+      fi
+    done
+    if [[ "${currentLine}" != "" ]] && [[ ! "${currentLine}" =~ ^[\ \t]+$ ]]; then
+      printCurrentLine
+    fi
+  ) | sed -E -e 's/[[:blank:]]+$//'
+}
+
+
+# @description check if command specified exists or return 1
+# with error and message if not
+#
+# @arg $1 commandName:String on which existence must be checked
+# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
+#
+# @exitcode 1 if the command specified does not exist
+# @stderr diagnostic information + help if second argument is provided
+Assert::commandExists() {
+  local commandName="$1"
+  local helpIfNotExists="$2"
+
+  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
+    Log::displayError "${commandName} is not installed, please install it"
+    if [[ -n "${helpIfNotExists}" ]]; then
+      Log::displayInfo "${helpIfNotExists}"
+    fi
+    return 1
+  }
+  return 0
+}
+
+
+# @description check if tty (interactive mode) is active
+# @noargs
+# @exitcode 1 if tty not active
+# @env NON_INTERACTIVE if 1 consider as not interactive even if environment is interactive
+# @env INTERACTIVE if 1 consider as interactive even if environment is not interactive
+Assert::tty() {
+  if [[ "${NON_INTERACTIVE:-0}" = "1" ]]; then
     return 1
   fi
-
-  Engine::Config::loadHostIp
-
-  Engine::Config::requireWslu
-
-  #Linux::Wsl::initEnv
-  Engine::Config::loadWslVariables
-
-  Log::requireLoad
-
-  Engine::Config::loadSshKey
-
-  Engine::Config::loadLocaleConfig
-
-  export BASH_DEV_ENV_CONFIG_LOADED=1
+  if [[ "${INTERACTIVE:-0}" = "1" ]]; then
+    return 0
+  fi
+  tty -s
 }
 
-# @description install bash-tools
-Tools::installBashTools() {
-  # shellcheck disable=SC2317
-  function installBashTools() {
-    (
-      cd "${HOME}/fchastanet/bash-tools" || return 1
-      ./install
-    )
-  }
-  Git::cloneOrPullIfNoChanges \
-    "${HOME}/fchastanet/bash-tools" \
-    "https://github.com/fchastanet/bash-tools.git" \
-    installBashTools
+
+# @description ensure env files are loaded
+# @arg $@ list of default files to load at the end
+# @exitcode 1 if one of env files fails to load
+# @stderr diagnostics information is displayed
+# shellcheck disable=SC2120
+Env::requireLoad() {
+  export REQUIRE_FUNCTION_ENV_REQUIRE_LOAD_LOADED=1
+
+  local -a defaultFiles=("$@")
+  # get list of possible config files
+  local -a configFiles=()
+  if [[ -n "${BASH_FRAMEWORK_ENV_FILES[0]+1}" ]]; then
+    # BASH_FRAMEWORK_ENV_FILES is an array
+    configFiles+=("${BASH_FRAMEWORK_ENV_FILES[@]}")
+  fi
+  local localFrameworkConfigFile
+  localFrameworkConfigFile="$(pwd)/.framework-config"
+  if [[ -f "${localFrameworkConfigFile}" ]]; then
+    configFiles+=("${localFrameworkConfigFile}")
+  fi
+  if [[ -f "${FRAMEWORK_ROOT_DIR}/.framework-config" ]]; then
+    configFiles+=("${FRAMEWORK_ROOT_DIR}/.framework-config")
+  fi
+  configFiles+=("${optionEnvFiles[@]}")
+  configFiles+=("${defaultFiles[@]}")
+
+  for file in "${configFiles[@]}"; do
+    # shellcheck source=/.framework-config
+    CURRENT_LOADED_ENV_FILE="${file}" source "${file}" || {
+      Log::displayError "while loading config file: ${file}"
+      return 1
+    }
+  done
 }
 
-# @description ensure COMMAND_BIN_DIR env var is set
-# and PATH correctly prepared
-# @noargs
-# @set COMMAND_BIN_DIR string the directory where to find this command
-# @set PATH string add directory where to find this command binary
-Compiler::Facade::requireCommandBinDir() {
-  COMMAND_BIN_DIR="${CURRENT_DIR}"
-  Env::pathPrepend "${COMMAND_BIN_DIR}"
+
+# @description clone the repository if not done yet, else pull it if no change in it
+# @arg $1 dir:String directory in which repository is installed or will be cloned
+# @arg $2 repo:String repository url
+# @arg $3 cloneCallback:Function callback on successful clone
+# @arg $4 pullCallback:Function callback on successful pull
+# @env GIT_CLONE_OPTIONS:String additional options to pass to git clone command
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode 0 on successful pulling/cloning, 1 on failure
+Git::cloneOrPullIfNoChanges() {
+  local dir="$1"
+  shift || true
+  local repo="$1"
+  shift || true
+  local cloneCallback=${1:-}
+  shift || true
+  local pullCallback=${1:-}
+  shift || true
+
+  if [[ -d "${dir}/.git" ]]; then
+    local exitCode=0
+    Git::pullIfNoChanges "${dir}" || exitCode=$?
+    if [[ "${exitCode}" =~ ^[245]$ ]]; then
+      # changes detected or pull not applicable
+      return 0
+    elif [[ "${exitCode}" != "0" ]]; then
+      return "${exitCode}"
+    fi
+    # shellcheck disable=SC2086
+    if [[ "$(type -t ${pullCallback})" = "function" ]]; then
+      ${pullCallback} "${dir}"
+    fi
+  else
+    Log::displayInfo "cloning ${repo} ..."
+    if ! ${SUDO:-} test -d "${dir%/*}"; then
+      ${SUDO:-} mkdir -p "${dir%/*}"
+    fi
+    # shellcheck disable=SC2086,SC2248
+    if ${SUDO:-} git clone ${GIT_CLONE_OPTIONS} --progress "$@" "${repo}" "${dir}"; then
+      # shellcheck disable=SC2086
+      if [[ "$(type -t ${cloneCallback})" = "function" ]]; then
+        ${cloneCallback} "${dir}"
+      fi
+    else
+      Log::displayError "Cloning '${repo}' on '${dir}' failed"
+      return 1
+    fi
+  fi
 }
+
+
+# @description pull git directory only if no change has been detected
+# @arg $1 dir:String the git directory to pull
+# @exitcode 0 on successful pulling
+# @exitcode 1 on any other failure
+# @exitcode 2 changes detected, pull avoided
+# @exitcode 3 not a git directory
+# @exitcode 4 not able to update index
+# @exitcode 5 not a branch, pull avoided
+# @stderr diagnostics information is displayed
+# @env SUDO String allows to use custom sudo prefix command
+Git::pullIfNoChanges() {
+
+  if [[ "${REQUIRE_FUNCTION_GIT_REQUIRE_GIT_COMMAND_LOADED:-0}" != 1 ]]; then
+    echo >&2 "Requirement Git::requireGitCommand has not been loaded"
+    exit 1
+  fi
+
+  local dir="$1"
+  if [[ ! -d "${dir}/.git" ]]; then
+    return 3
+  fi
+  (
+    cd "${dir}" || return 3
+    if ! ${SUDO:-} git update-index --refresh &>/dev/null; then
+      Log::displayWarning "Impossible to update git index of '${dir}' - check if you have modified file"
+      return 4
+    fi
+    if ! ${SUDO:-} git diff-index --quiet HEAD --; then
+      Log::displayWarning "Pulling git repository '${dir}' avoided as changes detected"
+      return 2
+    fi
+    if ! ${SUDO:-} git symbolic-ref -q HEAD; then
+      Log::displayWarning "Pulling git repository '${dir}' avoided as you are not on a branch"
+      return 5
+    fi
+    Log::displayInfo "Pull git repository '${dir}' as no changes detected"
+    ${SUDO:-} git pull --progress
+  )
+}
+
+
+# @description ensure command git is available
+# @exitcode 1 if git command not available
+# @stderr diagnostics information is displayed
+Git::requireGitCommand() {
+  export REQUIRE_FUNCTION_GIT_REQUIRE_GIT_COMMAND_LOADED=1
+
+  Assert::commandExists git
+}
+
 
 # @description ensure running user is not root
 # @exitcode 1 if current user is root
@@ -413,6 +452,7 @@ Linux::requireExecutedAsUser() {
     Log::fatal "this script should be executed as normal user"
   fi
 }
+
 
 declare -g FIRST_LOG_DATE LOG_LAST_LOG_DATE LOG_LAST_LOG_DATE_INIT LOG_LAST_DURATION_STR
 FIRST_LOG_DATE="${EPOCHREALTIME/[^0-9]/}"
@@ -452,199 +492,19 @@ Log::computeDuration() {
   fi
 }
 
-# @description log message to file
+
+# @description Display message using debug color (gray)
 # @arg $1 message:String the message to display
-Log::logInfo() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-INFO}" "$1"
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
+Log::displayDebug() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_DEBUG)); then
+    Log::computeDuration
+    echo -e "${__DEBUG_COLOR}DEBUG   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
   fi
+  Log::logDebug "$1"
 }
 
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logDebug() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_DEBUG)); then
-    Log::logMessage "${2:-DEBUG}" "$1"
-  fi
-}
-
-# @description if .env does not exist, initialize it with .env.template
-Engine::Config::createEnvFileFromTemplate() {
-  local envFile="$1"
-  local envFileTemplate="$2"
-
-  if [[ ! -f "${envFile}" ]]; then
-    echo "${envFileTemplate}" >"${envFile}"
-    Log::displayError "a default env file has been created, please edit ${envFile}"
-    return 1
-  fi
-}
-
-# @description load /etc/os-release file
-# @set NAME
-# @set VERSION
-# @set ID
-# @set ID_LIKE
-# @set PRETTY_NAME
-# @set VERSION_ID
-# @set HOME_URL
-# @set SUPPORT_URL
-# @set BUG_REPORT_URL
-# @set PRIVACY_POLICY_URL
-# @set VERSION_CODENAME
-# @set UBUNTU_CODENAME
-Engine::Config::loadOsRelease() {
-  if [[ ! -f /etc/os-release ]]; then
-    Log::displayError "file /etc/os-release does not exists"
-    return 1
-  fi
-  # This will load environment variables ID, VERSION_CODENAME, ...
-  set -o allexport
-  source /etc/os-release
-  set +o allexport
-}
-
-# @description deduce HOME, USER_ID, USERGROUP_ID and USERGROUP from USERNAME
-# @env USERNAME String the name of the user
-# @set USER_ID String
-# @set USERGROUP String
-# @set USERGROUP_ID String
-# @set USER_SHELL String current user shell
-# @set HOME String
-# @env REMOTE String prefix command to run commands remotely
-Engine::Config::loadUserVariables() {
-  # deduce user home and group
-  local -a split
-  local IFS=':'
-  # shellcheck disable=SC2207
-  split=($(${REMOTE:-} getent passwd "${USERNAME}"))
-  USER_ID="${split[2]}"
-  USERGROUP_ID="${split[3]}"
-  HOME="${split[5]}"
-  USER_SHELL="${split[6]}"
-  USERGROUP="$(${REMOTE:-} id -gn "${USERNAME}")"
-
-  if [[ -z "${USERGROUP}" || -z "${HOME}" ]]; then
-    Log::displayError "USERNAME - unable to deduce USERGROUP, HOME from USERNAME"
-    return 1
-  fi
-
-  export HOME
-  export USER_ID
-  export USERGROUP_ID
-  export USERGROUP
-  export USER_SHELL
-}
-
-# @description check validity of .env variables
-# @env CHECK_ENV int 0 to avoid checking environment
-# @noargs
-Engine::Config::checkEnv() {
-  local envFile="$1"
-  if [[ "${CHECK_ENV:-1}" = "0" ]]; then
-    return 0
-  fi
-  # avoid checks if .env file didn't changed
-  local envFileMd5Cache="${PERSISTENT_TMPDIR:-/tmp}/bash-dev-env-enf-file-checksum"
-  if md5sum -c "${envFileMd5Cache}" &>/dev/null; then
-    return 0
-  else
-    md5sum "${envFile}" >"${envFileMd5Cache}"
-  fi
-  local errorCount=0 || true
-  checkNotEmpty() {
-    local var="$1"
-    if ! Assert::varExistsAndNotEmpty "${var}"; then
-      ((++errorCount))
-      return 1
-    fi
-  }
-  checkVarAndDir() {
-    local var="$1"
-    local mode="${2:-}"
-    local status=0
-    if checkNotEmpty "${var}"; then
-      if [[ ! -d "${!var}" ]] && ! mkdir -p "${!var}"; then
-        Log::displayError "variable ${var} - impossible to create the directory '${!var}'"
-        ((errorCount++))
-        return 1
-      fi
-      if [[ "${mode}" =~ w && ! -w "${!var}" ]]; then
-        Log::displayError "variable ${var} - directory '${!var}' is not writable"
-        ((status++))
-        ((errorCount++))
-      fi
-      if [[ "${mode}" =~ r && ! -r "${!var}" ]]; then
-        Log::displayError "variable ${var} - directory '${!var}' is not accessible"
-        ((status++))
-        ((errorCount++))
-      fi
-    fi
-
-    return "${status}"
-  }
-  checkValidValues() {
-    local var="$1"
-    shift || true
-    local -a validValues=("$@")
-    if ! Array::contains "${!var}" "${validValues[@]}"; then
-      Log::displayError "variable ${var} - value ${!var} is not part of the following values ${validValues[*]}"
-      ((++errorCount))
-    fi
-  }
-
-  if ! echo "${ID}" | grep -qEw 'debian|ubuntu'; then
-    Log::fatal "This script is built to support only Debian or Ubuntu distributions. You are using ${ID}."
-  fi
-
-  if checkNotEmpty USERNAME && ! getent passwd "${USERNAME}" 2>/dev/null >/dev/null; then
-    Log::displayError "USERNAME - user '${USERNAME}' does not exist"
-    ((errorCount++))
-  fi
-
-  if [[ -n "${SSH_LOGIN:-}" ]] && ! Assert::ldapLogin "${SSH_LOGIN}"; then
-    Log::displayError "SSH_LOGIN - invalid ldap login (format expected firstNameLastName) in ${BASH_DEV_ENV_ROOT_DIR}/.env file"
-    ((errorCount++))
-  fi
-
-  if checkNotEmpty "GIT_USERNAME" && ! Assert::firstNameLastName "${GIT_USERNAME}"; then
-    Log::displayError "GIT_USERNAME - invalid format, expected : firstName lastName"
-    ((errorCount++))
-  fi
-
-  if checkNotEmpty "GIT_USER_MAIL" && ! Assert::emailAddress "${GIT_USER_MAIL}"; then
-    Log::displayError "GIT_USER_MAIL - invalid email address"
-    ((errorCount++))
-  fi
-
-  if checkNotEmpty "AWS_USER_MAIL" && ! Assert::emailAddress "${AWS_USER_MAIL}"; then
-    Log::displayError "AWS_USER_MAIL - invalid email address"
-    ((errorCount++))
-  fi
-
-  checkVarAndDir CONF_OVERRIDE_DIR r || true
-  checkVarAndDir PROJECTS_DIR r || true
-  checkVarAndDir BACKUP_DIR rw || true
-  checkVarAndDir LOGS_DIR rw || true
-  checkVarAndDir INSTALL_SCRIPTS_ROOT_DIR r || true
-  checkVarAndDir HOME rw || true
-
-  checkValidValues UPGRADE_UBUNTU_VERSION 0 lts dev
-  checkValidValues PREFERRED_SHELL ShellBash ShellZsh
-  checkValidValues ZSH_PREFERRED_THEME powerlevel10k/powerlevel10k sindresorhus/pure starship/starship
-
-  checkValidValues SHOW_FORTUNES 0 1
-  checkValidValues SHOW_MOTD 0 1
-  checkValidValues OVERWRITE_CONFIG_FILES 0 1
-  checkValidValues CHANGE_WINDOWS_FILES 0 1
-  checkValidValues CAN_TALK_DURING_INSTALLATION 0 1
-  checkValidValues INSTALL_INTERACTIVE 0 1
-
-  checkNotEmpty WSLCONFIG_MAX_MEMORY
-  checkValidValues WSLCONFIG_SWAP 0 1
-  export CHECK_ENV=0
-  return "${errorCount}"
-}
 
 # @description Display message using error color (red)
 # @arg $1 message:String the message to display
@@ -658,118 +518,125 @@ Log::displayError() {
   Log::logError "$1"
 }
 
-# @description deduce wsl host ip
-# @set HOST_IP exported env containing the IP
-Engine::Config::loadHostIp() {
-  HOST_IP="$(/sbin/ip route | awk '/default/ { print $3 }')"
 
-  export HOST_IP
+# @description Display message using info color (bg light blue/fg white)
+# @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
+Log::displayInfo() {
+  local type="${2:-INFO}"
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
+    Log::computeDuration
+    echo -e "${__INFO_COLOR}${type}    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logInfo "$1" "${type}"
 }
 
-# @description install apt wslu if necessary providing wslvar, wslpath
-Engine::Config::requireWslu() {
-  if [[ "${LOAD_WSLU:-1}" = "0" ]]; then
-    return 0
-  fi
-  if ! command -v wslvar &>/dev/null; then
-    Log::displayInfo "Installing pre-requisite Wslu : wslvar, wslpath, ... commands"
-    Linux::Apt::installIfNecessary --no-install-recommends wslu
 
-    # @see https://github.com/microsoft/WSL/issues/8843#issuecomment-1792256894
-    Log::displayInfo "Fix wsl interoperability due to wsl bug"
-    if [[ ! -f /usr/lib/binfmt.d/WSLInterop.conf &&
-      ! -f /etc/systemd/system/wsl-binfmt.service &&
-      -f /run/systemd/generator.early/wsl-binfmt.service ]]; then
-      sudo sh -c 'echo :WSLInterop:M::MZ::/init:PF > /usr/lib/binfmt.d/WSLInterop.conf'
-      sudo ln -s /run/systemd/generator.early/wsl-binfmt.service /etc/systemd/system/wsl-binfmt.service
-    fi
+# @description Display message using warning color (yellow)
+# @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
+Log::displayWarning() {
+  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
+    Log::computeDuration
+    echo -e "${__WARNING_COLOR}WARN    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  fi
+  Log::logWarning "$1"
+}
+
+
+# @description Display message using error color (red) and exit immediately with error status 1
+# @arg $1 message:String the message to display
+# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
+# @env LOG_CONTEXT String allows to contextualize the log
+Log::fatal() {
+  Log::computeDuration
+  echo -e "${__ERROR_COLOR}FATAL   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
+  Log::logFatal "$1"
+  exit 1
+}
+
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logDebug() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_DEBUG)); then
+    Log::logMessage "${2:-DEBUG}" "$1"
   fi
 }
 
-# @description load wsl env variables
-# @set BASE_MNT_C
-# @set WINDOWS_DIR
-# @set WINDOWS_PROFILE_DIR
-# @set LOCAL_APP_DATA
-# @set WINDOW_PATH
-# @set WSL_EXE_BIN
-# @set IPCONFIG_BIN
-# @set POWERSHELL_BIN
-# @env WSL_EXE_BIN
-# @env IPCONFIG_BIN
-# @env POWERSHELL_BIN
-Engine::Config::loadWslVariables() {
-  if ! Assert::wsl; then
-    # skip
-    return 0
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logError() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_ERROR)); then
+    Log::logMessage "${2:-ERROR}" "$1"
+  fi
+}
+
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logFatal() {
+  Log::logMessage "${2:-FATAL}" "$1"
+}
+
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logInfo() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
+    Log::logMessage "${2:-INFO}" "$1"
+  fi
+}
+
+
+# @description Internal: common log message
+# @example text
+#   [date]|[levelMsg]|message
+#
+# @example text
+#   2020-01-19 19:20:21|ERROR  |log error
+#   2020-01-19 19:20:21|SKIPPED|log skipped
+#
+# @arg $1 levelMsg:String message's level description (eg: STATUS, ERROR, ...)
+# @arg $2 msg:String the message to display
+# @env BASH_FRAMEWORK_LOG_FILE String log file to use, do nothing if empty
+# @env BASH_FRAMEWORK_LOG_LEVEL int log level log only if > OFF or fatal messages
+# @stderr diagnostics information is displayed
+Log::logMessage() {
+
+  if [[ "${REQUIRE_FUNCTION_ENV_REQUIRE_LOAD_LOADED:-0}" != 1 ]]; then
+    echo >&2 "Requirement Env::requireLoad has not been loaded"
+    exit 1
   fi
 
-  local IFS=' '
-  local -a split=()
-  # shellcheck disable=SC2207
-  split=($(grep -m 1 -E 'C:\\[^ ]+ ([^ ]+) ' /proc/mounts 2>/dev/null)) || {
-    # probably not wsl after all
-    return 0
-  }
-  # shellcheck disable=SC1003
-  BASE_MNT_C="${split[1]}"
-  export BASE_MNT_C
+  if [[ "${REQUIRE_FUNCTION_LOG_REQUIRE_LOAD_LOADED:-0}" != 1 ]]; then
+    echo >&2 "Requirement Log::requireLoad has not been loaded"
+    exit 1
+  fi
 
-  Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_DIR SystemRoot
-  WINDOWS_DIR="${WINDOWS_DIR:-${BASE_MNT_C:-/mnt/c}/Windows}"
-  export WINDOWS_DIR
+  local levelMsg="$1"
+  local msg="$2"
+  local date
 
-  Linux::Wsl::cachedWslpathFromWslVar2 WINDOWS_PROFILE_DIR USERPROFILE
-  WINDOWS_PROFILE_DIR="${WINDOWS_PROFILE_DIR:-${BASE_MNT_C:-/mnt/c}/Users/${WINDOWS_USERNAME}}"
-  export WINDOWS_PROFILE_DIR
-
-  Linux::Wsl::cachedWslpathFromWslVar2 LOCAL_APP_DATA LOCALAPPDATA
-  export LOCAL_APP_DATA
-
-  # WINDOW_PATH
-  Linux::Wsl::cachedWslvar2 WINDOW_PATH PATH
-  WINDOW_PATH="${WINDOW_PATH//;/:}"
-  WINDOW_PATH="${WINDOW_PATH//\\//}"
-  WINDOW_PATH="${WINDOW_PATH//C:/${BASE_MNT_C:-/mnt/c}}"
-
-  deduceBin() {
-    local var="$1"
-    local expectedFullPath="$2"
-    local expectedBin="$3"
-    if [[ -z "${!var+xxx}" ]]; then
-      eval "${var}=${expectedFullPath}"
-      if ! command -v "${!var}" >/dev/null 2>&1; then
-        eval "${var}=$(command -v "${expectedBin}" 2>/dev/null)"
-      fi
-    fi
-    if [[ -z "${!var:-}" ]] || ! command -v "${!var}" >/dev/null 2>&1; then
-      Log::fatal "variable ${var} - command ${expectedBin} not found"
-    fi
-    # shellcheck disable=SC2163
-    export "${var}"
-  }
-
-  checkBinary() {
-    local var="$1"
-    if [[ -z "${var}" || ! -x "${!var}" ]]; then
-      Log::displayError "variable ${var} - binary '${!var}' does not exist or not executable"
-      ((errorCount++))
-    fi
-  }
-
-  local errorCount=0
-  # IPCONFIG_BIN - which ipconfig.exe does not work when executed as root
-  deduceBin IPCONFIG_BIN "${WINDOWS_DIR}/System32/ipconfig.exe" "ipconfig.exe"
-  checkBinary IPCONFIG_BIN
-
-  deduceBin WSL_EXE_BIN "${WINDOWS_DIR}/System32/wsl.exe" "wsl.exe"
-  checkBinary WSL_EXE_BIN
-
-  deduceBin POWERSHELL_BIN "${WINDOWS_DIR}/System32/WindowsPowerShell/v1.0/powershell.exe" "powershell.exe"
-  checkBinary POWERSHELL_BIN
-
-  return "${errorCount}"
+  if [[ -n "${BASH_FRAMEWORK_LOG_FILE}" ]] && ((BASH_FRAMEWORK_LOG_LEVEL > __LEVEL_OFF)); then
+    date="$(date '+%Y-%m-%d %H:%M:%S')"
+    touch "${BASH_FRAMEWORK_LOG_FILE}"
+    printf "%s|%7s|%s\n" "${date}" "${levelMsg}" "${msg}" >>"${BASH_FRAMEWORK_LOG_FILE}"
+  fi
 }
+
+
+# @description log message to file
+# @arg $1 message:String the message to display
+Log::logWarning() {
+  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_WARNING)); then
+    Log::logMessage "${2:-WARNING}" "$1"
+  fi
+}
+
 
 # @description activate or not Log::display* and Log::log* functions
 # based on BASH_FRAMEWORK_DISPLAY_LEVEL and BASH_FRAMEWORK_LOG_LEVEL
@@ -783,9 +650,20 @@ Engine::Config::loadWslVariables() {
 # @env BASH_FRAMEWORK_LOG_FILE_MAX_ROTATION int do log rotation if > 0
 # @exitcode 0 always successful
 # @stderr diagnostics information about log file is displayed
-# @require Env::requireLoad
-# @require UI::requireTheme
 Log::requireLoad() {
+  export REQUIRE_FUNCTION_LOG_REQUIRE_LOAD_LOADED=1
+
+
+  if [[ "${REQUIRE_FUNCTION_ENV_REQUIRE_LOAD_LOADED:-0}" != 1 ]]; then
+    echo >&2 "Requirement Env::requireLoad has not been loaded"
+    exit 1
+  fi
+
+  if [[ "${REQUIRE_FUNCTION_UI_REQUIRE_THEME_LOADED:-0}" != 1 ]]; then
+    echo >&2 "Requirement UI::requireTheme has not been loaded"
+    exit 1
+  fi
+
   if [[ -z "${BASH_FRAMEWORK_LOG_FILE:-}" ]]; then
     BASH_FRAMEWORK_LOG_LEVEL=${__LEVEL_OFF}
     export BASH_FRAMEWORK_LOG_LEVEL
@@ -817,341 +695,6 @@ Log::requireLoad() {
   fi
 }
 
-# @description load pageant and ssh key
-# you can provide ssh key by env variable SSH_PRIVATE_KEY
-# or if empty, file ~/.ssh/id_rsa will be used if present
-# @env SSH_PRIVATE_KEY ssh key provided by env variable
-# @env AUTHORIZE_SSH_KEY_USAGE if 0, no ssh key is loaded
-# @env LOAD_SSH_KEY feature flag used in distro mode
-Engine::Config::loadSshKey() {
-  if [[ "${LOAD_SSH_KEY:-1}" = "0" ]]; then
-    # ignore in distro mode
-    return 0
-  fi
-  if [[ "${AUTHORIZE_SSH_KEY_USAGE:-0}" = "0" ]]; then
-    Log::displaySkipped "Ssh key will not be loaded as you set AUTHORIZE_SSH_KEY_USAGE to 0"
-    return 0
-  fi
-  if [[ -n "${SSH_AUTH_SOCK}" && -n "${SSH_AGENT_PID}" ]]; then
-    Log::displaySkipped "Ssh agent skipped as variables SSH_AUTH_SOCK and SSH_AGENT_PID are set"
-    return 0
-  fi
-
-  if [[ -z "${SSH_PRIVATE_KEY}" && ! -f "${HOME}/.ssh/id_rsa" ]]; then
-    Log::displayError "File '${HOME}/.ssh/id_rsa' is missing and env variable SSH_PRIVATE_KEY is empty"
-    return 1
-  fi
-  local errorCode=0
-  ssh-add -l &>/dev/null || errorCode=$?
-  if [[ "${errorCode}" = "2" ]]; then
-    # ssh agent is not started
-    Log::displayInfo "Starting ssh agent"
-    eval "$(ssh-agent)" || return 2
-    export SSH_AUTH_SOCK
-    export SSH_AGENT_PID
-  fi
-
-  if [[ -z "${SSH_PRIVATE_KEY}" ]]; then
-    ssh-add "${HOME}/.ssh/id_rsa" || return 3
-  else
-    ssh-add <(base64 -d <<<"${SSH_PRIVATE_KEY}") || return 3
-  fi
-
-  # Check key has been added to ssh agent
-  ssh-add -l &>/dev/null || {
-    Log::displayError "Your ssh key has not been loaded"
-    return 4
-  }
-}
-
-# @description load locale configuration
-Engine::Config::loadLocaleConfig() {
-  if [[ "${BASH_DEV_ENV_CONFIG_LOADED:-0}" = "1" ]]; then
-    return 0
-  fi
-  if [[ "${LOAD_LOCALE_CONFIG:-1}" = "1" && ! -f "${PERSISTENT_TMPDIR}/localeConfig.initialized" ]]; then
-    Log::displayInfo "Initializing locale en_US.UTF-8"
-    export PATH="${PATH}:${HOME}/.local/bin"
-    sudo sed -E -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
-    echo 'LANG="en_US.UTF-8"' | sudo tee /etc/default/locale >/dev/null
-    echo "LANG=en_US.UTF-8" | sudo tee /etc/locale.conf >/dev/null
-    sudo locale-gen en_US.UTF-8
-    sudo dpkg-reconfigure --frontend=noninteractive locales
-    export LC_ALL=C
-    export LANG=en_US.UTF-8
-    export LC_MESSAGES=en_US.UTF-8
-    touch "${PERSISTENT_TMPDIR}/localeConfig.initialized"
-  fi
-}
-
-# @description clone the repository if not done yet, else pull it if no change in it
-# @arg $1 dir:String directory in which repository is installed or will be cloned
-# @arg $2 repo:String repository url
-# @arg $3 cloneCallback:Function callback on successful clone
-# @arg $4 pullCallback:Function callback on successful pull
-# @env GIT_CLONE_OPTIONS:String additional options to pass to git clone command
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode 0 on successful pulling/cloning, 1 on failure
-Git::cloneOrPullIfNoChanges() {
-  local dir="$1"
-  shift || true
-  local repo="$1"
-  shift || true
-  local cloneCallback=${1:-}
-  shift || true
-  local pullCallback=${1:-}
-  shift || true
-
-  if [[ -d "${dir}/.git" ]]; then
-    local exitCode=0
-    Git::pullIfNoChanges "${dir}" || exitCode=$?
-    if Array::contains "${exitCode}" "2" "4"; then
-      # changes detected
-      return 0
-    fi
-    if [[ "${exitCode}" != "0" ]]; then
-      return "${exitCode}"
-    fi
-    # shellcheck disable=SC2086
-    if [[ "$(type -t ${pullCallback})" = "function" ]]; then
-      ${pullCallback} "${dir}"
-    fi
-  else
-    Log::displayInfo "cloning ${repo} ..."
-    if ! ${SUDO:-} test -d "${dir%/*}"; then
-      ${SUDO:-} mkdir -p "${dir%/*}"
-    fi
-    # shellcheck disable=SC2086,SC2248
-    if ${SUDO:-} git clone ${GIT_CLONE_OPTIONS} --progress "$@" "${repo}" "${dir}"; then
-      # shellcheck disable=SC2086
-      if [[ "$(type -t ${cloneCallback})" = "function" ]]; then
-        ${cloneCallback} "${dir}"
-      fi
-    else
-      Log::displayError "Cloning '${repo}' on '${dir}' failed"
-      return 1
-    fi
-  fi
-}
-
-# @description prepend directories to the PATH environment variable
-# @arg $@ args:String[] list of directories to prepend
-# @set PATH update PATH with the directories prepended
-Env::pathPrepend() {
-  local arg
-  for arg in "$@"; do
-    if [[ -d "${arg}" && ":${PATH}:" != *":${arg}:"* ]]; then
-      PATH="$(realpath "${arg}"):${PATH}"
-    fi
-  done
-}
-
-# @description Display message using error color (red) and exit immediately with error status 1
-# @arg $1 message:String the message to display
-# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
-# @env LOG_CONTEXT String allows to contextualize the log
-Log::fatal() {
-  Log::computeDuration
-  echo -e "${__ERROR_COLOR}FATAL   - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
-  Log::logFatal "$1"
-  exit 1
-}
-
-# @description Internal: common log message
-# @example text
-#   [date]|[levelMsg]|message
-#
-# @example text
-#   2020-01-19 19:20:21|ERROR  |log error
-#   2020-01-19 19:20:21|SKIPPED|log skipped
-#
-# @arg $1 levelMsg:String message's level description (eg: STATUS, ERROR, ...)
-# @arg $2 msg:String the message to display
-# @env BASH_FRAMEWORK_LOG_FILE String log file to use, do nothing if empty
-# @env BASH_FRAMEWORK_LOG_LEVEL int log level log only if > OFF or fatal messages
-# @stderr diagnostics information is displayed
-# @require Env::requireLoad
-# @require Log::requireLoad
-Log::logMessage() {
-  local levelMsg="$1"
-  local msg="$2"
-  local date
-
-  if [[ -n "${BASH_FRAMEWORK_LOG_FILE}" ]] && ((BASH_FRAMEWORK_LOG_LEVEL > __LEVEL_OFF)); then
-    date="$(date '+%Y-%m-%d %H:%M:%S')"
-    touch "${BASH_FRAMEWORK_LOG_FILE}"
-    printf "%s|%7s|%s\n" "${date}" "${levelMsg}" "${msg}" >>"${BASH_FRAMEWORK_LOG_FILE}"
-  fi
-}
-
-# @description checks if variable name provided exists
-# @arg $1 varName:String
-# @exitcode 1 if variable doesn't exist
-# @exitcode 2 if variable value empty
-# @exitcode 3 if variable name invalid
-# @see Assert::validVariableName
-# @stderr diagnostics information is displayed
-Assert::varExistsAndNotEmpty() {
-  local varName="$1"
-  if ! Assert::validVariableName "${varName}"; then
-    Log::displayError "${varName} - invalid variable name"
-    return 3
-  fi
-  if [[ -z "${!varName+unset}" ]]; then
-    Log::displayError "${varName} - not defined"
-    return 1
-  elif [[ -z "${!varName}" ]]; then
-    Log::displayError "${varName} - please provide a value"
-    return 2
-  fi
-}
-
-# @description check if an element is contained in an array
-#
-# @arg $1 needle:String
-# @arg $@ array:String[]
-# @exitcode 0 if found
-# @exitcode 1 otherwise
-# @example
-#   Array::contains "${libPath}" "${__BASH_FRAMEWORK_IMPORTED_FILES[@]}"
-Array::contains() {
-  local element
-  for element in "${@:2}"; do
-    [[ "${element}" = "$1" ]] && return 0
-  done
-  return 1
-}
-
-# @description check if argument respects ldap login naming convention
-# only using lowercase characters a-z
-# @arg $1 ldapLogin:String
-# @exitcode 1 if regexp not matches
-Assert::ldapLogin() {
-  [[ $1 =~ ^[a-z]+$ ]]
-}
-
-# @description check if argument respects 2 or more words separated by a space
-# it supports accentuated characters and names with hyphen(-)
-# @arg $1 firstNameLastName:String
-# @exitcode 1 if regexp not matches
-# @see https://regex101.com/r/JyyfOM/1
-Assert::firstNameLastName() {
-  local regexp="^[^ ]+([ ][^ ]+)+$"
-  [[ $1 =~ ${regexp} ]]
-}
-
-# @description check if param is valid email address
-# @warning it is a very simple check, no RFC validation
-# @arg $1 emailAddress:String the full email address
-# @exitcode 1 if invalid email address
-Assert::emailAddress() {
-  local expectedRegexp="^\S+@\S+$"
-
-  [[ "$1" =~ ${expectedRegexp} ]]
-}
-
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logError() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_ERROR)); then
-    Log::logMessage "${2:-ERROR}" "$1"
-  fi
-}
-
-# @description apt-get install if package is not installed yet
-# @arg $@ packages:String[] list of packages to install
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @env SKIP_APT_GET_UPDATE
-# @stdout diagnostics logs
-Linux::Apt::installIfNecessary() {
-  local -a packages=("$@")
-  local package
-  local -i installNeeded=0
-  for package in "${packages[@]}"; do
-    if [[ "${package}" =~ ^-- ]]; then
-      continue
-    fi
-    if ! Linux::Apt::isPackageInstalled "${package}"; then
-      Log::displayInfo "Package ${package} is not installed"
-      installNeeded=1
-    fi
-  done
-  if ((installNeeded == 1)); then
-    if [[ "${SKIP_APT_GET_UPDATE:-0}" = "0" ]]; then
-      Linux::Apt::update
-    fi
-    Linux::Apt::install "${packages[@]}"
-    for package in "${packages[@]}"; do
-      if [[ "${package}" =~ ^-- ]]; then
-        continue
-      fi
-      if ! Linux::Apt::isPackageInstalled "${package}"; then
-        Log::displayWarning "Package ${package} does not appear to have been installed, check if you could have chosen the wrong package name (Eg: python3.9-distutils instead of python3-distutils)"
-      fi
-    done
-  else
-    Log::displayInfo "Apt install avoided as packages are already installed : ${packages[*]}"
-  fi
-}
-
-# @description determine if the script is executed under WSL
-# cspell:disable
-# @example text
-#   uname GitBash windows (with wsl) => MINGW64_NT-10.0 ZOXFL-6619QN2 2.10.0(0.325/5/3) 2018-06-13 23:34 x86_64 Msys
-#   uname GitBash windows (wo wsl)   => MINGW64_NT-10.0 frsa02-j5cbkc2 2.9.0(0.318/5/3) 2018-01-12 23:37 x86_64 Msys
-#   uname wsl => Linux ZOXFL-6619QN2 4.4.0-17134-Microsoft #112-Microsoft Thu Jun 07 22:57:00 PST 2018 x86_64 x86_64 x86_64 GNU/Linux
-# cspell:enable
-#
-# @exitcode 1 on error
-Assert::wsl() {
-  [[ "$(uname -o)" = "GNU/Linux" ]]
-}
-
-# @description retrieve path from wslvar and then use wslpath to resolve it
-# using cache (cache is refreshed every day)
-# @arg $1 var:String the var to retrieve using wslvar
-# @arg $@ args:String[] (optional) additional arguments to pass to wslvar
-# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: PERSISTENT_TMPDIR), you can use TMPDIR instead
-# @exitcode 1 if var cannot be found in cache nor using Linux::Wsl::originalWslvar
-# @exitcode 2 if path cannot be found in cache nor using Linux::Wsl::originalWslpath
-# @stderr diagnostics information is displayed
-# @require Linux::Wsl::requireWsl
-# @feature cache
-Linux::Wsl::cachedWslpathFromWslVar2() {
-  # shellcheck disable=SC2034
-  local -n cachedWslpathFromWslVar2_value=$1
-  shift || true
-  local value
-  Linux::Wsl::cachedWslvar2 value "$@" || return 1
-  Linux::Wsl::cachedWslpath2 cachedWslpathFromWslVar2_value "${value}" || return 2
-}
-
-declare -Agx bash_tools_wslvar=()
-# @description retrieve wslvar using cache (cache is refreshed every day)
-# @arg $1 cachedWslvar2_var:&String the variable to set by reference if the value is found
-# @arg $@ args:String[] arguments to pass to wslvar
-# @env WSL_TMPDIR String temp directory to store the wslvar cache (default value: PERSISTENT_TMPDIR), you can use TMPDIR instead
-# @exitcode * if Linux::Wsl::originalWslvar cannot find the variable
-# @stderr diagnostics information is displayed
-# @require Linux::Wsl::requireWsl
-# @feature cache
-Linux::Wsl::cachedWslvar2() {
-  # shellcheck disable=SC2034
-  local -n cachedWslvar2_var="$1"
-  shift || true
-  local -a args=("$@")
-  local tempWslvarFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslvar"
-  local key
-  key="$(Linux::Wsl::getKeyFromWslpathOptions "${args[@]}")"
-  Cache::getPropertyValue2 \
-    "${tempWslvarFile}" \
-    bash_tools_wslvar \
-    cachedWslvar2_var \
-    "${key}" \
-    Linux::Wsl::originalWslvar "${args[@]}"
-}
 
 # @description To be called before logging in the log file
 # @arg $1 file:string log file name
@@ -1175,86 +718,23 @@ Log::rotate() {
   fi
 }
 
-# @description Display message using skip color (yellow)
-# @arg $1 message:String the message to display
-# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
-# @env LOG_CONTEXT String allows to contextualize the log
-Log::displaySkipped() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_INFO)); then
-    Log::computeDuration
-    echo -e "${__SKIPPED_COLOR}SKIPPED - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logSkipped "$1"
+
+# @description install bash-tools
+Tools::installBashTools() {
+  local targetDir="$1"
+  # shellcheck disable=SC2317
+  function installBashTools() {
+    (
+      cd "${targetDir}" || return 1
+      ./install
+    )
+  }
+  Git::cloneOrPullIfNoChanges \
+    "${targetDir}" \
+    "https://github.com/fchastanet/bash-tools.git" \
+    installBashTools
 }
 
-# @description pull git directory only if no change has been detected
-# @arg $1 dir:String the git directory to pull
-# @exitcode 0 on successful pulling
-# @exitcode 1 on any other failure
-# @exitcode 2 changes detected, pull avoided
-# @exitcode 3 not a git directory
-# @exitcode 4 not able to update index
-# @stderr diagnostics information is displayed
-# @env SUDO String allows to use custom sudo prefix command
-# @require Git::requireGitCommand
-Git::pullIfNoChanges() {
-  local dir="$1"
-  if [[ ! -d "${dir}/.git" ]]; then
-    return 3
-  fi
-  (
-    cd "${dir}" || return 3
-    if ! ${SUDO:-} git update-index --refresh &>/dev/null; then
-      Log::displayWarning "Impossible to update git index of '${dir}' - check if you have modified file"
-      return 4
-    fi
-    if ! ${SUDO:-} git diff-index --quiet HEAD --; then
-      Log::displayWarning "Pulling git repository '${dir}' avoided as changes detected"
-      return 2
-    fi
-    Log::displayInfo "Pull git repository '${dir}' as no changes detected"
-    ${SUDO:-} git pull --progress
-  )
-}
-
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logFatal() {
-  Log::logMessage "${2:-FATAL}" "$1"
-}
-
-# @description ensure env files are loaded
-# @arg $@ list of default files to load at the end
-# @exitcode 1 if one of env files fails to load
-# @stderr diagnostics information is displayed
-# shellcheck disable=SC2120
-Env::requireLoad() {
-  local -a defaultFiles=("$@")
-  # get list of possible config files
-  local -a configFiles=()
-  if [[ -n "${BASH_FRAMEWORK_ENV_FILES[0]+1}" ]]; then
-    # BASH_FRAMEWORK_ENV_FILES is an array
-    configFiles+=("${BASH_FRAMEWORK_ENV_FILES[@]}")
-  fi
-  local localFrameworkConfigFile
-  localFrameworkConfigFile="$(pwd)/.framework-config"
-  if [[ -f "${localFrameworkConfigFile}" ]]; then
-    configFiles+=("${localFrameworkConfigFile}")
-  fi
-  if [[ -f "${FRAMEWORK_ROOT_DIR}/.framework-config" ]]; then
-    configFiles+=("${FRAMEWORK_ROOT_DIR}/.framework-config")
-  fi
-  configFiles+=("${optionEnvFiles[@]}")
-  configFiles+=("${defaultFiles[@]}")
-
-  for file in "${configFiles[@]}"; do
-    # shellcheck source=/.framework-config
-    CURRENT_LOADED_ENV_FILE="${file}" source "${file}" || {
-      Log::displayError "while loading config file: ${file}"
-      return 1
-    }
-  done
-}
 
 # @description load color theme
 # @noargs
@@ -1262,183 +742,13 @@ Env::requireLoad() {
 # @env LOAD_THEME int 0 to avoid loading theme
 # @exitcode 0 always successful
 UI::requireTheme() {
+  export REQUIRE_FUNCTION_UI_REQUIRE_THEME_LOADED=1
+
   if [[ "${LOAD_THEME:-1}" = "1" ]]; then
     UI::theme "${BASH_FRAMEWORK_THEME-default}"
   fi
 }
 
-# @description check if argument respects this framework variable naming convention
-# - if variable begins with an uppercase or underscore, following letters have to be uppercase or underscore
-# - variable name can includes ':' or '_' or digits but not as first letter
-# here valid variable name examples
-#
-# @arg $1 variableName:String
-# @exitcode 1 if regexp not matches
-# @see https://regex101.com/r/BUlPXS/1
-Assert::validVariableName() {
-  [[ "$1" =~ (^[a-z][A-Za-z_0-9:]+$)|(^[A-Z_][A-Z_0-9:]+$) ]]
-}
-
-# @description check if apt package is installed
-# @arg $1 package:String the package name to check
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::isPackageInstalled() {
-  local package="$1"
-  dpkg -l "${package}" | grep -Eq "^ii  ${package}"
-}
-
-# @description update apt packages list
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::update() {
-  Log::displayInfo "Apt update ..."
-  Retry::default sudo apt-get update -y --fix-missing -o Acquire::ForceIPv4=true
-}
-
-# @description apt-get install
-# @arg $@ softwares:String[] list of softwares to install
-# @feature Retry::default
-# Linux::requireSudoCommand
-# @require Linux::requireUbuntu
-# @stdout diagnostics logs
-Linux::Apt::install() {
-  Log::displayInfo "Apt install $*"
-  Retry::default sudo apt-get install -y -q "$@"
-}
-
-# @description Display message using warning color (yellow)
-# @arg $1 message:String the message to display
-# @env DISPLAY_DURATION int (default 0) if 1 display elapsed time information between 2 info logs
-# @env LOG_CONTEXT String allows to contextualize the log
-Log::displayWarning() {
-  if ((BASH_FRAMEWORK_DISPLAY_LEVEL >= __LEVEL_WARNING)); then
-    Log::computeDuration
-    echo -e "${__WARNING_COLOR}WARN    - ${LOG_CONTEXT:-}${LOG_LAST_DURATION_STR:-}${1}${__RESET_COLOR}" >&2
-  fi
-  Log::logWarning "$1"
-}
-
-declare -Agx bash_tools_wslpath=()
-# @description retrieve wslpath using cache (cache is refreshed every day)
-# @arg $@ args:String[] arguments to pass to wslpath
-# @env WSL_TMPDIR String temp directory to store the wslpath cache (default value: PERSISTENT_TMPDIR), you can use TMPDIR instead
-# @exitcode * if Linux::Wsl::originalWslpath cannot find the path
-# @stderr diagnostics information is displayed
-# @require Linux::Wsl::requireWsl
-# @feature cache
-Linux::Wsl::cachedWslpath2() {
-  # shellcheck disable=SC2034
-  local -n cachedWslpath2_value=$1
-  shift || true
-  local tempEnvFile key
-  tempEnvFile="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_tools_wslpath"
-
-  key="$(Linux::Wsl::getKeyFromWslpathOptions "$@")"
-  Cache::getPropertyValue2 \
-    "${tempEnvFile}" \
-    bash_tools_wslpath \
-    cachedWslpath2_value \
-    "${key}" \
-    Linux::Wsl::originalWslpath "$@"
-}
-
-# @description Compute a cache from wslpath options
-# @arg $@ args:String[] arguments passed to wslpath
-# @stderr diagnostics information is displayed
-# @stdout the cache key deduced from the options
-# @require Linux::Wsl::requireWsl
-# @feature cache
-# @internal
-Linux::Wsl::getKeyFromWslpathOptions() {
-  local options
-  options=$(getopt -o "auwm" -- "$@" 2>/dev/null) || {
-    Log::displayError "invalid options specified"
-    return 1
-  }
-  local key="wslpath"
-  eval set -- "${options}"
-  while true; do
-    case "$1" in
-      -a | -u | -w | -m)
-        key="${key}$1"
-        ;;
-      --)
-        shift || true
-        break
-        ;;
-      *)
-        shift || true
-        Log::displayWarning "Unknown key $1"
-        ;;
-    esac
-    shift || true
-  done
-  key="${key}_$1"
-  # replace some characters \:/
-  key="${key//\\//}"
-  key="${key//:/_}"
-  key="${key////_}"
-  echo "${key}"
-}
-
-# @description get property value from file
-# if not present compute it using propertyNotFoundCallback (if provided) and store it in property file
-# @arg $1 propertyFile:String the file in which the property will be searched
-# @arg $2 key:String the property key to search in property file
-# @arg $3 propertyNotFoundCallback:Function (optional) a callback to call if property key is not found in property file
-# @arg $@ args:String[] (optional) the arguments to pass to the propertyNotFoundCallback
-# @exitcode 1 if value is not found
-# @exitcode * if propertyNotFoundCallback fails
-# @stdout the property value given by property file or by the propertyNotFoundCallback
-Cache::getPropertyValue2() {
-  local propertyFile="$1"
-  local -n propertiesMap=$2
-  local -n getPropertyValue2_val=$3
-  local key="$4"
-  local propertyNotFoundCallback=$5
-  shift 5 || true
-  local -a args=("$@")
-
-  if [[ "${#propertiesMap[@]}" = "0" && -s "${propertyFile}" ]]; then
-    local line
-    while IFS="" read -r line; do
-      if [[ "${line}" =~ ^([^=]+)=(.+)$ ]]; then
-        propertiesMap["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
-      fi
-    done <"${propertyFile}"
-  fi
-
-  if [[ -n "${propertiesMap[${key}]+abc}" ]]; then
-    getPropertyValue2_val="${propertiesMap[${key}]}"
-    return 0
-  elif [[ "$(type -t "${propertyNotFoundCallback}")" = "function" ]]; then
-    getPropertyValue2_val="$("${propertyNotFoundCallback}" "${args[@]}")" || return $?
-    propertiesMap["${key}"]="${getPropertyValue2_val}"
-    echo "${key}=${getPropertyValue2_val}" >>"${propertyFile}"
-    return 0
-  fi
-  return 1
-}
-
-# @description call simply original wslvar command
-# @arg $@ args:String[] args to pass to wslvar
-# @exitcode * wslvar exit code
-# @stdout wslvar stdout
-# @require Linux::Wsl::requireWsl
-Linux::Wsl::originalWslvar() {
-  wslvar "$@" | sed -z '$ s/[\r\n]$//'
-}
-
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logSkipped() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_INFO)); then
-    Log::logMessage "${2:-SKIPPED}" "$1"
-  fi
-}
 
 # @description load colors theme constants
 # @warning if tty not opened, noColor theme will be chosen
@@ -1519,226 +829,292 @@ UI::theme() {
     __HELP_NORMAL=''
   fi
 }
-
-# @description ensure linux distribution is ubuntu
-# @exitcode 1 if linux distribution is not ubuntu
-Linux::requireUbuntu() {
-  if ! Array::contains "$(Linux::getDistributorId)" "ubuntu" "debian"; then
-    Log::fatal "this script should be executed under Ubuntu or Debian OS"
-  fi
-}
-
-# @description ensure linux runs under wsl
-# @env WSL_GARBAGE_COLLECT int 0 to disable garbage collect of cache files
-# @exitcode 1 if linux does not run under wsl
-Linux::Wsl::requireWsl() {
-  Assert::wsl || return 1
-  if [[ "${WSL_GARBAGE_COLLECT:-1}" = "1" ]]; then
-    local tempEnvDir
-    tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
-    File::garbageCollect "${tempEnvDir}/bash_tools_wslpath_${USER_ID:-$(id -un)}" "1"
-    tempEnvDir="${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}"
-    File::garbageCollect "${tempEnvDir}/bash_tools_wslvar_${USER_ID:-$(id -un)}" "1"
-  fi
-}
-
-# @description ensure command git is available
-# @exitcode 1 if git command not available
-# @stderr diagnostics information is displayed
-Git::requireGitCommand() {
-  Assert::commandExists git
-}
-
-# @description Retry a command 5 times with a delay of 15 seconds between each attempt
-# @arg $@ command:String[] the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-# @env RETRY_MAX_RETRY int max retries
-# @env RETRY_DELAY_BETWEEN_RETRIES int delay between attempts
-Retry::default() {
-  Retry::parameterized "${RETRY_MAX_RETRY:-5}" "${RETRY_DELAY_BETWEEN_RETRIES:-15}" "" "$@"
-}
-
-# @description log message to file
-# @arg $1 message:String the message to display
-Log::logWarning() {
-  if ((BASH_FRAMEWORK_LOG_LEVEL >= __LEVEL_WARNING)); then
-    Log::logMessage "${2:-WARNING}" "$1"
-  fi
-}
-
-# @description call simply original wslpath command
-# @arg $@ args:String[] args to pass to wslpath
-# @exitcode * wslpath exit code
-# @stdout wslpath stdout
-# @require Linux::Wsl::requireWsl
-Linux::Wsl::originalWslpath() {
-  wslpath "$@" | sed -z '$ s/[\r\n]$//'
-}
-
-# @description check if tty (interactive mode) is active
-# @noargs
-# @exitcode 1 if tty not active
-# @env NON_INTERACTIVE if 1 consider as not interactive even if environment is interactive
-# @env INTERACTIVE if 1 consider as interactive even if environment is not interactive
-Assert::tty() {
-  if [[ "${NON_INTERACTIVE:-0}" = "1" ]]; then
-    return 1
-  fi
-  if [[ "${INTERACTIVE:-0}" = "1" ]]; then
-    return 0
-  fi
-  tty -s
-}
-
-# @description retrieve linux distributor id
-# @noargs
-# @exitcode 1 if lsb_release fails or not found
-# @stdout the linux distributor id
-Linux::getDistributorId() {
-  (
-    source /etc/os-release
-    echo "${ID}"
-  )
-}
-
-# @description delete files older than n days in given path
-# @warning use this function with caution as it will delete all files in given path without any prompt
-# @arg $1 path:String the directory in which files will be deleted or the file to delete
-# @arg $2 mtime:String expiration time in days (eg: 1 means 1 day) (default value: 1). Eg: +1 match files that have been accessed at least two days ago (rounding effect)
-# @arg $3 maxdepth:int Descend at most levels (a non-negative integer) levels of directories below the starting-points. (default value: 1)
-# @exitcode 1 if path not provided or empty
-# @exitcode * find command failure code
-# @stderr find output on error or diagnostics logs
-# @see man find atime
-File::garbageCollect() {
-  local path="$1"
-  local mtime="$2"
-  local maxdepth="${3:-1}"
-
-  if [[ -z "${path}" ]]; then
-    return 1
-  fi
-
-  if [[ ! -e "${path}" ]]; then
-    # path already removed
-    return 0
-  fi
-
-  Log::displayInfo "Garbage collect files older than ${mtime} days in path ${path} with max depth ${maxdepth}"
-  find "${path}" -depth -maxdepth "${maxdepth}" -type f -mtime "${mtime}" -print -delete
-}
-
-# @description check if command specified exists or return 1
-# with error and message if not
-#
-# @arg $1 commandName:String on which existence must be checked
-# @arg $2 helpIfNotExists:String a help command to display if the command does not exist
-#
-# @exitcode 1 if the command specified does not exist
-# @stderr diagnostic information + help if second argument is provided
-Assert::commandExists() {
-  local commandName="$1"
-  local helpIfNotExists="$2"
-
-  "${BASH_FRAMEWORK_COMMAND:-command}" -v "${commandName}" >/dev/null 2>/dev/null || {
-    Log::displayError "${commandName} is not installed, please install it"
-    if [[ -n "${helpIfNotExists}" ]]; then
-      Log::displayInfo "${helpIfNotExists}"
-    fi
-    return 1
-  }
-  return 0
-}
-
-# @description Retry a command several times depending on parameters
-# @arg $1 maxRetries:int    $1 max retries
-# @arg $2 delay:int between attempt
-# @arg $3 message:String to display to describe the attempt
-# @arg $@ rest of parameters, the command to run
-# @exitcode 0 on success
-# @exitcode 1 if max retries count reached
-# @exitcode 2 if maxRetries invalid value
-Retry::parameterized() {
-  local maxRetries=$1
-  shift || true
-  local delayBetweenTries=$1
-  shift || true
-  local message="$1"
-  shift || true
-  local retriesCount=1
-  if [[ "${maxRetries}" -lt 1 ]]; then
-    Log::displayError "invalid maxRetry value"
-    return 2
-  fi
-
-  while true; do
-    Log::displayInfo "Attempt ${retriesCount}/${maxRetries}: ${message}"
-    if "$@"; then
-      break
-    elif [[ "${retriesCount}" -lt "${maxRetries}" ]]; then
-      Log::displayDebug "Command failed. Wait for ${delayBetweenTries} seconds"
-      ((retriesCount++))
-      sleep "${delayBetweenTries}"
-    else
-      Log::displayError "The command has failed after ${retriesCount} attempts."
-      return 1
-    fi
-  done
-  return 0
-}
-
 # FUNCTIONS
 
-facade_main_installBashToolssh() {
+optionHelpCallback() {
+  "simpleCommandHelp"
+  exit 0
+}
 
-# REQUIRES
-Env::requireLoad
-UI::requireTheme
-Log::requireLoad
-Linux::requireUbuntu
-Linux::Wsl::requireWsl
+copyrightCallback() {
+  #
+  # shellcheck disable=SC2155,SC2154,SC2250
+  echo "Copyright (c) 2024-now François Chastanet"
+}
+
+Env::requireLoad() {
+  export REQUIRE_FUNCTION_ENV_REQUIRE_LOAD_LOADED=1
+}
+
+UI::requireTheme() {
+  export REQUIRE_FUNCTION_UI_REQUIRE_THEME_LOADED=1
+}
+
+Log::requireLoad() {
+  export REQUIRE_FUNCTION_LOG_REQUIRE_LOAD_LOADED=1
+}
+
+defaultBeforeParseCallback() {
+  Env::requireLoad
+  UI::requireTheme
+  Log::requireLoad
+}
+
+beforeParseCallback() {
+  defaultBeforeParseCallback
+}
+
+defaultAfterParseCallback() {
+  :;
+}
+
+afterParseCallback() {
+  defaultAfterParseCallback
+}
+
+# shellcheck disable=SC2317 # if function is overridden
+optionVersionCallback() {
+  # shellcheck disable=SC2154
+  echo "${SCRIPT_NAME} version 3.0"
+  exit 0
+}
+
+
+
+longDescriptionFunction() {
+  echo "Installs https://github.com/fchastanet/bash-tools"
+  echo
+  echo "Collection of several bash tools:"
+  echo "  - db import"
+  echo "  - db query multiple database or apply script"
+  echo "  - git tools"
+  echo "  - docker containers easy cli"
+  echo "  - ..."
+}
+
+
+# ------------------------------------------
+# Command simpleCommand
+# ------------------------------------------
+
+# options variables initialization
+declare optionHelp="0"
+declare optionVersion="0"
+# arguments variables initialization
+declare targetDirectory="${HOME}/fchastanet/bash-tools"
+# @description parse command options and arguments for simpleCommand
+simpleCommandParse() {
+  Log::displayDebug "Command ${SCRIPT_NAME} - parse arguments: ${BASH_FRAMEWORK_ARGV[*]}"
+  Log::displayDebug "Command ${SCRIPT_NAME} - parse filtered arguments: ${BASH_FRAMEWORK_ARGV_FILTERED[*]}"
+  optionHelp="0"
+  local -i options_parse_optionParsedCountOptionHelp
+  ((options_parse_optionParsedCountOptionHelp = 0)) || true
+  optionVersion="0"
+  local -i options_parse_optionParsedCountOptionVersion
+  ((options_parse_optionParsedCountOptionVersion = 0)) || true
+
+  targetDirectory="${HOME}/fchastanet/bash-tools"
+
+  local -i options_parse_argParsedCountTargetDirectory
+  ((options_parse_argParsedCountTargetDirectory = 0)) || true
+
+
+  # shellcheck disable=SC2034
+  local -i options_parse_parsedArgIndex=0
+  while (($# > 0)); do
+    local options_parse_arg="$1"
+    local argOptDefaultBehavior=0
+    case "${options_parse_arg}" in
+      # Option 1/2
+      # optionHelp alts --help|-h
+      # type: Boolean min 0 max 1
+      --help | -h)
+        # shellcheck disable=SC2034
+        optionHelp="1"
+
+        if ((options_parse_optionParsedCountOptionHelp >= 1 )); then
+          Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+          return 1
+        fi
+        ((++options_parse_optionParsedCountOptionHelp))
+        optionHelpCallback "${options_parse_arg}" "${optionHelp}"
+
+        ;;
+
+      # Option 2/2
+      # optionVersion alts --version
+      # type: Boolean min 0 max 1
+      --version)
+        # shellcheck disable=SC2034
+        optionVersion="1"
+
+        if ((options_parse_optionParsedCountOptionVersion >= 1 )); then
+          Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+          return 1
+        fi
+        ((++options_parse_optionParsedCountOptionVersion))
+        optionVersionCallback "${options_parse_arg}" "${optionVersion}"
+
+        ;;
+
+      -*)
+        if [[ "${argOptDefaultBehavior}" = "0" ]]; then
+          Log::displayError "Command ${SCRIPT_NAME} - Invalid option ${options_parse_arg}"
+          return 1
+        fi
+        ;;
+      *)
+        ((minParsedArgIndex0 = 0)) || true
+        ((maxParsedArgIndex0 = 0)) || true
+        ((minParsedArgIndex1 = minParsedArgIndex0 + 0)) || true
+        ((maxParsedArgIndex1 = maxParsedArgIndex0 + 1)) || true
+        ((incrementArg = 1 ))
+        if ((0)); then
+          # Technical if - never reached
+          :
+
+        # Argument 1/1 - targetDirectory
+        # Argument targetDirectory min 0 max 1
+        elif (( options_parse_parsedArgIndex >= minParsedArgIndex0 &&
+          options_parse_parsedArgIndex < maxParsedArgIndex1 )); then
+          if ((options_parse_argParsedCountTargetDirectory >= 1 )); then
+            Log::displayError "Command ${SCRIPT_NAME} - Argument targetDirectory - Maximum number of argument occurrences reached(1)"
+            return 1
+          fi
+          ((++options_parse_argParsedCountTargetDirectory))
+          # shellcheck disable=SC2034
+          targetDirectory="${options_parse_arg}"
+
+
+        # else too much args
+        else
+
+
+          if [[ "${argOptDefaultBehavior}" = "0" ]]; then
+            # too much args and no unknownArgumentCallbacks configured
+            Log::displayError "Command ${SCRIPT_NAME} - Argument - too much arguments provided: $*"
+            return 1
+          fi
+
+        fi
+        if ((incrementArg == 1)); then
+          ((++options_parse_parsedArgIndex))
+        fi
+        ;;
+    esac
+    shift || true
+  done || return $?
+
+}
+
+# @description display command options and arguments help for simpleCommand
+simpleCommandHelp() {
+  echo -e "${__HELP_TITLE_COLOR}SYNOPSIS:${__RESET_COLOR}"
+  Array::wrap2 ' ' 76 4 "    " "Installs bash-tools"
+  echo
+  echo
+
+  # ------------------------------------------
+  # usage section
+  # ------------------------------------------
+  Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" "simpleCommand [OPTIONS] [ARGUMENTS]"
+  echo
+  # ------------------------------------------
+  # usage/options section
+  # ------------------------------------------
+  optionsAltList=("[--help|-h]" "[--version]"
+  )
+  Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" \
+    "simpleCommand" "${optionsAltList[@]}"
+  echo
+
+  # ------------------------------------------
+  # usage/arguments section
+  # ------------------------------------------
+  echo
+  echo -e "${__HELP_TITLE_COLOR}ARGUMENTS:${__RESET_COLOR}"
+
+  Array::wrap2 " " 80 2 "  [${__HELP_OPTION_COLOR}targetDirectory${__HELP_NORMAL} {single}]"
+  Array::wrap2 ' ' 76 4 "    " "directory in which bash tools will be installed"
+  echo
+
+  Array::wrap2 ' ' 76 6 "    Default value: " "${HOME}/fchastanet/bash-tools"
+  echo
+
+  # ------------------------------------------
+  # options section
+  # ------------------------------------------
+  echo
+  echo -e "${__HELP_TITLE_COLOR}GLOBAL OPTIONS:${__RESET_COLOR}"
+  echo -e "  ${__HELP_OPTION_COLOR}--help${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-h${__HELP_NORMAL} {single}"
+  Array::wrap2 ' ' 76 4 "    " "Displays this command help"
+  echo
+
+
+  echo -e "  ${__HELP_OPTION_COLOR}--version${__HELP_NORMAL} {single}"
+  Array::wrap2 ' ' 76 4 "    " "Print version information and quit."
+  echo
+
+  # ------------------------------------------
+  # longDescription section
+  # ------------------------------------------
+  echo
+  echo
+  echo -e "${__HELP_TITLE_COLOR}DESCRIPTION:${__RESET_COLOR}"
+  longDescriptionFunction
+  # ------------------------------------------
+  # version section
+  # ------------------------------------------
+  echo
+  echo -n -e "${__HELP_TITLE_COLOR}VERSION: ${__RESET_COLOR}"
+  echo "3.0"
+  # ------------------------------------------
+  # author section
+  # ------------------------------------------
+  echo
+  echo -n -e "${__HELP_TITLE_COLOR}AUTHOR: ${__RESET_COLOR}"
+  echo "[François Chastanet](https://github.com/fchastanet)"
+  # ------------------------------------------
+  # sourceFile section
+  # ------------------------------------------
+  echo
+  echo -n -e "${__HELP_TITLE_COLOR}SOURCE FILE: ${__RESET_COLOR}"
+  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_tools/installBashTools-binary.yaml"
+  # ------------------------------------------
+  # license section
+  # ------------------------------------------
+  echo
+  echo -n -e "${__HELP_TITLE_COLOR}LICENSE: ${__RESET_COLOR}"
+  echo "MIT License"
+  # ------------------------------------------
+  # copyright section
+  # ------------------------------------------
+  Array::wrap2 ' ' 76 0 "$(copyrightCallback)"
+}
+
+
+beforeParseCallback
+
+simpleCommandParse "$@"
+MAIN_FUNCTION_NAME="main"
+main() {
+
 Git::requireGitCommand
-Compiler::Facade::requireCommandBinDir
 Linux::requireExecutedAsUser
 
-if Assert::functionExists initFacade; then
-  initFacade
-fi
-LOAD_LOCALE_CONFIG="1"
-Engine::Config::loadConfig
-# @description create sudoer file and add traps to remove it at the end
-# @arg $1 sudoerFile:String the file path to create
-# @env USERNAME
-# shellcheck disable=SC2317
-local sudoerFile="${SUDOER_FILE_PREFIX}/etc/sudoers.d/bash-dev-env-no-password"
-if [[ -f "${sudoerFile}" ]] || sudo test -f "${sudoerFile}"; then
-  # sudoerFile probably already managed by parent script
-  true
-else
-  cleanSudoer() {
-    local rc=$?
-    if [[ -f "${sudoerFile}" ]]; then
-      ${SUDO:-sudo} rm -f "${sudoerFile}" || true
-    fi
-    exit "${rc}"
-  }
-  trap cleanSudoer EXIT HUP QUIT ABRT TERM
-
-  Log::displayInfo "Creating sudoer file"
-  echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" |
-    ${SUDO:-sudo} tee "${sudoerFile}" >/dev/null
-  ${SUDO:-sudo} chmod 0440 "${sudoerFile}"
-fi
-
-# @require Compiler::Facade::requireCommandBinDir
-# ROOT_DIR_RELATIVE_TO_BIN_DIR=..
-
-# @require Linux::requireExecutedAsUser
-run() {
-  Tools::installBashTools
-}
+# shellcheck disable=SC2154
+Tools::installBashTools "${targetDirectory}"
 
 }
 
-facade_main_installBashToolssh "$@"
+# if file is sourced avoid calling main function
+# shellcheck disable=SC2178
+BASH_SOURCE=".$0" # cannot be changed in bash
+# shellcheck disable=SC2128
+if test ".$0" == ".${BASH_SOURCE}"; then
+  if [[ "${BASH_FRAMEWORK_QUIET_MODE:-0}" = "1" ]]; then
+    main "$@" &>/dev/null
+  else
+    main "$@"
+  fi
+fi

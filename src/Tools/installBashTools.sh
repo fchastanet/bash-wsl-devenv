@@ -2,15 +2,16 @@
 
 # @description install bash-tools
 Tools::installBashTools() {
+  local targetDir="$1"
   # shellcheck disable=SC2317
   function installBashTools() {
     (
-      cd "${HOME}/fchastanet/bash-tools" || return 1
+      cd "${targetDir}" || return 1
       ./install
     )
   }
   Git::cloneOrPullIfNoChanges \
-    "${HOME}/fchastanet/bash-tools" \
+    "${targetDir}" \
     "https://github.com/fchastanet/bash-tools.git" \
     installBashTools
 }
