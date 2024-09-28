@@ -80,7 +80,7 @@ In order of activation:
 
 ### 2.3. Startup files order
 
-<!-- markdownlint-disable-next-line MD033 -->
+<!-- markdownlint-disable MD033 -->
 
 |               | Interactive<br>login | Interactive<br>non-login | Script |
 | ------------- | -------------------- | ------------------------ | ------ |
@@ -94,6 +94,8 @@ In order of activation:
 | ~/.zlogin     | H                    |                          |        |
 | ~/.zlogout    | I                    |                          |        |
 | /etc/zlogout  | J                    |                          |        |
+
+<!-- markdownlint-restore-->
 
 ### 2.4. Practical guide to which files get sourced when
 

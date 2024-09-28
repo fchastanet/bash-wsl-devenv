@@ -164,6 +164,7 @@ DISTRO_BASH_DEV_ENV_TARGET_DIR="${BASH_DEV_ENV_ROOT_DIR}"
 # shellcheck disable=SC1003
 BASE_MNT_C="$(mount | grep 'path=C:\\' | awk -F ' ' '{print $3}')"
 
+# shellcheck disable=SC2154
 if [[ "${optionSkipDistro}" = "0" ]]; then
   downloadDistro
 fi
@@ -238,10 +239,12 @@ fi
 declare -a installCmd=(
   ./install "${DISTRO_INSTALL_OPTIONS[@]}"
 )
+# shellcheck disable=SC2154
 if [[ "${optionExport}" = "1" ]]; then
   installCmd+=(--prepare-export)
 fi
 
+# shellcheck disable=SC2154
 if [[ "${optionSkipInstall}" = "1" ]]; then
   Log::displayInfo "Install manually using :"
   echo "wsl.exe -d '${DISTRO_NAME}' -u wsl --cd '${DISTRO_BASH_DEV_ENV_TARGET_DIR}' -- ${installCmd[*]}"
@@ -266,6 +269,7 @@ if [[ "${optionExport}" = "1" ]]; then
   exportDistro
 fi
 
+# shellcheck disable=SC2154
 if [[ "${optionUpload}" = "1" ]]; then
   declare distroFile
   distroFile="$(getDistroFile)"

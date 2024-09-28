@@ -73,7 +73,7 @@ In order of activation:
 
 ### 2.3. Startup files order
 
-<!-- markdownlint-disable-next-line MD033 -->
+<!-- markdownlint-disable MD033 -->
 
 |                  | Interactive<br>login | Interactive<br>non-login | Script |
 | ---------------- | -------------------- | ------------------------ | ------ |
@@ -85,6 +85,8 @@ In order of activation:
 | ~/.profile       | B3                   |                          |        |
 | BASH_ENV         |                      |                          | A      |
 | ~/.bash_logout   | C                    |                          |        |
+
+<!-- markdownlint-restore-->
 
 Moral: put stuff in ~/.bashrc, and make ~/.bash_profile source it.
 
