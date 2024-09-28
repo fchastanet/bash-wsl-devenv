@@ -1,0 +1,40 @@
+---
+extends:
+  - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/frameworkConfig.yaml"
+
+# export here all the variables that will be used in your templates
+vars:
+  REPOSITORY_URL: https://github.com/fchastanet/bash-dev-env
+
+binData:
+  commands:
+    default:
+      functionName: simpleCommand
+      commandName: simpleCommand
+      license: MIT License
+      help: helpDescriptionFunction
+      definitionFiles:
+        50: "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/simpleCommand.sh"
+      optionGroups:
+        OptionsGroup:
+          title: "OPTIONS:"
+        zzzGroupGlobalOptionsGroup:
+          title: "GLOBAL OPTIONS:"
+      options:
+        - variableName: optionHelp
+          group: zzzGroupGlobalOptionsGroup
+          type: Boolean
+          help: Displays this command help
+          alts:
+            - "--help"
+            - "-h"
+          callbacks:
+            - optionHelpCallback
+        - variableName: optionVersion
+          group: zzzGroupGlobalOptionsGroup
+          type: Boolean
+          help: Print version information and quit.
+          alts:
+            - "--version"
+          callbacks:
+            - optionVersionCallback

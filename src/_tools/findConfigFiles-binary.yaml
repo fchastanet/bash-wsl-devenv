@@ -1,0 +1,34 @@
+extends:
+  - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/simpleCommand.yaml"
+
+vars:
+  SRC_FILE_PATH: src/_tools/findConfigFiles-binary.yaml
+  LOAD_REQUIRES: "0"
+  LOAD_CONFIG: "0"
+
+compilerConfig:
+  targetFile: "${BASH_DEV_ENV_ROOT_DIR}/bin/findConfigFiles"
+  relativeRootDirBasedOnTargetDir: .
+binData:
+  commands:
+    default:
+      version: "3.0"
+      copyrightBeginYear: 2024
+      help: "allows to load several config files at once"
+      longDescription: "useful for bash and zsh configuration loading"
+      mainFile: ${BASH_DEV_ENV_ROOT_DIR}/src/_tools/findConfigFiles-main.sh
+      definitionFiles:
+        100: ${BASH_DEV_ENV_ROOT_DIR}/src/_tools/findConfigFiles-options.sh
+      args:
+        - variableName: directory
+          name: directory
+          help: directory in which files to load will be searched
+          type: String
+          min: 1
+          max: 1
+        - variableName: extensions
+          name: extensions
+          help: list of file extension allowed to be loaded
+          type: StringArray
+          min: 1
+          max: -1

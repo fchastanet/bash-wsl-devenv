@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/_Configs/ShellBashDefaultConfig-conf" as conf_dir
-# @embed "${BASH_DEV_ENV_ROOT_DIR}/bin/loadConfigFiles" as loadConfigFiles
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/bin/findConfigFiles" as findConfigFiles
 # @embed "${BASH_DEV_ENV_ROOT_DIR}/bin/fixWslDate" as fixWslDate
 
 helpDescription() {
@@ -91,8 +91,8 @@ configure() {
     "${configDir}/home/.inputrc" "/root/.inputrc" root root
   # shellcheck disable=SC2154
   OVERWRITE_CONFIG_FILES=1 Install::file \
-    "${embed_file_loadConfigFiles}" \
-    "${HOME}/.bash-dev-env/loadConfigFiles"
+    "${embed_file_findConfigFiles}" \
+    "${HOME}/.bash-dev-env/findConfigFiles"
   # shellcheck disable=SC2154
   OVERWRITE_CONFIG_FILES=1 Install::file \
     "${embed_file_fixWslDate}" \
@@ -122,7 +122,7 @@ testConfigure() {
   SUDO=sudo Assert::fileExists /root/.vimrc root root || ((++failures))
   SUDO=sudo Assert::fileExists /root/.inputrc root root || ((++failures))
 
-  Assert::fileExists "${HOME}/.bash-dev-env/loadConfigFiles" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/findConfigFiles" || ((++failures))
   Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/colors.sh" || ((++failures))
   Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/filesDirectory.sh" || ((++failures))
   Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/miscellaneous.sh" || ((++failures))

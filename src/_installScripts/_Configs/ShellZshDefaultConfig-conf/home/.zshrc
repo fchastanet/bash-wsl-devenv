@@ -42,7 +42,7 @@ loadConfigFiles() {
   while IFS= read -r file ; do
     # shellcheck source=src/_binaries/MandatorySoftwares/conf/.bash-dev-env/aliases.d/bash-dev-env.sh
     source "${file}"
-  done < <("${HOME}/.bash-dev-env/loadConfigFiles" "${dir}" sh zsh || echo)
+  done < <("${HOME}/.bash-dev-env/findConfigFiles" "${dir}" sh zsh || echo)
 }
 
 loadConfigFiles "${HOME}/.bash-dev-env/themes.d"
