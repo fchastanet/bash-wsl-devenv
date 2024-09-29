@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-LOAD_SSH_KEY=0 afterParseCallback
+BASH_DEV_ENV_CONFIG_LOADED=1 LOAD_SSH_KEY=0 afterParseCallback
 
 runContainer() {
   local image="scrasnups/build:bash-tools-ubuntu-5.3"
