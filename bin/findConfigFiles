@@ -766,7 +766,7 @@ beforeParseCallback() {
 }
 
 defaultAfterParseCallback() {
-  :;
+  :
 }
 
 afterParseCallback() {

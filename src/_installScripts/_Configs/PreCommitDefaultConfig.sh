@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/_Configs/PreCommitDefaultConfig-conf/.pre-commit-config-test.yaml" as preCommitConfigTest
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/_Configs/PreCommitDefaultConfig-conf" as conf_dir
 
 helpDescription() {
   echo "Default configuration for pre-commit."
@@ -10,7 +10,6 @@ helpLongDescription() {
   echo "Configure git so pre-commit will be"
   echo "automatically installed in new repositories."
 }
-
 
 dependencies() {
   echo "installScripts/PreCommit"
@@ -55,6 +54,12 @@ configure() {
       return 1
     fi
   fi
+  # shellcheck disable=SC2154
+  OVERWRITE_CONFIG_FILES=0 Conf::copyStructure \
+    "${embed_dir_conf_dir}" \
+    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    "info" \
+    "${HOME}/.bash-dev-env/GitDefaultConfig/pre-commit-template"
 
   if ! git config --global init.templatedir \
     "${HOME}/.bash-dev-env/GitDefaultConfig/pre-commit-template"; then
@@ -90,6 +95,10 @@ testConfigure() {
         Log::displayError "pre-push hook has not been installed during ${callback}"
         exit 3
       fi
+      if [[ ! -f "${tempDir}/.git/info/exclude" ]]; then
+        Log::displayError ".git/info/exclude hook has not been installed during ${callback}"
+        exit 4
+      fi
     ) || return 1
   }
   Log::displayInfo "check that git init sets hooks automatically"
@@ -114,7 +123,7 @@ testConfigure() {
     git init
     git checkout -b fix/1867
     # shellcheck disable=SC2154
-    cp "${embed_file_preCommitConfigTest}" .pre-commit-config.yaml
+    cp "${embed_dir_conf_dir}/.pre-commit-config-test.yaml" .pre-commit-config.yaml
     echo "test" >test.js
     echo "test" >test.php
     git add test.*
