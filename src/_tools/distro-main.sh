@@ -203,7 +203,8 @@ Log::displayInfo "Delete folder ${DISTRO_BASH_DEV_ENV_TARGET_DIR} in distro ${DI
 runWslCmd rm -Rf "${DISTRO_BASH_DEV_ENV_TARGET_DIR}/"{*,.*} 2>/dev/null || true
 
 Log::displayInfo "Prepare archive of current dir ${DISTRO_BASH_DEV_ENV_TARGET_DIR}"
-(cd "${BASH_DEV_ENV_ROOT_DIR}" && tar -c --exclude-ignore=.tarignore -zf /tmp/bashDevEnv.tgz .)
+mkdir -p "/mnt/wsl/${WSL_DISTRO_NAME}/tmp"
+(cd "${BASH_DEV_ENV_ROOT_DIR}" && tar -c --exclude-ignore=.tarignore -zf "/mnt/wsl/${WSL_DISTRO_NAME}/tmp/bashDevEnv.tgz" .)
 
 Log::displayInfo "Syncing current dir to target distro ${DISTRO_BASH_DEV_ENV_TARGET_DIR}"
 runWslCmd mkdir -p "${DISTRO_BASH_DEV_ENV_TARGET_DIR}"
