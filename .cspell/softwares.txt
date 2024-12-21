@@ -129,6 +129,7 @@ picoweb
 pixbuf
 plantuml
 Plantuml
+plocate
 powerlevel
 Powerline
 precommit

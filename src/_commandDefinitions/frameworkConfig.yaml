@@ -22,4 +22,5 @@ compilerConfig: &defaultFrameworkConfig
     - Namespace::requireSomething
     - IMPORT::dir::file
     - Acquire::ForceIPv4
+    - APT::Update::Exclude
     - M::MZ
