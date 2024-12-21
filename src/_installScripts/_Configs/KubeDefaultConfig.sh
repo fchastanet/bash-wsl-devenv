@@ -179,7 +179,9 @@ install() {
   }
   Log::displayInfo "Installing kube-linter"
   (
-    export GOBIN="${HOME}/.gvm/go/bin"
+    # shellcheck source=/dev/null
+    source "${HOME}/.bash-dev-env/profile.d/golang.sh" || exit 1
+
     go install golang.stackrox.io/kube-linter/cmd/kube-linter@latest
   )
 }

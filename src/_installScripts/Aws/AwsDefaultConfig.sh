@@ -116,7 +116,9 @@ testConfigure() {
     Log::displayError "default configuration not found in '${HOME}/.aws/config'"
   fi
 
-  Assert::fileExists "${HOME}/.saml2aws" || ((++failures))
+  if [[ -n "${AWS_APP_ID}" && -n "${AWS_PROFILE}" && -n "${AWS_USER_MAIL}" ]]; then
+    Assert::fileExists "${HOME}/.saml2aws" || ((++failures))
+  fi
 
   if [[ "${INSTALL_INTERACTIVE}" = "0" ]]; then
     Log::displaySkipped "saml2aws configuration skipped as INSTALL_INTERACTIVE is set to 0"
