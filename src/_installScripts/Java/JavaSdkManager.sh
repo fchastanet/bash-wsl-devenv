@@ -84,7 +84,7 @@ testCleanBeforeExport() {
   (
     local -i failures=0
 
-    Assert::dirEmpty "${HOME}/.sdkman/var/tmp" || ((++failures))
+    Assert::dirNotExists "${HOME}/.sdkman/var/tmp" || ((++failures))
     Assert::dirEmpty "${HOME}/.sdkman/var/metadata" || ((++failures))
 
     return "${failures}"

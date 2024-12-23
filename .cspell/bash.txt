@@ -84,6 +84,7 @@ noninteractive
 NOPASSWD
 noprofile
 nullglob
+numfmt
 pgrep
 posix
 PREREQ
