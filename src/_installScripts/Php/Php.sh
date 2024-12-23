@@ -13,12 +13,8 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
-isInstallImplemented() { :; }
-configure() { :; }
-isConfigureImplemented() { :; }
 testConfigure() { :; }
-isTestConfigureImplemented() { :; }
-isTestInstallImplemented() { :; }
+configure() { :; }
 # jscpd:ignore-end
 
 install() {

@@ -36,10 +36,6 @@ breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 install() { :; }
 testInstall() { :; }
-isInstallImplemented() { :; }
-isTestInstallImplemented() { :; }
-isConfigureImplemented() { :; }
-isTestConfigureImplemented() { :; }
 # jscpd:ignore-end
 
 configure() {

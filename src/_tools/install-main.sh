@@ -47,6 +47,10 @@ summary() {
       Stats::aggregateStatsSummary "configuration test(s)" \
         "${STATS_DIR:-#}/test-configuration.stat"
     fi
+    if [[ "${PREPARE_EXPORT}" = "1" ]]; then
+      Stats::aggregateStatsSummary "clean before export(s)" \
+        "${STATS_DIR:-#}/clean-before-export.stat"
+    fi
     local endDate
     endDate="$(date +%s)"
     Log::displayInfo "Total duration: $((endDate - startDate))s"
@@ -189,12 +193,78 @@ executeScripts() {
           "${STATS_DIR:-#}/${scriptName}"-{install,config,test-install,test-configuration,global,current}.stat \
           &>/dev/null || true
 
-        UI::drawLineWithMsg "Installing ${currentConfigName} (${configIndex}/${configCount})" '#'
-        executeScript "${currentConfigName}"
+        if [[
+          "${SKIP_INSTALL}" = "0" ||
+          "${SKIP_CONFIGURE}" = "0" ||
+          "${SKIP_TEST}" = "0"
+        ]]; then
+          UI::drawLineWithMsg "Installing ${currentConfigName} (${configIndex}/${configCount})" '#'
+          executeScript "${currentConfigName}"
+        fi
       ) || installStatus="$?"
       if [[ "${installStatus}" != "0" ]]; then
         Log::displayError "Aborted after ${currentConfigName} failure"
         exit "${installStatus}"
+      fi
+    ) 2>&1 | tee >(sed -r 's/\x1b\[[0-9;]*m//g' >>"${LOGS_DIR}/lastInstall.log") || exit 1
+    ((++configIndex))
+  done
+}
+
+executeScriptsCleanBeforeExport() {
+  local -i configIndex=1
+  local -i configCount=0
+  local configName
+
+  for configName in "${CONFIG_LIST[@]}"; do
+    if ! SKIP_REQUIRES=1 "${BASH_DEV_ENV_ROOT_DIR}/${configName}" isCleanBeforeExportImplemented; then
+      continue
+    fi
+    ((++configCount))
+  done
+
+  for configName in "${CONFIG_LIST[@]}"; do
+    if ! SKIP_REQUIRES=1 "${BASH_DEV_ENV_ROOT_DIR}/${configName}" isCleanBeforeExportImplemented; then
+      continue
+    fi
+    (
+      local cleanStatus="0"
+      (
+        # shellcheck disable=SC2317
+        aggregateCleanBeforeExportStat() {
+          local rc="$1"
+          local -a statFiles=()
+          local scriptName="${configName//\//@}"
+          local scriptCmd="${BASH_DEV_ENV_ROOT_DIR}/${configName}"
+          if SKIP_REQUIRES=1 "${scriptCmd}" isCleanBeforeExportImplemented; then
+            Stats::aggregateStats \
+              "${STATS_DIR:-#}/clean-before-export.stat" \
+              "${configCount}" \
+              "${STATS_DIR:-#}/${scriptName}-clean-before-export.stat"
+            statFiles+=("${STATS_DIR:-#}/${scriptName}-clean-before-export.stat")
+          fi
+          exit "${rc}"
+        }
+        trap 'aggregateCleanBeforeExportStat "$?"' EXIT INT TERM ABRT
+
+        rm -f \
+          "${STATS_DIR:-#}/${scriptName}"-clean-before-export.stat \
+          &>/dev/null || true
+
+        UI::drawLineWithMsg "Cleaning Before Export ${configName} (${configIndex}/${configCount})" '#'
+        local -a installCmd=(
+          "${BASH_DEV_ENV_ROOT_DIR}/${configName}"
+          --skip-install
+          --skip-configure
+          --skip-test
+          --prepare-export
+          --profile "${PROFILE}"
+        )
+        LOG_CONTEXT="${configName} - " "${installCmd[@]}"
+      ) || cleanStatus="$?"
+      if [[ "${cleanStatus}" != "0" ]]; then
+        Log::displayError "Aborted after ${configName} failure"
+        exit "${cleanStatus}"
       fi
     ) 2>&1 | tee >(sed -r 's/\x1b\[[0-9;]*m//g' >>"${LOGS_DIR}/lastInstall.log") || exit 1
     ((++configIndex))
@@ -227,3 +297,7 @@ export INTERACTIVE=1
 
 executeScripts || return 1
 currentConfigName="executeScripts"
+
+if [[ "${PREPARE_EXPORT}" = "1" ]]; then
+  executeScriptsCleanBeforeExport || return 1
+fi

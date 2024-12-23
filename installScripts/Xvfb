@@ -1262,6 +1262,42 @@ InstallScripts::command() {
       exit "${testConfigStatus}"
     fi
   fi
+
+  local cleanBeforeExportStatus="0"
+  if [[ "${PREPARE_EXPORT}" = "1" && "${installStatus}" = "0" ]] &&
+    ! InstallScripts::scriptFunctionEmpty cleanBeforeExport; then
+    Log::headLine "CLEAN" "Cleaning ${scriptName}"
+    logFile="${logsDir}/${scriptName}-clean-before-export.log"
+    statsFile="${statsDir}/${scriptName}-clean-before-export.stat"
+    (
+      startDate="$(date +%s)"
+      # shellcheck disable=SC2317
+      computeStats() {
+        local rc=$1
+        Stats::statusLine "${statsFile}" "Cleaning ${scriptName}"
+        Stats::computeFromLog \
+          "${logFile}" "${rc}" "${statsFile}" "${startDate}"
+        Stats::aggregateGlobalStats \
+          "${globalStatsFile}" "1" "${statsFile}"
+        exit "${rc}"
+      }
+      trap 'computeStats "$?"' EXIT INT TERM ABRT
+
+      local -i failures=0
+      if ! InstallScripts::scriptFunctionEmpty cleanBeforeExport; then
+        cleanBeforeExport || ((++failures))
+        if [[ "${failures}" = "0" ]] && ! InstallScripts::scriptFunctionEmpty testCleanBeforeExport; then
+          testCleanBeforeExport || ((++failures))
+        fi
+      fi
+      exit "${failures}"
+    ) 2>&1 | tee "${logFile}" || cleanBeforeExportStatus="$?" || true
+
+    if [[ "${cleanBeforeExportStatus}" != "0" ]]; then
+      # break if config script error
+      exit "${cleanBeforeExportStatus}"
+    fi
+  fi
 }
 
 
@@ -1302,7 +1338,13 @@ InstallScripts::isInterfaceMandatoryFunctionImplemented() {
 # @exitcode 0 if function is considered empty (body with : or true)
 InstallScripts::scriptFunctionEmpty() {
   local pattern="^[ \t]+(:|true)"
-  [[ "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} && "$(declare -f "$1" | sed '4q;d')" = "}" ]]
+  if ! declare -f "$1" &>/dev/null; then
+    return 0
+  fi
+  [[
+    "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} &&
+    "$(declare -f "$1" | sed '4q;d')" = "}"
+  ]]
 }
 
 
@@ -2503,6 +2545,10 @@ isTestConfigureImplemented() {
   ! InstallScripts::scriptFunctionEmpty testConfigure
 }
 
+isCleanBeforeExportImplemented() {
+  ! InstallScripts::scriptFunctionEmpty cleanBeforeExport
+}
+
 fullScriptName() {
   File::relativeToDir "${REAL_SCRIPT_FILE}" "${BASH_DEV_ENV_ROOT_DIR}"
 }
@@ -2789,12 +2835,8 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
-isInstallImplemented() { :; }
 configure() { :; }
-isConfigureImplemented() { :; }
 testConfigure() { :; }
-isTestConfigureImplemented() { :; }
-isTestInstallImplemented() { :; }
 # jscpd:ignore-end
 
 install() {
@@ -3469,11 +3511,11 @@ XvfbCommandParse() {
 
         # Argument 1/1 - command
         # Argument command min 0 max 1
-        # Argument command authorizedValues: isInterfaceImplemented|helpDescription|scriptName|dependencies|listVariables|fortunes|helpVariables|defaultVariables|checkVariables|breakOnConfigFailure|breakOnTestFailure|isInstallImplemented|install|isTestInstallImplemented|testInstall|isConfigureImplemented|configure|isTestConfigureImplemented|testConfigure
+        # Argument command authorizedValues: isInterfaceImplemented|helpDescription|scriptName|dependencies|listVariables|fortunes|helpVariables|defaultVariables|checkVariables|breakOnConfigFailure|breakOnTestFailure|isInstallImplemented|install|isTestInstallImplemented|testInstall|isConfigureImplemented|configure|isTestConfigureImplemented|testConfigure|isCleanBeforeExportImplemented
         elif (( options_parse_parsedArgIndex >= minParsedArgIndex0 &&
           options_parse_parsedArgIndex < maxParsedArgIndex1 )); then
-          if [[ ! "${options_parse_arg}" =~ isInterfaceImplemented|helpDescription|scriptName|dependencies|listVariables|fortunes|helpVariables|defaultVariables|checkVariables|breakOnConfigFailure|breakOnTestFailure|isInstallImplemented|install|isTestInstallImplemented|testInstall|isConfigureImplemented|configure|isTestConfigureImplemented|testConfigure ]]; then
-            Log::displayError "Command ${SCRIPT_NAME} - Argument command - value '${options_parse_arg}' is not part of authorized values(isInterfaceImplemented, helpDescription, scriptName, dependencies, listVariables, fortunes, helpVariables, defaultVariables, checkVariables, breakOnConfigFailure, breakOnTestFailure, isInstallImplemented, install, isTestInstallImplemented, testInstall, isConfigureImplemented, configure, isTestConfigureImplemented, testConfigure)"
+          if [[ ! "${options_parse_arg}" =~ isInterfaceImplemented|helpDescription|scriptName|dependencies|listVariables|fortunes|helpVariables|defaultVariables|checkVariables|breakOnConfigFailure|breakOnTestFailure|isInstallImplemented|install|isTestInstallImplemented|testInstall|isConfigureImplemented|configure|isTestConfigureImplemented|testConfigure|isCleanBeforeExportImplemented ]]; then
+            Log::displayError "Command ${SCRIPT_NAME} - Argument command - value '${options_parse_arg}' is not part of authorized values(isInterfaceImplemented, helpDescription, scriptName, dependencies, listVariables, fortunes, helpVariables, defaultVariables, checkVariables, breakOnConfigFailure, breakOnTestFailure, isInstallImplemented, install, isTestInstallImplemented, testInstall, isConfigureImplemented, configure, isTestConfigureImplemented, testConfigure, isCleanBeforeExportImplemented)"
             return 1
           fi
           if ((options_parse_argParsedCountCommand >= 1 )); then
@@ -3567,6 +3609,7 @@ XvfbCommandHelp() {
   echo -e "      - ${__OPTION_COLOR}configure${__RESET_COLOR}"
   echo -e "      - ${__OPTION_COLOR}isTestConfigureImplemented${__RESET_COLOR}"
   echo -e "      - ${__OPTION_COLOR}testConfigure${__RESET_COLOR}"
+  echo -e "      - ${__OPTION_COLOR}isCleanBeforeExportImplemented${__RESET_COLOR}"
 
   Array::wrap2 ' ' 76 6 "    Default value: " "install"
   echo

@@ -13,16 +13,14 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
-isInstallImplemented() { :; }
-isConfigureImplemented() { :; }
-isTestConfigureImplemented() { :; }
-isTestInstallImplemented() { :; }
 configure() { :; }
+install() { :; }
 testInstall() { :; }
 testConfigure() { :; }
+testCleanBeforeExport() { :; }
 # jscpd:ignore-end
 
-install() {
+cleanBeforeExport() {
   # some cleaning
   Log::displayInfo "==> Clean up"
   sudo apt-get -y autoremove --purge

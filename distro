@@ -2098,8 +2098,11 @@ declare optionNoColor="0"
 declare optionTheme="default"
 declare optionVersion="0"
 declare optionQuiet="0"
+declare SKIP_CONFIGURE="0"
+declare SKIP_INSTALL="0"
+declare SKIP_TEST="0"
+declare SKIP_DEPENDENCIES="0"
 declare optionSkipDistro="0"
-declare optionSkipInstall="0"
 declare optionExport="0"
 declare optionUpload="0"
 # arguments variables initialization
@@ -2146,12 +2149,21 @@ distroCommandParse() {
   optionQuiet="0"
   local -i options_parse_optionParsedCountOptionQuiet
   ((options_parse_optionParsedCountOptionQuiet = 0)) || true
+  SKIP_CONFIGURE="0"
+  local -i options_parse_optionParsedCountSKIP_CONFIGURE
+  ((options_parse_optionParsedCountSKIP_CONFIGURE = 0)) || true
+  SKIP_INSTALL="0"
+  local -i options_parse_optionParsedCountSKIP_INSTALL
+  ((options_parse_optionParsedCountSKIP_INSTALL = 0)) || true
+  SKIP_TEST="0"
+  local -i options_parse_optionParsedCountSKIP_TEST
+  ((options_parse_optionParsedCountSKIP_TEST = 0)) || true
+  SKIP_DEPENDENCIES="0"
+  local -i options_parse_optionParsedCountSKIP_DEPENDENCIES
+  ((options_parse_optionParsedCountSKIP_DEPENDENCIES = 0)) || true
   optionSkipDistro="0"
   local -i options_parse_optionParsedCountOptionSkipDistro
   ((options_parse_optionParsedCountOptionSkipDistro = 0)) || true
-  optionSkipInstall="0"
-  local -i options_parse_optionParsedCountOptionSkipInstall
-  ((options_parse_optionParsedCountOptionSkipInstall = 0)) || true
   optionExport="0"
   local -i options_parse_optionParsedCountOptionExport
   ((options_parse_optionParsedCountOptionExport = 0)) || true
@@ -2166,7 +2178,7 @@ distroCommandParse() {
     local options_parse_arg="$1"
     local argOptDefaultBehavior=0
     case "${options_parse_arg}" in
-      # Option 1/17
+      # Option 1/20
       # optionHelp alts --help|-h
       # type: Boolean min 0 max 1
       --help | -h)
@@ -2182,7 +2194,7 @@ distroCommandParse() {
 
         ;;
 
-      # Option 2/17
+      # Option 2/20
       # optionConfig alts --config
       # type: Boolean min 0 max 1
       --config)
@@ -2196,7 +2208,7 @@ distroCommandParse() {
         ((++options_parse_optionParsedCountOptionConfig))
         ;;
 
-      # Option 3/17
+      # Option 3/20
       # optionBashFrameworkConfig alts --bash-framework-config
       # type: String min 0 max 1
       --bash-framework-config)
@@ -2217,7 +2229,7 @@ distroCommandParse() {
 
         ;;
 
-      # Option 4/17
+      # Option 4/20
       # optionInfoVerbose alts --verbose|-v
       # type: Boolean min 0 max 1
       --verbose | -v)
@@ -2235,7 +2247,7 @@ distroCommandParse() {
 
         ;;
 
-      # Option 5/17
+      # Option 5/20
       # optionDebugVerbose alts -vv
       # type: Boolean min 0 max 1
       -vv)
@@ -2253,7 +2265,7 @@ distroCommandParse() {
 
         ;;
 
-      # Option 6/17
+      # Option 6/20
       # optionTraceVerbose alts -vvv
       # type: Boolean min 0 max 1
       -vvv)
@@ -2271,7 +2283,7 @@ distroCommandParse() {
 
         ;;
 
-      # Option 7/17
+      # Option 7/20
       # optionLogLevel alts --log-level
       # type: String min 0 max 1
       # authorizedValues: OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE
@@ -2299,7 +2311,7 @@ distroCommandParse() {
 
         ;;
 
-      # Option 8/17
+      # Option 8/20
       # optionLogFile alts --log-file
       # type: String min 0 max 1
       --log-file)
@@ -2322,7 +2334,7 @@ distroCommandParse() {
 
         ;;
 
-      # Option 9/17
+      # Option 9/20
       # optionDisplayLevel alts --display-level
       # type: String min 0 max 1
       # authorizedValues: OFF|ERR|ERROR|WARN|WARNING|INFO|DEBUG|TRACE
@@ -2350,7 +2362,7 @@ distroCommandParse() {
 
         ;;
 
-      # Option 10/17
+      # Option 10/20
       # optionNoColor alts --no-color
       # type: Boolean min 0 max 1
       --no-color)
@@ -2368,7 +2380,7 @@ distroCommandParse() {
 
         ;;
 
-      # Option 11/17
+      # Option 11/20
       # optionTheme alts --theme
       # type: String min 0 max 1
       # authorizedValues: default|default-force|noColor
@@ -2396,7 +2408,7 @@ distroCommandParse() {
 
         ;;
 
-      # Option 12/17
+      # Option 12/20
       # optionVersion alts --version
       # type: Boolean min 0 max 1
       --version)
@@ -2412,7 +2424,7 @@ distroCommandParse() {
 
         ;;
 
-      # Option 13/17
+      # Option 13/20
       # optionQuiet alts --quiet|-q
       # type: Boolean min 0 max 1
       --quiet | -q)
@@ -2430,7 +2442,63 @@ distroCommandParse() {
 
         ;;
 
-      # Option 14/17
+      # Option 14/20
+      # SKIP_CONFIGURE alts --skip-config|--skip-configure|--skip-configuration|-sc
+      # type: Boolean min 0 max 1
+      --skip-config | --skip-configure | --skip-configuration | -sc)
+        # shellcheck disable=SC2034
+        SKIP_CONFIGURE="1"
+
+        if ((options_parse_optionParsedCountSKIP_CONFIGURE >= 1 )); then
+          Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+          return 1
+        fi
+        ((++options_parse_optionParsedCountSKIP_CONFIGURE))
+        ;;
+
+      # Option 15/20
+      # SKIP_INSTALL alts --skip-install|--skip-installation|-si
+      # type: Boolean min 0 max 1
+      --skip-install | --skip-installation | -si)
+        # shellcheck disable=SC2034
+        SKIP_INSTALL="1"
+
+        if ((options_parse_optionParsedCountSKIP_INSTALL >= 1 )); then
+          Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+          return 1
+        fi
+        ((++options_parse_optionParsedCountSKIP_INSTALL))
+        ;;
+
+      # Option 16/20
+      # SKIP_TEST alts --skip-test|--skip-tests|-st
+      # type: Boolean min 0 max 1
+      --skip-test | --skip-tests | -st)
+        # shellcheck disable=SC2034
+        SKIP_TEST="1"
+
+        if ((options_parse_optionParsedCountSKIP_TEST >= 1 )); then
+          Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+          return 1
+        fi
+        ((++options_parse_optionParsedCountSKIP_TEST))
+        ;;
+
+      # Option 17/20
+      # SKIP_DEPENDENCIES alts --skip-deps|--skip-dependencies|-sd
+      # type: Boolean min 0 max 1
+      --skip-deps | --skip-dependencies | -sd)
+        # shellcheck disable=SC2034
+        SKIP_DEPENDENCIES="1"
+
+        if ((options_parse_optionParsedCountSKIP_DEPENDENCIES >= 1 )); then
+          Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
+          return 1
+        fi
+        ((++options_parse_optionParsedCountSKIP_DEPENDENCIES))
+        ;;
+
+      # Option 18/20
       # optionSkipDistro alts --skip-distro|-d
       # type: Boolean min 0 max 1
       --skip-distro | -d)
@@ -2444,21 +2512,7 @@ distroCommandParse() {
         ((++options_parse_optionParsedCountOptionSkipDistro))
         ;;
 
-      # Option 15/17
-      # optionSkipInstall alts --skip-install|-i
-      # type: Boolean min 0 max 1
-      --skip-install | -i)
-        # shellcheck disable=SC2034
-        optionSkipInstall="1"
-
-        if ((options_parse_optionParsedCountOptionSkipInstall >= 1 )); then
-          Log::displayError "Command ${SCRIPT_NAME} - Option ${options_parse_arg} - Maximum number of option occurrences reached(1)"
-          return 1
-        fi
-        ((++options_parse_optionParsedCountOptionSkipInstall))
-        ;;
-
-      # Option 16/17
+      # Option 19/20
       # optionExport alts --export|-e
       # type: Boolean min 0 max 1
       --export | -e)
@@ -2472,7 +2526,7 @@ distroCommandParse() {
         ((++options_parse_optionParsedCountOptionExport))
         ;;
 
-      # Option 17/17
+      # Option 20/20
       # optionUpload alts --upload|-u
       # type: Boolean min 0 max 1
       --upload | -u)
@@ -2526,7 +2580,7 @@ distroCommandHelp() {
   # ------------------------------------------
   # usage/options section
   # ------------------------------------------
-  optionsAltList=("[--help|-h]" "[--config]" "[--bash-framework-config <bash-framework-config>]" "[--verbose|-v]" "[-vv]" "[-vvv]" "[--log-level <log-level>]" "[--log-file <log-file>]" "[--display-level <display-level>]" "[--no-color]" "[--theme <theme>]" "[--version]" "[--quiet|-q]" "[--skip-distro|-d]" "[--skip-install|-i]" "[--export|-e]" "[--upload|-u]"
+  optionsAltList=("[--help|-h]" "[--config]" "[--bash-framework-config <bash-framework-config>]" "[--verbose|-v]" "[-vv]" "[-vvv]" "[--log-level <log-level>]" "[--log-file <log-file>]" "[--display-level <display-level>]" "[--no-color]" "[--theme <theme>]" "[--version]" "[--quiet|-q]" "[--skip-config|--skip-configure|--skip-configuration|-sc]" "[--skip-install|--skip-installation|-si]" "[--skip-test|--skip-tests|-st]" "[--skip-deps|--skip-dependencies|-sd]" "[--skip-distro|-d]" "[--export|-e]" "[--upload|-u]"
   )
   Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" \
     "distro" "${optionsAltList[@]}"
@@ -2626,14 +2680,30 @@ distroCommandHelp() {
   echo
 
   echo
-  echo -e "${__HELP_TITLE_COLOR}DISTRO OPTIONS:${__RESET_COLOR}"
-  echo -e "  ${__HELP_OPTION_COLOR}--skip-distro${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-d${__HELP_NORMAL} {single}"
-  Array::wrap2 ' ' 76 4 "    " "Skip creating distro specified."
+  echo -e "${__HELP_TITLE_COLOR}SKIP OPTIONS:${__RESET_COLOR}"
+  echo -e "  ${__HELP_OPTION_COLOR}--skip-config${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}--skip-configure${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}--skip-configuration${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-sc${__HELP_NORMAL} {single}"
+  Array::wrap2 ' ' 76 4 "    " "Skip software configuration."
   echo
 
 
-  echo -e "  ${__HELP_OPTION_COLOR}--skip-install${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-i${__HELP_NORMAL} {single}"
-  Array::wrap2 ' ' 76 4 "    " "Skip softwares installation."
+  echo -e "  ${__HELP_OPTION_COLOR}--skip-install${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}--skip-installation${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-si${__HELP_NORMAL} {single}"
+  Array::wrap2 ' ' 76 4 "    " "Skip software installation."
+  echo
+
+
+  echo -e "  ${__HELP_OPTION_COLOR}--skip-test${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}--skip-tests${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-st${__HELP_NORMAL} {single}"
+  Array::wrap2 ' ' 76 4 "    " "Skip software installation test."
+  echo
+
+
+  echo -e "  ${__HELP_OPTION_COLOR}--skip-deps${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}--skip-dependencies${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-sd${__HELP_NORMAL} {single}"
+  Array::wrap2 ' ' 76 4 "    " "Install the software requested without resolving dependencies."
+  echo
+
+  echo
+  echo -e "${__HELP_TITLE_COLOR}DISTRO OPTIONS:${__RESET_COLOR}"
+  echo -e "  ${__HELP_OPTION_COLOR}--skip-distro${__HELP_NORMAL}, ${__HELP_OPTION_COLOR}-d${__HELP_NORMAL} {single}"
+  Array::wrap2 ' ' 76 4 "    " "Skip creating distro specified."
   echo
 
 
@@ -2940,25 +3010,41 @@ if [[ "${optionExport}" = "1" ]]; then
 fi
 
 # shellcheck disable=SC2154
-if [[ "${optionSkipInstall}" = "1" ]]; then
+if [[ "${SKIP_CONFIGURE}" = "1" ]]; then
+  installCmd+=(--skip-configure)
+fi
+
+# shellcheck disable=SC2154
+if [[ "${SKIP_TEST}" = "1" ]]; then
+  installCmd+=(--skip-test)
+fi
+
+# shellcheck disable=SC2154
+if [[ "${SKIP_DEPENDENCIES}" = "1" ]]; then
+  installCmd+=(--skip-dependencies)
+fi
+
+# shellcheck disable=SC2154
+if [[ "${SKIP_INSTALL}" = "1" ]]; then
+  installCmd+=(--skip-install)
   Log::displayInfo "Install manually using :"
   echo "wsl.exe -d '${DISTRO_NAME}' -u wsl --cd '${DISTRO_BASH_DEV_ENV_TARGET_DIR}' -- ${installCmd[*]}"
-else
-  (
-    # shellcheck disable=SC2034
-    SUDO=""
-    SUDOER_FILE_PREFIX="/mnt/wsl/${DISTRO_NAME}/etc/sudoers.d/bash-dev-env-no-password" \
-      Linux::createSudoerFile
-
-    Log::displayInfo "Installing ... using ${installCmd[*]}"
-    REMOTE_USER=${USERNAME} \
-      REMOTE_PWD="${DISTRO_BASH_DEV_ENV_TARGET_DIR}" \
-      runWslCmd bash --noprofile -c "SSH_PRIVATE_KEY='$(getSshPrivateKey)' DISTRO_MODE=1 ${installCmd[*]}" || exit 1
-  ) || exit 1
-  Log::displayInfo "Restarting wsl distribution ${DISTRO_NAME}"
-  wsl.exe --terminate "${DISTRO_NAME}"
-  waitUntilDistroTerminated || exit 1
 fi
+
+(
+  # shellcheck disable=SC2034
+  SUDO=""
+  SUDOER_FILE_PREFIX="/mnt/wsl/${DISTRO_NAME}/etc/sudoers.d/bash-dev-env-no-password" \
+    Linux::createSudoerFile
+
+  Log::displayInfo "Installing ... using ${installCmd[*]}"
+  REMOTE_USER=${USERNAME} \
+    REMOTE_PWD="${DISTRO_BASH_DEV_ENV_TARGET_DIR}" \
+    runWslCmd bash --noprofile -c "SSH_PRIVATE_KEY='$(getSshPrivateKey)' DISTRO_MODE=1 ${installCmd[*]}" || exit 1
+) || exit 1
+Log::displayInfo "Restarting wsl distribution ${DISTRO_NAME}"
+wsl.exe --terminate "${DISTRO_NAME}"
+waitUntilDistroTerminated || exit 1
 
 if [[ "${optionExport}" = "1" ]]; then
   exportDistro

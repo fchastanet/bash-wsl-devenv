@@ -34,10 +34,6 @@ fortunes() { :; }
 dependencies() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
-isInstallImplemented() { :; }
-isConfigureImplemented() { :; }
-isTestConfigureImplemented() { :; }
-isTestInstallImplemented() { :; }
 testInstall() { :; }
 configure() { :; }
 testConfigure() { :; }

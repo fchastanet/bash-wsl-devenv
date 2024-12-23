@@ -20,5 +20,5 @@ install() {
 }
 
 testInstall() {
-  Version::checkMinimal "shfmt" --version "3.9.0" || return 1
+  Version::checkMinimal "shfmt" --version "3.10.0" || return 1
 }

@@ -58,6 +58,8 @@ binData:
               value: isTestConfigureImplemented
             - help: testConfigure
               value: testConfigure
+            - help: isCleanBeforeExportImplemented
+              value: isCleanBeforeExportImplemented
       optionGroups:
         zzzGroupInstall:
           title: "INSTALL OPTIONS:"
