@@ -19,6 +19,7 @@ BUILDKIT
 buildx
 Buildx
 byobu
+cacache
 cairo
 checkstyle
 Checkstyle
@@ -28,6 +29,7 @@ containerd
 cowsay
 cygwin
 cyrillic
+dbml
 dbus
 debconf
 devcert
@@ -48,9 +50,13 @@ Github
 github
 GITHUB
 gnupg
+GOCACHE
 gofmt
+gofumpt
 gogvm
 goimports
+golangci
+golint
 goserver
 gpgsign
 graphviz
@@ -63,6 +69,7 @@ htmlhintrc
 Hyperv
 hyphens
 iconify
+jenkins
 jetbrains
 Jetbrains
 keygen
@@ -120,10 +127,12 @@ phpcs
 phpmd
 phpstan
 phpstorm
+phpunit
 picoweb
 pixbuf
 plantuml
 Plantuml
+plocate
 powerlevel
 Powerline
 precommit
@@ -140,6 +149,7 @@ Shellcheck
 shellcheck
 smetana
 SpacesAftertabs
+staticcheck
 stylelint
 substr
 Sume

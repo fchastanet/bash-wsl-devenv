@@ -13,7 +13,8 @@
     "installScripts/**": true,
     "pages/docs": true,
     "tmp": true,
-    "vendor/bash-tools-framework/**": true
+    "vendor/bash-tools-framework/**": true,
+    "srcAlt/DependencySample/installScripts/**": true
   },
   "explorer.autoReveal": false,
   "files.exclude": {

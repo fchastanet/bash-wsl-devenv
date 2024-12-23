@@ -106,7 +106,8 @@ JSON_ESLINT_PLUGIN_JSONC_FILE_NAME: .eslintrc.js
 
 JSON_JSONLINT_FILTER_REGEX_EXCLUDE: |
   (?x)(
-    \.vscode/.*\.json$
+    \.vscode/.*\.json$|
+    ^src/_installScripts/_Configs/VsCodeConfig-conf/settings.json$
   )
 
 SPELL_CSPELL_CONFIG_FILE: cspell.yaml

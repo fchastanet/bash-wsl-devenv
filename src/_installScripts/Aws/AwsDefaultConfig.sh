@@ -38,11 +38,19 @@ breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 install() { :; }
 testInstall() { :; }
-isInstallImplemented() { :; }
-isConfigureImplemented() { :; }
-isTestConfigureImplemented() { :; }
-isTestInstallImplemented() { :; }
 # jscpd:ignore-end
+
+cleanBeforeExport() {
+  rm -f "${HOME}/.aws/credentials" || true
+  rm -f "${HOME}/.aws/config" || true
+}
+
+testCleanBeforeExport() {
+  ((failures = 0)) || true
+  Assert::fileNotExists "${HOME}/.aws/credentials" || ((++failures))
+  Assert::fileNotExists "${HOME}/.aws/config" || ((++failures))
+  return "${failures}"
+}
 
 configure() {
   local configDir
@@ -104,7 +112,9 @@ testConfigure() {
     Log::displayError "default configuration not found in '${HOME}/.aws/config'"
   fi
 
-  Assert::fileExists "${HOME}/.saml2aws" || ((++failures))
+  if [[ -n "${AWS_APP_ID}" && -n "${AWS_PROFILE}" && -n "${AWS_USER_MAIL}" ]]; then
+    Assert::fileExists "${HOME}/.saml2aws" || ((++failures))
+  fi
 
   if [[ "${INSTALL_INTERACTIVE}" = "0" ]]; then
     Log::displaySkipped "saml2aws configuration skipped as INSTALL_INTERACTIVE is set to 0"

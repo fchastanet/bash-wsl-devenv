@@ -20,7 +20,7 @@ repos:
 
   - repo: https://github.com/executablebooks/mdformat
     # Do this before other tools "fixing" the line endings
-    rev: 0.7.19
+    rev: 0.7.21
     hooks:
       - id: mdformat
         name: Format Markdown
@@ -35,6 +35,10 @@ repos:
           - mdformat-config
           - mdformat-web
           - mdformat-gfm
+        exclude: |
+          (?x)(
+            src/_installScripts/_Configs/VsCodeConfig-conf/vscode-extensions-by-profile/
+          )
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -66,9 +70,11 @@ repos:
         # x modifier: extended. Spaces and text after a # in the pattern are ignored
         exclude: |
           (?x)(
-            .vscode\/.*.json$|
-            ^conf\/localAppData\/Packages\/Microsoft.WindowsTerminal_8wekyb3d8bbwe\/LocalState\/originalSettings.json$
-          )$
+            ^.vscode/.*.json$|
+            ^src/_installScripts/_Configs/VsCodeConfig-conf/|
+            ^src/_installScripts/_Configs/ShellBashDefaultConfig-conf/.vscode/argv.json$|
+            ^conf/localAppData/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/originalSettings.json$
+          )
 
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.4
@@ -96,18 +102,19 @@ repos:
           - --write-changes
         exclude: >
           (?x)(
-              ^installScripts/|
-              ^bin/|
-              ^install$|
-              ^distro$|
-              ^srcAlt|
-              ^.cspell/codespellrc-.*.txt$
+            ^installScripts/|
+            ^bin/|
+            ^install$|
+            ^distro$|
+            ^srcAlt|
+            ^.cspell/codespellrc-.*.txt$
           )
 
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v4.0.0-alpha.8
+  - repo: https://github.com/ComPWA/prettier-pre-commit
+    rev: v3.4.2
     hooks:
       - id: prettier
+        args: [--cache]
         exclude: |
           (?x)(
             \.md$|
@@ -138,7 +145,7 @@ repos:
         exclude: /testsData/
 
   - repo: https://github.com/fchastanet/bash-tools-framework
-    rev: 6.0.0
+    rev: 6.1.1
     hooks:
       - id: fixShebangExecutionBit
       - id: awkLint
@@ -148,7 +155,7 @@ repos:
         args:
           [
             --expected-warnings-count,
-            "3",
+            "0",
             --format,
             plain,
             --theme,
@@ -160,7 +167,7 @@ repos:
         args:
           [
             --expected-warnings-count,
-            "3",
+            "0",
             --format,
             checkstyle,
             --theme,
@@ -171,7 +178,7 @@ repos:
       - id: plantuml
 
   - repo: https://github.com/fchastanet/bash-compiler
-    rev: v3.0.0
+    rev: v3.1.1
     hooks:
       - id: buildBashBinaries
 

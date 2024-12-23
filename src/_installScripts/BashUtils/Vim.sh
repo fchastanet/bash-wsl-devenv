@@ -28,10 +28,6 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
-isInstallImplemented() { :; }
-isConfigureImplemented() { :; }
-isTestConfigureImplemented() { :; }
-isTestInstallImplemented() { :; }
 configure() { :; }
 testConfigure() { :; }
 # jscpd:ignore-end

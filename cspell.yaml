@@ -32,6 +32,7 @@ ignorePaths:
   - commit-msg.md
   - ".mega-linter*.yml"
   - ".env"
+  - src/_installScripts/_Configs/VsCodeConfig-conf/vscode-extensions-by-profile/*.md
 
 dictionaryDefinitions:
   - name: myBash
@@ -61,6 +62,12 @@ dictionaryDefinitions:
   - name: p10kZsh
     path: ".cspell/p10kZsh.txt"
     addWords: true
+  - name: myPython
+    path: ".cspell/python.txt"
+    addWords: true
+  - name: vsCodeSettings
+    path: ".cspell/vsCodeSettings.txt"
+    addWords: true
 
 # https://github.com/streetsidesoftware/cspell/blob/main/packages/cspell/README.md#languagesettings
 languageSettings:
@@ -77,6 +84,11 @@ languageSettings:
       - mySoftwares
       - software
 
+  - languageId: javascript
+    locale: "*"
+    dictionaries:
+      - mySoftwares
+
   - languageId: zshScript
     locale: "*"
     dictionaries:
@@ -91,6 +103,12 @@ languageSettings:
       - readme
       - mySoftwares
       - softwareTerms
+
+  - languageId: python
+    locale: "*"
+    dictionaries:
+      - python
+      - myPython
 
 # OVERRIDES
 overrides:
@@ -133,6 +151,19 @@ overrides:
     languageId: shellscript
     dictionaries:
       - config
+
+  - filename:
+      - "**/settings.json"
+    dictionaries:
+      - vsCodeSettings
+      - mySoftwares
+
+  - filename:
+      - src/_installScripts/_Configs/VsCodeConfig-conf/vsCode-conf/Python.code-profile
+    dictionaries:
+      - python
+      - myPython
+      - mySoftwares
 
   - filename: "**/*.awk"
     dictionaries:

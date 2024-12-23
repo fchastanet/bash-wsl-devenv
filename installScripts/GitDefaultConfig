@@ -382,6 +382,32 @@ Assert::ldapLogin() {
 }
 
 
+# @description asserts that first argument is link to a file
+# that exists
+# @arg $1 link:String expected link
+# @env SUDO String allows to use custom sudo prefix command
+# @exitcode 1 if missing link
+# @exitcode 2 if not a link
+# @exitcode 3 if broken link (missing linked file)
+# @stderr diagnostics information is displayed
+Assert::symLinkValid() {
+  local link="$1"
+  Log::displayInfo "Check ${link} is a valid symlink"
+  if ! ${SUDO:-} test -L "${link}" &>/dev/null; then
+    if ! ${SUDO:-} test -e "${link}" &>/dev/null; then
+      Log::displayError "${link} is not existing"
+      exit 1
+    fi
+    Log::displayError "${link} exists but is not a link"
+    return 2
+  fi
+  if ! ${SUDO:-} test -e "$(readlink "${link}")" &>/dev/null; then
+    Log::displayError "Broken link ${link}"
+    return 3
+  fi
+}
+
+
 # @description check if tty (interactive mode) is active
 # @noargs
 # @exitcode 1 if tty not active
@@ -672,6 +698,42 @@ Conf::getOverriddenDir() {
 }
 
 
+# @description list files of dir with given extension and display it as a list one by line
+#
+# @arg $1 dir:String the directory to list
+# @arg $2 prefix:String the profile file prefix (default: "")
+# @arg $3 ext:String the extension
+# @arg $4 findOptions:String find options, eg: -type d (Default value: '-type f')
+# @arg $5 indentStr:String the indentation can be any string compatible with sed not containing any / (Default value: '       - ')
+# @stdout list of files without extension/directory
+# @example text
+#       - default.local
+#       - default.remote
+#       - localhost-root
+# @exitcode 1 if directory does not exists
+Conf::list() {
+  local dir="$1"
+  local prefix="${2:-}"
+  local ext="${3}"
+  local findOptions="${4--type f}"
+  local indentStr="${5-       - }"
+
+  if [[ ! -d "${dir}" ]]; then
+    Log::displayError "Directory ${dir} does not exist"
+  fi
+  if [[ -n "${ext}" && "${ext:0:1}" != "." ]]; then
+    ext=".${ext}"
+  fi
+  (
+    # shellcheck disable=SC2086
+    cd "${dir}" &&
+      find . -maxdepth 1 ${findOptions} -name "${prefix}*${ext}" |
+      sed -E "s#^\./${prefix}##g" |
+        sed -E "s#${ext}\$##g" | sort | sed -E "s#^#${indentStr}#"
+  )
+}
+
+
 # @description check validity of .env variables
 # @env CHECK_ENV int 0 to avoid checking environment
 # @noargs
@@ -804,11 +866,11 @@ Engine::Config::loadConfig() {
   fi
 Linux::requireTarCommand
 Compiler::Embed::extractFileFromBase64 \
-  "${PERSISTENT_TMPDIR:-/tmp}/2d460e9c1bb95b79effe0eff168b6276ae2f425de780f9369eda1a14e888ed7c/envFileTemplate" \
-  "IyEvYmluL2Jhc2gKIyBzaGVsbGNoZWNrIGRpc2FibGU9U0MyMDM0CgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgR2VuZXJhbCBpbmZvcm1hdGlvbgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojIHdzbCB1c2VybmFtZSB3aXRoIGRlZmF1bHQgcGFzc3dvcmQgd3NsClVTRVJOQU1FPSJ3c2wiCgpIT01FPSIvaG9tZS93c2wiCgpXSU5ET1dTX1VTRVJOQU1FPSJmY2hhc3RhbmV0IgoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQojIEdpdCAmIFNTSCBpbmZvcm1hdGlvbgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojIGlmIDEsIGl0IGluZGljYXRlcyB5b3UgYWNjZXB0IHRoYXQgeW91ciBnaXQga2V5IHdpbGwgYmUgbG9hZGVkLgojIGlmIDAsIGNvbmZpZ3VyYXRpb25zIHRoYXQgbmVlZCB0byBiZSBhdXRoZW50aWNhdGVkIHdpbGwgYmUgc2tpcHBlZC4KIyBEaXN0cm8gbW9kZTogaW4gYW55IGNhc2UsIHlvdXIga2V5IGlzIG5vdCBjb3BpZWQuCkFVVEhPUklaRV9TU0hfS0VZX1VTQUdFPTEKCiMgeW91ciBsb2dpbiB0byBjb25uZWN0IHRvIHNzaCBzZXJ2ZXJzIGlmIGFueQpTU0hfTE9HSU49IiIKCiMgeW91ciBnaXQgZnVsbCBuYW1lICdGaXJzdE5hbWUgTGFzdE5hbWUnCkdJVF9VU0VSTkFNRT0iIgoKIyBlbWFpbCB1c2VkIGZvciBnaXQgJ2xkYXBAZG9tYWluLmNvbScKR0lUX1VTRVJfTUFJTD0iIgoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQojIEFXUyBpbmZvcm1hdGlvbgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojIGVtYWlsIHVzZWQgdG8gY29ubmVjdCB0byBhd3MKQVdTX1VTRVJfTUFJTD0iZmNoYXN0YW5ldEBnbWFpbC5jb20iCgojIGFwcCBpZCB0byBjb25uZWN0IHRvIGF3cyBhY2NvdW50CkFXU19BUFBfSUQ9IiIKCkFXU19QUk9GSUxFPSIiCkFXU19ERUZBVUxUX1JFR0lPTj0iIgpBV1NfVEVTVF9TRUNSRVRfSUQ9IiIKQVdTX0RFRkFVTFRfRE9DS0VSX1JFR0lTVFJZX0lEPSIiCgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgSzhTIGluZm9ybWF0aW9uCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiMgS3ViZURlZmF1bHRDb25maWcgfi8ua3ViZS9jb25maWcgZ2VuZXJhdGlvbgojIGF3cyByZWdpb24gb2YgdGhlIGNsdXN0ZXIgKEVnOiB1cy1lYXN0LTEpCktVQkVfQ09ORklHX1JFR0lPTl9DT0RFPQoKIyBhd3MgYXJuIG9mIHRoZSBjbHVzdGVyLgojIEVnOiBhcm46YXdzOmVjczpyZWdpb246YXdzX2FjY291bnRfaWQ6Y2x1c3Rlci9NeUNsdXN0ZXIKS1VCRV9DT05GSUdfQ0xVU1RFUl9BUk49CgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgRGlyZWN0b3JpZXMKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQoKIyBvdmVycmlkZGVuIGNvbmYgZGlyZWN0b3J5IHRoYXQgd2lsbCBiZSB1c2VkIHRvIG92ZXJyaWRlCiMgdGhlIGRlZmF1bHQgY29uZmlndXJhdGlvbiB0aGF0IGFyZSBlbWJlZGRlZCBpbiBiaW5hcmllcwpDT05GX09WRVJSSURFX0RJUj0iJHtCQVNIX0RFVl9FTlZfUk9PVF9ESVJ9L2NvbmYub3ZlcnJpZGUiCgojIHdoZXJlIHRvIGluc3RhbGwgYmFzaC10b29scywgLi4uCiMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMjE1MwpQUk9KRUNUU19ESVI9IiR7SE9NRX0vcHJvamVjdHMiCgojIHdoZXJlIG92ZXJyaWRkZW4gY29uZmlnIGZpbGVzIHdpbGwgYmUgYmFja2VkIHVwCkJBQ0tVUF9ESVI9IiR7QkFTSF9ERVZfRU5WX1JPT1RfRElSfS9iYWNrdXAiCiMgYmFja3VwIGZpbGVzL2RpcnMgYmVmb3JlIGluc3RhbGxpbmcgbmV3IGZpbGUgKHVzdWFsbHkgMSwgYnV0IDAgaWYgdXNpbmcgZGlzdHJvKQpCQUNLVVBfQkVGT1JFX0lOU1RBTEw9MQoKIyBsb2dzIGRpcmVjdG9yeQpMT0dTX0RJUj0iJHtCQVNIX0RFVl9FTlZfUk9PVF9ESVJ9L2xvZ3MiCgojIGluc3RhbGxTY3JpcHRzIHJvb3QgZGlyCklOU1RBTExfU0NSSVBUU19ST09UX0RJUj0iJHtCQVNIX0RFVl9FTlZfUk9PVF9ESVJ9L2luc3RhbGxTY3JpcHRzIgoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQojIEluc3RhbGxhdGlvbiBjb25maWd1cmF0aW9uCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiMgQ29uZmlndXJhdGlvbiBmaWxlcyBhcmUgb3ZlcndyaXR0ZW4gZXZlbiBpZiBleGlzdHMKIyAhISEhIEZpcnN0IHRpbWUgaW5pdGlhbGl6YXRpb246IGxldCB0aGlzIHZhbHVlIHRvIDEgISEhIQojIFZhbHVlIDA6CiMgLSBJZiB0YXJnZXQgY29uZmlndXJhdGlvbiBmaWxlIGV4aXN0cywgZGlzcGxheXMgYSBtZXNzYWdlIGFuZCBkbyBub3Qgb3ZlcndyaXRlIHRoZSBmaWxlCiMgLSBJZiB0YXJnZXQgY29uZmlndXJhdGlvbiBmaWxlIGRvZXNuJ3QgZXhpc3QsIGluc3RhbGxzIHRoZSBmaWxlCiMgVmFsdWUgMQojIC0gaW5zdGFsbCBvciBvdmVyd3JpdGUgdGhlIGZpbGUgd2l0aG91dCBjaGVja2luZyBleGlzdGVuY2UKT1ZFUldSSVRFX0NPTkZJR19GSUxFUz0xCgojIFdpbmRvd3MgZmlsZXMgY2FuIGJlIG92ZXJyaWRkZW4gaWYgMQojIGlmIDAKIyAtIHNraXAgY2hhbmdlcyB0byAlVVNFUlBST0ZJTEUlLy53c2xjb25maWcKIyAtIHNraXAgY29weWluZyBmb250cwpDSEFOR0VfV0lORE9XU19GSUxFUz0xCgojIEluZGljYXRlIHRoYXQgaW5zdGFsbCBzY3JpcHQgY2FuIHdhcm4geW91IHVzaW5nIHNwZWFrZXIgd2hlbiB5b3VyIGlucHV0IGlzIG5lZWRlZApDQU5fVEFMS19EVVJJTkdfSU5TVEFMTEFUSU9OPTEKCiMgaWYgMCBpbnN0YWxsIHNjcmlwdCB3aWxsIHNraXAgYWxsIGludGVyYWN0aXZlIGFjdGl2aXR5IChzYW1sMmF3cywgLi4uKSwKIyBzbyBkZXBlbmRlbnQgaW5zdGFsbGF0aW9uIHdpbGwgYmUgc2tpcHBlZCBhcyB3ZWxsCklOU1RBTExfSU5URVJBQ1RJVkU9MQoKIyBkaXNwbGF5IGVsYXBzZWQgdGltZSBzaW5jZSBsYXN0IGxvZwpESVNQTEFZX0RVUkFUSU9OPTEKCiMgMCAgID0+IG5vIHVwZ3JhZGUgYXQgYWxsCiMgbHRzID0+IFVQR1JBREUgdG8gbGF0ZXN0IHVidW50dSBsdHMgdmVyc2lvbgojIGRldiA9PiBVUEdSQURFIHRvIGxhdGVzdCB1YnVudHUgZGV2IHZlcnNpb24KIyBVc2UgaWYgeW91IGtub3cgd2hhdCB5b3UgYXJlIGRvaW5nLAojIGNvdWxkIGNhdXNlIHNvbWUgcGFja2FnZXMgdG8gbm90IGJlaW5nIGF2YWlsYWJsZSB5ZXQKVVBHUkFERV9VQlVOVFVfVkVSU0lPTj0wCgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgUHJvZmlsZSBjb25maWd1cmF0aW9uCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiMgQ2hvb3NlIHlvdXIgcHJlZmVycmVkIHNoZWxsCiMgcG9zc2libGUgY2hvaWNlczogU2hlbGxCYXNoIChMZWdhY3kgZXhwZXJpZW5jZSksIFNoZWxsWnNoIChSZWNvbW1lbmRlZCBleHBlcmllbmNlKQpQUkVGRVJSRURfU0hFTEw9IlNoZWxsWnNoIgoKIyBac2ggdGhlbWUgdG8gdXNlCiMgcG9zc2libGUgY2hvaWNlczogcG93ZXJsZXZlbDEway9wb3dlcmxldmVsMTBrLCBzaW5kcmVzb3JodXMvcHVyZSwgc3RhcnNoaXAvc3RhcnNoaXAKWlNIX1BSRUZFUlJFRF9USEVNRT0icG93ZXJsZXZlbDEway9wb3dlcmxldmVsMTBrIgoKIyBEaXNwbGF5IEZvcnR1bmUgdG9vbHRpcCBhdCBiYXNoL3pzaCBzZXNzaW9uIG9wZW4KU0hPV19GT1JUVU5FUz0xCgojIERpc3BsYXkgTU9URCBhdCBiYXNoL3pzaCBzZXNzaW9uIG9wZW4KU0hPV19NT1REPTEKCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KIyBXU0xDT05GSUcKIyBUaGVzZSBwYXJhbWV0ZXJzIGF1dG9tYXRpY2FsbHkgY29uZmlndXJlICVVU0VSUFJPRklMRSUvLndzbGNvbmZpZyBmaWxlLgojIEBzZWUgaHR0cHM6Ly9kb2NzLm1pY3Jvc29mdC5jb20vZW4tdXMvd2luZG93cy93c2wvd3NsLWNvbmZpZwojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojIFJlY29tbWVuZGVkIDUwJSBvZiB0b3RhbCBtZW1vcnkKV1NMQ09ORklHX01BWF9NRU1PUlk9OEdCCgojIHBlcnNvbmFsbHkgSSBwcmVmZXIgcnVuIG91dCBvZiBtZW1vcnkgaW5zdGVhZCBvZiBiZWdpbm5pbmcgc3dhcHBpbmcKIyBTbyBJIGtub3cgaW1tZWRpYXRlbHkgaWYgc29tZSBwcm9jZXNzZXMgaGF2ZSB0byBiZSBzdG9wcGVkCldTTENPTkZJR19TV0FQPTAKCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KIyBIYWNrcwojIG9uIHNvbWUgY29uZmlndXJhdGlvbnMgd2UgaGF2ZSB0byBmb3JjZSBwYXRoIG9mIHNvbWUgd2luZG93cyBjb21tYW5kcwojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojUE9XRVJTSEVMTF9CSU49L21udC9jL1dpbmRvd3MvU3lzdGVtMzIvV2luZG93c1Bvd2VyU2hlbGwvdjEuMC9wb3dlcnNoZWxsLmV4ZQojSVBDT05GSUdfQklOPS9tbnQvYy9XaW5kb3dzL3N5c3RlbTMyL2lwY29uZmlnLmV4ZQojV1NMX0VYRV9CSU49L21udC9jL1dpbmRvd3Mvc3lzdGVtMzIvd3NsLmV4ZQoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQojIEdlbmVyYWwgZGlzdHJpYnV0aW9uIGluZm9ybWF0aW9uCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiMgaG9zdG5hbWUgb2YgdGhlIGRpc3RybwpESVNUUk9fSE9TVE5BTUU9IndzbEhvc3QiCg==" \
+  "${PERSISTENT_TMPDIR:-/tmp}/35528fc68b49bce04642f2fde5d358c73896a17ab17068827fa8171037afa506/envFileTemplate" \
+  "IyEvYmluL2Jhc2gKIyBzaGVsbGNoZWNrIGRpc2FibGU9U0MyMDM0CgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgR2VuZXJhbCBpbmZvcm1hdGlvbgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojIHdzbCB1c2VybmFtZSB3aXRoIGRlZmF1bHQgcGFzc3dvcmQgd3NsClVTRVJOQU1FPSJ3c2wiCgpIT01FPSIvaG9tZS93c2wiCgpXSU5ET1dTX1VTRVJOQU1FPSJmY2hhc3RhbmV0IgoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQojIEdpdCAmIFNTSCBpbmZvcm1hdGlvbgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojIGlmIDEsIGl0IGluZGljYXRlcyB5b3UgYWNjZXB0IHRoYXQgeW91ciBnaXQga2V5IHdpbGwgYmUgbG9hZGVkLgojIGlmIDAsIGNvbmZpZ3VyYXRpb25zIHRoYXQgbmVlZCB0byBiZSBhdXRoZW50aWNhdGVkIHdpbGwgYmUgc2tpcHBlZC4KIyBEaXN0cm8gbW9kZTogaW4gYW55IGNhc2UsIHlvdXIga2V5IGlzIG5vdCBjb3BpZWQuCkFVVEhPUklaRV9TU0hfS0VZX1VTQUdFPTEKCiMgeW91ciBsb2dpbiB0byBjb25uZWN0IHRvIHNzaCBzZXJ2ZXJzIGlmIGFueQpTU0hfTE9HSU49IiIKCiMgeW91ciBnaXQgZnVsbCBuYW1lICdGaXJzdE5hbWUgTGFzdE5hbWUnCkdJVF9VU0VSTkFNRT0iIgoKIyBlbWFpbCB1c2VkIGZvciBnaXQgJ2xkYXBAZG9tYWluLmNvbScKR0lUX1VTRVJfTUFJTD0iIgoKIyBkZWZhdWx0IGdpdCBtZXJnZSB0b29sIHRvIHVzZQpHSVRfTUVSR0VfVE9PTD0idnNjb2RlIgoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQojIEFXUyBpbmZvcm1hdGlvbgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojIGVtYWlsIHVzZWQgdG8gY29ubmVjdCB0byBhd3MKQVdTX1VTRVJfTUFJTD0iZmNoYXN0YW5ldEBnbWFpbC5jb20iCgojIGFwcCBpZCB0byBjb25uZWN0IHRvIGF3cyBhY2NvdW50CkFXU19BUFBfSUQ9IiIKCkFXU19QUk9GSUxFPSIiCkFXU19ERUZBVUxUX1JFR0lPTj0iIgpBV1NfVEVTVF9TRUNSRVRfSUQ9IiIKQVdTX0RFRkFVTFRfRE9DS0VSX1JFR0lTVFJZX0lEPSIiCgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgSzhTIGluZm9ybWF0aW9uCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiMgS3ViZURlZmF1bHRDb25maWcgfi8ua3ViZS9jb25maWcgZ2VuZXJhdGlvbgojIGF3cyByZWdpb24gb2YgdGhlIGNsdXN0ZXIgKEVnOiB1cy1lYXN0LTEpCktVQkVfQ09ORklHX1JFR0lPTl9DT0RFPQoKIyBhd3MgYXJuIG9mIHRoZSBjbHVzdGVyLgojIEVnOiBhcm46YXdzOmVjczpyZWdpb246YXdzX2FjY291bnRfaWQ6Y2x1c3Rlci9NeUNsdXN0ZXIKS1VCRV9DT05GSUdfQ0xVU1RFUl9BUk49CgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgRGlyZWN0b3JpZXMKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQoKIyBvdmVycmlkZGVuIGNvbmYgZGlyZWN0b3J5IHRoYXQgd2lsbCBiZSB1c2VkIHRvIG92ZXJyaWRlCiMgdGhlIGRlZmF1bHQgY29uZmlndXJhdGlvbiB0aGF0IGFyZSBlbWJlZGRlZCBpbiBiaW5hcmllcwpDT05GX09WRVJSSURFX0RJUj0iJHtCQVNIX0RFVl9FTlZfUk9PVF9ESVJ9L2NvbmYub3ZlcnJpZGUiCgojIHdoZXJlIHRvIGluc3RhbGwgYmFzaC10b29scywgLi4uCiMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMjE1MwpQUk9KRUNUU19ESVI9IiR7SE9NRX0vcHJvamVjdHMiCgojIHdoZXJlIG92ZXJyaWRkZW4gY29uZmlnIGZpbGVzIHdpbGwgYmUgYmFja2VkIHVwCkJBQ0tVUF9ESVI9IiR7QkFTSF9ERVZfRU5WX1JPT1RfRElSfS9iYWNrdXAiCiMgYmFja3VwIGZpbGVzL2RpcnMgYmVmb3JlIGluc3RhbGxpbmcgbmV3IGZpbGUgKHVzdWFsbHkgMSwgYnV0IDAgaWYgdXNpbmcgZGlzdHJvKQpCQUNLVVBfQkVGT1JFX0lOU1RBTEw9MQoKIyBsb2dzIGRpcmVjdG9yeQpMT0dTX0RJUj0iJHtCQVNIX0RFVl9FTlZfUk9PVF9ESVJ9L2xvZ3MiCgojIGluc3RhbGxTY3JpcHRzIHJvb3QgZGlyCklOU1RBTExfU0NSSVBUU19ST09UX0RJUj0iJHtCQVNIX0RFVl9FTlZfUk9PVF9ESVJ9L2luc3RhbGxTY3JpcHRzIgoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQojIEluc3RhbGxhdGlvbiBjb25maWd1cmF0aW9uCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiMgQ29uZmlndXJhdGlvbiBmaWxlcyBhcmUgb3ZlcndyaXR0ZW4gZXZlbiBpZiBleGlzdHMKIyAhISEhIEZpcnN0IHRpbWUgaW5pdGlhbGl6YXRpb246IGxldCB0aGlzIHZhbHVlIHRvIDEgISEhIQojIFZhbHVlIDA6CiMgLSBJZiB0YXJnZXQgY29uZmlndXJhdGlvbiBmaWxlIGV4aXN0cywgZGlzcGxheXMgYSBtZXNzYWdlIGFuZCBkbyBub3Qgb3ZlcndyaXRlIHRoZSBmaWxlCiMgLSBJZiB0YXJnZXQgY29uZmlndXJhdGlvbiBmaWxlIGRvZXNuJ3QgZXhpc3QsIGluc3RhbGxzIHRoZSBmaWxlCiMgVmFsdWUgMQojIC0gaW5zdGFsbCBvciBvdmVyd3JpdGUgdGhlIGZpbGUgd2l0aG91dCBjaGVja2luZyBleGlzdGVuY2UKT1ZFUldSSVRFX0NPTkZJR19GSUxFUz0xCgojIFdpbmRvd3MgZmlsZXMgY2FuIGJlIG92ZXJyaWRkZW4gaWYgMQojIGlmIDAKIyAtIHNraXAgY2hhbmdlcyB0byAlVVNFUlBST0ZJTEUlLy53c2xjb25maWcKIyAtIHNraXAgY29weWluZyBmb250cwpDSEFOR0VfV0lORE9XU19GSUxFUz0xCgojIEluZGljYXRlIHRoYXQgaW5zdGFsbCBzY3JpcHQgY2FuIHdhcm4geW91IHVzaW5nIHNwZWFrZXIgd2hlbiB5b3VyIGlucHV0IGlzIG5lZWRlZApDQU5fVEFMS19EVVJJTkdfSU5TVEFMTEFUSU9OPTEKCiMgaWYgMCBpbnN0YWxsIHNjcmlwdCB3aWxsIHNraXAgYWxsIGludGVyYWN0aXZlIGFjdGl2aXR5IChzYW1sMmF3cywgLi4uKSwKIyBzbyBkZXBlbmRlbnQgaW5zdGFsbGF0aW9uIHdpbGwgYmUgc2tpcHBlZCBhcyB3ZWxsCklOU1RBTExfSU5URVJBQ1RJVkU9MQoKIyBkaXNwbGF5IGVsYXBzZWQgdGltZSBzaW5jZSBsYXN0IGxvZwpESVNQTEFZX0RVUkFUSU9OPTEKCiMgMCAgID0+IG5vIHVwZ3JhZGUgYXQgYWxsCiMgbHRzID0+IFVQR1JBREUgdG8gbGF0ZXN0IHVidW50dSBsdHMgdmVyc2lvbgojIGRldiA9PiBVUEdSQURFIHRvIGxhdGVzdCB1YnVudHUgZGV2IHZlcnNpb24KIyBVc2UgaWYgeW91IGtub3cgd2hhdCB5b3UgYXJlIGRvaW5nLAojIGNvdWxkIGNhdXNlIHNvbWUgcGFja2FnZXMgdG8gbm90IGJlaW5nIGF2YWlsYWJsZSB5ZXQKVVBHUkFERV9VQlVOVFVfVkVSU0lPTj0wCgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgUHJvZmlsZSBjb25maWd1cmF0aW9uCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiMgQ2hvb3NlIHlvdXIgcHJlZmVycmVkIHNoZWxsCiMgcG9zc2libGUgY2hvaWNlczogU2hlbGxCYXNoIChMZWdhY3kgZXhwZXJpZW5jZSksIFNoZWxsWnNoIChSZWNvbW1lbmRlZCBleHBlcmllbmNlKQpQUkVGRVJSRURfU0hFTEw9IlNoZWxsWnNoIgoKIyBac2ggdGhlbWUgdG8gdXNlCiMgcG9zc2libGUgY2hvaWNlczogcG93ZXJsZXZlbDEway9wb3dlcmxldmVsMTBrLCBzaW5kcmVzb3JodXMvcHVyZSwgc3RhcnNoaXAvc3RhcnNoaXAKWlNIX1BSRUZFUlJFRF9USEVNRT0icG93ZXJsZXZlbDEway9wb3dlcmxldmVsMTBrIgoKIyBEaXNwbGF5IEZvcnR1bmUgdG9vbHRpcCBhdCBiYXNoL3pzaCBzZXNzaW9uIG9wZW4KU0hPV19GT1JUVU5FUz0xCgojIERpc3BsYXkgTU9URCBhdCBiYXNoL3pzaCBzZXNzaW9uIG9wZW4KU0hPV19NT1REPTEKCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KIyBXU0xDT05GSUcKIyBUaGVzZSBwYXJhbWV0ZXJzIGF1dG9tYXRpY2FsbHkgY29uZmlndXJlICVVU0VSUFJPRklMRSUvLndzbGNvbmZpZyBmaWxlLgojIEBzZWUgaHR0cHM6Ly9kb2NzLm1pY3Jvc29mdC5jb20vZW4tdXMvd2luZG93cy93c2wvd3NsLWNvbmZpZwojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojIFJlY29tbWVuZGVkIDUwJSBvZiB0b3RhbCBtZW1vcnkKV1NMQ09ORklHX01BWF9NRU1PUlk9OEdCCgojIHBlcnNvbmFsbHkgSSBwcmVmZXIgcnVuIG91dCBvZiBtZW1vcnkgaW5zdGVhZCBvZiBiZWdpbm5pbmcgc3dhcHBpbmcKIyBTbyBJIGtub3cgaW1tZWRpYXRlbHkgaWYgc29tZSBwcm9jZXNzZXMgaGF2ZSB0byBiZSBzdG9wcGVkCldTTENPTkZJR19TV0FQPTAKCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KIyBIYWNrcwojIG9uIHNvbWUgY29uZmlndXJhdGlvbnMgd2UgaGF2ZSB0byBmb3JjZSBwYXRoIG9mIHNvbWUgd2luZG93cyBjb21tYW5kcwojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojUE9XRVJTSEVMTF9CSU49L21udC9jL1dpbmRvd3MvU3lzdGVtMzIvV2luZG93c1Bvd2VyU2hlbGwvdjEuMC9wb3dlcnNoZWxsLmV4ZQojSVBDT05GSUdfQklOPS9tbnQvYy9XaW5kb3dzL3N5c3RlbTMyL2lwY29uZmlnLmV4ZQojV1NMX0VYRV9CSU49L21udC9jL1dpbmRvd3Mvc3lzdGVtMzIvd3NsLmV4ZQoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQojIEdlbmVyYWwgZGlzdHJpYnV0aW9uIGluZm9ybWF0aW9uCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiMgaG9zdG5hbWUgb2YgdGhlIGRpc3RybwpESVNUUk9fSE9TVE5BTUU9IndzbEhvc3QiCg==" \
   "755"
 
-declare -gx embed_file_envFileTemplate="${PERSISTENT_TMPDIR:-/tmp}/2d460e9c1bb95b79effe0eff168b6276ae2f425de780f9369eda1a14e888ed7c/envFileTemplate"
+declare -gx embed_file_envFileTemplate="${PERSISTENT_TMPDIR:-/tmp}/35528fc68b49bce04642f2fde5d358c73896a17ab17068827fa8171037afa506/envFileTemplate"
 
   local envFile="${BASH_DEV_ENV_ROOT_DIR}/.env"
   # shellcheck disable=SC2154
@@ -1148,6 +1210,22 @@ Env::requireLoad() {
 }
 
 
+# @description get number of seconds since last modification of the file
+# @arg $1 file:String file path
+# @exitcode 1 if file does not exist
+# @stdout number of seconds since last modification of the file
+File::elapsedTimeSinceLastModification() {
+  local file="$1"
+  if [[ ! -f "${file}" ]]; then
+    return 1
+  fi
+  local lastModificationTimeSeconds diff
+  lastModificationTimeSeconds="$(stat -c %Y "${file}")"
+  ((diff = $(date +%s) - lastModificationTimeSeconds))
+  echo -n "${diff}"
+}
+
+
 # @description delete files older than n days in given path
 # @warning use this function with caution as it will delete all files in given path without any prompt
 # @arg $1 path:String the directory in which files will be deleted or the file to delete
@@ -1186,6 +1264,22 @@ File::relativeToDir() {
   local relativeTo="$2"
 
   realpath -m --relative-to="${relativeTo}" "${srcFile}"
+}
+
+# shellcheck disable=SC2120
+
+# @description uniq command need input file to be sorted
+# here We are using awk that do not need file to be sorted
+# to get uniq values
+# iterates over each file and prints (default awk behavior)
+# each unique line; only takes first value and ignores duplicates
+# Note ! be careful of memory usage as each unique $0 is stored in an array
+# @exitcode * if one of the filter command fails
+# @stdin you can use stdin as alternative to str argument
+# @stdout the filtered content
+# shellcheck disable=SC2120
+Filters::uniqUnsorted() {
+  awk '!seen[$0]++' "$@"
 }
 
 
@@ -1577,6 +1671,42 @@ InstallScripts::command() {
       exit "${testConfigStatus}"
     fi
   fi
+
+  local cleanBeforeExportStatus="0"
+  if [[ "${PREPARE_EXPORT}" = "1" && "${installStatus}" = "0" ]] &&
+    ! InstallScripts::scriptFunctionEmpty cleanBeforeExport; then
+    Log::headLine "CLEAN" "Cleaning ${scriptName}"
+    logFile="${logsDir}/${scriptName}-clean-before-export.log"
+    statsFile="${statsDir}/${scriptName}-clean-before-export.stat"
+    (
+      startDate="$(date +%s)"
+      # shellcheck disable=SC2317
+      computeStats() {
+        local rc=$1
+        Stats::statusLine "${statsFile}" "Cleaning ${scriptName}"
+        Stats::computeFromLog \
+          "${logFile}" "${rc}" "${statsFile}" "${startDate}"
+        Stats::aggregateGlobalStats \
+          "${globalStatsFile}" "1" "${statsFile}"
+        exit "${rc}"
+      }
+      trap 'computeStats "$?"' EXIT INT TERM ABRT
+
+      local -i failures=0
+      if ! InstallScripts::scriptFunctionEmpty cleanBeforeExport; then
+        cleanBeforeExport || ((++failures))
+        if [[ "${failures}" = "0" ]] && ! InstallScripts::scriptFunctionEmpty testCleanBeforeExport; then
+          testCleanBeforeExport || ((++failures))
+        fi
+      fi
+      exit "${failures}"
+    ) 2>&1 | tee "${logFile}" || cleanBeforeExportStatus="$?" || true
+
+    if [[ "${cleanBeforeExportStatus}" != "0" ]]; then
+      # break if config script error
+      exit "${cleanBeforeExportStatus}"
+    fi
+  fi
 }
 
 
@@ -1617,7 +1747,13 @@ InstallScripts::isInterfaceMandatoryFunctionImplemented() {
 # @exitcode 0 if function is considered empty (body with : or true)
 InstallScripts::scriptFunctionEmpty() {
   local pattern="^[ \t]+(:|true)"
-  [[ "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} && "$(declare -f "$1" | sed '4q;d')" = "}" ]]
+  if ! declare -f "$1" &>/dev/null; then
+    return 0
+  fi
+  [[
+    "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} &&
+    "$(declare -f "$1" | sed '4q;d')" = "}"
+  ]]
 }
 
 
@@ -1655,7 +1791,7 @@ Linux::Apt::installIfNecessary() {
   local package
   local -i installNeeded=0
   for package in "${packages[@]}"; do
-    if [[ "${package}" =~ ^-- ]]; then
+    if [[ "${package}" =~ ^[-]{1,2} ]]; then
       continue
     fi
     if ! Linux::Apt::isPackageInstalled "${package}"; then
@@ -1942,6 +2078,7 @@ Log::computeDuration() {
   if ((${DISPLAY_DURATION:-0} == 1)); then
     local -i duration=0
     local -i delta=0
+    local durationStr deltaStr
     local -i currentLogDate
     currentLogDate="${EPOCHREALTIME/[^0-9]/}"
     if ((LOG_LAST_LOG_DATE_INIT == 1)); then
@@ -1950,7 +2087,17 @@ Log::computeDuration() {
     else
       duration=$(((currentLogDate - FIRST_LOG_DATE) / 1000000))
       delta=$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000000))
-      LOG_LAST_DURATION_STR="${duration}s/+${delta}s"
+      if ((duration > 59)); then
+        durationStr=$(date -ud "@${duration}" +'%H:%M:%S')
+      else
+        durationStr="${duration}s"
+      fi
+      if ((delta > 59)); then
+        deltaStr=$(date -ud "@${delta}" +'%H:%M:%S')
+      else
+        deltaStr="${delta}s"
+      fi
+      LOG_LAST_DURATION_STR="${durationStr}/+${deltaStr}"
     fi
     LOG_LAST_LOG_DATE="${currentLogDate}"
     # shellcheck disable=SC2034
@@ -2292,6 +2439,153 @@ Log::rotate() {
     echo >"${file}" # reset log file
     Log::displayInfo "Log rotation ${file} to ${file}.1"
   fi
+}
+
+
+declare -Ag allDepsResultSeen=()
+declare -ag allDepsResult=()
+
+# @description get recursively all the dependencies of each config from configs arg
+#
+# The parent argument must be set to "your software selection" when you call it,
+# then the value will change when this function will be called recursively with the
+# parent dependency
+#
+# Algorithm
+#   For each config in configs
+#     - load config definition
+#     - mark this config as seen to avoid to recompute it later, in the case where another
+#       definition depends on it
+#     - call installScripts_${config}_dependencies function if exists (skipped if not)
+#     - add these new dependencies if any to current dependencies list
+#     - call recursively Profiles::allDepsRecursive with these dependencies
+#     - add in allDepsResult the current config if it was not seen yet
+#   This has constructed a tree with the most deep dependency present in the first items
+#
+# @warning allDepsResultSeen and allDepsResult global variables have to reset to empty array every time you call this function
+#
+# @arg $1 scriptsDir:String base directory where dependencies can be retrieved
+# @arg $2 parent:String set to "your software selection" when you call it
+# @arg $@ configs:String[] list of configurations to load, each config can depend on an other one
+# @exitcode 1 if one of the dependency cannot be found
+# @exitcode 2 if error while loading one of the dependency definition
+# @exitcode 3 if error while calling dependencies function of the dependency's definition
+# @set allDepsResultSeen String[] list of dependencies already seen
+# @set allDepsResult String[] the final list of dependencies sorted by the most to less dependent
+# @stderr diagnostics information is displayed
+Profiles::allDepsRecursive() {
+  local scriptsDir="$1"
+  local parent="$2"
+  shift 2 || true
+  local i
+  local addDep=0
+  local -a deps=()
+  local -a newDeps
+
+  for i in "$@"; do
+    if [[ "${allDepsResultSeen["${i}"]}" = 'stored' ]]; then
+      continue
+    fi
+    if [[ ! -f "${scriptsDir}/${i}" ]]; then
+      Log::displayError "Dependency ${i} doesn't exist"
+      return 1
+    fi
+
+    if ! readarray -t newDeps < <(SKIP_REQUIRES=1 "${scriptsDir}/${i}" dependencies); then
+      Log::displayError "Dependency ${i} - ${scriptsDir}/${i} dependencies failure"
+      return 3
+    fi
+    if [[ -z "${allDepsResultSeen[${i}]+exists}" ]]; then
+      addDep=1
+      allDepsResultSeen["${i}"]='stored'
+    fi
+    # remove duplicates from deps preserving order
+    mapfile -t deps < <(
+      IFS=$'\n'
+      printf "%s\n" "${deps[@]}" | awk '!x[$0]++'
+    )
+    if ((${#newDeps} > 0)); then
+      Log::displayInfo "${i} depends on ${newDeps[*]}"
+      Profiles::allDepsRecursive "${scriptsDir}" "${i}" "${newDeps[@]}" || return $?
+    fi
+    if [[ "${addDep}" = "1" ]]; then
+      Log::displayInfo "${i} is a dependency of ${parent}"
+      allDepsResult+=("${i}")
+    fi
+    addDep=0
+  done
+}
+
+
+# @description deduce profile path from given profile name
+# if 2 profiles are named identically the first existing profile
+# will be used beginning with srcAlt profiles
+# @arg $1 profileName:String
+# @stdout the path of the profile, no output if profile not found
+# @exitcode 1 if profile not found
+Profiles::getProfilePath() {
+  local profileName="$1"
+  local dir
+  for dir in "${BASH_DEV_ENV_ROOT_DIR}/srcAlt/"*; do
+    profilePath="${dir}/profiles/profile.${profileName}.sh"
+    if [[ -f "${profilePath}" ]]; then
+      echo "${profilePath}"
+      return 0
+    fi
+  done
+  local profilePath="${BASH_DEV_ENV_ROOT_DIR}/profiles/profile.${profileName}.sh"
+  if [[ -f "${profilePath}" ]]; then
+    echo "${profilePath}"
+    return 0
+  fi
+
+  return 1
+}
+
+
+# @description load profile file based on profileFile argument
+# The profile file is profileDir/profile.profile.sh
+# This file should define the variable CONFIG_LIST with array type
+# @arg $1 profileFile:String full profile path
+# @exitcode 1 if argument is not provided
+# @exitcode 2 if profile not found
+# @exitcode 3 if profile found but CONFIG_LIST variable unset
+# @exitcode 4 if profile found but CONFIG_LIST variable empty
+# @exitcode 5 if error occurs during profile loading
+# @stderr diagnostics information is displayed
+# @see Profiles::allDepsRecursive in order to load all the dependencies recursively based on this list
+# @set CONFIG_LIST
+Profiles::loadProfile() {
+  local profileFile="$1"
+
+  if [[ -z "${profileFile}" ]]; then
+    Log::displayError "This method needs exactly 1 parameter"
+    return 1
+  fi
+
+  # load the profile
+  Log::displayInfo "Loading profile '${profileFile}'"
+  if [[ ! -f "${profileFile}" ]]; then
+    Log::displayError "profile ${profileFile} not found"
+    return 2
+  fi
+
+  # shellcheck source=src/Profiles/testsData/profile.test1.sh
+  source "${profileFile}" || return 5
+
+  if [[ ! -v CONFIG_LIST ]]; then
+    Log::displayError "Profile ${profileFile} missing variable CONFIG_LIST"
+    return 3
+  fi
+  if [[ ${#CONFIG_LIST[@]} -eq 0 ]]; then
+    Log::displayError "Profile ${profileFile} variable CONFIG_LIST cannot be empty"
+    return 4
+  fi
+
+  # remove duplicates from profile preserving order
+  mapfile -t CONFIG_LIST < <(
+    IFS=$'\n' printf '%s\n' "${CONFIG_LIST[@]}" | Filters::uniqUnsorted
+  )
 }
 
 
@@ -2790,6 +3084,10 @@ isTestConfigureImplemented() {
   ! InstallScripts::scriptFunctionEmpty testConfigure
 }
 
+isCleanBeforeExportImplemented() {
+  ! InstallScripts::scriptFunctionEmpty cleanBeforeExport
+}
+
 fullScriptName() {
   File::relativeToDir "${REAL_SCRIPT_FILE}" "${BASH_DEV_ENV_ROOT_DIR}"
 }
@@ -3057,10 +3355,10 @@ commandOptionParseFinished() {
 
 Linux::requireTarCommand
 Compiler::Embed::extractDirFromBase64 \
-  "${PERSISTENT_TMPDIR:-/tmp}/ad96a8ff5534cc5c8c715f446e926aa41d536d2a0ea756f13fc8e75e1306fb4c/conf_dir" \
-  "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"
+  "${PERSISTENT_TMPDIR:-/tmp}/f555a386bbe7ccd6da955d240d88cc0fc36a88b03a340c355e71c144fa55eab2/conf_dir" \
+  "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"
 
-declare -gx embed_dir_conf_dir="${PERSISTENT_TMPDIR:-/tmp}/ad96a8ff5534cc5c8c715f446e926aa41d536d2a0ea756f13fc8e75e1306fb4c/conf_dir"
+declare -gx embed_dir_conf_dir="${PERSISTENT_TMPDIR:-/tmp}/f555a386bbe7ccd6da955d240d88cc0fc36a88b03a340c355e71c144fa55eab2/conf_dir"
 
 
 gitDefaultConfigBeforeParseCallback() {
@@ -3096,11 +3394,29 @@ breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 install() { :; }
 testInstall() { :; }
-isInstallImplemented() { :; }
-isTestInstallImplemented() { :; }
-isConfigureImplemented() { :; }
-isTestConfigureImplemented() { :; }
 # jscpd:ignore-end
+
+cleanBeforeExport() {
+  git config --global --unset user.name || true
+  git config --global --unset user.email || true
+  rm -f "${HOME}/.gitconfig" || true
+}
+
+testCleanBeforeExport() {
+  ((failures = 0)) || true
+  if [[ -f "${HOME}/.gitconfig" ]]; then
+    if git config --global --get user.name &>/dev/null; then
+      Log::displayError "Export - .gitconfig user.name has not been removed"
+      ((++failures))
+    fi
+    if git config --global --get user.email &>/dev/null; then
+      Log::displayError "Export - .gitconfig user.email has not been removed"
+      ((++failures))
+    fi
+  fi
+
+  return "${failures}"
+}
 
 configure() {
   # shellcheck disable=SC2154
@@ -3123,14 +3439,31 @@ configure() {
     git config --global user.email "${GIT_USER_MAIL}"
   fi
 
-  if [[ -f "${BASE_MNT_C:-/mnt/c}/Program Files (x86)/Meld/Meld.exe" ]]; then
-    Log::displayInfo "Configuring meld as default diff tool"
-    git config --global diff.tool meld
-    git config --global alias.dt 'difftool -d'
-    sudo ln -sf "${BASE_MNT_C:-/mnt/c}/Program Files (x86)/Meld/Meld.exe" /usr/local/bin/meld
-  else
+  configureMeld() {
+    local meldBinaryPath="$1"
+    if [[ -f "${meldBinaryPath}" ]]; then
+      if [[ "${GIT_MERGE_TOOL:-}" = "meld" ]]; then
+        Log::displayInfo "Configuring meld as default diff tool"
+        git config --global diff.tool meld
+        git config --global difftool.prompt false
+        # shellcheck disable=SC2016
+        git config --global difftool.meld.cmd 'meld "$LOCAL" "$REMOTE"'
+        git config --global alias.dt 'difftool -d'
+
+        git config --global merge.tool meld
+        git config --global mergetool.prompt false
+        # shellcheck disable=SC2016
+        git config --global mergetool.meld.cmd 'meld "$LOCAL" "$MERGED" "$REMOTE" --output "$MERGED"'
+        git config --global alias.mt 'mergetool -d'
+      fi
+      sudo ln -sf "${meldBinaryPath}" /usr/local/bin/meld
+      return 0
+    fi
+    return 1
+  }
+  configureMeld "${BASE_MNT_C:-/mnt/c}/Program Files (x86)/Meld/Meld.exe" ||
+    configureMeld "${BASE_MNT_C:-/mnt/c}/Program Files/Meld/Meld.exe" ||
     Log::displayHelp "File ${BASE_MNT_C:-/mnt/c}/Program Files (x86)/Meld/Meld.exe does not exist - windows meld is not installed, it could have been linked into wsl as git diff"
-  fi
 
   # add github.com to the list of known hosts
   HOME="${HOME}" Ssh::fixAuthenticityOfHostCantBeEstablished "github.com"
@@ -3141,9 +3474,12 @@ testConfigure() {
   Assert::fileExists "${HOME}/.gitconfig" || ((++failures))
   Assert::fileExists "${HOME}/.bash-dev-env/GitDefaultConfig/gitignore" || ((++failures))
   Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/git.sh" || ((++failures))
-  Assert::fileExists "${HOME}/.config/tig/config" || ((++failures))
-  Assert::fileExists "${HOME}/.tigrc" || ((++failures))
-
+  if [[
+    -f "${BASE_MNT_C:-/mnt/c}/Program Files (x86)/Meld/Meld.exe" ||
+    -f "${BASE_MNT_C:-/mnt/c}/Program Files/Meld/Meld.exe" ]] \
+    ; then
+    Assert::symLinkValid /usr/local/bin/meld
+  fi
   # git config
   local gitUserName
   gitUserName="$(git config --global --get user.name)"
@@ -3169,6 +3505,141 @@ testConfigure() {
 
   return "${failures}"
 }
+
+
+
+softwareArgHelpFunction() {
+  echo "    List of softwares to install (--profile option cannot be used in this case)"
+  echo "    See below for complete list of softwares available"
+}
+
+profileHelpFunction() {
+  echo "    Profile name to use that contains all the softwares to install"
+}
+
+profilesHelpList() {
+  echo -e "  ${__HELP_TITLE_COLOR}Available profiles:${__RESET_COLOR}"
+  (
+    Conf::list "${BASH_DEV_ENV_ROOT_DIR}/profiles" "profile." ".sh" "-type f" "    - "
+    local dir
+    for dir in "${BASH_DEV_ENV_ROOT_DIR}/srcAlt/"*; do
+      if [[ -d "${dir}/profiles" ]]; then
+        Conf::list "${dir}/profiles" "profile." ".sh" "-type f" "    - "
+      fi
+    done
+  ) | sort | uniq
+}
+
+validateProfile() {
+  local profileName="$2"
+  if ! Profiles::getProfilePath "${profileName}" &>/dev/null; then
+    Log::fatal "Profile file profile.${profileName}.sh doesn't exist in any profiles directory"
+  fi
+}
+
+commandCallback() {
+  if ((${#CONFIG_LIST} > 0)); then
+    if [[ -n "${PROFILE}" ]]; then
+      Log::fatal "You cannot combine profile and softwares"
+    fi
+    # check if each Softwares exists
+    local software
+    for software in "${CONFIG_LIST[@]}"; do
+      if [[ ! -f "${BASH_DEV_ENV_ROOT_DIR}/${software}" ]]; then
+        Log::fatal "Software ${software} configuration does not exists"
+      fi
+    done
+  elif [[ -z "${PROFILE}" ]]; then
+    Log::fatal "You must specify either a list of softwares, either a profile name"
+  else
+    # get profile path
+    local profilePath
+    profilePath="$(Profiles::getProfilePath "${PROFILE}")" # should succeed as it was tested by option
+    # load selected profile
+    Profiles::loadProfile "${profilePath}"
+  fi
+  if [[ "${SKIP_DEPENDENCIES:-0}" = "0" ]]; then
+    CONFIG_LIST=("${CONFIG_LIST[@]}")
+
+    declare rootDependency="your software selection"
+    if [[ -n "${PROFILE}" ]]; then
+      rootDependency="profile ${PROFILE}"
+    fi
+    # deduce dependencies
+    declare -ag allDepsResult=()
+    # shellcheck disable=SC2034
+    declare -Ag allDepsResultSeen=()
+    Profiles::allDepsRecursive \
+      "${BASH_DEV_ENV_ROOT_DIR}" "${rootDependency}" "${CONFIG_LIST[@]}"
+
+    CONFIG_LIST=("${allDepsResult[@]}")
+  fi
+  if ((${#CONFIG_LIST} == 0)); then
+    Log::fatal "Softwares list is empty"
+  fi
+}
+
+export CONFIG_LIST
+export PROFILE
+
+
+
+generateSoftwaresList() {
+  local directory="$1"
+  local relativeDir="$2"
+  local description list softName
+
+  list="$(
+    Conf::list "${directory}" "" "" "-type f" "" |
+      grep -v -E '^(_.*|MandatorySoftwares)$' || true
+  )"
+  local -i maxLineLength
+  maxLineLength="$(wc -L <<<"${list}")"
+  ((maxLineLength += 1 + ${#relativeDir}))
+  while read -r soft; do
+    softName="${soft}"
+    description="$(SKIP_REQUIRES=1 "${directory}/${soft}" helpDescription 2>/dev/null)"
+    if [[ -z "${description}" ]]; then
+      description="<No description available>"
+    fi
+    description="$(printf -- '_%.0s' $(seq "$((maxLineLength - ${#softName} - 1 - ${#relativeDir} + 1))")) ${description}"
+    description="  - ${__HELP_TITLE_COLOR}${relativeDir}/${softName} ${__HELP_EXAMPLE}${description}${__RESET_COLOR}"
+    echo -e " ${description}" | sed '2,$s/^/      /'
+  done <<<"${list}"
+}
+
+softwaresListCacheFile() {
+  local relativeDir="$1"
+  directoryName="$(sed -E 's#/#_#g' <<<"${relativeDir}")"
+  echo "${WSL_TMPDIR:-${PERSISTENT_TMPDIR:-/tmp}}/bash_dev_env_${directoryName}_arg_help_cache"
+}
+
+generateSoftwaresListCache() {
+  local directory="$1"
+  local relativeDir="$2"
+  local softwaresListHelpTempFile="$3"
+
+  if [[ ! -f "${softwaresListHelpTempFile}" ]] ||
+    (($(File::elapsedTimeSinceLastModification "${softwaresListHelpTempFile}") > help_cache_max_duration)); then
+    echo >&2 -n "Generating softwares list cache (directory ${relativeDir}) ..."
+    generateSoftwaresList "${directory}" "${relativeDir}" >"${softwaresListHelpTempFile}" || rm -f "${softwaresListHelpTempFile}"
+    echo >&2 -e "\033[2K" # erase line (Generating softwares list cache ...)
+  fi
+}
+
+displayAvailableSoftwares() {
+  local directory="$1"
+
+  local relativeDir
+  relativeDir="$(File::relativeToDir "${directory}" "${BASH_DEV_ENV_ROOT_DIR}")"
+  local softwaresListHelpTempFile
+  softwaresListHelpTempFile="$(softwaresListCacheFile "${relativeDir}")"
+  generateSoftwaresListCache "${directory}" "${relativeDir}" "${softwaresListHelpTempFile}"
+  echo -e "  ${__HELP_TITLE_COLOR}Available Softwares (directory ${relativeDir}):${__RESET_COLOR}"
+  cat "${softwaresListHelpTempFile}"
+}
+
+declare -i help_cache_max_duration=86400
 
 
 
@@ -3671,11 +4142,11 @@ GitDefaultConfigCommandParse() {
 
         # Argument 1/1 - command
         # Argument command min 0 max 1
-        # Argument command authorizedValues: isInterfaceImplemented|helpDescription|scriptName|dependencies|listVariables|fortunes|helpVariables|defaultVariables|checkVariables|breakOnConfigFailure|breakOnTestFailure|isInstallImplemented|install|isTestInstallImplemented|testInstall|isConfigureImplemented|configure|isTestConfigureImplemented|testConfigure
+        # Argument command authorizedValues: isInterfaceImplemented|helpDescription|scriptName|dependencies|listVariables|fortunes|helpVariables|defaultVariables|checkVariables|breakOnConfigFailure|breakOnTestFailure|isInstallImplemented|install|isTestInstallImplemented|testInstall|isConfigureImplemented|configure|isTestConfigureImplemented|testConfigure|isCleanBeforeExportImplemented
         elif (( options_parse_parsedArgIndex >= minParsedArgIndex0 &&
           options_parse_parsedArgIndex < maxParsedArgIndex1 )); then
-          if [[ ! "${options_parse_arg}" =~ isInterfaceImplemented|helpDescription|scriptName|dependencies|listVariables|fortunes|helpVariables|defaultVariables|checkVariables|breakOnConfigFailure|breakOnTestFailure|isInstallImplemented|install|isTestInstallImplemented|testInstall|isConfigureImplemented|configure|isTestConfigureImplemented|testConfigure ]]; then
-            Log::displayError "Command ${SCRIPT_NAME} - Argument command - value '${options_parse_arg}' is not part of authorized values(isInterfaceImplemented, helpDescription, scriptName, dependencies, listVariables, fortunes, helpVariables, defaultVariables, checkVariables, breakOnConfigFailure, breakOnTestFailure, isInstallImplemented, install, isTestInstallImplemented, testInstall, isConfigureImplemented, configure, isTestConfigureImplemented, testConfigure)"
+          if [[ ! "${options_parse_arg}" =~ isInterfaceImplemented|helpDescription|scriptName|dependencies|listVariables|fortunes|helpVariables|defaultVariables|checkVariables|breakOnConfigFailure|breakOnTestFailure|isInstallImplemented|install|isTestInstallImplemented|testInstall|isConfigureImplemented|configure|isTestConfigureImplemented|testConfigure|isCleanBeforeExportImplemented ]]; then
+            Log::displayError "Command ${SCRIPT_NAME} - Argument command - value '${options_parse_arg}' is not part of authorized values(isInterfaceImplemented, helpDescription, scriptName, dependencies, listVariables, fortunes, helpVariables, defaultVariables, checkVariables, breakOnConfigFailure, breakOnTestFailure, isInstallImplemented, install, isTestInstallImplemented, testInstall, isConfigureImplemented, configure, isTestConfigureImplemented, testConfigure, isCleanBeforeExportImplemented)"
             return 1
           fi
           if ((options_parse_argParsedCountCommand >= 1 )); then
@@ -3769,6 +4240,7 @@ GitDefaultConfigCommandHelp() {
   echo -e "      - ${__OPTION_COLOR}configure${__RESET_COLOR}"
   echo -e "      - ${__OPTION_COLOR}isTestConfigureImplemented${__RESET_COLOR}"
   echo -e "      - ${__OPTION_COLOR}testConfigure${__RESET_COLOR}"
+  echo -e "      - ${__OPTION_COLOR}isCleanBeforeExportImplemented${__RESET_COLOR}"
 
   Array::wrap2 ' ' 76 6 "    Default value: " "install"
   echo

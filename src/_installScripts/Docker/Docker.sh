@@ -23,24 +23,30 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
-isInstallImplemented() { :; }
-isConfigureImplemented() { :; }
-isTestConfigureImplemented() { :; }
-isTestInstallImplemented() { :; }
 # jscpd:ignore-end
+
+cleanBeforeExport() {
+  if command -v docker; then
+    Log::displayInfo "Cleaning docker system"
+    # shellcheck disable=SC2046
+    docker stop $(docker ps -aq) || true
+    docker system prune -a --volumes --force || true
+    docker volume prune --all --force || true
+  fi
+}
+
+testCleanBeforeExport() {
+  :
+}
 
 # REQUIRE Linux::requireUbuntu
 # REQUIRE Linux::requireExecutedAsUser
 install() {
-  if isUbuntuMinimum24; then
+  if Version::isUbuntuMinimum "24.04"; then
     installFromUbuntu24
   else
     installFromUbuntu20
   fi
-}
-
-isUbuntuMinimum24() {
-  Version::compare "${VERSION_ID}" "24.04"
 }
 
 installFromUbuntu24() {
@@ -111,7 +117,7 @@ testInstall() {
     fi
   fi
 
-  Version::checkMinimal "docker" --version "25.0.3" || ((++failures))
+  Version::checkMinimal "docker" --version "27.4.1" || ((++failures))
 
   Log::displayInfo "docker executable path $(command -v docker || true)"
   Log::displayInfo "docker version $(docker --version || true)"
@@ -145,7 +151,7 @@ configure() {
   sudo getent group docker >/dev/null || sudo groupadd docker || true
   sudo usermod -aG docker "${USERNAME}" || true
 
-  if ! isUbuntuMinimum24; then
+  if ! Version::isUbuntuMinimum "24.04"; then
     configureDockerPlugin
   fi
 

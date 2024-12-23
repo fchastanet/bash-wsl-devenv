@@ -23,10 +23,6 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
-isInstallImplemented() { :; }
-isConfigureImplemented() { :; }
-isTestConfigureImplemented() { :; }
-isTestInstallImplemented() { :; }
 # jscpd:ignore-end
 
 install() {
@@ -56,7 +52,7 @@ testInstall() {
 
     Assert::commandExists "zip" || ((++failures))
     Version::checkMinimal "sdk" version "5.18.2" || ((++failures))
-    Version::checkMinimal "java" --version "21.0.2" || ((++failures))
+    Version::checkMinimal "java" --version "21.0.5" || ((++failures))
     return "${failures}"
   ) || return "$?"
 }
@@ -75,4 +71,22 @@ configure() {
 testConfigure() {
   Assert::fileExists "${HOME}/.bash-dev-env/profile.d/sdkman-init.sh"
   Assert::fileExists "${HOME}/.sdkman/etc/config"
+}
+
+cleanBeforeExport() {
+  # shellcheck source=/dev/null
+  source "${HOME}/.sdkman/bin/sdkman-init.sh"
+
+  sdk flush
+}
+
+testCleanBeforeExport() {
+  (
+    local -i failures=0
+
+    Assert::dirNotExists "${HOME}/.sdkman/var/tmp" || ((++failures))
+    Assert::dirEmpty "${HOME}/.sdkman/var/metadata" || ((++failures))
+
+    return "${failures}"
+  ) || return "$?"
 }

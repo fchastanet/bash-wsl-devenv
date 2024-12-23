@@ -1,0 +1,7 @@
+[
+  {
+    "key": "f2",
+    "command": "git.openFile",
+    "when": "isInDiffEditor"
+  }
+]

@@ -30,10 +30,8 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
-isInstallImplemented() { :; }
-isConfigureImplemented() { :; }
-isTestConfigureImplemented() { :; }
-isTestInstallImplemented() { :; }
+configure() { :; }
+testConfigure() { :; }
 # jscpd:ignore-end
 
 install() {
@@ -72,13 +70,20 @@ testInstall() {
   local -i failures=0
   # shellcheck source=src/_installScripts/Node/NodeNpm-conf/.bash-dev-env/profile.d/n_path.sh
   source "${HOME}/.bash-dev-env/profile.d/n_path.sh"
-  Version::checkMinimal "npm-check-updates" "--version" "17.1.3" || ((++failures))
-  Version::checkMinimal "prettier" "--version" "3.3.3" || ((++failures))
+  Version::checkMinimal "npm-check-updates" "--version" "17.1.12" || ((++failures))
+  Version::checkMinimal "prettier" "--version" "3.4.2" || ((++failures))
   Version::checkMinimal "sass-lint" "--version" "1.13.1" || ((++failures))
-  Version::checkMinimal "stylelint" "--version" "16.9.0" || ((++failures))
+  Version::checkMinimal "stylelint" "--version" "16.12.0" || ((++failures))
   Version::checkMinimal "hjson" "--version" "3.2.1" || ((++failures))
   return "${failures}"
 }
 
-configure() { :; }
-testConfigure() { :; }
+cleanBeforeExport() {
+  rm -Rf "${HOME}/.npm/_cacache" || true
+}
+
+testCleanBeforeExport() {
+  ((failures = 0)) || true
+  Assert::dirNotExists "${HOME}/.npm/_cacache" || ((++failures))
+  return "${failures}"
+}

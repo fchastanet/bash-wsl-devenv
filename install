@@ -643,11 +643,11 @@ Engine::Config::loadConfig() {
   fi
 Linux::requireTarCommand
 Compiler::Embed::extractFileFromBase64 \
-  "${PERSISTENT_TMPDIR:-/tmp}/2d460e9c1bb95b79effe0eff168b6276ae2f425de780f9369eda1a14e888ed7c/envFileTemplate" \
-  "IyEvYmluL2Jhc2gKIyBzaGVsbGNoZWNrIGRpc2FibGU9U0MyMDM0CgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgR2VuZXJhbCBpbmZvcm1hdGlvbgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojIHdzbCB1c2VybmFtZSB3aXRoIGRlZmF1bHQgcGFzc3dvcmQgd3NsClVTRVJOQU1FPSJ3c2wiCgpIT01FPSIvaG9tZS93c2wiCgpXSU5ET1dTX1VTRVJOQU1FPSJmY2hhc3RhbmV0IgoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQojIEdpdCAmIFNTSCBpbmZvcm1hdGlvbgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojIGlmIDEsIGl0IGluZGljYXRlcyB5b3UgYWNjZXB0IHRoYXQgeW91ciBnaXQga2V5IHdpbGwgYmUgbG9hZGVkLgojIGlmIDAsIGNvbmZpZ3VyYXRpb25zIHRoYXQgbmVlZCB0byBiZSBhdXRoZW50aWNhdGVkIHdpbGwgYmUgc2tpcHBlZC4KIyBEaXN0cm8gbW9kZTogaW4gYW55IGNhc2UsIHlvdXIga2V5IGlzIG5vdCBjb3BpZWQuCkFVVEhPUklaRV9TU0hfS0VZX1VTQUdFPTEKCiMgeW91ciBsb2dpbiB0byBjb25uZWN0IHRvIHNzaCBzZXJ2ZXJzIGlmIGFueQpTU0hfTE9HSU49IiIKCiMgeW91ciBnaXQgZnVsbCBuYW1lICdGaXJzdE5hbWUgTGFzdE5hbWUnCkdJVF9VU0VSTkFNRT0iIgoKIyBlbWFpbCB1c2VkIGZvciBnaXQgJ2xkYXBAZG9tYWluLmNvbScKR0lUX1VTRVJfTUFJTD0iIgoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQojIEFXUyBpbmZvcm1hdGlvbgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojIGVtYWlsIHVzZWQgdG8gY29ubmVjdCB0byBhd3MKQVdTX1VTRVJfTUFJTD0iZmNoYXN0YW5ldEBnbWFpbC5jb20iCgojIGFwcCBpZCB0byBjb25uZWN0IHRvIGF3cyBhY2NvdW50CkFXU19BUFBfSUQ9IiIKCkFXU19QUk9GSUxFPSIiCkFXU19ERUZBVUxUX1JFR0lPTj0iIgpBV1NfVEVTVF9TRUNSRVRfSUQ9IiIKQVdTX0RFRkFVTFRfRE9DS0VSX1JFR0lTVFJZX0lEPSIiCgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgSzhTIGluZm9ybWF0aW9uCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiMgS3ViZURlZmF1bHRDb25maWcgfi8ua3ViZS9jb25maWcgZ2VuZXJhdGlvbgojIGF3cyByZWdpb24gb2YgdGhlIGNsdXN0ZXIgKEVnOiB1cy1lYXN0LTEpCktVQkVfQ09ORklHX1JFR0lPTl9DT0RFPQoKIyBhd3MgYXJuIG9mIHRoZSBjbHVzdGVyLgojIEVnOiBhcm46YXdzOmVjczpyZWdpb246YXdzX2FjY291bnRfaWQ6Y2x1c3Rlci9NeUNsdXN0ZXIKS1VCRV9DT05GSUdfQ0xVU1RFUl9BUk49CgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgRGlyZWN0b3JpZXMKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQoKIyBvdmVycmlkZGVuIGNvbmYgZGlyZWN0b3J5IHRoYXQgd2lsbCBiZSB1c2VkIHRvIG92ZXJyaWRlCiMgdGhlIGRlZmF1bHQgY29uZmlndXJhdGlvbiB0aGF0IGFyZSBlbWJlZGRlZCBpbiBiaW5hcmllcwpDT05GX09WRVJSSURFX0RJUj0iJHtCQVNIX0RFVl9FTlZfUk9PVF9ESVJ9L2NvbmYub3ZlcnJpZGUiCgojIHdoZXJlIHRvIGluc3RhbGwgYmFzaC10b29scywgLi4uCiMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMjE1MwpQUk9KRUNUU19ESVI9IiR7SE9NRX0vcHJvamVjdHMiCgojIHdoZXJlIG92ZXJyaWRkZW4gY29uZmlnIGZpbGVzIHdpbGwgYmUgYmFja2VkIHVwCkJBQ0tVUF9ESVI9IiR7QkFTSF9ERVZfRU5WX1JPT1RfRElSfS9iYWNrdXAiCiMgYmFja3VwIGZpbGVzL2RpcnMgYmVmb3JlIGluc3RhbGxpbmcgbmV3IGZpbGUgKHVzdWFsbHkgMSwgYnV0IDAgaWYgdXNpbmcgZGlzdHJvKQpCQUNLVVBfQkVGT1JFX0lOU1RBTEw9MQoKIyBsb2dzIGRpcmVjdG9yeQpMT0dTX0RJUj0iJHtCQVNIX0RFVl9FTlZfUk9PVF9ESVJ9L2xvZ3MiCgojIGluc3RhbGxTY3JpcHRzIHJvb3QgZGlyCklOU1RBTExfU0NSSVBUU19ST09UX0RJUj0iJHtCQVNIX0RFVl9FTlZfUk9PVF9ESVJ9L2luc3RhbGxTY3JpcHRzIgoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQojIEluc3RhbGxhdGlvbiBjb25maWd1cmF0aW9uCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiMgQ29uZmlndXJhdGlvbiBmaWxlcyBhcmUgb3ZlcndyaXR0ZW4gZXZlbiBpZiBleGlzdHMKIyAhISEhIEZpcnN0IHRpbWUgaW5pdGlhbGl6YXRpb246IGxldCB0aGlzIHZhbHVlIHRvIDEgISEhIQojIFZhbHVlIDA6CiMgLSBJZiB0YXJnZXQgY29uZmlndXJhdGlvbiBmaWxlIGV4aXN0cywgZGlzcGxheXMgYSBtZXNzYWdlIGFuZCBkbyBub3Qgb3ZlcndyaXRlIHRoZSBmaWxlCiMgLSBJZiB0YXJnZXQgY29uZmlndXJhdGlvbiBmaWxlIGRvZXNuJ3QgZXhpc3QsIGluc3RhbGxzIHRoZSBmaWxlCiMgVmFsdWUgMQojIC0gaW5zdGFsbCBvciBvdmVyd3JpdGUgdGhlIGZpbGUgd2l0aG91dCBjaGVja2luZyBleGlzdGVuY2UKT1ZFUldSSVRFX0NPTkZJR19GSUxFUz0xCgojIFdpbmRvd3MgZmlsZXMgY2FuIGJlIG92ZXJyaWRkZW4gaWYgMQojIGlmIDAKIyAtIHNraXAgY2hhbmdlcyB0byAlVVNFUlBST0ZJTEUlLy53c2xjb25maWcKIyAtIHNraXAgY29weWluZyBmb250cwpDSEFOR0VfV0lORE9XU19GSUxFUz0xCgojIEluZGljYXRlIHRoYXQgaW5zdGFsbCBzY3JpcHQgY2FuIHdhcm4geW91IHVzaW5nIHNwZWFrZXIgd2hlbiB5b3VyIGlucHV0IGlzIG5lZWRlZApDQU5fVEFMS19EVVJJTkdfSU5TVEFMTEFUSU9OPTEKCiMgaWYgMCBpbnN0YWxsIHNjcmlwdCB3aWxsIHNraXAgYWxsIGludGVyYWN0aXZlIGFjdGl2aXR5IChzYW1sMmF3cywgLi4uKSwKIyBzbyBkZXBlbmRlbnQgaW5zdGFsbGF0aW9uIHdpbGwgYmUgc2tpcHBlZCBhcyB3ZWxsCklOU1RBTExfSU5URVJBQ1RJVkU9MQoKIyBkaXNwbGF5IGVsYXBzZWQgdGltZSBzaW5jZSBsYXN0IGxvZwpESVNQTEFZX0RVUkFUSU9OPTEKCiMgMCAgID0+IG5vIHVwZ3JhZGUgYXQgYWxsCiMgbHRzID0+IFVQR1JBREUgdG8gbGF0ZXN0IHVidW50dSBsdHMgdmVyc2lvbgojIGRldiA9PiBVUEdSQURFIHRvIGxhdGVzdCB1YnVudHUgZGV2IHZlcnNpb24KIyBVc2UgaWYgeW91IGtub3cgd2hhdCB5b3UgYXJlIGRvaW5nLAojIGNvdWxkIGNhdXNlIHNvbWUgcGFja2FnZXMgdG8gbm90IGJlaW5nIGF2YWlsYWJsZSB5ZXQKVVBHUkFERV9VQlVOVFVfVkVSU0lPTj0wCgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgUHJvZmlsZSBjb25maWd1cmF0aW9uCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiMgQ2hvb3NlIHlvdXIgcHJlZmVycmVkIHNoZWxsCiMgcG9zc2libGUgY2hvaWNlczogU2hlbGxCYXNoIChMZWdhY3kgZXhwZXJpZW5jZSksIFNoZWxsWnNoIChSZWNvbW1lbmRlZCBleHBlcmllbmNlKQpQUkVGRVJSRURfU0hFTEw9IlNoZWxsWnNoIgoKIyBac2ggdGhlbWUgdG8gdXNlCiMgcG9zc2libGUgY2hvaWNlczogcG93ZXJsZXZlbDEway9wb3dlcmxldmVsMTBrLCBzaW5kcmVzb3JodXMvcHVyZSwgc3RhcnNoaXAvc3RhcnNoaXAKWlNIX1BSRUZFUlJFRF9USEVNRT0icG93ZXJsZXZlbDEway9wb3dlcmxldmVsMTBrIgoKIyBEaXNwbGF5IEZvcnR1bmUgdG9vbHRpcCBhdCBiYXNoL3pzaCBzZXNzaW9uIG9wZW4KU0hPV19GT1JUVU5FUz0xCgojIERpc3BsYXkgTU9URCBhdCBiYXNoL3pzaCBzZXNzaW9uIG9wZW4KU0hPV19NT1REPTEKCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KIyBXU0xDT05GSUcKIyBUaGVzZSBwYXJhbWV0ZXJzIGF1dG9tYXRpY2FsbHkgY29uZmlndXJlICVVU0VSUFJPRklMRSUvLndzbGNvbmZpZyBmaWxlLgojIEBzZWUgaHR0cHM6Ly9kb2NzLm1pY3Jvc29mdC5jb20vZW4tdXMvd2luZG93cy93c2wvd3NsLWNvbmZpZwojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojIFJlY29tbWVuZGVkIDUwJSBvZiB0b3RhbCBtZW1vcnkKV1NMQ09ORklHX01BWF9NRU1PUlk9OEdCCgojIHBlcnNvbmFsbHkgSSBwcmVmZXIgcnVuIG91dCBvZiBtZW1vcnkgaW5zdGVhZCBvZiBiZWdpbm5pbmcgc3dhcHBpbmcKIyBTbyBJIGtub3cgaW1tZWRpYXRlbHkgaWYgc29tZSBwcm9jZXNzZXMgaGF2ZSB0byBiZSBzdG9wcGVkCldTTENPTkZJR19TV0FQPTAKCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KIyBIYWNrcwojIG9uIHNvbWUgY29uZmlndXJhdGlvbnMgd2UgaGF2ZSB0byBmb3JjZSBwYXRoIG9mIHNvbWUgd2luZG93cyBjb21tYW5kcwojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojUE9XRVJTSEVMTF9CSU49L21udC9jL1dpbmRvd3MvU3lzdGVtMzIvV2luZG93c1Bvd2VyU2hlbGwvdjEuMC9wb3dlcnNoZWxsLmV4ZQojSVBDT05GSUdfQklOPS9tbnQvYy9XaW5kb3dzL3N5c3RlbTMyL2lwY29uZmlnLmV4ZQojV1NMX0VYRV9CSU49L21udC9jL1dpbmRvd3Mvc3lzdGVtMzIvd3NsLmV4ZQoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQojIEdlbmVyYWwgZGlzdHJpYnV0aW9uIGluZm9ybWF0aW9uCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiMgaG9zdG5hbWUgb2YgdGhlIGRpc3RybwpESVNUUk9fSE9TVE5BTUU9IndzbEhvc3QiCg==" \
+  "${PERSISTENT_TMPDIR:-/tmp}/35528fc68b49bce04642f2fde5d358c73896a17ab17068827fa8171037afa506/envFileTemplate" \
+  "IyEvYmluL2Jhc2gKIyBzaGVsbGNoZWNrIGRpc2FibGU9U0MyMDM0CgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgR2VuZXJhbCBpbmZvcm1hdGlvbgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojIHdzbCB1c2VybmFtZSB3aXRoIGRlZmF1bHQgcGFzc3dvcmQgd3NsClVTRVJOQU1FPSJ3c2wiCgpIT01FPSIvaG9tZS93c2wiCgpXSU5ET1dTX1VTRVJOQU1FPSJmY2hhc3RhbmV0IgoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQojIEdpdCAmIFNTSCBpbmZvcm1hdGlvbgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojIGlmIDEsIGl0IGluZGljYXRlcyB5b3UgYWNjZXB0IHRoYXQgeW91ciBnaXQga2V5IHdpbGwgYmUgbG9hZGVkLgojIGlmIDAsIGNvbmZpZ3VyYXRpb25zIHRoYXQgbmVlZCB0byBiZSBhdXRoZW50aWNhdGVkIHdpbGwgYmUgc2tpcHBlZC4KIyBEaXN0cm8gbW9kZTogaW4gYW55IGNhc2UsIHlvdXIga2V5IGlzIG5vdCBjb3BpZWQuCkFVVEhPUklaRV9TU0hfS0VZX1VTQUdFPTEKCiMgeW91ciBsb2dpbiB0byBjb25uZWN0IHRvIHNzaCBzZXJ2ZXJzIGlmIGFueQpTU0hfTE9HSU49IiIKCiMgeW91ciBnaXQgZnVsbCBuYW1lICdGaXJzdE5hbWUgTGFzdE5hbWUnCkdJVF9VU0VSTkFNRT0iIgoKIyBlbWFpbCB1c2VkIGZvciBnaXQgJ2xkYXBAZG9tYWluLmNvbScKR0lUX1VTRVJfTUFJTD0iIgoKIyBkZWZhdWx0IGdpdCBtZXJnZSB0b29sIHRvIHVzZQpHSVRfTUVSR0VfVE9PTD0idnNjb2RlIgoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQojIEFXUyBpbmZvcm1hdGlvbgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojIGVtYWlsIHVzZWQgdG8gY29ubmVjdCB0byBhd3MKQVdTX1VTRVJfTUFJTD0iZmNoYXN0YW5ldEBnbWFpbC5jb20iCgojIGFwcCBpZCB0byBjb25uZWN0IHRvIGF3cyBhY2NvdW50CkFXU19BUFBfSUQ9IiIKCkFXU19QUk9GSUxFPSIiCkFXU19ERUZBVUxUX1JFR0lPTj0iIgpBV1NfVEVTVF9TRUNSRVRfSUQ9IiIKQVdTX0RFRkFVTFRfRE9DS0VSX1JFR0lTVFJZX0lEPSIiCgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgSzhTIGluZm9ybWF0aW9uCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiMgS3ViZURlZmF1bHRDb25maWcgfi8ua3ViZS9jb25maWcgZ2VuZXJhdGlvbgojIGF3cyByZWdpb24gb2YgdGhlIGNsdXN0ZXIgKEVnOiB1cy1lYXN0LTEpCktVQkVfQ09ORklHX1JFR0lPTl9DT0RFPQoKIyBhd3MgYXJuIG9mIHRoZSBjbHVzdGVyLgojIEVnOiBhcm46YXdzOmVjczpyZWdpb246YXdzX2FjY291bnRfaWQ6Y2x1c3Rlci9NeUNsdXN0ZXIKS1VCRV9DT05GSUdfQ0xVU1RFUl9BUk49CgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgRGlyZWN0b3JpZXMKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQoKIyBvdmVycmlkZGVuIGNvbmYgZGlyZWN0b3J5IHRoYXQgd2lsbCBiZSB1c2VkIHRvIG92ZXJyaWRlCiMgdGhlIGRlZmF1bHQgY29uZmlndXJhdGlvbiB0aGF0IGFyZSBlbWJlZGRlZCBpbiBiaW5hcmllcwpDT05GX09WRVJSSURFX0RJUj0iJHtCQVNIX0RFVl9FTlZfUk9PVF9ESVJ9L2NvbmYub3ZlcnJpZGUiCgojIHdoZXJlIHRvIGluc3RhbGwgYmFzaC10b29scywgLi4uCiMgc2hlbGxjaGVjayBkaXNhYmxlPVNDMjE1MwpQUk9KRUNUU19ESVI9IiR7SE9NRX0vcHJvamVjdHMiCgojIHdoZXJlIG92ZXJyaWRkZW4gY29uZmlnIGZpbGVzIHdpbGwgYmUgYmFja2VkIHVwCkJBQ0tVUF9ESVI9IiR7QkFTSF9ERVZfRU5WX1JPT1RfRElSfS9iYWNrdXAiCiMgYmFja3VwIGZpbGVzL2RpcnMgYmVmb3JlIGluc3RhbGxpbmcgbmV3IGZpbGUgKHVzdWFsbHkgMSwgYnV0IDAgaWYgdXNpbmcgZGlzdHJvKQpCQUNLVVBfQkVGT1JFX0lOU1RBTEw9MQoKIyBsb2dzIGRpcmVjdG9yeQpMT0dTX0RJUj0iJHtCQVNIX0RFVl9FTlZfUk9PVF9ESVJ9L2xvZ3MiCgojIGluc3RhbGxTY3JpcHRzIHJvb3QgZGlyCklOU1RBTExfU0NSSVBUU19ST09UX0RJUj0iJHtCQVNIX0RFVl9FTlZfUk9PVF9ESVJ9L2luc3RhbGxTY3JpcHRzIgoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQojIEluc3RhbGxhdGlvbiBjb25maWd1cmF0aW9uCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiMgQ29uZmlndXJhdGlvbiBmaWxlcyBhcmUgb3ZlcndyaXR0ZW4gZXZlbiBpZiBleGlzdHMKIyAhISEhIEZpcnN0IHRpbWUgaW5pdGlhbGl6YXRpb246IGxldCB0aGlzIHZhbHVlIHRvIDEgISEhIQojIFZhbHVlIDA6CiMgLSBJZiB0YXJnZXQgY29uZmlndXJhdGlvbiBmaWxlIGV4aXN0cywgZGlzcGxheXMgYSBtZXNzYWdlIGFuZCBkbyBub3Qgb3ZlcndyaXRlIHRoZSBmaWxlCiMgLSBJZiB0YXJnZXQgY29uZmlndXJhdGlvbiBmaWxlIGRvZXNuJ3QgZXhpc3QsIGluc3RhbGxzIHRoZSBmaWxlCiMgVmFsdWUgMQojIC0gaW5zdGFsbCBvciBvdmVyd3JpdGUgdGhlIGZpbGUgd2l0aG91dCBjaGVja2luZyBleGlzdGVuY2UKT1ZFUldSSVRFX0NPTkZJR19GSUxFUz0xCgojIFdpbmRvd3MgZmlsZXMgY2FuIGJlIG92ZXJyaWRkZW4gaWYgMQojIGlmIDAKIyAtIHNraXAgY2hhbmdlcyB0byAlVVNFUlBST0ZJTEUlLy53c2xjb25maWcKIyAtIHNraXAgY29weWluZyBmb250cwpDSEFOR0VfV0lORE9XU19GSUxFUz0xCgojIEluZGljYXRlIHRoYXQgaW5zdGFsbCBzY3JpcHQgY2FuIHdhcm4geW91IHVzaW5nIHNwZWFrZXIgd2hlbiB5b3VyIGlucHV0IGlzIG5lZWRlZApDQU5fVEFMS19EVVJJTkdfSU5TVEFMTEFUSU9OPTEKCiMgaWYgMCBpbnN0YWxsIHNjcmlwdCB3aWxsIHNraXAgYWxsIGludGVyYWN0aXZlIGFjdGl2aXR5IChzYW1sMmF3cywgLi4uKSwKIyBzbyBkZXBlbmRlbnQgaW5zdGFsbGF0aW9uIHdpbGwgYmUgc2tpcHBlZCBhcyB3ZWxsCklOU1RBTExfSU5URVJBQ1RJVkU9MQoKIyBkaXNwbGF5IGVsYXBzZWQgdGltZSBzaW5jZSBsYXN0IGxvZwpESVNQTEFZX0RVUkFUSU9OPTEKCiMgMCAgID0+IG5vIHVwZ3JhZGUgYXQgYWxsCiMgbHRzID0+IFVQR1JBREUgdG8gbGF0ZXN0IHVidW50dSBsdHMgdmVyc2lvbgojIGRldiA9PiBVUEdSQURFIHRvIGxhdGVzdCB1YnVudHUgZGV2IHZlcnNpb24KIyBVc2UgaWYgeW91IGtub3cgd2hhdCB5b3UgYXJlIGRvaW5nLAojIGNvdWxkIGNhdXNlIHNvbWUgcGFja2FnZXMgdG8gbm90IGJlaW5nIGF2YWlsYWJsZSB5ZXQKVVBHUkFERV9VQlVOVFVfVkVSU0lPTj0wCgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgUHJvZmlsZSBjb25maWd1cmF0aW9uCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiMgQ2hvb3NlIHlvdXIgcHJlZmVycmVkIHNoZWxsCiMgcG9zc2libGUgY2hvaWNlczogU2hlbGxCYXNoIChMZWdhY3kgZXhwZXJpZW5jZSksIFNoZWxsWnNoIChSZWNvbW1lbmRlZCBleHBlcmllbmNlKQpQUkVGRVJSRURfU0hFTEw9IlNoZWxsWnNoIgoKIyBac2ggdGhlbWUgdG8gdXNlCiMgcG9zc2libGUgY2hvaWNlczogcG93ZXJsZXZlbDEway9wb3dlcmxldmVsMTBrLCBzaW5kcmVzb3JodXMvcHVyZSwgc3RhcnNoaXAvc3RhcnNoaXAKWlNIX1BSRUZFUlJFRF9USEVNRT0icG93ZXJsZXZlbDEway9wb3dlcmxldmVsMTBrIgoKIyBEaXNwbGF5IEZvcnR1bmUgdG9vbHRpcCBhdCBiYXNoL3pzaCBzZXNzaW9uIG9wZW4KU0hPV19GT1JUVU5FUz0xCgojIERpc3BsYXkgTU9URCBhdCBiYXNoL3pzaCBzZXNzaW9uIG9wZW4KU0hPV19NT1REPTEKCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KIyBXU0xDT05GSUcKIyBUaGVzZSBwYXJhbWV0ZXJzIGF1dG9tYXRpY2FsbHkgY29uZmlndXJlICVVU0VSUFJPRklMRSUvLndzbGNvbmZpZyBmaWxlLgojIEBzZWUgaHR0cHM6Ly9kb2NzLm1pY3Jvc29mdC5jb20vZW4tdXMvd2luZG93cy93c2wvd3NsLWNvbmZpZwojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojIFJlY29tbWVuZGVkIDUwJSBvZiB0b3RhbCBtZW1vcnkKV1NMQ09ORklHX01BWF9NRU1PUlk9OEdCCgojIHBlcnNvbmFsbHkgSSBwcmVmZXIgcnVuIG91dCBvZiBtZW1vcnkgaW5zdGVhZCBvZiBiZWdpbm5pbmcgc3dhcHBpbmcKIyBTbyBJIGtub3cgaW1tZWRpYXRlbHkgaWYgc29tZSBwcm9jZXNzZXMgaGF2ZSB0byBiZSBzdG9wcGVkCldTTENPTkZJR19TV0FQPTAKCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KIyBIYWNrcwojIG9uIHNvbWUgY29uZmlndXJhdGlvbnMgd2UgaGF2ZSB0byBmb3JjZSBwYXRoIG9mIHNvbWUgd2luZG93cyBjb21tYW5kcwojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgojUE9XRVJTSEVMTF9CSU49L21udC9jL1dpbmRvd3MvU3lzdGVtMzIvV2luZG93c1Bvd2VyU2hlbGwvdjEuMC9wb3dlcnNoZWxsLmV4ZQojSVBDT05GSUdfQklOPS9tbnQvYy9XaW5kb3dzL3N5c3RlbTMyL2lwY29uZmlnLmV4ZQojV1NMX0VYRV9CSU49L21udC9jL1dpbmRvd3Mvc3lzdGVtMzIvd3NsLmV4ZQoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQojIEdlbmVyYWwgZGlzdHJpYnV0aW9uIGluZm9ybWF0aW9uCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCiMgaG9zdG5hbWUgb2YgdGhlIGRpc3RybwpESVNUUk9fSE9TVE5BTUU9IndzbEhvc3QiCg==" \
   "755"
 
-declare -gx embed_file_envFileTemplate="${PERSISTENT_TMPDIR:-/tmp}/2d460e9c1bb95b79effe0eff168b6276ae2f425de780f9369eda1a14e888ed7c/envFileTemplate"
+declare -gx embed_file_envFileTemplate="${PERSISTENT_TMPDIR:-/tmp}/35528fc68b49bce04642f2fde5d358c73896a17ab17068827fa8171037afa506/envFileTemplate"
 
   local envFile="${BASH_DEV_ENV_ROOT_DIR}/.env"
   # shellcheck disable=SC2154
@@ -1102,7 +1102,7 @@ Linux::Apt::installIfNecessary() {
   local package
   local -i installNeeded=0
   for package in "${packages[@]}"; do
-    if [[ "${package}" =~ ^-- ]]; then
+    if [[ "${package}" =~ ^[-]{1,2} ]]; then
       continue
     fi
     if ! Linux::Apt::isPackageInstalled "${package}"; then
@@ -1415,6 +1415,7 @@ Log::computeDuration() {
   if ((${DISPLAY_DURATION:-0} == 1)); then
     local -i duration=0
     local -i delta=0
+    local durationStr deltaStr
     local -i currentLogDate
     currentLogDate="${EPOCHREALTIME/[^0-9]/}"
     if ((LOG_LAST_LOG_DATE_INIT == 1)); then
@@ -1423,7 +1424,17 @@ Log::computeDuration() {
     else
       duration=$(((currentLogDate - FIRST_LOG_DATE) / 1000000))
       delta=$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000000))
-      LOG_LAST_DURATION_STR="${duration}s/+${delta}s"
+      if ((duration > 59)); then
+        durationStr=$(date -ud "@${duration}" +'%H:%M:%S')
+      else
+        durationStr="${duration}s"
+      fi
+      if ((delta > 59)); then
+        deltaStr=$(date -ud "@${delta}" +'%H:%M:%S')
+      else
+        deltaStr="${delta}s"
+      fi
+      LOG_LAST_DURATION_STR="${durationStr}/+${deltaStr}"
     fi
     LOG_LAST_LOG_DATE="${currentLogDate}"
     # shellcheck disable=SC2034
@@ -2123,7 +2134,9 @@ Stats::aggregateStatsSummary() {
     if [[ "${warning}" != "0" ]]; then
       echo -e " - ${__WARNING_COLOR}${warning} ${msg} with warning${__RESET_COLOR}"
     fi
-    echo -e " - ${__INFO_COLOR}Duration: ${duration}s${__RESET_COLOR}"
+    local humanReadableDuration
+    humanReadableDuration=$(date -ud "@${duration}" +'%H:%M:%S')
+    echo -e " - ${__INFO_COLOR}Duration: ${humanReadableDuration}${__RESET_COLOR}"
   )
 }
 
@@ -3509,9 +3522,16 @@ summary() {
       Stats::aggregateStatsSummary "configuration test(s)" \
         "${STATS_DIR:-#}/test-configuration.stat"
     fi
+    if [[ "${PREPARE_EXPORT}" = "1" ]]; then
+      Stats::aggregateStatsSummary "clean before export(s)" \
+        "${STATS_DIR:-#}/clean-before-export.stat"
+    fi
     local endDate
     endDate="$(date +%s)"
-    Log::displayInfo "Total duration: $((endDate - startDate))s"
+    local totalDuration=$((endDate - startDate))
+    local humanReadableDuration
+    humanReadableDuration=$(date -ud "@${totalDuration}" +'%H:%M:%S')
+    Log::displayInfo "Total duration: ${humanReadableDuration}"
     summaryDisplayed="1"
     if [[ "${installResultCode}" = "0" ]]; then
       Log::displaySuccess "Successful Installation"
@@ -3555,7 +3575,9 @@ executeScript() {
   if [[ "${SKIP_TEST}" = "1" ]]; then
     installCmd+=(--skip-test)
   fi
-
+  if [[ -n "${PROFILE}" ]]; then
+    installCmd+=(--profile "${PROFILE}")
+  fi
   LOG_CONTEXT="${configName} - " "${installCmd[@]}"
 }
 
@@ -3649,8 +3671,14 @@ executeScripts() {
           "${STATS_DIR:-#}/${scriptName}"-{install,config,test-install,test-configuration,global,current}.stat \
           &>/dev/null || true
 
-        UI::drawLineWithMsg "Installing ${currentConfigName} (${configIndex}/${configCount})" '#'
-        executeScript "${currentConfigName}"
+        if [[
+          "${SKIP_INSTALL}" = "0" ||
+          "${SKIP_CONFIGURE}" = "0" ||
+          "${SKIP_TEST}" = "0"
+        ]]; then
+          UI::drawLineWithMsg "Installing ${currentConfigName} (${configIndex}/${configCount})" '#'
+          executeScript "${currentConfigName}"
+        fi
       ) || installStatus="$?"
       if [[ "${installStatus}" != "0" ]]; then
         Log::displayError "Aborted after ${currentConfigName} failure"
@@ -3659,6 +3687,81 @@ executeScripts() {
     ) 2>&1 | tee >(sed -r 's/\x1b\[[0-9;]*m//g' >>"${LOGS_DIR}/lastInstall.log") || exit 1
     ((++configIndex))
   done
+}
+
+computeDiskSpaceGained() {
+  local initialSpace="$1"
+  local finalSpace
+  finalSpace=$(df --output=avail / | tail -n 1)
+  local spaceGained=$((initialSpace - finalSpace))
+  local humanReadableSpace
+  if (( spaceGained > 0 )); then
+    humanReadableSpace=$(numfmt --to=iec --suffix=B "${spaceGained}")
+    Log::displayInfo "Disk space gained: ${humanReadableSpace}"
+  fi
+}
+
+executeScriptsCleanBeforeExport() {
+  local initialSpace
+  initialSpace=$(df --output=avail / | tail -n 1)
+  local -i configIndex=1
+  local -i configCount=0
+  local configName
+
+  for configName in "${CONFIG_LIST[@]}"; do
+    if ! SKIP_REQUIRES=1 "${BASH_DEV_ENV_ROOT_DIR}/${configName}" isCleanBeforeExportImplemented; then
+      continue
+    fi
+    ((++configCount))
+  done
+
+  for configName in "${CONFIG_LIST[@]}"; do
+    if ! SKIP_REQUIRES=1 "${BASH_DEV_ENV_ROOT_DIR}/${configName}" isCleanBeforeExportImplemented; then
+      continue
+    fi
+    (
+      local cleanStatus="0"
+      (
+        # shellcheck disable=SC2317
+        aggregateCleanBeforeExportStat() {
+          local rc="$1"
+          local -a statFiles=()
+          local scriptName="${configName//\//@}"
+          local scriptCmd="${BASH_DEV_ENV_ROOT_DIR}/${configName}"
+          if SKIP_REQUIRES=1 "${scriptCmd}" isCleanBeforeExportImplemented; then
+            Stats::aggregateStats \
+              "${STATS_DIR:-#}/clean-before-export.stat" \
+              "${configCount}" \
+              "${STATS_DIR:-#}/${scriptName}-clean-before-export.stat"
+            statFiles+=("${STATS_DIR:-#}/${scriptName}-clean-before-export.stat")
+          fi
+          exit "${rc}"
+        }
+        trap 'aggregateCleanBeforeExportStat "$?"' EXIT INT TERM ABRT
+
+        rm -f \
+          "${STATS_DIR:-#}/${scriptName}"-clean-before-export.stat \
+          &>/dev/null || true
+
+        UI::drawLineWithMsg "Cleaning Before Export ${configName} (${configIndex}/${configCount})" '#'
+        local -a installCmd=(
+          "${BASH_DEV_ENV_ROOT_DIR}/${configName}"
+          --skip-install
+          --skip-configure
+          --skip-test
+          --prepare-export
+          --profile "${PROFILE}"
+        )
+        LOG_CONTEXT="${configName} - " "${installCmd[@]}"
+      ) || cleanStatus="$?"
+      if [[ "${cleanStatus}" != "0" ]]; then
+        Log::displayError "Aborted after ${configName} failure"
+        exit "${cleanStatus}"
+      fi
+    ) 2>&1 | tee >(sed -r 's/\x1b\[[0-9;]*m//g' >>"${LOGS_DIR}/lastInstall.log") || exit 1
+    ((++configIndex))
+  done
+  computeDiskSpaceGained "${initialSpace}"
 }
 
 Profiles::checkScriptsExistence "${BASH_DEV_ENV_ROOT_DIR}" "" "${CONFIG_LIST[@]}"
@@ -3687,6 +3790,10 @@ export INTERACTIVE=1
 
 executeScripts || return 1
 currentConfigName="executeScripts"
+
+if [[ "${PREPARE_EXPORT}" = "1" ]]; then
+  executeScriptsCleanBeforeExport || return 1
+fi
 
 }
 

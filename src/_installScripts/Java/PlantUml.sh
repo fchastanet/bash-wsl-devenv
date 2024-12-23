@@ -54,5 +54,5 @@ testInstall() {
   # ensure java binary is available
   # shellcheck source=/dev/null
   source "${HOME}/.sdkman/bin/sdkman-init.sh"
-  Version::checkMinimal "plantumlVersionCallback" -version "1.2024.7" cat || return 1
+  Version::checkMinimal "plantumlVersionCallback" -version "1.2024.8" cat || return 1
 }

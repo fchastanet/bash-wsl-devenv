@@ -27,10 +27,6 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
-isInstallImplemented() { :; }
-isConfigureImplemented() { :; }
-isTestConfigureImplemented() { :; }
-isTestInstallImplemented() { :; }
 # jscpd:ignore-end
 
 isSupportedUbuntuVersion() {
@@ -125,5 +121,15 @@ testConfigure() {
     Log::displayError "Virtualenv has not been loaded correctly"
     ((++failures))
   }
+  return "${failures}"
+}
+
+cleanBeforeExport() {
+  rm -Rf "${HOME}/.cache/pip" || true
+}
+
+testCleanBeforeExport() {
+  ((failures = 0)) || true
+  Assert::dirNotExists "${HOME}/.cache/pip" || ((++failures))
   return "${failures}"
 }

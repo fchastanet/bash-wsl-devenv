@@ -44,18 +44,10 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
-isInstallImplemented() { :; }
-isConfigureImplemented() { :; }
-isTestConfigureImplemented() { :; }
-isTestInstallImplemented() { :; }
 # jscpd:ignore-end
 
-isUbuntuMinimum24() {
-  Version::compare "${VERSION_ID}" "24.04"
-}
-
 install() {
-  if ! isUbuntuMinimum24; then
+  if ! Version::isUbuntuMinimum "24.04"; then
     Linux::Apt::addRepository ppa:aacebedo/fasd
   fi
   SKIP_APT_GET_UPDATE=1 Linux::Apt::installIfNecessary --no-install-recommends \

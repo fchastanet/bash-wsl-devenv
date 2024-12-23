@@ -17,7 +17,16 @@ dependencies() {
 }
 
 fortunes() {
-  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- these kubernetes tools are available ${__HELP_EXAMPLE}helm${__RESET_COLOR}, ${__HELP_EXAMPLE}kubectl${__RESET_COLOR}, ${__HELP_EXAMPLE}kind${__RESET_COLOR}, ${__HELP_EXAMPLE}minikube${__RESET_COLOR}, ${__HELP_EXAMPLE}kubeps1${__RESET_COLOR}, ${__HELP_EXAMPLE}kubectx${__RESET_COLOR}, ${__HELP_EXAMPLE}kubens${__RESET_COLOR}, ${__HELP_EXAMPLE}lazydocker${__RESET_COLOR}."
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- these kubernetes tools are available "
+  echo -e "  - ${__HELP_EXAMPLE}helm${__RESET_COLOR}"
+  echo -e "  - ${__HELP_EXAMPLE}kubectl${__RESET_COLOR}"
+  echo -e "  - ${__HELP_EXAMPLE}kind${__RESET_COLOR}"
+  echo -e "  - ${__HELP_EXAMPLE}minikube${__RESET_COLOR}"
+  echo -e "  - ${__HELP_EXAMPLE}kubeps1${__RESET_COLOR}"
+  echo -e "  - ${__HELP_EXAMPLE}kubectx${__RESET_COLOR}"
+  echo -e "  - ${__HELP_EXAMPLE}kubens${__RESET_COLOR}"
+  echo -e "  - ${__HELP_EXAMPLE}lazydocker${__RESET_COLOR}"
+  echo -e "  - ${__HELP_EXAMPLE}kube-linter${__RESET_COLOR}."
   echo "%"
   if command -v lazydocker &>/dev/null; then
     echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- you can use ${__HELP_EXAMPLE}lazydocker${__RESET_COLOR} to navigate through your containers."
@@ -42,10 +51,6 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
-isInstallImplemented() { :; }
-isTestInstallImplemented() { :; }
-isConfigureImplemented() { :; }
-isTestConfigureImplemented() { :; }
 # jscpd:ignore-end
 
 installHelm() {
@@ -168,20 +173,30 @@ install() {
     Log::displayError "Error during k9s install"
     return 1
   }
+  Log::displayInfo "Installing kube-linter"
+  (
+    # shellcheck source=/dev/null
+    source "${HOME}/.bash-dev-env/profile.d/golang.sh" || exit 1
+
+    go install golang.stackrox.io/kube-linter/cmd/kube-linter@latest
+  )
 }
 
 testInstall() {
   local -i failures=0
-  Version::checkMinimal "helm" "version" "3.14.2" || ((++failures))
-  Version::checkMinimal "kubectl" "version" "1.29.1" || ((++failures))
-  Version::checkMinimal "kind" "--version" "0.16.0" || ((++failures))
-  Version::checkMinimal "minikube" "version" "1.27.1" || ((++failures))
-  Version::checkMinimal "k9s" "version" "0.28.2" || ((++failures))
+  Version::checkMinimal "helm" "version" "3.16.3" || ((++failures))
+  Version::checkMinimal "kubectl" "version" "1.31.0" || ((++failures))
+  Version::checkMinimal "kind" "--version" "0.26.0" || ((++failures))
+  Version::checkMinimal "minikube" "version" "1.34.0" || ((++failures))
+  Version::checkMinimal "k9s" "version" "0.32.7" || ((++failures))
   (
+    local -i errors=0
     # shellcheck source=/dev/null
-    source "${HOME}/.bash-dev-env/profile.d/golang.sh" || exit 1
-    Assert::commandExists "lazydocker" || exit 1
-  ) || ((++failures))
+    source "${HOME}/.bash-dev-env/profile.d/golang.sh" || ((++errors))
+    Assert::commandExists "kube-linter" || ((++errors))
+    Assert::commandExists "lazydocker" || ((++errors))
+    exit "${errors}"
+  ) || ((failures += $?))
   Assert::commandExists kubectx || ((++failures))
   Assert::commandExists kubens || ((++failures))
   Assert::fileExists /opt/kubeps1/kube-ps1.sh root root || ((++failures))

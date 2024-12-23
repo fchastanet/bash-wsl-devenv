@@ -1,5 +1,6 @@
 extends:
   - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/default.yaml"
+  - "${BASH_DEV_ENV_ROOT_DIR}/src/_commandDefinitions/optionsSkip.yaml"
 
 vars:
   SRC_FILE_PATH: src/_tools/distro-binary.yaml
@@ -31,13 +32,6 @@ binData:
           alts:
             - "--skip-distro"
             - "-d"
-        - variableName: optionSkipInstall
-          group: zzzGroupDistro
-          type: Boolean
-          help: Skip softwares installation.
-          alts:
-            - "--skip-install"
-            - "-i"
         - variableName: optionExport
           group: zzzGroupDistro
           type: Boolean

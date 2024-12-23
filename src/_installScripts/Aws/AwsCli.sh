@@ -24,10 +24,6 @@ breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 configure() { :; }
 testConfigure() { :; }
-isInstallImplemented() { :; }
-isConfigureImplemented() { :; }
-isTestConfigureImplemented() { :; }
-isTestInstallImplemented() { :; }
 # jscpd:ignore-end
 
 install() {
@@ -56,5 +52,5 @@ install() {
 }
 
 testInstall() {
-  Version::checkMinimal "aws" --version "2.13.32" || return 1
+  Version::checkMinimal "aws" --version "2.22.22" || return 1
 }

@@ -77,6 +77,10 @@ isTestConfigureImplemented() {
   ! InstallScripts::scriptFunctionEmpty testConfigure
 }
 
+isCleanBeforeExportImplemented() {
+  ! InstallScripts::scriptFunctionEmpty cleanBeforeExport
+}
+
 fullScriptName() {
   File::relativeToDir "${REAL_SCRIPT_FILE}" "${BASH_DEV_ENV_ROOT_DIR}"
 }

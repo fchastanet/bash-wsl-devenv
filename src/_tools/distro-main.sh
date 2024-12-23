@@ -105,7 +105,7 @@ getDistroImageDir() {
 
 getDistroFile() {
   local distroVersion
-  distroVersion="$(Version::parse "${DISTRO_VERSION}")"
+  distroVersion="$(Version::parse <<<"${DISTRO_VERSION}")"
   echo "$(getDistroImageDir)-${DISTRO_NAME}-export-${distroVersion}.tar.gz"
 }
 
@@ -132,7 +132,7 @@ waitUntilDistroTerminated() {
       awk -F ' ' '{print $2}' |
       grep -q 'Stopped'
   }
-  Retry::parameterized 20 1 "Waiting for distro ${DISTRO_NAME} to terminate" checkDistroTerminated
+  Retry::parameterized 40 1 "Waiting for distro ${DISTRO_NAME} to terminate" checkDistroTerminated
 }
 
 getSshPrivateKey() {
@@ -203,7 +203,8 @@ Log::displayInfo "Delete folder ${DISTRO_BASH_DEV_ENV_TARGET_DIR} in distro ${DI
 runWslCmd rm -Rf "${DISTRO_BASH_DEV_ENV_TARGET_DIR}/"{*,.*} 2>/dev/null || true
 
 Log::displayInfo "Prepare archive of current dir ${DISTRO_BASH_DEV_ENV_TARGET_DIR}"
-(cd "${BASH_DEV_ENV_ROOT_DIR}" && tar -c --exclude-ignore=.tarignore -zf /tmp/bashDevEnv.tgz .)
+mkdir -p "/mnt/wsl/${WSL_DISTRO_NAME}/tmp"
+(cd "${BASH_DEV_ENV_ROOT_DIR}" && tar -c --exclude-ignore=.tarignore -zf "/mnt/wsl/${WSL_DISTRO_NAME}/tmp/bashDevEnv.tgz" .)
 
 Log::displayInfo "Syncing current dir to target distro ${DISTRO_BASH_DEV_ENV_TARGET_DIR}"
 runWslCmd mkdir -p "${DISTRO_BASH_DEV_ENV_TARGET_DIR}"
@@ -245,25 +246,41 @@ if [[ "${optionExport}" = "1" ]]; then
 fi
 
 # shellcheck disable=SC2154
-if [[ "${optionSkipInstall}" = "1" ]]; then
+if [[ "${SKIP_CONFIGURE}" = "1" ]]; then
+  installCmd+=(--skip-configure)
+fi
+
+# shellcheck disable=SC2154
+if [[ "${SKIP_TEST}" = "1" ]]; then
+  installCmd+=(--skip-test)
+fi
+
+# shellcheck disable=SC2154
+if [[ "${SKIP_DEPENDENCIES}" = "1" ]]; then
+  installCmd+=(--skip-dependencies)
+fi
+
+# shellcheck disable=SC2154
+if [[ "${SKIP_INSTALL}" = "1" ]]; then
+  installCmd+=(--skip-install)
   Log::displayInfo "Install manually using :"
   echo "wsl.exe -d '${DISTRO_NAME}' -u wsl --cd '${DISTRO_BASH_DEV_ENV_TARGET_DIR}' -- ${installCmd[*]}"
-else
-  (
-    # shellcheck disable=SC2034
-    SUDO=""
-    SUDOER_FILE_PREFIX="/mnt/wsl/${DISTRO_NAME}/etc/sudoers.d/bash-dev-env-no-password" \
-      Linux::createSudoerFile
-
-    Log::displayInfo "Installing ... using ${installCmd[*]}"
-    REMOTE_USER=${USERNAME} \
-      REMOTE_PWD="${DISTRO_BASH_DEV_ENV_TARGET_DIR}" \
-      runWslCmd bash --noprofile -c "SSH_PRIVATE_KEY='$(getSshPrivateKey)' ${installCmd[*]}" || exit 1
-  ) || exit 1
-  Log::displayInfo "Restarting wsl distribution ${DISTRO_NAME}"
-  wsl.exe --terminate "${DISTRO_NAME}"
-  waitUntilDistroTerminated || exit 1
 fi
+
+(
+  # shellcheck disable=SC2034
+  SUDO=""
+  SUDOER_FILE_PREFIX="/mnt/wsl/${DISTRO_NAME}/etc/sudoers.d/bash-dev-env-no-password" \
+    Linux::createSudoerFile
+
+  Log::displayInfo "Installing ... using ${installCmd[*]}"
+  REMOTE_USER=${USERNAME} \
+    REMOTE_PWD="${DISTRO_BASH_DEV_ENV_TARGET_DIR}" \
+    runWslCmd bash --noprofile -c "SSH_PRIVATE_KEY='$(getSshPrivateKey)' DISTRO_MODE=1 ${installCmd[*]}" || exit 1
+) || exit 1
+Log::displayInfo "Restarting wsl distribution ${DISTRO_NAME}"
+wsl.exe --terminate "${DISTRO_NAME}"
+waitUntilDistroTerminated || exit 1
 
 if [[ "${optionExport}" = "1" ]]; then
   exportDistro
@@ -273,7 +290,7 @@ fi
 if [[ "${optionUpload}" = "1" ]]; then
   declare distroFile
   distroFile="$(getDistroFile)"
-  if [[ ! -f "" ]]; then
+  if [[ ! -f "${distroFile}" ]]; then
     Log::fatal "missing ${distroFile}, have you forgot --export option ?"
   fi
   Log::displaySkipped "Not implemented yet"

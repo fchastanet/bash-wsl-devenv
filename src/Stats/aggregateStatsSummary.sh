@@ -23,6 +23,8 @@ Stats::aggregateStatsSummary() {
     if [[ "${warning}" != "0" ]]; then
       echo -e " - ${__WARNING_COLOR}${warning} ${msg} with warning${__RESET_COLOR}"
     fi
-    echo -e " - ${__INFO_COLOR}Duration: ${duration}s${__RESET_COLOR}"
+    local humanReadableDuration
+    humanReadableDuration=$(date -ud "@${duration}" +'%H:%M:%S')
+    echo -e " - ${__INFO_COLOR}Duration: ${humanReadableDuration}${__RESET_COLOR}"
   )
 }

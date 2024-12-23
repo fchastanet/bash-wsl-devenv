@@ -28,4 +28,8 @@ InstallScripts::interface() {
 
   echo testConfigure
   echo isTestConfigureImplemented
+
+  echo cleanBeforeExport
+  echo testCleanBeforeExport
+  echo isCleanBeforeExportImplemented
 }

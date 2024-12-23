@@ -162,4 +162,40 @@ InstallScripts::command() {
       exit "${testConfigStatus}"
     fi
   fi
+
+  local cleanBeforeExportStatus="0"
+  if [[ "${PREPARE_EXPORT}" = "1" && "${installStatus}" = "0" ]] &&
+    ! InstallScripts::scriptFunctionEmpty cleanBeforeExport; then
+    Log::headLine "CLEAN" "Cleaning ${scriptName}"
+    logFile="${logsDir}/${scriptName}-clean-before-export.log"
+    statsFile="${statsDir}/${scriptName}-clean-before-export.stat"
+    (
+      startDate="$(date +%s)"
+      # shellcheck disable=SC2317
+      computeStats() {
+        local rc=$1
+        Stats::statusLine "${statsFile}" "Cleaning ${scriptName}"
+        Stats::computeFromLog \
+          "${logFile}" "${rc}" "${statsFile}" "${startDate}"
+        Stats::aggregateGlobalStats \
+          "${globalStatsFile}" "1" "${statsFile}"
+        exit "${rc}"
+      }
+      trap 'computeStats "$?"' EXIT INT TERM ABRT
+
+      local -i failures=0
+      if ! InstallScripts::scriptFunctionEmpty cleanBeforeExport; then
+        cleanBeforeExport || ((++failures))
+        if [[ "${failures}" = "0" ]] && ! InstallScripts::scriptFunctionEmpty testCleanBeforeExport; then
+          testCleanBeforeExport || ((++failures))
+        fi
+      fi
+      exit "${failures}"
+    ) 2>&1 | tee "${logFile}" || cleanBeforeExportStatus="$?" || true
+
+    if [[ "${cleanBeforeExportStatus}" != "0" ]]; then
+      # break if config script error
+      exit "${cleanBeforeExportStatus}"
+    fi
+  fi
 }

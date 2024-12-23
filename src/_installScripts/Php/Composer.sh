@@ -17,10 +17,6 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
-isInstallImplemented() { :; }
-isConfigureImplemented() { :; }
-isTestConfigureImplemented() { :; }
-isTestInstallImplemented() { :; }
 # jscpd:ignore-end
 
 install() {
@@ -48,7 +44,7 @@ install() {
 }
 
 testInstall() {
-  Version::checkMinimal "composer" --version "2.4.3" || ((++failures))
+  Version::checkMinimal "composer" --version "2.8.4" || ((++failures))
 }
 
 configure() {
