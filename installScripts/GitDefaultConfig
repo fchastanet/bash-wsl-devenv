@@ -3435,11 +3435,13 @@ configure() {
         Log::displayInfo "Configuring meld as default diff tool"
         git config --global diff.tool meld
         git config --global difftool.prompt false
+        # shellcheck disable=SC2016
         git config --global difftool.meld.cmd 'meld "$LOCAL" "$REMOTE"'
         git config --global alias.dt 'difftool -d'
 
         git config --global merge.tool meld
         git config --global mergetool.prompt false
+        # shellcheck disable=SC2016
         git config --global mergetool.meld.cmd 'meld "$LOCAL" "$MERGED" "$REMOTE" --output "$MERGED"'
         git config --global alias.mt 'mergetool -d'
       fi

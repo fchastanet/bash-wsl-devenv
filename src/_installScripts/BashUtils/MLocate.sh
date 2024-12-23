@@ -96,6 +96,7 @@ testInstallFromUbuntu20() {
 }
 
 configureMlocate() {
+  # shellcheck disable=SC1003
   local -r BASE_MNT_C="$(mount | grep 'path=C:\\' | awk -F ' ' '{print $3}')"
   local -r prunePaths=(
     "${BASE_MNT_C}"

@@ -5,19 +5,19 @@ davidnussio.vscode-jq-playground
 petli-full.jq-vscode
 jq-syntax-highlighting.jq-syntax-highlighting
 
-# Docker
+## Docker
 ms-azuretools.vscode-docker
 exiasr.hadolint
 
-# Jenkins
+## Jenkins
 ivory-lab.jenkinsfile-support
 janjoerke.jenkins-pipeline-linter-connector
 jmmeessen.jenkins-declarative-support
 secanis.jenkinsfile-support
 
-# Groovy
+## Groovy
 argylewolflabs.vscode-groovy
 marlon407.code-groovy
 
-# Helm
+## Helm
 tim-koehler.helm-intellisense

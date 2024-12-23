@@ -1,0 +1,16 @@
+Consolas
+darcula
+foxundermoon
+matt
+Meslo
+meyers
+mtxr
+Overtype
+phpstorm
+phpunit
+Powerline
+Pylance
+redhat
+sqltools
+strictssl
+vetur

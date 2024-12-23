@@ -28,6 +28,7 @@ containerd
 cowsay
 cygwin
 cyrillic
+dbml
 dbus
 debconf
 devcert

@@ -57,7 +57,6 @@
     "editor.defaultFormatter": "vscode.json-language-features"
   },
   "workbench.editorAssociations": {
-    "*.ipynb": "jupyter.notebook.ipynb",
     "*.puml": "default"
   },
   "redhat.telemetry.enabled": false,
@@ -133,7 +132,7 @@
     "editor.formatOnType": true
   },
   "yet-phpunit.xmlConfigFilepath": "",
-  "plantuml.server": "htpp://localhost:8080",
+  "plantuml.server": "http://localhost:8080",
   "markdown-preview-enhanced.plantumlServer": "http://localhost:8080",
   "plantuml.jar": "/opt/java/plantuml.jar",
   "plantuml.render": "PlantUMLServer"

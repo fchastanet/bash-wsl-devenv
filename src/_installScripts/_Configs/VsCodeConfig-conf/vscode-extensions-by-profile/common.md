@@ -1,4 +1,6 @@
-# Common tools
+# Common extensions
+
+## Common tools
 
 ms-vscode-remote.remote-wsl
 
@@ -12,31 +14,35 @@ pascalreitermann93.vscode-yaml-sort
 
 alexdima.copy-relative-path
 
+dbcode.dbcode
+
 github.copilot
 github.copilot-chat
 ms-vscode.vscode-websearchforcopilot
 
 streetsidesoftware.code-spell-checker
 
-# Common languages
+## Common languages
 
 shd101wyy.markdown-preview-enhanced
 yzhang.markdown-all-in-one
-davidanson.vscode-markdownlint
 
 appler.pretty-json-preview
-wekex.jsonlint
 
 redhat.vscode-yaml
 
+## Linters
+
+davidanson.vscode-markdownlint
+wekex.jsonlint
 timonwong.shellcheck
 
-# Compare
+## Compare
 
 moshfeu.compare-folders
 moshfeu.diff-merge
 
-# Git related
+## Git related
 
 otard.copy-reference
 phil294.git-log--graph
@@ -45,5 +51,6 @@ eamodio.gitlens
 donjayamanne.githistory
 mhutchie.git-graph
 
-# Test
+## Test
+
 ms-vscode.test-adapter-converter

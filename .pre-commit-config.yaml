@@ -72,6 +72,7 @@ repos:
           (?x)(
             ^.vscode/.*.json$|
             ^src/_installScripts/_Configs/VsCodeConfig-conf/|
+            ^src/_installScripts/_Configs/ShellBashDefaultConfig-conf/.vscode/argv.json$|
             ^conf/localAppData/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/originalSettings.json$
           )
 
