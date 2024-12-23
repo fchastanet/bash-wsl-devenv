@@ -40,6 +40,10 @@ repos:
           - mdformat-config
           - mdformat-web
           - mdformat-gfm
+        exclude: |
+          (?x)(
+            src/_installScripts/_Configs/VsCodeConfig-conf/vscode-extensions-by-profile/
+          )
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -71,9 +75,10 @@ repos:
         # x modifier: extended. Spaces and text after a # in the pattern are ignored
         exclude: |
           (?x)(
-            .vscode\/.*.json$|
-            ^conf\/localAppData\/Packages\/Microsoft.WindowsTerminal_8wekyb3d8bbwe\/LocalState\/originalSettings.json$
-          )$
+            ^.vscode/.*.json$|
+            ^src/_installScripts/_Configs/VsCodeConfig-conf/|
+            ^conf/localAppData/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/originalSettings.json$
+          )
 
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.4
@@ -101,12 +106,12 @@ repos:
           - --write-changes
         exclude: >
           (?x)(
-              ^installScripts/|
-              ^bin/|
-              ^install$|
-              ^distro$|
-              ^srcAlt|
-              ^.cspell/codespellrc-.*.txt$
+            ^installScripts/|
+            ^bin/|
+            ^install$|
+            ^distro$|
+            ^srcAlt|
+            ^.cspell/codespellrc-.*.txt$
           )
 
   - repo: https://github.com/ComPWA/prettier-pre-commit
@@ -177,7 +182,7 @@ repos:
       - id: plantuml
 
   - repo: https://github.com/fchastanet/bash-compiler
-    rev: v3.0.0
+    rev: v3.1.1
     hooks:
       - id: buildBashBinaries
 

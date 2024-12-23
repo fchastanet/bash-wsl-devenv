@@ -56,10 +56,10 @@ testInstall() {
     Log::displayError "Composer script failed to install '${HOME}/.bash-dev-env/profile.d/composer_path.sh'"
     ((++failures))
   }
-  Version::checkMinimal "phpcs" --version "3.10.3" || ((++failures))
+  Version::checkMinimal "phpcs" --version "3.11.2" || ((++failures))
   Version::checkMinimal "phpmd" --version "2.15.0" || ((++failures))
-  Version::checkMinimal "php-cs-fixer" --version "3.64.0" || ((++failures))
-  Version::checkMinimal "phpstan" --version "1.12.4" || ((++failures))
+  Version::checkMinimal "php-cs-fixer" --version "3.65.0" || ((++failures))
+  Version::checkMinimal "phpstan" --version "2.0.4" || ((++failures))
   Version::checkMinimal "psalm" --version "5.26.1" || ((++failures))
 
   return "${failures}"

@@ -132,7 +132,7 @@ waitUntilDistroTerminated() {
       awk -F ' ' '{print $2}' |
       grep -q 'Stopped'
   }
-  Retry::parameterized 20 1 "Waiting for distro ${DISTRO_NAME} to terminate" checkDistroTerminated
+  Retry::parameterized 40 1 "Waiting for distro ${DISTRO_NAME} to terminate" checkDistroTerminated
 }
 
 getSshPrivateKey() {

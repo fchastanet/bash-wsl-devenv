@@ -188,11 +188,11 @@ install() {
 
 testInstall() {
   local -i failures=0
-  Version::checkMinimal "helm" "version" "3.14.2" || ((++failures))
-  Version::checkMinimal "kubectl" "version" "1.29.1" || ((++failures))
-  Version::checkMinimal "kind" "--version" "0.16.0" || ((++failures))
-  Version::checkMinimal "minikube" "version" "1.27.1" || ((++failures))
-  Version::checkMinimal "k9s" "version" "0.28.2" || ((++failures))
+  Version::checkMinimal "helm" "version" "3.16.3" || ((++failures))
+  Version::checkMinimal "kubectl" "version" "1.31.0" || ((++failures))
+  Version::checkMinimal "kind" "--version" "0.26.0" || ((++failures))
+  Version::checkMinimal "minikube" "version" "1.34.0" || ((++failures))
+  Version::checkMinimal "k9s" "version" "0.32.7" || ((++failures))
   (
     local -i errors=0
     # shellcheck source=/dev/null

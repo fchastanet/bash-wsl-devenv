@@ -35,7 +35,7 @@ install() {
   fi
   # vscode is preinstalled
   Log::displayInfo "Make vscode download vscode server"
-  code --help
+  code --help >/dev/null
 }
 
 testInstall() {
@@ -47,18 +47,25 @@ testInstall() {
 }
 
 installVsCodeExtension() {
-  local extension="$1"
-  local help="${2:-}"
-  if code --list-extensions | grep -iq "${extension}"; then
-    Log::displayInfo "VSCode extension ${help}'${extension}' already installed"
-  else
-    # install given extension
-    if code --install-extension "${extension}" --verysilent; then
-      Log::displaySuccess "VSCode extension ${help}'${extension}' successfully installed"
+  local extensions=("$@")
+  local -i batchSize=10
+  local -i total=${#extensions[@]}
+  local -i i=0
+
+  while (( i < total )); do
+    local batch=("${extensions[@]:${i}:${batchSize}}")
+    local -a cmd=(code)
+    for extension in "${batch[@]}"; do
+      cmd+=(--install-extension "${extension}")
+    done
+    Log::displayInfo "Installing VSCode extensions: ${batch[*]} (batch ${i}-$((i + batchSize)) of ${total})"
+    if Retry::default "${cmd[@]}"; then
+      Log::displaySuccess "VSCode extensions '${extension}' successfully installed"
     else
-      Log::displayError "Something went wrong while installing ${help}'${extension}' VS code extension"
+      Log::displayError "Something went wrong while installing '${extension}' VS code extension"
     fi
-  fi
+    ((i += batchSize))
+  done
 }
 
 configure() {
@@ -66,49 +73,51 @@ configure() {
     Log::displaySkipped "You must install vscode in windows before running that script"
     return 0
   fi
+  local installedExtensions
+  installedExtensions="$(code --list-extensions | tr '[:upper:]' '[:lower:]' | sort)"
+
+  local extensions extensionsCount
+  # shellcheck disable=SC2154
+  extensions="$(awk \
+    '!/^#/{for(i=1;i<=NF;i++)if($i!="")names[$i]++}END{for(n in names)print n}' \
+    "${embed_dir_conf_dir}/vscode-extensions-by-profile"/*.md | \
+    tr '[:upper:]' '[:lower:]' | \
+    sort \
+  )"
+  extensionsCount="$(echo "${extensions}" | grep -c -v -e '^$')" || true
+
+  local diffInstalledExtensions diffInstalledExtensionsCount
+  diffInstalledExtensions="$(comm -12 <(echo "${installedExtensions}") <(echo "${extensions}"))"
+  diffInstalledExtensionsCount="$(echo "${diffInstalledExtensions}" | grep -c -v -e '^$')" || true
+  if (( diffInstalledExtensionsCount > 0 )); then
+    Log::displayInfo "${diffInstalledExtensionsCount}/${extensionsCount} extensions already installed:"
+    echo "${diffInstalledExtensions}" | paste -s -d, -
+  fi
+
+  # Get extensions to install
+  local -a toInstallArray
+  mapfile -t toInstallArray < <(
+    comm -13 <(echo "${installedExtensions}") <(echo "${extensions}")
+  )
+  installVsCodeExtension "${toInstallArray[@]}"
+
+  local vsCodeSettingsDir
   if Assert::wsl; then
     # ability to mount wsl folder inside windows visual studio code
     Retry::default installVsCodeExtension "ms-vscode-remote.remote-wsl"
-    VS_CODE_SETTINGS_DIR="${USERHOME}/.vscode-server/data/Machine"
+    vsCodeSettingsDir="${HOME}/.vscode-server/data/Machine"
   else
-    VS_CODE_SETTINGS_DIR="${USERHOME}/.config/Code/User"
+    vsCodeSettingsDir="${HOME}/.config/Code/User"
   fi
 
-  installFile "${CONF_DIR}/.vscode" "${VS_CODE_SETTINGS_DIR}" "settings.json"
+  BACKUP_BEFORE_INSTALL=1 Install::file \
+    "${embed_dir_conf_dir}/keybindings.json" "${vsCodeSettingsDir}/keybindings.json"
+  BACKUP_BEFORE_INSTALL=1 Install::file \
+    "${embed_dir_conf_dir}/settings.json" "${vsCodeSettingsDir}/settings.json"
 
   sed -i -E \
     "s/\"jenkins.pipeline.linter.connector.user\": \"[^\"]*\",/\"jenkins.pipeline.linter.connector.user\": \"${LDAP_LOGIN}\",/g" \
-    "${VS_CODE_SETTINGS_DIR}/settings.json"
-
-  EXTENSIONS="$(node "${CURRENT_DIR}/js/listVsCodeSettingsPlugins.js" \
-    "${CONF_DIR}/.vscode/settings.json" \
-    'extension-profiles.profiles' | tr '[:upper:]' '[:lower:]' | sort)" || {
-    exitCode="$?"
-    Log::displaySkipped "No extension to install found"
-    exit "${exitCode}"
-  }
-
-  INSTALLED_EXTENSIONS="$(code --list-extensions | tr '[:upper:]' '[:lower:]' | sort)"
-  EXTENSIONS_COUNT="$(echo "${EXTENSIONS}" | grep -c -v -e '^$')" || true
-
-  DIFF_NOT_INSTALLED_EXTENSIONS="$(comm -13 <(echo "${INSTALLED_EXTENSIONS}") <(echo "${EXTENSIONS}"))"
-
-  DIFF_INSTALLED_EXTENSIONS="$(comm -12 <(echo "${INSTALLED_EXTENSIONS}") <(echo "${EXTENSIONS}"))"
-  DIFF_INSTALLED_EXTENSIONS_COUNT="$(echo "${DIFF_INSTALLED_EXTENSIONS}" | grep -c -v -e '^$')" || true
-
-  Log::displayInfo "${DIFF_INSTALLED_EXTENSIONS_COUNT}/${EXTENSIONS_COUNT} Extensions already installed:"
-  echo "${DIFF_INSTALLED_EXTENSIONS}" | paste -s -d, -
-
-  EXTENSIONS_COUNT="$(echo "${DIFF_NOT_INSTALLED_EXTENSIONS}" | grep -c -v -e '^$')" || true
-  if ((EXTENSIONS_COUNT > 0)); then
-    Log::displayInfo "Installing ${EXTENSIONS_COUNT} VsCode extensions ..."
-    ((i = 1))
-    while IFS= read -r extension; do
-      [[ -n "${extension}" ]] || break
-      Retry::default installVsCodeExtension "${extension}" "(${i}/${EXTENSIONS_COUNT}) "
-      ((i++))
-    done <<<"${DIFF_NOT_INSTALLED_EXTENSIONS}"
-  fi
+    "${vsCodeSettingsDir}/settings.json"
 }
 
 testConfigure() {
@@ -118,23 +127,14 @@ testConfigure() {
   fi
   local -i failures=0
 
+  local vsCodeSettingsDir
   if Assert::wsl; then
-    VS_CODE_SETTINGS_DIR="${USERHOME}/.vscode-server/data/Machine"
+    vsCodeSettingsDir="${HOME}/.vscode-server/data/Machine"
   else
-    VS_CODE_SETTINGS_DIR="${USERHOME}/.config/Code/User"
+    vsCodeSettingsDir="${HOME}/.config/Code/User"
   fi
-
-  if [[ -f "${VS_CODE_SETTINGS_DIR}/settings.json" ]]; then
-    if ! node "${CURRENT_DIR}/js/checkVsCodeSettings.js" \
-      "${VS_CODE_SETTINGS_DIR}/settings.json" \
-      'extension-profiles.profiles'; then
-      Log::displayError "VS Code settings has not been updated correctly"
-      ((++failures))
-    fi
-  else
-    Log::displayError "File ${VS_CODE_SETTINGS_DIR}/settings.json does not exist"
-    ((++failures))
-  fi
+  Assert::fileExists "${vsCodeSettingsDir}/keybindings.json" || ((++failures))
+  Assert::fileExists "${vsCodeSettingsDir}/settings.json" || ((++failures))
 
   exit "${failures}"
 }

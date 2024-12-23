@@ -56,7 +56,7 @@ testInstall() {
 
     Assert::commandExists "zip" || ((++failures))
     Version::checkMinimal "sdk" version "5.18.2" || ((++failures))
-    Version::checkMinimal "java" --version "21.0.2" || ((++failures))
+    Version::checkMinimal "java" --version "21.0.5" || ((++failures))
     return "${failures}"
   ) || return "$?"
 }

@@ -86,9 +86,18 @@ configure() {
   configureMeld() {
     local meldBinaryPath="$1"
     if [[ -f "${meldBinaryPath}" ]]; then
-      Log::displayInfo "Configuring meld as default diff tool"
-      git config --global diff.tool meld
-      git config --global alias.dt 'difftool -d'
+      if [[ "${GIT_MERGE_TOOL:-}" = "meld" ]]; then
+        Log::displayInfo "Configuring meld as default diff tool"
+        git config --global diff.tool meld
+        git config --global difftool.prompt false
+        git config --global difftool.meld.cmd 'meld "$LOCAL" "$REMOTE"'
+        git config --global alias.dt 'difftool -d'
+
+        git config --global merge.tool meld
+        git config --global mergetool.prompt false
+        git config --global mergetool.meld.cmd 'meld "$LOCAL" "$MERGED" "$REMOTE" --output "$MERGED"'
+        git config --global alias.mt 'mergetool -d'
+      fi
       sudo ln -sf "${meldBinaryPath}" /usr/local/bin/meld
       return 0
     fi

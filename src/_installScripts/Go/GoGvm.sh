@@ -78,6 +78,6 @@ testConfigure() {
   # shellcheck source=/dev/null
   source "${HOME}/.bash-dev-env/profile.d/golang.sh" || ((++failures))
 
-  Version::checkMinimal "go" "version" "1.22.1" || ((++failures))
+  Version::checkMinimal "go" "version" "1.23.4" || ((++failures))
   return "${failures}"
 }

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
 helpDescription() {
-  echo "this is an example that can be used to debug or as a template for other install scripts"
+  echo "installs mlocate(before 22.04) or plocate package (since 22.04)"
+  echo "and configure it to exclude some directories"
+  echo "from the locate database."
 }
 
 dependencies() {
@@ -54,7 +56,7 @@ installFromUbuntu20() {
       # shellcheck disable=SC1003
       BASE_MNT_C="$(mount | grep 'path=C:\\' | awk -F ' ' '{print $3}')"
       # update configuration in order to remove /mnt/c, docker and other cache directories
-      PRUNEPATHS="${BASE_MNT_C} /var/cache /var/www /var/lib/docker ${USERHOME}/.npm ${USERHOME}/.cache"
+      PRUNEPATHS="${BASE_MNT_C} /var/cache /var/www /var/lib/docker ${HOME}/.npm ${HOME}/.cache"
       sudo sed -i -r \
         "s#^PRUNEPATHS=\"(.*)\"\$#PRUNEPATHS=\"\1 ${PRUNEPATHS} \"#" \
         deb/etc/updatedb.conf
@@ -104,8 +106,8 @@ configureMlocate() {
     "/var/cache"
     "/var/www"
     "/var/lib/docker"
-    "${USERHOME}/.npm"
-    "${USERHOME}/.cache"
+    "${HOME}/.npm"
+    "${HOME}/.cache"
   )
   # shellcheck disable=SC1003
   sudo sed -i -E \

@@ -60,8 +60,8 @@ testInstall() {
   Assert::fileExists "${HOME}/.bash-dev-env/profile.d/n_path.sh" || ((++failures))
   # shellcheck source=src/_installScripts/Node/NodeNpm-conf/.bash-dev-env/profile.d/n_path.sh
   source "${HOME}/.bash-dev-env/profile.d/n_path.sh" || ((++failures))
-  Version::checkMinimal "n" "--version" "10.0.0" || ((++failures))
-  Version::checkMinimal "node" "-v" "22.9.0" || ((++failures))
-  Version::checkMinimal "npm" "-v" "10.8.3" || ((++failures))
+  Version::checkMinimal "n" "--version" "10.1.0" || ((++failures))
+  Version::checkMinimal "node" "-v" "23.5.0" || ((++failures))
+  Version::checkMinimal "npm" "-v" "10.9.2" || ((++failures))
   return "${failures}"
 }

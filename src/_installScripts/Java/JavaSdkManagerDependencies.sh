@@ -41,7 +41,7 @@ testInstall() {
     local -i failures=0
     # shellcheck source=/dev/null
     source "${HOME}/.sdkman/bin/sdkman-init.sh"
-    Version::checkMinimal "gradle" --version "8.7" || ((++failures))
+    Version::checkMinimal "gradle" --version "8.12" || ((++failures))
     return "${failures}"
   ) || return "$?"
 }

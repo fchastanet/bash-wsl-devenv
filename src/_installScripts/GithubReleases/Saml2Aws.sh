@@ -48,5 +48,5 @@ install() {
 }
 
 testInstall() {
-  Version::checkMinimal "saml2aws" --version "2.36.10" || return 1
+  Version::checkMinimal "saml2aws" --version "2.36.18" || return 1
 }

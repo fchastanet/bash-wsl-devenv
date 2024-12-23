@@ -32,7 +32,10 @@ isTestInstallImplemented() { :; }
 cleanBeforeExport() {
   if command -v docker; then
     Log::displayInfo "Cleaning docker system"
+    # shellcheck disable=SC2046
+    docker stop $(docker ps -aq) || true
     docker system prune -a --volumes --force || true
+    docker volume prune --all --force || true
   fi
 }
 
@@ -118,7 +121,7 @@ testInstall() {
     fi
   fi
 
-  Version::checkMinimal "docker" --version "25.0.3" || ((++failures))
+  Version::checkMinimal "docker" --version "27.4.1" || ((++failures))
 
   Log::displayInfo "docker executable path $(command -v docker || true)"
   Log::displayInfo "docker version $(docker --version || true)"

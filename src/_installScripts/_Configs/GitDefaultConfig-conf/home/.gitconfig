@@ -13,6 +13,19 @@
   # You can restore default value using :
   # git config --global core.hooksPath .git/hooks
   #hooksPath = .githooks
+
+[merge]
+  tool = vscode
+
+[mergetool "vscode"]
+  cmd = code --wait --merge $BASE $LOCAL $REMOTE $MERGED
+
+[diff]
+  tool = vscode
+
+[difftool "vscode"]
+  cmd = code --wait --diff $LOCAL $REMOTE
+
 [init]
   defaultBranch = master
   templatedir = ~/.bash-dev-env/GitDefaultConfig/pre-commit-template

@@ -42,7 +42,7 @@ checkPhpModuleExists() {
 }
 testInstall() {
   local -i failures=0
-  Version::checkMinimal "php" --version "7.4.3" || ((++failures))
+  Version::checkMinimal "php" --version "8.3.6" || ((++failures))
   checkPhpModuleExists curl || ((++failures))
   checkPhpModuleExists mbstring || ((++failures))
   checkPhpModuleExists xml || ((++failures))

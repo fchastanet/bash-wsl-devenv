@@ -14,7 +14,6 @@ bindkey
 Buildx
 ccomp
 CDPATH
-ceph
 Chastanet
 chgrp
 chgrp
@@ -50,6 +49,8 @@ getent
 getopt
 globstar
 GOBIN
+GOPROXY
+GOSUMDB
 grey
 HISTDUP
 HISTFILE
@@ -94,7 +95,6 @@ readlink
 realpath
 Referer
 SAVEHIST
-schroot
 scrasnups
 selfupdate
 setaf
@@ -125,10 +125,8 @@ unstub
 userdel
 USERGROUP
 USERGROUP_ID
-USERHOME
 USERID
 USERPROFILE
-verysilent
 xdebug
 xdebugini
 xvzf

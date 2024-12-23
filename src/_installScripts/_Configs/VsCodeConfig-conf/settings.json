@@ -1,0 +1,140 @@
+{
+  "extension-profiles.enableStartupCheck": false,
+  // General settings
+  "workbench.colorTheme": "Default Dark Modern",
+  "editor.fontFamily": "'MesloLGS NF', 'Ubuntu Mono derivative Powerline', Consolas, 'Courier New', monospace",
+  "files.eol": "\n",
+  "editor.tabSize": 2,
+  "editor.autoClosingBrackets": "never",
+  "editor.autoClosingOvertype": "never",
+  "editor.autoClosingQuotes": "never",
+  "editor.formatOnPaste": false,
+  "editor.formatOnType": false,
+  "editor.formatOnSave": false,
+  "diffEditor.ignoreTrimWhitespace": false,
+  "diffEditor.codeLens": true,
+  "local-history.treeLocation": "localHistory",
+  "compareFolders.excludeFilter": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/.history/**",
+    "**/logs/**"
+  ],
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/bower_components": true,
+    "**/*.code-search": true,
+    "**/_site": true,
+    "**/.git": true,
+    "**/.history": true,
+    "**/.idea": true,
+    "**/.vscode": true,
+    "**/.vscode-test": true,
+    "**/dist": true,
+    "**/logs": true,
+    "**/tmp": true,
+    "**/vendor": true,
+    "**/var/log": true,
+    "**/var/cache": true,
+    "workspace": true,
+    "_ide_helper.php": true,
+    "_ide_helper_models.php": true,
+    ".php_cs.cache": true,
+    ".phpstorm.meta.php": true,
+    ".phpunit.result.cache": true
+  },
+  "search.useIgnoreFiles": false,
+  // exclude files from file explorer and from search
+  "files.exclude": {
+    "**/dist/*": false,
+    "**/.history": false
+  },
+  "formattingToggle.affects": ["formatOnPaste", "formatOnSave", "formatOnType"],
+  "[json]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
+  },
+  "workbench.editorAssociations": {
+    "*.ipynb": "jupyter.notebook.ipynb",
+    "*.puml": "default"
+  },
+  "redhat.telemetry.enabled": false,
+  // Common
+  "markdown.extension.toc.omittedFromToc": {
+    "Readme.md": ["# .*"]
+  },
+  "markdownlint.customRulesAlwaysAllow": ["MD031", "MD046"],
+  "markdown.extension.toc.levels": "2..6",
+  "markdown.extension.italic.indicator": "_",
+  "markdown.preview.scrollPreviewWithEditor": true,
+  "markdown.preview.scrollEditorWithPreview": true,
+  "markdown-preview-enhanced.codeBlockTheme": "darcula.css",
+  "markdown-preview-github-styles.colorTheme": "dark",
+  "markdown-preview-enhanced.singlePreview": true,
+  "markdown.extension.preview.autoShowPreviewToSide": false,
+
+  // Bash-Bats-Shellcheck-jq
+  "bashBeautify.tabSize": 2,
+  "shellcheck.useWorkspaceRootAsCwd": true,
+  "shellcheck.customArgs": ["-x"],
+
+  // Design API-UML
+  "plantuml.exportFormat": "png",
+  "plantuml.exportSubFolder": false,
+  "plantuml.exportOutDir": "plantuml",
+
+  // Python
+  "python.formatting.provider": "black",
+  "python.languageServer": "Pylance",
+
+  // Jenkinsfile-Docker-Helm
+  "[dockerfile]": {
+    "editor.defaultFormatter": "foxundermoon.shell-format"
+  },
+  "files.associations": {
+    "Jenkinsfile": "jenkinsfile",
+    "*.tpl": "shellscript",
+    "*.md": "markdown",
+    "*.bats": "bats",
+    ".php_cs.dist": "php",
+    ".php_cs": "php",
+    ".pre": "php",
+    "artisan": "php"
+  },
+  "jenkins.pipeline.linter.connector.strictssl": false,
+  "groovyLint.lint.trigger": "onSave",
+
+  // PHP-HTML-JS-twig-Vue
+  "vetur.validation.template": false,
+  "eslint.validate": ["vue", "html", "javascript"],
+  "beautify.options": {
+    "editor.tabSize": 2
+  },
+  "eslint.alwaysShowStatus": true,
+  "eslint.lintTask.enable": true,
+  "eslint.runtime": "node",
+  "eslint.codeAction.disableRuleComment": {},
+  "eslint.debug": true,
+  "eslint.format.enable": true,
+  "eslint.options": {},
+  "eslint.probe": ["javascript", "html", "vue", "markdown"],
+  "[javascript]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features"
+  },
+  "typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": false,
+  "javascript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": false,
+  "SQL": {
+    "temporaryProfile": true,
+    "extensions": ["matt-meyers.vscode-dbml", "mtxr.sqltools"]
+  },
+  "[python]": {
+    "editor.formatOnType": true
+  },
+  "yet-phpunit.xmlConfigFilepath": "",
+  "plantuml.server": "htpp://localhost:8080",
+  "markdown-preview-enhanced.plantumlServer": "http://localhost:8080",
+  "plantuml.jar": "/opt/java/plantuml.jar",
+  "plantuml.render": "PlantUMLServer"
+}

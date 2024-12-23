@@ -67,7 +67,8 @@ configure() {
     /etc/update-motd.d/91-contract-ua-esm-status \
     /etc/update-motd.d/91-release-upgrade \
     /etc/update-motd.d/92-unattended-upgrades \
-    /etc/update-motd.d/95-hwe-eol ||
+    /etc/update-motd.d/95-hwe-eol \
+    /etc/update-motd.d/99-wsl ||
     true
 
   if [[ -f /usr/share/landscape/landscape-sysinfo.wrapper ]]; then

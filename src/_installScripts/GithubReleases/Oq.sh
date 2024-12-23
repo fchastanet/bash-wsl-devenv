@@ -32,5 +32,5 @@ install() {
 }
 
 testInstall() {
-  Version::checkMinimal "oq" --version "1.3.4" oqParseVersion || return 1
+  Version::checkMinimal "oq" --version "1.3.5" oqParseVersion || return 1
 }

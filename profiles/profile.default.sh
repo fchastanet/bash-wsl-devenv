@@ -47,6 +47,7 @@ CONFIG_LIST+=(
   "installScripts/KubeDefaultConfig"
   "installScripts/GitDefaultConfig"
   "installScripts/PreCommitDefaultConfig"
+  "installScripts/VsCodeConfig"
 )
 
 # Mandatory packages
