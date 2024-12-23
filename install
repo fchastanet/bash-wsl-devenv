@@ -3515,7 +3515,10 @@ summary() {
     fi
     local endDate
     endDate="$(date +%s)"
-    Log::displayInfo "Total duration: $((endDate - startDate))s"
+    local totalDuration=$((endDate - startDate))
+    local humanReadableDuration
+    humanReadableDuration=$(date -ud "@${totalDuration}" +'%H:%M:%S')
+    Log::displayInfo "Total duration: ${humanReadableDuration}"
     summaryDisplayed="1"
     if [[ "${installResultCode}" = "0" ]]; then
       Log::displaySuccess "Successful Installation"
