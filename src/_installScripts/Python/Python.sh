@@ -123,3 +123,13 @@ testConfigure() {
   }
   return "${failures}"
 }
+
+cleanBeforeExport() {
+  rm -Rf "${HOME}/.cache/pip" || true
+}
+
+testCleanBeforeExport() {
+  ((failures = 0)) || true
+  Assert::dirNotExists "${HOME}/.cache/pip" || ((++failures))
+  return "${failures}"
+}

@@ -45,6 +45,7 @@ extglob
 fchastanet
 fgrep
 fmask
+fuzzcache
 getent
 getopt
 globstar
@@ -72,6 +73,7 @@ mergetool
 mindepth
 mkdir
 mktemp
+modcache
 MYPRUNEPATHS
 newuser
 noargs

@@ -61,3 +61,7 @@ testInstall() {
   Version::checkMinimal "npm" "-v" "10.9.2" || ((++failures))
   return "${failures}"
 }
+
+cleanBeforeExport() {
+  n prune --cleanup
+}

@@ -30,6 +30,8 @@ defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
+configure() { :; }
+testConfigure() { :; }
 # jscpd:ignore-end
 
 install() {
@@ -76,5 +78,12 @@ testInstall() {
   return "${failures}"
 }
 
-configure() { :; }
-testConfigure() { :; }
+cleanBeforeExport() {
+  rm -Rf "${HOME}/.npm/_cacache" || true
+}
+
+testCleanBeforeExport() {
+  ((failures = 0)) || true
+  Assert::dirNotExists "${HOME}/.npm/_cacache" || ((++failures))
+  return "${failures}"
+}

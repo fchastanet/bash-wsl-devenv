@@ -77,3 +77,10 @@ testConfigure() {
   Version::checkMinimal "go" "version" "1.23.4" || ((++failures))
   return "${failures}"
 }
+
+cleanBeforeExport() {
+  # shellcheck source=/dev/null
+  source "${HOME}/.bash-dev-env/profile.d/golang.sh" || ((++failures))
+
+  gvm clean
+}

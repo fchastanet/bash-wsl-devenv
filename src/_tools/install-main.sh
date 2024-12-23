@@ -211,7 +211,17 @@ executeScripts() {
   done
 }
 
+computeDiskSpaceGained() {
+  local initialSpace="$1"
+  local finalSpace
+  finalSpace=$(df --output=avail / | tail -n 1)
+  local spaceGained=$((initialSpace - finalSpace))
+  Log::displayInfo "Disk space gained: ${spaceGained}K"
+}
+
 executeScriptsCleanBeforeExport() {
+  local initialSpace
+  initialSpace=$(df --output=avail / | tail -n 1)
   local -i configIndex=1
   local -i configCount=0
   local configName
@@ -269,6 +279,7 @@ executeScriptsCleanBeforeExport() {
     ) 2>&1 | tee >(sed -r 's/\x1b\[[0-9;]*m//g' >>"${LOGS_DIR}/lastInstall.log") || exit 1
     ((++configIndex))
   done
+  computeDiskSpaceGained "${initialSpace}"
 }
 
 Profiles::checkScriptsExistence "${BASH_DEV_ENV_ROOT_DIR}" "" "${CONFIG_LIST[@]}"

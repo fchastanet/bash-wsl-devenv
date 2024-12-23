@@ -72,3 +72,21 @@ testConfigure() {
   Assert::fileExists "${HOME}/.bash-dev-env/profile.d/sdkman-init.sh"
   Assert::fileExists "${HOME}/.sdkman/etc/config"
 }
+
+cleanBeforeExport() {
+  # shellcheck source=/dev/null
+  source "${HOME}/.sdkman/bin/sdkman-init.sh"
+
+  sdk flush
+}
+
+testCleanBeforeExport() {
+  (
+    local -i failures=0
+
+    Assert::dirEmpty "${HOME}/.sdkman/var/tmp" || ((++failures))
+    Assert::dirEmpty "${HOME}/.sdkman/var/metadata" || ((++failures))
+
+    return "${failures}"
+  ) || return "$?"
+}

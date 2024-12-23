@@ -98,3 +98,18 @@ testInstall() {
   ) || failures="$?"
   return "${failures}"
 }
+
+cleanBeforeExport() {
+  # shellcheck source=/dev/null
+  source "${HOME}/.bash-dev-env/profile.d/golang.sh" || exit 1
+  go clean -cache
+  go clean -modcache
+  go clean -fuzzcache
+}
+
+testCleanBeforeExport() {
+  ((failures = 0)) || true
+  Assert::dirEmpty "${HOME}/.cache/go-build/" "README" || ((++failures))
+  Assert::dirNotExists "${HOME}/go/pkg/mod/cache" || ((++failures))
+  return "${failures}"
+}

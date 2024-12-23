@@ -60,3 +60,13 @@ testInstall() {
 
   return "${failures}"
 }
+
+cleanBeforeExport() {
+  rm -Rf "${HOME}/.cache/composer" || true
+}
+
+testCleanBeforeExport() {
+  ((failures = 0)) || true
+  Assert::dirNotExists "${HOME}/.cache/composer" || ((++failures))
+  return "${failures}"
+}
