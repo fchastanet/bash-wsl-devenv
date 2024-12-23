@@ -50,6 +50,7 @@ Github
 github
 GITHUB
 gnupg
+GOCACHE
 gofmt
 gofumpt
 gogvm

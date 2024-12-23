@@ -1415,6 +1415,7 @@ Log::computeDuration() {
   if ((${DISPLAY_DURATION:-0} == 1)); then
     local -i duration=0
     local -i delta=0
+    local durationStr deltaStr
     local -i currentLogDate
     currentLogDate="${EPOCHREALTIME/[^0-9]/}"
     if ((LOG_LAST_LOG_DATE_INIT == 1)); then
@@ -1423,7 +1424,17 @@ Log::computeDuration() {
     else
       duration=$(((currentLogDate - FIRST_LOG_DATE) / 1000000))
       delta=$(((currentLogDate - LOG_LAST_LOG_DATE) / 1000000))
-      LOG_LAST_DURATION_STR="${duration}s/+${delta}s"
+      if ((duration > 59)); then
+        durationStr=$(date -ud "@${duration}" +'%H:%M:%S')
+      else
+        durationStr="${duration}s"
+      fi
+      if ((delta > 59)); then
+        deltaStr=$(date -ud "@${delta}" +'%H:%M:%S')
+      else
+        deltaStr="${delta}s"
+      fi
+      LOG_LAST_DURATION_STR="${durationStr}/+${deltaStr}"
     fi
     LOG_LAST_LOG_DATE="${currentLogDate}"
     # shellcheck disable=SC2034
@@ -2123,7 +2134,9 @@ Stats::aggregateStatsSummary() {
     if [[ "${warning}" != "0" ]]; then
       echo -e " - ${__WARNING_COLOR}${warning} ${msg} with warning${__RESET_COLOR}"
     fi
-    echo -e " - ${__INFO_COLOR}Duration: ${duration}s${__RESET_COLOR}"
+    local humanReadableDuration
+    humanReadableDuration=$(date -ud "@${duration}" +'%H:%M:%S')
+    echo -e " - ${__INFO_COLOR}Duration: ${humanReadableDuration}${__RESET_COLOR}"
   )
 }
 
@@ -3682,8 +3695,10 @@ computeDiskSpaceGained() {
   finalSpace=$(df --output=avail / | tail -n 1)
   local spaceGained=$((initialSpace - finalSpace))
   local humanReadableSpace
-  humanReadableSpace=$(numfmt --to=iec --suffix=B "${spaceGained}K")
-  Log::displayInfo "Disk space gained: ${humanReadableSpace}"
+  if (( spaceGained > 0 )); then
+    humanReadableSpace=$(numfmt --to=iec --suffix=B "${spaceGained}")
+    Log::displayInfo "Disk space gained: ${humanReadableSpace}"
+  fi
 }
 
 executeScriptsCleanBeforeExport() {

@@ -220,8 +220,10 @@ computeDiskSpaceGained() {
   finalSpace=$(df --output=avail / | tail -n 1)
   local spaceGained=$((initialSpace - finalSpace))
   local humanReadableSpace
-  humanReadableSpace=$(numfmt --to=iec --suffix=B "${spaceGained}K")
-  Log::displayInfo "Disk space gained: ${humanReadableSpace}"
+  if (( spaceGained > 0 )); then
+    humanReadableSpace=$(numfmt --to=iec --suffix=B "${spaceGained}")
+    Log::displayInfo "Disk space gained: ${humanReadableSpace}"
+  fi
 }
 
 executeScriptsCleanBeforeExport() {
