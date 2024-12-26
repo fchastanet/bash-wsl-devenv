@@ -16,11 +16,10 @@ fortunes() {
       echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- The font ${__HELP_EXAMPLE}Meslo LG S${__RESET_COLOR} does not seem to be installed, use ${__HELP_EXAMPLE}installAndConfigure Font${__RESET_COLOR} to get better terminal results."
       echo "%"
     fi
-    local terminalConfig
-    # cspell:ignore wekyb, bbwe
-    terminalConfig="${WINDOWS_PROFILE_DIR}/AppData/Local/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/settings.json"
-    if [[ -f "${terminalConfig}" ]]; then
-      if ! grep -q '"face": "MesloLGS NF"' "${terminalConfig}"; then
+    local terminalConfSettingsPath
+    terminalConfSettingsPath="$(Conf::getWindowsTerminalPath)/LocalState/settings.json"
+    if [[ -f "${terminalConfSettingsPath}" ]]; then
+      if ! grep -q '"face": "MesloLGS NF"' "${terminalConfSettingsPath}"; then
         fortunes+=("Font - You should change your terminal settings to use font 'MesloLGS NF' for better terminal readability")
       fi
     else

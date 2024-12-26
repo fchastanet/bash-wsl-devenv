@@ -70,7 +70,7 @@ configure() {
         "${targetFile}"
     fi
   }
-  CHANGE_WINDOWS_FILES=1 OVERWRITE_CONFIG_FILES=0 Install::file \
+  CHANGE_WINDOWS_FILES="${CHANGE_WINDOWS_FILES:-1}" OVERWRITE_CONFIG_FILES=0 Install::file \
     "${fileToInstall}" \
     "${WINDOWS_PROFILE_DIR}/.wslconfig" \
     "${USERNAME}" "${USERGROUP}" \
@@ -80,6 +80,13 @@ configure() {
   fileToInstall="$(Conf::dynamicConfFile "${scriptName}/wsl.conf" "${embed_dir_wsl_conf}/wsl.conf")" || return 1
   SUDO=sudo OVERWRITE_CONFIG_FILES=0 Install::file \
     "${fileToInstall}" "/etc/wsl.conf" root root "Install::setUserRootCallback"
+
+  # shellcheck disable=SC2154
+  fileToInstall="$(Conf::dynamicConfFile "${scriptName}/settings.json" "${embed_dir_wsl_conf}/settings.json")" || return 1
+  CHANGE_WINDOWS_FILES="${CHANGE_WINDOWS_FILES:-1}" OVERWRITE_CONFIG_FILES=0 Install::file \
+    "${fileToInstall}" \
+    "$(Conf::getWindowsTerminalPath)/LocalState/settings.json"
+
 }
 
 testConfigure() {
@@ -106,5 +113,19 @@ testConfigure() {
     Log::displayError "/etc/wsl.conf does not exists"
     ((++failures))
   fi
+
+  if [[ "${CHANGE_WINDOWS_FILES:-1}" = "1" ]]; then
+    if ! Assert::fileExists "${WINDOWS_PROFILE_DIR}/.wslconfig" "${USERNAME}" "${USERGROUP}"; then
+      Log::displayError "${WINDOWS_PROFILE_DIR}/.wslconfig does not exists"
+      ((++failures))
+    fi
+    local terminalConfSettingsPath
+    terminalConfSettingsPath="$(Conf::getWindowsTerminalPath)/LocalState/settings.json"
+    if ! Assert::fileExists "${terminalConfSettingsPath}" "${USERNAME}" "${USERGROUP}"; then
+      Log::displayError "${terminalConfSettingsPath} does not exists"
+      ((++failures))
+    fi
+  fi
+
   return "${failures}"
 }

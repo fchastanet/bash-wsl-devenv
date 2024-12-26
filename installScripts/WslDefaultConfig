@@ -632,6 +632,15 @@ Conf::dynamicConfFile() {
 }
 
 
+# @description Get the path to the windows terminal
+# @noargs
+# @stdout The path to the windows terminal
+Conf::getWindowsTerminalPath() {
+  # cspell:ignore wekyb, bbwe
+  echo "${WINDOWS_PROFILE_DIR}/AppData/Local/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe"
+}
+
+
 # @description list files of dir with given extension and display it as a list one by line
 #
 # @arg $1 dir:String the directory to list
@@ -3252,10 +3261,10 @@ commandOptionParseFinished() {
 
 Linux::requireTarCommand
 Compiler::Embed::extractDirFromBase64 \
-  "${PERSISTENT_TMPDIR:-/tmp}/5cb5c42add82e674fdb49473d8f83fbc1f4da2e7390cd837ea930d88a19f6569/wsl_conf" \
-  "H4sIAAAAAAAA/+yUzWrrMBBGs56nEGSfjB3fZOXF/YH7AC3pwnihWuNEII+MRqqbPH1JQluaTRclDSU+mxEfgtEIzswGcY3n1m4mFwMRcVkUx4qI5xVzXLydj3mWZatiovByT3onSdRhgl/udT7cD6EaxOU1dNT5sCsz/P8HZNB9iWCo1cnF9dbc2T2VizzP8vxXscoRgUkimbUNMWln9zpaz2WrnRBMN8n+7ntnm2Mqp1hNFRMZMqr1QRl6Uo3nqC1TgGt/wU0ziJsd/L9kj8/8P8j+0X9cLhej/99BpVP0nU8cawjeR1WqecdxDlAloVC/roFyEAdQPXofa5CdROpMGUMigIqeewq2I47a1WBY7hMzOcub040k9GDZ+EH+sfzVzZZO+bVnHxkZGbllXgIAAP//ioCyLgAMAAA="
+  "${PERSISTENT_TMPDIR:-/tmp}/7d213b3490b09675ff73f96ef03f5f4d596dfd3c605796b136994b0835bc3a1f/wsl_conf" \
+  "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"
 
-declare -gx embed_dir_wsl_conf="${PERSISTENT_TMPDIR:-/tmp}/5cb5c42add82e674fdb49473d8f83fbc1f4da2e7390cd837ea930d88a19f6569/wsl_conf"
+declare -gx embed_dir_wsl_conf="${PERSISTENT_TMPDIR:-/tmp}/7d213b3490b09675ff73f96ef03f5f4d596dfd3c605796b136994b0835bc3a1f/wsl_conf"
 
 
 wslBeforeParseCallback() {
@@ -3327,7 +3336,7 @@ configure() {
         "${targetFile}"
     fi
   }
-  CHANGE_WINDOWS_FILES=1 OVERWRITE_CONFIG_FILES=0 Install::file \
+  CHANGE_WINDOWS_FILES="${CHANGE_WINDOWS_FILES:-1}" OVERWRITE_CONFIG_FILES=0 Install::file \
     "${fileToInstall}" \
     "${WINDOWS_PROFILE_DIR}/.wslconfig" \
     "${USERNAME}" "${USERGROUP}" \
@@ -3337,6 +3346,13 @@ configure() {
   fileToInstall="$(Conf::dynamicConfFile "${scriptName}/wsl.conf" "${embed_dir_wsl_conf}/wsl.conf")" || return 1
   SUDO=sudo OVERWRITE_CONFIG_FILES=0 Install::file \
     "${fileToInstall}" "/etc/wsl.conf" root root "Install::setUserRootCallback"
+
+  # shellcheck disable=SC2154
+  fileToInstall="$(Conf::dynamicConfFile "${scriptName}/settings.json" "${embed_dir_wsl_conf}/settings.json")" || return 1
+  CHANGE_WINDOWS_FILES="${CHANGE_WINDOWS_FILES:-1}" OVERWRITE_CONFIG_FILES=0 Install::file \
+    "${fileToInstall}" \
+    "$(Conf::getWindowsTerminalPath)/LocalState/settings.json"
+
 }
 
 testConfigure() {
@@ -3363,6 +3379,20 @@ testConfigure() {
     Log::displayError "/etc/wsl.conf does not exists"
     ((++failures))
   fi
+
+  if [[ "${CHANGE_WINDOWS_FILES:-1}" = "1" ]]; then
+    if ! Assert::fileExists "${WINDOWS_PROFILE_DIR}/.wslconfig" "${USERNAME}" "${USERGROUP}"; then
+      Log::displayError "${WINDOWS_PROFILE_DIR}/.wslconfig does not exists"
+      ((++failures))
+    fi
+    local terminalConfSettingsPath
+    terminalConfSettingsPath="$(Conf::getWindowsTerminalPath)/LocalState/settings.json"
+    if ! Assert::fileExists "${terminalConfSettingsPath}" "${USERNAME}" "${USERGROUP}"; then
+      Log::displayError "${terminalConfSettingsPath} does not exists"
+      ((++failures))
+    fi
+  fi
+
   return "${failures}"
 }
 
