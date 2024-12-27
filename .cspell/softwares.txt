@@ -129,6 +129,7 @@ phpstan
 phpstorm
 phpunit
 picoweb
+pipx
 pixbuf
 plantuml
 Plantuml
