@@ -3145,8 +3145,12 @@ installVsCodeExtension() {
     for extension in "${batch[@]}"; do
       cmd+=(--install-extension "${extension}")
     done
-    Log::displayInfo "Installing VSCode extensions: ${batch[*]} (batch ${i}-$((i + batchSize)) of ${total})"
-    if Retry::default "${cmd[@]}"; then
+    Log::displayInfo "Installing VSCode extensions: ${batch[*]} ..."
+    if Retry::parameterized \
+      "${RETRY_MAX_RETRY:-5}" \
+      "batch ${i}-$((i + batchSize)) of ${total}" \
+      "${RETRY_DELAY_BETWEEN_RETRIES:-15}"
+      "${cmd[@]}"; then
       Log::displaySuccess "VSCode extensions '${extension}' successfully installed"
     else
       Log::displayError "Something went wrong while installing '${extension}' VS code extension"
