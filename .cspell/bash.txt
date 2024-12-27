@@ -7,7 +7,6 @@ autojump
 autoload
 automount
 autoupdate
-autoupdate
 auwm
 bashism
 bindkey
@@ -15,7 +14,6 @@ Buildx
 ccomp
 CDPATH
 Chastanet
-chgrp
 chgrp
 chsh
 clrs
@@ -80,7 +78,6 @@ MYPRUNEPATHS
 newuser
 noargs
 nocompile
-nohup
 nohup
 noninteractive
 NOPASSWD

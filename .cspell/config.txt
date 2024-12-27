@@ -6,11 +6,9 @@ atload
 atpull
 autocd
 autocrlf
-autocrlf
 autofs
 autohide
 autologin
-automount
 automount
 autoupdate
 Ayatana
@@ -54,7 +52,6 @@ devfs
 devicedetect
 devpts
 devtmpfs
-difftool
 difftool
 dircolors
 direxpand
@@ -143,12 +140,9 @@ nifi
 nocasematch
 nocd
 nocompatible
-nocompatible
-noeb
 noeb
 nonprod
 NOPASSWD
-noswapfile
 noswapfile
 numlockx
 numstat
@@ -160,8 +154,6 @@ oneline
 ovpn
 oxsecurity
 pagedown
-pagedown
-pageup
 pageup
 Parens
 pcntl
@@ -169,8 +161,6 @@ pcpu
 pcre
 perso
 pgdn
-pgdn
-pgup
 pgup
 phar
 phing
@@ -242,9 +232,7 @@ sysvmsg
 sysvsem
 sysvshm
 tabwidth
-tabwidth
 tempdir
-templatedir
 templatedir
 tigrc
 tintcolor
