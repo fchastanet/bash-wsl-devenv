@@ -8,9 +8,7 @@ helpDescription() {
 
 dependencies() {
   echo "installScripts/AwsCli"
-  # Saml2Aws is needed to configure aws, but probably awsume can run without needing it
   echo "installScripts/Saml2Aws"
-  echo "installScripts/Awsume"
 }
 
 listVariables() {

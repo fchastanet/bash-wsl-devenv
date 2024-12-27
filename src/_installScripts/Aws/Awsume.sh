@@ -3,6 +3,10 @@
 
 helpDescription() {
   echo "With awsume, you can easily switch between different AWS roles and accounts."
+}
+
+helpLongDescription() {
+  helpDescription
   echo "Awsume is a convenient way to manage session tokens and assume role credentials"
   echo "It is a command-line utility for retrieving and exporting AWS credentials"
   echo "to your shell's environment."
@@ -12,6 +16,7 @@ dependencies() {
   echo "installScripts/Python"
 }
 
+# shellcheck disable=SC2317
 listVariables() {
   echo "HOME"
   echo "USERNAME"
