@@ -2887,6 +2887,10 @@ getDistroFile() {
 exportDistro() {
   local distroFile
   distroFile="$(getDistroFile)"
+  Log::displayInfo "Shutting down wsl distribution ${DISTRO_NAME}"
+  runWslCmd shutdown -h now
+  Log::displayInfo "Waiting for distro ${DISTRO_NAME} to terminate"
+  sleep 5
   Log::displayInfo "Terminating wsl distribution ${DISTRO_NAME}"
   wsl.exe --terminate "${DISTRO_NAME}"
   Log::displayInfo "Exporting wsl distribution to ${distroFile}"
@@ -3045,7 +3049,7 @@ fi
 (
   # shellcheck disable=SC2034
   SUDO=""
-  SUDOER_FILE_PREFIX="/mnt/wsl/${DISTRO_NAME}/etc/sudoers.d/bash-dev-env-no-password" \
+  SUDOER_FILE="/mnt/wsl/${DISTRO_NAME}/etc/sudoers.d/bash-dev-env-no-password" \
     Linux::createSudoerFile
 
   Log::displayInfo "Installing ... using ${installCmd[*]}"
