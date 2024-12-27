@@ -3368,7 +3368,7 @@ testConfigure() {
   if ! Assert::wsl; then
     return 0
   fi
-  if ! Assert::fileExists "/etc/wsl.conf" "root" "root"; then
+  if ! USERNAME="" USERGROUP="" Assert::fileExists "/etc/wsl.conf"; then
     ((++failures))
     if ! grep -q -E "^root = /mnt/$" "/etc/wsl.conf"; then
       Log::displayError "/etc/wsl.conf does not contains root = /mnt/ instruction"
@@ -3377,13 +3377,13 @@ testConfigure() {
   fi
 
   if [[ "${CHANGE_WINDOWS_FILES:-1}" = "1" ]]; then
-    if ! Assert::fileExists "${WINDOWS_PROFILE_DIR}/.wslconfig" "root" "root"; then
+    if ! USERNAME="" USERGROUP="" Assert::fileExists "${WINDOWS_PROFILE_DIR}/.wslconfig"; then
       Log::displayError "${WINDOWS_PROFILE_DIR}/.wslconfig does not exists"
       ((++failures))
     fi
     local terminalConfSettingsPath
     terminalConfSettingsPath="$(Conf::getWindowsTerminalPath)/LocalState/settings.json"
-    if ! Assert::fileExists "${terminalConfSettingsPath}" "root" "root"; then
+    if ! USERNAME="" USERGROUP="" Assert::fileExists "${terminalConfSettingsPath}"; then
       Log::displayError "${terminalConfSettingsPath} does not exists"
       ((++failures))
     fi
