@@ -138,6 +138,7 @@ powerlevel
 Powerline
 precommit
 pstree
+pwsh
 pycharm
 pyupgrade
 redis
@@ -184,6 +185,7 @@ wslpath
 wslu
 Wslu
 wslvar
+wslview
 xcalc
 xdpyinfo
 xfonts
