@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/BashUtils/Mlocate-conf" as conf_dir
 
 helpDescription() {
   echo "installs mlocate(before 22.04) or plocate package (since 22.04)"
@@ -40,9 +41,19 @@ configureMlocate() {
     /etc/updatedb.conf
 }
 
+installMlocateConfigFile() {
+  local configDir
+  # shellcheck disable=SC2154
+  configDir="$(Conf::getOverriddenDir "${embed_dir_conf_dir}" "${CONF_OVERRIDE_DIR}/${scriptName}")"
+  SUDO=sudo OVERWRITE_CONFIG_FILES=0 Install::file \
+    "${configDir}/etc/updatedb.conf" \
+    "/etc/updatedb.conf" \
+    "root" "root" configureMlocate
+}
+
 install() {
   Log::displayInfo "Configure locate updatedb.conf to exclude some directories"
-  configureMlocate
+  installMlocateConfigFile
 
   if Version::isUbuntuMinimum "22.04"; then
     # since 22.04 mlocate has been replaced by plocate
