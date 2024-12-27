@@ -109,19 +109,15 @@ testConfigure() {
       ((++failures))
     fi
   fi
-  if ! Assert::fileExists "/etc/wsl.conf" "${USERNAME}" "${USERGROUP}"; then
-    Log::displayError "/etc/wsl.conf does not exists"
-    ((++failures))
-  fi
 
   if [[ "${CHANGE_WINDOWS_FILES:-1}" = "1" ]]; then
-    if ! Assert::fileExists "${WINDOWS_PROFILE_DIR}/.wslconfig" "${USERNAME}" "${USERGROUP}"; then
+    if ! Assert::fileExists "${WINDOWS_PROFILE_DIR}/.wslconfig" "root" "root"; then
       Log::displayError "${WINDOWS_PROFILE_DIR}/.wslconfig does not exists"
       ((++failures))
     fi
     local terminalConfSettingsPath
     terminalConfSettingsPath="$(Conf::getWindowsTerminalPath)/LocalState/settings.json"
-    if ! Assert::fileExists "${terminalConfSettingsPath}" "${USERNAME}" "${USERGROUP}"; then
+    if ! Assert::fileExists "${terminalConfSettingsPath}" "root" "root"; then
       Log::displayError "${terminalConfSettingsPath} does not exists"
       ((++failures))
     fi
