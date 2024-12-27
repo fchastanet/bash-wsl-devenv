@@ -2998,7 +2998,7 @@ if isDistroSystemdRunning; then
   systemdActivated=1
 fi
 Log::displayInfo 'pre-configure /etc/wsl.conf in order to activate systemd'
-sudo cp "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/_Configs/WslDefaultConfig-conf/etc/wsl.conf" \
+sudo cp "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/_Configs/WslDefaultConfig-conf/wsl.conf" \
   "/mnt/wsl/${DISTRO_NAME}/etc/wsl.conf"
 
 # no need to restart the distro if systemd already active
