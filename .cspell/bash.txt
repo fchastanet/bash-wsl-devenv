@@ -23,6 +23,7 @@ cntrl
 compgen
 compinit
 compinstall
+confold
 cowthink
 CWORD
 debian
