@@ -36,6 +36,7 @@ drvfs
 DUPS
 Ecma
 elif
+ensurepath
 envsubst
 errexit
 esac

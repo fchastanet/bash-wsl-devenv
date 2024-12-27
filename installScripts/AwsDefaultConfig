@@ -3307,10 +3307,10 @@ declare -gx embed_file_talkScript="${PERSISTENT_TMPDIR:-/tmp}/a41b13eb5802e6ccd8
 
 Linux::requireTarCommand
 Compiler::Embed::extractDirFromBase64 \
-  "${PERSISTENT_TMPDIR:-/tmp}/9ce789aa41d09918e04bd981b18f2532c5e43238ce1ce48fb7218591e67cbe50/conf_dir" \
-  "H4sIAAAAAAAA/+yW3W7aMBSAuc5TnMG03szE/KRIm5iUknSNVpGKBKFpmpAhBqwGG9kOWbXx7lMoMGBDvSiwTc13Y+Of42PJ3yFlkipzKPiIjQunAmOML+v1ZYsx3m8xrlm/+tl4pVKt1wqAT5bRFonSRBbws8/av9x/wpeIjkgS66+GpGMmODSBJiilSqOK8beTyzk55QFRExTROaJ8bpKYEUVVOTJJqloxK6vJEc7IfGhY1kH/t+ZW/luVhpX7fw5Kr8wB42b2CozScTFK4PjQ9kNwHS98C+GNF8C1d+tCy27DlQvdO8cOXQd6Xnjjd8Nsqddyj56GUQLGQciIStACYjHOfmsBRKVAhxIQzCSbE00hEsN7KiErhUrLB4ONYCimU8IjQHMgqYI3H8yIzk2exPF70BPKDYClNdksetyPYjFmvHmRrc/ij6l+HEIzolQqZAQIrcpt8fV3uxf0Hffa7t6G/Y770fPbiyL8WOey3AgIJYpKTqYU7F4AaBMJKR0xDrtRHL/1ye0sgwVh53PfcxYXxoj9qZ4f8l+RaVwlqTpGBXjKf6tR3/ffwvn//1l4Cf7vWrx+2U+ovHJ4s3rl4Wxt7F3Hz+7yDq0+oBZFQEhRpZjgKEok0UzwZr1WxRgQipgig5iie/ownBDGD+l4dnb9n0kxYjE9s//4svGb/5VG7v852PbfoN9mQmpwrrpBP3CDwPPb/axvO07HDYLmxpd/4unm5OTk5DyDnwEAAP//Y8MBQAAUAAA="
+  "${PERSISTENT_TMPDIR:-/tmp}/3b891c7e8b0f59344b7551414e0df78203dcec3c0ff91ebaa9303a7cae1b2fb7/conf_dir" \
+  "H4sIAAAAAAAA/+yXQW/aMBSAe86veCvTepmJoQlIm5iUknSNVpGKBFXTNCFDDFgNNrKdZNXGf59CgZVIVQ8Dpol8FxtjPz9L/l6SOsmVORZ8wqZnhwJjjFuWtWoxxuUW40v7T78YbzSa1uUZ4INl9IxUaSLP8F/vVT7cf8K3mE5ImujvhqRTJjh0gKYop0qjhvGvk6s4OPURUTMU0wxRnpkkYURRVY9Nkqtuwupqtoc9Ch/atv2i/+1W2X+70W5V/h+D2hszVdIcMW5SnkFxG4zafjFq4AbQCyLwXD96D9GNH8K1f+tB1+nBlQeDO9eJPBfu/egmGETFVL/r7T0NowaMg5AxlaAFJGJa/NYCSK6AjiUgWEiWEU0hFuMHKqEoiUrLR4NNYCzmc8JjQNlq/rtPZkwzk6dJ8hH0jHIDYGVP8S96Wo8SMWW8c7GJP6X6aQgtiFK5kDEgtC67529/Ovfh0PWuncFtNOx7n/2gtzyHX5tcVgsBoVRRycmcgnMfAtpGQkrHjMNuFDfofvH6q2Bh1P869N3lhTFhz+v6S/4rMk+aJFf7qACv+d/CVtl/q21X/h+DU/J/1+LNDX9F5bXD29lrDxcbY+/6QXGWD2j9IrU8B4QUVYoJjuJUEs0E71iXTYwBoZgpMkooeqCP4xlhvKzj0dn1fyHFhCX0yP5bzVbZf7tRPf+Pwin5T38shNTgXg3CYeiFoR/0hkXfcd2+F4adbRmoPnwqKipOgN8BAAD//z0sMTUAFAAA"
 
-declare -gx embed_dir_conf_dir="${PERSISTENT_TMPDIR:-/tmp}/9ce789aa41d09918e04bd981b18f2532c5e43238ce1ce48fb7218591e67cbe50/conf_dir"
+declare -gx embed_dir_conf_dir="${PERSISTENT_TMPDIR:-/tmp}/3b891c7e8b0f59344b7551414e0df78203dcec3c0ff91ebaa9303a7cae1b2fb7/conf_dir"
 
 
 helpDescription() {
@@ -3319,7 +3319,9 @@ helpDescription() {
 
 dependencies() {
   echo "installScripts/AwsCli"
+  # Saml2Aws is needed to configure aws, but probably awsume can run without needing it
   echo "installScripts/Saml2Aws"
+  echo "installScripts/Awsume"
 }
 
 listVariables() {

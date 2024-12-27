@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # @embed "${FRAMEWORK_ROOT_DIR}/src/UI/talk.ps1" as talkScript
-# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/Aws/conf" as conf_dir
+# @embed "${BASH_DEV_ENV_ROOT_DIR}/src/_installScripts/Aws/AwsCli-conf" as conf_dir
 
 helpDescription() {
   echo "Default aws config using saml2aws"
@@ -8,7 +8,9 @@ helpDescription() {
 
 dependencies() {
   echo "installScripts/AwsCli"
+  # Saml2Aws is needed to configure aws, but probably awsume can run without needing it
   echo "installScripts/Saml2Aws"
+  echo "installScripts/Awsume"
 }
 
 listVariables() {

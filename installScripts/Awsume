@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Python/Python-binary.yaml
+# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Aws/Awsume-binary.yaml
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -305,22 +305,6 @@ Assert::commandExists() {
     return 1
   }
   return 0
-}
-
-
-# @description asserts that directory does not exist
-# @arg $1 dir:String
-# @env SUDO String allows to use custom sudo prefix command
-# @exitcode 1 existing dir
-# @env SUDO String allows to use custom sudo prefix command
-# @stderr diagnostics information is displayed
-Assert::dirNotExists() {
-  local dir="$1"
-  Log::displayInfo "Checking directory ${dir} does not exist"
-  if ${SUDO:-} test -d "${dir}" &>/dev/null; then
-    Log::displayError "Directory ${dir} still exists"
-    return 1
-  fi
 }
 
 
@@ -3064,7 +3048,7 @@ defaultBeforeParseCallback() {
 }
 
 scriptName() {
-  echo "Python"
+  echo "Awsume"
 }
 
 beforeParseCallback() {
@@ -3399,162 +3383,103 @@ commandOptionParseFinished() {
 
 Linux::requireTarCommand
 Compiler::Embed::extractDirFromBase64 \
-  "${PERSISTENT_TMPDIR:-/tmp}/be5cc90c51294a013242f33481acf304ce7220de52cabc990d83f073f3f68a82/conf_dir" \
-  "H4sIAAAAAAAA/+yTUWuDMBSF+5xfcaZ9KqumdKXg8KGrDoWtFmbZg/hgNaIsaNEYNtr+96GUDcpggxa2Qb+XGy6Hc5PLibaO6myYMDlkhdQ3VZnmnGmJvnkTWVloddY7HUopnU4mXaWUHlc6vRl/nLv+aDIe0R7oGWZ/S1OLqOrRk2cdP+6foF7p67zQ2xQQ9bwQFZaHhefDtlz/Gr7jPuHefbAxny1wZ2O1tGa+beHZ9R1v5bdSd26f/RokCGD0t8uZ7+wNmCYGitHfOt6jvdc1XsYRb1dgKAOEIXY7tEJT+UJx8FAIe92UleiEhKjgZZRAZHkNmVeiiTgrJMlTBAGGKT6dJCtkffhZ427tUSxyGQmmIAxvITJWEEBFnTHO44zFL6jLpoqZqSdM6kXDOcGh9TNfkubktyN24cKFP8p7AAAA//+phrckAAgAAA=="
+  "${PERSISTENT_TMPDIR:-/tmp}/f53cfad333b6e5704d267c2c3fb2aa3f76e44ef27592efdfcc2441e87f6f143a/conf_dir" \
+  "H4sIAAAAAAAA/+xXf2vqSBTt3/kUt1G2Co0ZNcbFxQVXLRW6tVSLLMtSxsnEhI4ZmR+RKu5nXybafdRHn/Aqfa+S80/m3rncM6NzDjOVKZaRE9DUoUnqYhZjSWUlcPFS6jmtyOjs/UAIoWajkX0RQvtf1PCa/4+zfLVRa9TPAB2B+yC0VFicoXdz7W/uk6Bw7k7jxDWnwCocF1YBekO4HY6h3xuML2F8PRjB1eCmD93OLfzRh4e7Xmfc78FkML4ePoxN6aDbP/oyrALECXARUAGKA+MzEysOeCmBEgEOLEScYkUh4OSJChB0Fkslnq04BMLnc5wE4KSw1QT88rsb0NRNNGO/gYpoYgFkwtkVtG3JtSB0F9pWGFs/+m9+E6/1vxA8jBn9on8z+26OA/qvIr+6r/+G38j1/xEonLtaiswDaJLCSfvA4/ZQl8qwtgAAGCeYAdECFoKmwBdKZvnu8M+7+/7dzV/tUjlLEC3adnFt8o+T4X1v9Hc27JrxPxs7qymAjChjJKLkCYJY4imj7VG3hupeNm8o3mziVF/amEW0i6XtSh2sFSd8vmBU0fI3aWqoeWnYfvX3twDFkmkxowk4E7CLa0OxscFxoLgmWmzKsG0tqNIiAWRtrBdOcK5g96vt3OzndbIc34MD/r86xgXw0P3Pa37l/56Pcv//COz5/+qE7b/Q0Yo73RdrC3VCVMwTCLmAzmRkzC1cYBW1S/+6le35d1cyemXCLhSzmvKp+GCF8CSMZzu9u9uo8ozn7HgcRg++572p/6q///7zqr6f6/8jQDjjQrZACU2tUK9Wz84cKxK1IMRMUktwRp1AC2yk0gKvXkPIMu8jE1HtLKlUTt0iPJGc0ZYFMBV8Kal43D2cWnBhLyVLY7q0wV5rwTb2xamoJ0eOHDk+L/4LAAD//6O/xTIAFgAA"
 
-declare -gx embed_dir_conf_dir="${PERSISTENT_TMPDIR:-/tmp}/be5cc90c51294a013242f33481acf304ce7220de52cabc990d83f073f3f68a82/conf_dir"
+declare -gx embed_dir_conf_dir="${PERSISTENT_TMPDIR:-/tmp}/f53cfad333b6e5704d267c2c3fb2aa3f76e44ef27592efdfcc2441e87f6f143a/conf_dir"
 
 
 helpDescription() {
-  echo "$(scriptName) - installs python and configure venv"
+  echo "With awsume, you can easily switch between different AWS roles and accounts."
+  echo "Awsume is a convenient way to manage session tokens and assume role credentials"
+  echo "It is a command-line utility for retrieving and exporting AWS credentials"
+  echo "to your shell's environment."
 }
 
-helpLongDescription() {
-  helpDescription
-  echo "Python is a programming language that lets you work quickly and integrate systems more effectively."
-  echo "The venv module supports creating lightweight 'virtual environments', each with their own independent set of Python packages installed in their site directories."
-  echo "venv tutorial : https://python.land/virtual-environments/virtualenv"
+dependencies() {
+  echo "installScripts/Python"
 }
+
+listVariables() {
+  echo "HOME"
+  echo "USERNAME"
+  echo "USERGROUP"
+  echo "AWS_DEFAULT_REGION"
+}
+
 
 fortunes() {
-  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- ${__HELP_EXAMPLE}venv${__RESET_COLOR} is automatically loaded by ${__HELP_EXAMPLE}~/.bash-dev-env/profile.d/python.sh${__RESET_COLOR}."
-  echo "You can activate this virtual env using the command 'source ${HOME}/.venvs/python3/bin/activate'"
-  echo "venv tutorial : https://python.land/virtual-environments/virtualenv"
-  echo "%"
+  if command -v awsume &>/dev/null; then
+    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- command ${__HELP_EXAMPLE}awsume${__RESET_COLOR} is a convenient"
+    echo "way to manage session tokens and assume role credentials (see https://awsu.me/)"
+    echo "%"
+    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- command ${__HELP_EXAMPLE}awsume -c profileName${__RESET_COLOR}"
+    echo "will open aws console in your browser using sso link (see https://github.com/trek10inc/awsume-console-plugin)"
+    echo "%"
+  else
+    echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- command ${__HELP_EXAMPLE}awsume${__RESET_COLOR} is not installed, you can install it using ${__HELP_EXAMPLE}installAndConfigure Awsume${__RESET_COLOR}"
+    echo "%"
+  fi
 }
 
 # jscpd:ignore-start
-dependencies() { :; }
-listVariables() { :; }
 helpVariables() { :; }
+listVariables() { :; }
 defaultVariables() { :; }
 checkVariables() { :; }
 breakOnConfigFailure() { :; }
 breakOnTestFailure() { :; }
 # jscpd:ignore-end
 
-isSupportedUbuntuVersion() {
-  local versionCompare=0
-  Version::compare "${VERSION_ID}" "24.04" || versionCompare=$?
-  if [[ "${versionCompare}" = "2" ]]; then
-    Log::displaySkipped "Unsupported ubuntu version (please install ubuntu version 24.04 minimum)"
-    return 1
-  fi
-}
-
 install() {
-  isSupportedUbuntuVersion || return 0
-
-  installFromUbuntu24
+  # shellcheck source=/dev/null
+  source "${HOME}/.venvs/python3/bin/activate" || return 1
+  AWSUME_SKIP_ALIAS_SETUP=true pipx install awsume
+  pipx inject awsume awsume-console-plugin
 }
 
-installFromUbuntu24() {
-  local -a packages=(
-    build-essential
-    python3
-    python-is-python3
-    python3-pip
-    python3-venv
-  )
-  Linux::Apt::installIfNecessary --no-install-recommends "${packages[@]}"
+testInstall() {
+  # shellcheck source=/dev/null
+  source "${HOME}/.venvs/python3/bin/activate" || return 1
 
-  mkdir -p \
-    "${HOME}/.local/bin" \
-    "${HOME}/.local/lib"
+  Version::checkMinimal "awsume" -v "4.5.4" || return 1
+}
+
+configure() {
+  local configDir
+  # shellcheck disable=SC2154
+  configDir="$(Conf::getOverriddenDir "${embed_dir_conf_dir}" "${CONF_OVERRIDE_DIR}/${scriptName}")"
+  # install default configuration
+  # shellcheck disable=SC2317
+  configureAwsumeConfig() {
+    local targetFile="$2"
+    sed -i -E \
+      -e "s#region: .+\$#region: ${AWS_DEFAULT_REGION}#" \
+      "${targetFile}"
+    Install::setUserRightsCallback "$@"
+  }
+  OVERWRITE_CONFIG_FILES=0 Install::file \
+    "${configDir}/.config/awsume/config.yaml" \
+    "${HOME}/.config/awsume/config.yaml" \
+    "${USERNAME}" "${USERGROUP}" configureAwsumeConfig
 
   # shellcheck disable=SC2154
   Conf::copyStructure \
     "${embed_dir_conf_dir}" \
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
     ".bash-dev-env"
-
-  # Upgrade of pip packages will be done on subsequent calls during upgrade cron
-  upgradePipPackages
 }
-
-upgradePipPackages() {
-  if [[ "${PIP_PACKAGES_UPGRADED:-0}" = "1" ]]; then
-    return 0
-  fi
-  if [[ -f "${HOME}/.venvs/python3/bin/activate" ]]; then
-    # load this virtualenv
-    # shellcheck source=/dev/null
-    source "${HOME}/.venvs/python3/bin/activate"
-
-    Log::displayInfo "Removing duplicate pip packages with ~ prefix that breaks pip packages upgrade otherwise"
-    local pythonUserSite
-    pythonUserSite="$(python -m site --user-site)"
-    if [[ -d "${pythonUserSite}" ]]; then
-      find "${pythonUserSite}" -name '~*' -exec rm -Rf {} ';' || true
-    fi
-
-    Log::displayInfo "Installing pipx"
-    python -m pip install pipx
-    pipx ensurepath
-
-    Log::displayInfo "Upgrading virtualenv dependencies"
-    python -m venv --upgrade-deps "${HOME}/.venvs/python3"
-
-    Log::displayInfo "Upgrading pip"
-    python -m pip install --upgrade pip
-
-    if [[ -n "$(pip freeze)" ]]; then
-      Log::displayInfo "Upgrading virtualenv pip packages"
-      pip freeze | awk '{print $1}' | xargs -n1 pip install --upgrade
-    fi
-
-    if [[ -n "$(pip freeze --user)" ]]; then
-      Log::displayInfo "Upgrading virtualenv pip user packages"
-      pip freeze --user | awk '{print $1}' | xargs -n1 pip install --upgrade
-    fi
-    PIP_PACKAGES_UPGRADED=1
-  fi
-}
-
-testInstall() {
-  isSupportedUbuntuVersion || return 0
-
-  local -i failures=0
-  Version::checkMinimal "python" "--version" "3.12.3" || ((++failures))
-  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/python.sh" || ((++failures))
-  return "${failures}"
-}
-
-configure() {
-  isSupportedUbuntuVersion || return 0
-
-  Log::displayInfo "Creating home directory that will receive venvs configs"
-  mkdir -p "${HOME}/.venvs" || true
-  mkdir -p "${HOME}/.pip/cache" || true
-
-  Log::displayInfo "Creating python3 virtual env if needed"
-  python -m venv --system-site-packages --upgrade-deps "${HOME}/.venvs/python3"
-
-  upgradePipPackages
-}
-
 testConfigure() {
-  isSupportedUbuntuVersion || return 0
-
   local -i failures=0
+
   # shellcheck source=/dev/null
-  source "${HOME}/.venvs/python3/bin/activate" || ((++failures))
-  Version::checkMinimal "python" "--version" "3.12.3" || ((++failures))
-  Version::checkMinimal "pip" "--version" "24.0" || ((++failures))
-  [[ "${VIRTUAL_ENV}" = "${HOME}/.venvs/python3" ]] || {
-    Log::displayError "Virtualenv has not been loaded correctly"
-    ((++failures))
-  }
-  return "${failures}"
-}
+  source "${HOME}/.venvs/python3/bin/activate" || return 1
 
-cleanBeforeExport() {
-  rm -Rf "${HOME}/.cache/pip" || true
-}
+  Assert::fileExists "${HOME}/.config/awsume/config.yaml" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/aliases.d/awsume.sh" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/awsume.bash" || ((++failures))
+  Assert::fileExists "${HOME}/.bash-dev-env/profile.d/awsume.zsh" || ((++failures))
 
-testCleanBeforeExport() {
-  ((failures = 0)) || true
-  Assert::dirNotExists "${HOME}/.cache/pip" || ((++failures))
   return "${failures}"
 }
 
@@ -3696,7 +3621,7 @@ declare -i help_cache_max_duration=86400
 
 
 optionHelpCallback() {
-  "PythonCommandHelp"
+  "AwsumeCommandHelp"
   exit 0
 }
 
@@ -3722,7 +3647,7 @@ afterParseCallback() {
 
 
 # ------------------------------------------
-# Command PythonCommand
+# Command AwsumeCommand
 # ------------------------------------------
 
 # options variables initialization
@@ -3747,8 +3672,8 @@ declare optionVersion="0"
 declare optionQuiet="0"
 # arguments variables initialization
 declare command="install"
-# @description parse command options and arguments for PythonCommand
-PythonCommandParse() {
+# @description parse command options and arguments for AwsumeCommand
+AwsumeCommandParse() {
   Log::displayDebug "Command ${SCRIPT_NAME} - parse arguments: ${BASH_FRAMEWORK_ARGV[*]}"
   Log::displayDebug "Command ${SCRIPT_NAME} - parse filtered arguments: ${BASH_FRAMEWORK_ARGV_FILTERED[*]}"
   SKIP_CONFIGURE="0"
@@ -4234,8 +4159,8 @@ PythonCommandParse() {
 
 }
 
-# @description display command options and arguments help for PythonCommand
-PythonCommandHelp() {
+# @description display command options and arguments help for AwsumeCommand
+AwsumeCommandHelp() {
   echo -e "${__HELP_TITLE_COLOR}SYNOPSIS:${__RESET_COLOR}"
   helpDescriptionFunction
 
@@ -4243,7 +4168,7 @@ PythonCommandHelp() {
   # ------------------------------------------
   # usage section
   # ------------------------------------------
-  Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" "Python [OPTIONS] [ARGUMENTS]"
+  Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" "Awsume [OPTIONS] [ARGUMENTS]"
   echo
   # ------------------------------------------
   # usage/options section
@@ -4251,7 +4176,7 @@ PythonCommandHelp() {
   optionsAltList=("[--skip-config|--skip-configure|--skip-configuration|-sc]" "[--skip-install|--skip-installation|-si]" "[--skip-test|--skip-tests|-st]" "[--skip-deps|--skip-dependencies|-sd]" "[--prepare-export|-e]" "[--profile|-p <profile>]" "[--help|-h]" "[--config]" "[--bash-framework-config <bash-framework-config>]" "[--verbose|-v]" "[-vv]" "[-vvv]" "[--log-level <log-level>]" "[--log-file <log-file>]" "[--display-level <display-level>]" "[--no-color]" "[--theme <theme>]" "[--version]" "[--quiet|-q]"
   )
   Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" \
-    "Python" "${optionsAltList[@]}"
+    "Awsume" "${optionsAltList[@]}"
   echo
 
   # ------------------------------------------
@@ -4447,7 +4372,7 @@ PythonCommandHelp() {
   # ------------------------------------------
   echo
   echo -n -e "${__HELP_TITLE_COLOR}SOURCE FILE: ${__RESET_COLOR}"
-  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Python/Python-binary.yaml"
+  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Aws/Awsume-binary.yaml"
   # ------------------------------------------
   # license section
   # ------------------------------------------
@@ -4463,7 +4388,7 @@ PythonCommandHelp() {
 
 beforeParseCallback
 
-PythonCommandParse "$@"
+AwsumeCommandParse "$@"
 MAIN_FUNCTION_NAME="main"
 main() {
 
