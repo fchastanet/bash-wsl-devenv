@@ -1718,10 +1718,12 @@ InstallScripts::scriptFunctionEmpty() {
   if ! declare -f "$1" &>/dev/null; then
     return 0
   fi
-  [[
-    "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} &&
-    "$(declare -f "$1" | sed '4q;d')" = "}"
-  ]]
+  local functionBody
+  functionBody=$(declare -f "$1")
+  local line3 line4
+  line3=$(sed '3q;d' <<<"${functionBody}")
+  line4=$(sed '4q;d' <<<"${functionBody}")
+  [[ "${line3}" =~ ${pattern} && "${line4}" = "}" ]]
 }
 
 
@@ -3298,13 +3300,13 @@ computeMaxVhdSize() {
   maxVhdSize=$((maxHostDiskSize / 3))
 
   # Ensure maxVhdSize is at least 150MB
-  minVhdSize=$((150*1024*1024))
-  if (( maxVhdSize < minVhdSize )); then
+  minVhdSize=$((150 * 1024 * 1024))
+  if ((maxVhdSize < minVhdSize)); then
     maxVhdSize=${minVhdSize}
   fi
 
   # Round maxVhdSize to nearest multiple of 1024
-  maxVhdSize=$(( (maxVhdSize + 1023) / 1024 * 1024 ))
+  maxVhdSize=$(((maxVhdSize + 1023) / 1024 * 1024))
 
   echo "${maxVhdSize}"
 }
