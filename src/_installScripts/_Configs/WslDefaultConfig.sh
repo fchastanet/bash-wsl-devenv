@@ -32,13 +32,13 @@ computeMaxVhdSize() {
   maxVhdSize=$((maxHostDiskSize / 3))
 
   # Ensure maxVhdSize is at least 150MB
-  minVhdSize=$((150*1024*1024))
-  if (( maxVhdSize < minVhdSize )); then
+  minVhdSize=$((150 * 1024 * 1024))
+  if ((maxVhdSize < minVhdSize)); then
     maxVhdSize=${minVhdSize}
   fi
 
   # Round maxVhdSize to nearest multiple of 1024
-  maxVhdSize=$(( (maxVhdSize + 1023) / 1024 * 1024 ))
+  maxVhdSize=$(((maxVhdSize + 1023) / 1024 * 1024))
 
   echo "${maxVhdSize}"
 }

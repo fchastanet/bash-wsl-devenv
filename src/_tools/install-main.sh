@@ -196,11 +196,11 @@ executeScripts() {
           "${STATS_DIR:-#}/${scriptName}"-{install,config,test-install,test-configuration,global,current}.stat \
           &>/dev/null || true
 
-        if [[
+        if [[ 
           "${SKIP_INSTALL}" = "0" ||
           "${SKIP_CONFIGURE}" = "0" ||
-          "${SKIP_TEST}" = "0"
-        ]]; then
+          "${SKIP_TEST}" = "0" ]] \
+          ; then
           UI::drawLineWithMsg "Installing ${currentConfigName} (${configIndex}/${configCount})" '#'
           executeScript "${currentConfigName}"
         fi
@@ -220,7 +220,7 @@ computeDiskSpaceGained() {
   finalSpace=$(df --output=avail / | tail -n 1)
   local spaceGained=$((initialSpace - finalSpace))
   local humanReadableSpace
-  if (( spaceGained > 0 )); then
+  if ((spaceGained > 0)); then
     humanReadableSpace=$(numfmt --to=iec --suffix=B "${spaceGained}")
     Log::displayInfo "Disk space gained: ${humanReadableSpace}"
   fi
