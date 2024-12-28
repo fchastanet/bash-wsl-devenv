@@ -208,13 +208,19 @@ runWslCmd rm -Rf "${DISTRO_BASH_DEV_ENV_TARGET_DIR}/"{*,.*} 2>/dev/null || true
 
 Log::displayInfo "Prepare archive of current dir ${DISTRO_BASH_DEV_ENV_TARGET_DIR}"
 mkdir -p "/mnt/wsl/${WSL_DISTRO_NAME}/tmp"
-(cd "${BASH_DEV_ENV_ROOT_DIR}" && tar -c --exclude-ignore=.tarignore -zf "/mnt/wsl/${WSL_DISTRO_NAME}/tmp/bashDevEnv.tgz" .)
+(
+  cd "${BASH_DEV_ENV_ROOT_DIR}" || exit 1
+
+  tar -c --exclude-ignore=.tarignore \
+    -f "/mnt/wsl/${WSL_DISTRO_NAME}/tmp/bashDevEnv.tar" .
+  tar -rf "/mnt/wsl/${WSL_DISTRO_NAME}/tmp/bashDevEnv.tar" logs/.gitignore
+)
 
 Log::displayInfo "Syncing current dir to target distro ${DISTRO_BASH_DEV_ENV_TARGET_DIR}"
 runWslCmd mkdir -p "${DISTRO_BASH_DEV_ENV_TARGET_DIR}"
 runWslCmd chown "${USERNAME}:${USERGROUP}" "${DISTRO_BASH_DEV_ENV_TARGET_DIR}"
 # un-tar file from current distro into the new
-REMOTE_USER=wsl REMOTE_PWD="${DISTRO_BASH_DEV_ENV_TARGET_DIR}" runWslCmd tar xzf "/mnt/wsl/${WSL_DISTRO_NAME}/tmp/bashDevEnv.tgz"
+REMOTE_USER=wsl REMOTE_PWD="${DISTRO_BASH_DEV_ENV_TARGET_DIR}" runWslCmd tar xf "/mnt/wsl/${WSL_DISTRO_NAME}/tmp/bashDevEnv.tar"
 
 Log::displayInfo "Fixing rights on target distro ${DISTRO_BASH_DEV_ENV_TARGET_DIR}"
 runWslCmd chown -R "${USERNAME}:${USERGROUP}" "${DISTRO_BASH_DEV_ENV_TARGET_DIR}"
