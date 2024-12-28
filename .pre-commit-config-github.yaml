@@ -160,12 +160,14 @@ repos:
         exclude: /testsData/
 
   - repo: https://github.com/fchastanet/bash-tools-framework
-    rev: 6.1.1
+    rev: 6.1.4
     hooks:
       - id: fixShebangExecutionBit
       - id: awkLint
       - id: shellcheckLint
       - id: shellcheckLintGithubAction
+      - id: megalinterCheckVersion
+      - id: megalinterGithubAction
       - id: frameworkLint
         args:
           [

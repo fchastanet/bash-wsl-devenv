@@ -1755,10 +1755,12 @@ InstallScripts::scriptFunctionEmpty() {
   if ! declare -f "$1" &>/dev/null; then
     return 0
   fi
-  [[
-    "$(declare -f "$1" | sed '3q;d')" =~ ${pattern} &&
-    "$(declare -f "$1" | sed '4q;d')" = "}"
-  ]]
+  local functionBody
+  functionBody=$(declare -f "$1")
+  local line3 line4
+  line3=$(sed '3q;d' <<<"${functionBody}")
+  line4=$(sed '4q;d' <<<"${functionBody}")
+  [[ "${line3}" =~ ${pattern} && "${line4}" = "}" ]]
 }
 
 
@@ -3383,10 +3385,10 @@ commandOptionParseFinished() {
 
 Linux::requireTarCommand
 Compiler::Embed::extractDirFromBase64 \
-  "${PERSISTENT_TMPDIR:-/tmp}/f53cfad333b6e5704d267c2c3fb2aa3f76e44ef27592efdfcc2441e87f6f143a/conf_dir" \
-  "H4sIAAAAAAAA/+xXf2vqSBTt3/kUt1G2Co0ZNcbFxQVXLRW6tVSLLMtSxsnEhI4ZmR+RKu5nXybafdRHn/Aqfa+S80/m3rncM6NzDjOVKZaRE9DUoUnqYhZjSWUlcPFS6jmtyOjs/UAIoWajkX0RQvtf1PCa/4+zfLVRa9TPAB2B+yC0VFicoXdz7W/uk6Bw7k7jxDWnwCocF1YBekO4HY6h3xuML2F8PRjB1eCmD93OLfzRh4e7Xmfc78FkML4ePoxN6aDbP/oyrALECXARUAGKA+MzEysOeCmBEgEOLEScYkUh4OSJChB0Fkslnq04BMLnc5wE4KSw1QT88rsb0NRNNGO/gYpoYgFkwtkVtG3JtSB0F9pWGFs/+m9+E6/1vxA8jBn9on8z+26OA/qvIr+6r/+G38j1/xEonLtaiswDaJLCSfvA4/ZQl8qwtgAAGCeYAdECFoKmwBdKZvnu8M+7+/7dzV/tUjlLEC3adnFt8o+T4X1v9Hc27JrxPxs7qymAjChjJKLkCYJY4imj7VG3hupeNm8o3mziVF/amEW0i6XtSh2sFSd8vmBU0fI3aWqoeWnYfvX3twDFkmkxowk4E7CLa0OxscFxoLgmWmzKsG0tqNIiAWRtrBdOcK5g96vt3OzndbIc34MD/r86xgXw0P3Pa37l/56Pcv//COz5/+qE7b/Q0Yo73RdrC3VCVMwTCLmAzmRkzC1cYBW1S/+6le35d1cyemXCLhSzmvKp+GCF8CSMZzu9u9uo8ozn7HgcRg++572p/6q///7zqr6f6/8jQDjjQrZACU2tUK9Wz84cKxK1IMRMUktwRp1AC2yk0gKvXkPIMu8jE1HtLKlUTt0iPJGc0ZYFMBV8Kal43D2cWnBhLyVLY7q0wV5rwTb2xamoJ0eOHDk+L/4LAAD//6O/xTIAFgAA"
+  "${PERSISTENT_TMPDIR:-/tmp}/9531ad6f9106ff94f89366e66ab6b95dfe890ce9f1e3a68586b4e20451415d44/conf_dir" \
+  "H4sIAAAAAAAA/+yXX2vqSBjGez2f4m2UrUJjRo26uLjgqqVCt5ZqkWVZyjiZmNAxI/MnUsX97IdRew710ONFpedU8rvJvMn4PqPO8zApTYiK3IClLktSj/CYKKZKgUcWysxYSUVn7wdjjBu12uaKMd6/4prf+Dre3C/XKrXqGeAjaB/EKE3kGX631v6X+yTkzr1JnHh2F6DccUE56A7gdjCCXrc/uoTRdX8IV/2bHnTat/BXDx7uuu1Rrwvj/uh68DCyU/ud3tGXgXIQJyBkwCRoAVxMba0FkIUCRiW4MJdxSjSDQNAnJkGyaay0fEZxCFTMZiQJwE1h6wn47U8vYKmXGM7/AB2xBAFsjLOb0HKUMJKyXemgMEY/+29+k9f+n0sRxpx98799+m6NA/4v4+p3/q81cOb/jyB37hklNxnAkhROOgcet5u6UIQVAuCCEg7USJhLloKYa4UAOoO/7+57dzf/tApFBPZxy8mv7N3H8eC+O/x3M+zY8X9rBwHkQEWMcxox+gRBrMiEs9awU8FVH8Gm9ZsNwIXytokVb+UL2/W5xGhBxWzOmWbFH0hUcOPSKv1ef73wfMF+esoScMfg5Fe2+9oB14X8ihq5LtqmkmkjE8BojV60wL2C3W+0y65fN7cyjsOB/F8e4wB46PznN8r7+e/Xs/z/EPbyf3nC8Z9rGy3czkvYhSahOhYJhEJCezy0cRfOiY5ahf+90nb/e0sVvYpjD/KbOcVTScYSFUkYT3d+97ZV6ZnM+PE0rB/qvv+m/8v1/fOfX67XM/9/BFRwIVUTtDQMhWa5fHZnRNOoCSHhiiEpOHMDI4m1ShP8agVjZN+PbMWMu2BKu1VERaIEZ00EMJFioZh83L04NeHCWSiexmzhgLMykq+di1NxT0ZGRsbn5UsAAAD//wsJh8UAFgAA"
 
-declare -gx embed_dir_conf_dir="${PERSISTENT_TMPDIR:-/tmp}/f53cfad333b6e5704d267c2c3fb2aa3f76e44ef27592efdfcc2441e87f6f143a/conf_dir"
+declare -gx embed_dir_conf_dir="${PERSISTENT_TMPDIR:-/tmp}/9531ad6f9106ff94f89366e66ab6b95dfe890ce9f1e3a68586b4e20451415d44/conf_dir"
 
 
 helpDescription() {
@@ -3411,7 +3413,6 @@ listVariables() {
   echo "USERGROUP"
   echo "AWS_DEFAULT_REGION"
 }
-
 
 fortunes() {
   if command -v awsume &>/dev/null; then

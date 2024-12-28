@@ -24,7 +24,6 @@ listVariables() {
   echo "AWS_DEFAULT_REGION"
 }
 
-
 fortunes() {
   if command -v awsume &>/dev/null; then
     echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- command ${__HELP_EXAMPLE}awsume${__RESET_COLOR} is a convenient"
