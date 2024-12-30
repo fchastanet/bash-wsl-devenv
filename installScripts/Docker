@@ -108,6 +108,10 @@ FRAMEWORK_BIN_DIR="${FRAMEWORK_ROOT_DIR}/bin"
 FRAMEWORK_VENDOR_DIR="${FRAMEWORK_ROOT_DIR}/vendor"
 FRAMEWORK_VENDOR_BIN_DIR="${FRAMEWORK_ROOT_DIR}/vendor/bin"
 
+# @description checkout usage doc below
+#
+# [DockerNamespace usage](DockerUsage.md ':include')
+
 # @description Log namespace provides 2 kind of functions
 # - Log::display* allows to display given message with
 #   given display level
@@ -736,6 +740,28 @@ Conf::list() {
       sed -E "s#^\./${prefix}##g" |
         sed -E "s#${ext}\$##g" | sort | sed -E "s#^#${indentStr}#"
   )
+}
+
+
+# @description check if docker is running
+# @exitcode 0 if docker is running
+Docker::isRunning() {
+  if ! command -v docker &>/dev/null; then
+    Log::displayError "Docker is not installed"
+    return 1
+  fi
+  dockerIsStarted() {
+    local dockerPs
+    dockerPs="$(docker ps 2>&1 || true)"
+    [[ ! "${dockerPs}" =~ "Cannot connect to the Docker daemon" ]]
+  }
+  Log::displayInfo "Checking if docker is started ..."
+  if dockerIsStarted; then
+    Log::displaySuccess "Docker connection success"
+  else
+    Log::displayError "Docker is not started"
+    return 1
+  fi
 }
 
 
@@ -3542,17 +3568,7 @@ testInstall() {
   Log::displayInfo "docker version $(docker --version || true)"
   Log::displayInfo "docker-compose version $(docker-compose --version || true)"
 
-  dockerIsStarted() {
-    DOCKER_PS="$(docker ps 2>&1 || true)"
-    [[ ! "${DOCKER_PS}" =~ "Cannot connect to the Docker daemon" ]]
-  }
-  Log::displayInfo "Checking if docker is started ..."
-  if dockerIsStarted; then
-    Log::displaySuccess "Docker connection success"
-  else
-    Log::displayError "Docker is not started"
-    ((++failures))
-  fi
+  Docker::isRunning || ((++failures))
   return "${failures}"
 }
 
