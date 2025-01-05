@@ -47,7 +47,6 @@ moshfeu.diff-merge
 otard.copy-reference
 phil294.git-log--graph
 waderyan.gitblame
-eamodio.gitlens
 donjayamanne.githistory
 mhutchie.git-graph
 

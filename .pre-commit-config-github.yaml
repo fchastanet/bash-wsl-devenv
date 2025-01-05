@@ -140,7 +140,7 @@ repos:
             ^install$|
             ^installScripts/|
             /testsData/|
-            ^srcAlt/DependencySample/installScripts/|
+            ^srcAlt/DependencySample/installScripts/
           )
 
       # Check both committed and uncommitted files for git conflict
@@ -150,12 +150,14 @@ repos:
         exclude: /testsData/
 
   - repo: https://github.com/fchastanet/bash-tools-framework
-    rev: 6.1.1
+    rev: 6.1.4
     hooks:
       - id: fixShebangExecutionBit
       - id: awkLint
       - id: shellcheckLint
       - id: shellcheckLintGithubAction
+      - id: megalinterCheckVersion
+      - id: megalinterGithubAction
       - id: frameworkLint
         args:
           [
@@ -183,7 +185,7 @@ repos:
       - id: plantuml
 
   - repo: https://github.com/fchastanet/bash-compiler
-    rev: v3.1.1
+    rev: 3.1.2
     hooks:
       - id: buildBashBinaries
 

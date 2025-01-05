@@ -16,6 +16,15 @@ fortunes() {
       echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- The font ${__HELP_EXAMPLE}Meslo LG S${__RESET_COLOR} does not seem to be installed, use ${__HELP_EXAMPLE}installAndConfigure Font${__RESET_COLOR} to get better terminal results."
       echo "%"
     fi
+    local terminalConfSettingsPath
+    terminalConfSettingsPath="$(Conf::getWindowsTerminalPath)/LocalState/settings.json"
+    if [[ -f "${terminalConfSettingsPath}" ]]; then
+      if ! grep -q '"face": "MesloLGS NF"' "${terminalConfSettingsPath}"; then
+        fortunes+=("Font - You should change your terminal settings to use font 'MesloLGS NF' for better terminal readability")
+      fi
+    else
+      fortunes+=("Font - You should use windows terminal for better shell display results")
+    fi
   fi
 }
 
@@ -79,9 +88,13 @@ testInstall() {
 }
 
 configure() {
+  local fileToInstall
+  # shellcheck disable=SC2154
+  fileToInstall="$(Conf::dynamicConfFile "${scriptName}/.Xresources" "${embed_file_xResources}")" || return 1
+
   # shellcheck disable=SC2154
   Install::file \
-    "${embed_file_xResources}" \
+    "${fileToInstall}" \
     "${HOME}/.Xresources"
 }
 
