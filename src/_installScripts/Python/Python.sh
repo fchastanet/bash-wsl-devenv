@@ -96,12 +96,12 @@ upgradePipPackages() {
 
     if [[ -n "$(pip freeze)" ]]; then
       Log::displayInfo "Upgrading virtualenv pip packages"
-      pip freeze | awk  -F '=' '{print $1}' | xargs -n1 pip install --upgrade
+      pip freeze | awk -F '=' '{print $1}' | xargs -n1 pip install --upgrade
     fi
 
     if [[ -n "$(pip freeze --user)" ]]; then
       Log::displayInfo "Upgrading virtualenv pip user packages"
-      pip freeze --user | awk  -F '=' '{print $1}' | xargs -n1 pip install --upgrade
+      pip freeze --user | awk -F '=' '{print $1}' | xargs -n1 pip install --upgrade
     fi
     PIP_PACKAGES_UPGRADED=1
   fi
