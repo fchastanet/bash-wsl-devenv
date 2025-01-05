@@ -70,7 +70,6 @@ install() {
   Log::displayInfo "install globally the following node packages ${nodePackages[*]}"
   yarn global add --non-interactive --latest "${nodePackages[@]}"
 
-
   Log::displayInfo "check if node packages updates are available and upgrade"
   npm-check -uy
 }

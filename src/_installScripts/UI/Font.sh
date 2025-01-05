@@ -88,9 +88,13 @@ testInstall() {
 }
 
 configure() {
+  local fileToInstall
+  # shellcheck disable=SC2154
+  fileToInstall="$(Conf::dynamicConfFile "${scriptName}/.Xresources" "${embed_file_xResources}")" || return 1
+
   # shellcheck disable=SC2154
   Install::file \
-    "${embed_file_xResources}" \
+    "${fileToInstall}" \
     "${HOME}/.Xresources"
 }
 
