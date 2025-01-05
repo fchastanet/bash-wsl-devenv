@@ -78,12 +78,16 @@ configure() {
   local installedExtensions
   installedExtensions="$(code --list-extensions | tr '[:upper:]' '[:lower:]' | sort)"
 
+  local configDir
+  # shellcheck disable=SC2154
+  configDir="$(Conf::getOverriddenDir "${embed_dir_conf_dir}" "${CONF_OVERRIDE_DIR}/$(scriptName)")"
+
   local extensions extensionsCount
   # shellcheck disable=SC2154
   extensions="$(
     awk \
       '!/^#/{for(i=1;i<=NF;i++)if($i!="")names[$i]++}END{for(n in names)print n}' \
-      "${embed_dir_conf_dir}/vscode-extensions-by-profile"/*.md |
+      "${configDir}/vscode-extensions-by-profile"/*.md |
       tr '[:upper:]' '[:lower:]' |
       sort
   )"
@@ -114,9 +118,9 @@ configure() {
   fi
 
   BACKUP_BEFORE_INSTALL=1 Install::file \
-    "${embed_dir_conf_dir}/keybindings.json" "${vsCodeSettingsDir}/keybindings.json"
+    "${configDir}/keybindings.json" "${vsCodeSettingsDir}/keybindings.json"
   BACKUP_BEFORE_INSTALL=1 Install::file \
-    "${embed_dir_conf_dir}/settings.json" "${vsCodeSettingsDir}/settings.json"
+    "${configDir}/settings.json" "${vsCodeSettingsDir}/settings.json"
 
   sed -i -E \
     "s/\"jenkins.pipeline.linter.connector.user\": \"[^\"]*\",/\"jenkins.pipeline.linter.connector.user\": \"${LDAP_LOGIN}\",/g" \

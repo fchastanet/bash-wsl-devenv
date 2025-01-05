@@ -20,6 +20,7 @@
 <!-- markdownlint-disable MD013 -->
 
 [![GitHubLicense](https://img.shields.io/github/license/Naereen/StrapDown.js.svg)](https://github.com/fchastanet/bash-dev-env/blob/master/LICENSE)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 [![CI/CD](https://github.com/fchastanet/bash-dev-env/actions/workflows/lint-test.yml/badge.svg)](https://github.com/fchastanet/bash-dev-env/actions?query=workflow%3A%22Lint+and+test%22+branch%3Amaster)
 [![ProjectStatus](http://opensource.box.com/badges/active.svg)](http://opensource.box.com/badges "Project Status")
 [![DeepSource](https://deepsource.io/gh/fchastanet/bash-dev-env.svg/?label=active+issues&show_trend=true)](https://deepsource.io/gh/fchastanet/bash-dev-env/?ref=repository-badge)
