@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Python/PreCommit-binary.yaml
+# GENERATED FROM https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Python/PythonDependencies-binary.yaml
 # DO NOT EDIT IT
 # @generated
 ###############################################################################
@@ -2642,7 +2642,7 @@ defaultBeforeParseCallback() {
 }
 
 scriptName() {
-  echo "PreCommit"
+  echo "PythonDependencies"
 }
 
 beforeParseCallback() {
@@ -2977,17 +2977,21 @@ commandOptionParseFinished() {
 
 
 helpDescription() {
-  echo "A framework for managing and maintaining multi-language pre-commit hooks."
+  echo "Install Python dependencies"
+  echo "- Precommit - A framework for managing and maintaining multi-language pre-commit hooks."
+  echo "- sshuttle - where transparent proxy meets VPN meets ssh"
 }
 
 dependencies() {
-  # pre-commit is a python package
+  # pre-commit and sshuttle are python packages
   echo "installScripts/Python"
 }
 
 fortunes() {
   echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- if ${__HELP_EXAMPLE}.pre-commit-config.yaml${__RESET_COLOR} file is present, "
   echo -e "${__HELP_EXAMPLE}pre-commit${__RESET_COLOR} will run automatically the tools specified before the commit."
+  echo "%"
+  echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- sshuttle allows you to create a VPN connection using only SSH."
   echo "%"
 }
 
@@ -3012,6 +3016,7 @@ install() {
   source "${HOME}/.venvs/python3/bin/activate"
 
   pip install pre-commit
+  pip install sshuttle
   # update precommit repo
   export PATH="${PATH}:${HOME}/.local/bin"
   pre-commit gc
@@ -3023,6 +3028,7 @@ testInstall() {
   # shellcheck source=/dev/null
   source "${HOME}/.venvs/python3/bin/activate" || ((++failures))
   Version::checkMinimal "pre-commit" "--version" "3.6.2" || ((++failures))
+  Version::checkMinimal "sshuttle" "--version" "1.1.1" || ((++failures))
   return "${failures}"
 }
 
@@ -3164,7 +3170,7 @@ declare -i help_cache_max_duration=86400
 
 
 optionHelpCallback() {
-  "PreCommitCommandHelp"
+  "PythonDependenciesCommandHelp"
   exit 0
 }
 
@@ -3190,7 +3196,7 @@ afterParseCallback() {
 
 
 # ------------------------------------------
-# Command PreCommitCommand
+# Command PythonDependenciesCommand
 # ------------------------------------------
 
 # options variables initialization
@@ -3215,8 +3221,8 @@ declare optionVersion="0"
 declare optionQuiet="0"
 # arguments variables initialization
 declare command="install"
-# @description parse command options and arguments for PreCommitCommand
-PreCommitCommandParse() {
+# @description parse command options and arguments for PythonDependenciesCommand
+PythonDependenciesCommandParse() {
   Log::displayDebug "Command ${SCRIPT_NAME} - parse arguments: ${BASH_FRAMEWORK_ARGV[*]}"
   Log::displayDebug "Command ${SCRIPT_NAME} - parse filtered arguments: ${BASH_FRAMEWORK_ARGV_FILTERED[*]}"
   SKIP_CONFIGURE="0"
@@ -3702,8 +3708,8 @@ PreCommitCommandParse() {
 
 }
 
-# @description display command options and arguments help for PreCommitCommand
-PreCommitCommandHelp() {
+# @description display command options and arguments help for PythonDependenciesCommand
+PythonDependenciesCommandHelp() {
   echo -e "${__HELP_TITLE_COLOR}SYNOPSIS:${__RESET_COLOR}"
   helpDescriptionFunction
 
@@ -3711,7 +3717,7 @@ PreCommitCommandHelp() {
   # ------------------------------------------
   # usage section
   # ------------------------------------------
-  Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" "PreCommit [OPTIONS] [ARGUMENTS]"
+  Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" "PythonDependencies [OPTIONS] [ARGUMENTS]"
   echo
   # ------------------------------------------
   # usage/options section
@@ -3719,7 +3725,7 @@ PreCommitCommandHelp() {
   optionsAltList=("[--skip-config|--skip-configure|--skip-configuration|-sc]" "[--skip-install|--skip-installation|-si]" "[--skip-test|--skip-tests|-st]" "[--skip-deps|--skip-dependencies|-sd]" "[--prepare-export|-e]" "[--profile|-p <profile>]" "[--help|-h]" "[--config]" "[--bash-framework-config <bash-framework-config>]" "[--verbose|-v]" "[-vv]" "[-vvv]" "[--log-level <log-level>]" "[--log-file <log-file>]" "[--display-level <display-level>]" "[--no-color]" "[--theme <theme>]" "[--version]" "[--quiet|-q]"
   )
   Array::wrap2 " " 80 2 "${__HELP_TITLE_COLOR}USAGE:${__RESET_COLOR}" \
-    "PreCommit" "${optionsAltList[@]}"
+    "PythonDependencies" "${optionsAltList[@]}"
   echo
 
   # ------------------------------------------
@@ -3915,7 +3921,7 @@ PreCommitCommandHelp() {
   # ------------------------------------------
   echo
   echo -n -e "${__HELP_TITLE_COLOR}SOURCE FILE: ${__RESET_COLOR}"
-  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Python/PreCommit-binary.yaml"
+  echo "https://github.com/fchastanet/bash-dev-env/tree/master/src/_installScripts/Python/PythonDependencies-binary.yaml"
   # ------------------------------------------
   # license section
   # ------------------------------------------
@@ -3931,7 +3937,7 @@ PreCommitCommandHelp() {
 
 beforeParseCallback
 
-PreCommitCommandParse "$@"
+PythonDependenciesCommandParse "$@"
 MAIN_FUNCTION_NAME="main"
 main() {
 

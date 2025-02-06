@@ -12,7 +12,7 @@ helpLongDescription() {
 }
 
 dependencies() {
-  echo "installScripts/PreCommit"
+  echo "installScripts/PythonDependencies"
   echo "installScripts/GitDefaultConfig"
 }
 
