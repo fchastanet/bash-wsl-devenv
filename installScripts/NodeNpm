@@ -3440,6 +3440,8 @@ install() {
     "${CONF_OVERRIDE_DIR}/$(scriptName)" \
     ".bash-dev-env"
 
+  # shellcheck source=src/_installScripts/Node/NodeNpm-conf/.bash-dev-env/profile.d/n_path.sh
+  source "${HOME}/.bash-dev-env/profile.d/n_path.sh"
   # Install yarn globally
   N_PREFIX="${HOME}/n" "${HOME}/n/bin/npm" install -g yarn
 }

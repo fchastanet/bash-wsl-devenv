@@ -751,7 +751,7 @@ optionHelpCallback() {
 copyrightCallback() {
   #
   # shellcheck disable=SC2155,SC2154,SC2250
-  echo "Copyright (c) 2024-now François Chastanet"
+  echo "Copyright (c) 2024-now Francois Chastanet"
 }
 
 Env::requireLoad() {
@@ -1006,7 +1006,7 @@ simpleCommandHelp() {
   # ------------------------------------------
   echo
   echo -n -e "${__HELP_TITLE_COLOR}AUTHOR: ${__RESET_COLOR}"
-  echo "[François Chastanet](https://github.com/fchastanet)"
+  echo "[Francois Chastanet](https://github.com/fchastanet)"
   # ------------------------------------------
   # sourceFile section
   # ------------------------------------------

@@ -8,7 +8,7 @@ optionHelpCallback() {
 copyrightCallback() {
   #{{- $copyrightBeginYear := .RootData.binData.commands.default.copyrightBeginYear | default "$(date +%Y)" }}
   # shellcheck disable=SC2155,SC2154,SC2250
-  echo "Copyright (c) {{ $copyrightBeginYear }}-now François Chastanet"
+  echo "Copyright (c) {{ $copyrightBeginYear }}-now Francois Chastanet"
 }
 
 Env::requireLoad() {

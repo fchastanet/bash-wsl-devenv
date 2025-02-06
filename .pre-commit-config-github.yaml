@@ -163,15 +163,6 @@ repos:
             "oxsecurity/megalinter-terraform:v8.4.2",
             --check-megalinter-version,
           ]
-      - id: megalinterGithubAction
-        args:
-          [
-            --image,
-            "oxsecurity/megalinter-terraform:v8.4.2",
-            --config-file,
-            ".mega-linter-githubAction.yml",
-            --fix,
-          ]
       - id: frameworkLint
         args:
           [

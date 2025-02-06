@@ -45,6 +45,7 @@ extglob
 fchastanet
 fgrep
 fmask
+Francois
 fuzzcache
 getent
 getopt

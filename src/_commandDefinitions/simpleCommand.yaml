@@ -11,7 +11,7 @@ binData:
     default:
       functionName: simpleCommand
       commandName: simpleCommand
-      author: "[François Chastanet](https://github.com/fchastanet)"
+      author: "[Francois Chastanet](https://github.com/fchastanet)"
       sourceFile: "${REPOSITORY_URL}/tree/master/${SRC_FILE_PATH}"
       copyright: copyrightCallback
       license: MIT License

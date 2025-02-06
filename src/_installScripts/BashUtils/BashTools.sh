@@ -6,7 +6,7 @@ bashToolsBeforeParseCallback() {
 }
 
 helpDescription() {
-  echo "BashTools collection from François Chastanet"
+  echo "BashTools collection from Francois Chastanet"
 }
 
 helpLongDescription() {
