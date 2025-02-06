@@ -36,6 +36,7 @@ CONFIG_LIST+=(
   "installScripts/ComposerDependencies"
   "installScripts/NodeDependencies"
   "installScripts/GoDependencies"
+  "installScripts/PythonDependencies"
 )
 
 # default configuration

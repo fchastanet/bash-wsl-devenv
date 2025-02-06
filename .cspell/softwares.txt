@@ -147,8 +147,10 @@ sdkmanager
 setaf
 Shellcheck
 shellcheck
+shuttle
 smetana
 SpacesAftertabs
+sshuttle
 staticcheck
 stylelint
 substr
