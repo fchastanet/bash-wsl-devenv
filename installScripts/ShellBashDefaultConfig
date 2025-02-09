@@ -609,30 +609,6 @@ Conf::copyStructure() {
 }
 
 
-# @description select right file to load depending if file exists in this order:
-# - from conf.override
-# - from embedded file if provided
-# - from conf dir
-# @arg $1 file:String
-# @arg $2 embedFile:String eventual embedded file
-# @exitcode 1 if file does not exist at all
-Conf::dynamicConfFile() {
-  local file="${1/#\//}" # remove first slash if any
-  local embedFile="${2:-}"
-  if [[ -f "${CONF_OVERRIDE_DIR}/${file}" ]]; then
-    echo "${CONF_OVERRIDE_DIR}/${file}"
-    return 0
-  elif [[ -f "${embedFile}" ]]; then
-    echo "${embedFile}"
-    return 0
-  fi
-  if [[ "${IGNORE_ERROR:-0}" = "0" ]]; then
-    Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
-    return 1
-  fi
-}
-
-
 # @description generate temp directory where default
 # and overridden directories have been merged
 #   - if overridden dir exists, create a new temp folder
@@ -1518,9 +1494,23 @@ InstallScripts::command() {
   local installStatus="0"
   sourceHook() {
     local hookName="$1"
+    local configDir
     # shellcheck disable=SC2154
-    hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh" "${embed_dir_hooks_dir}/${hookName}.sh")"
+    local fullScriptOverrideDir="${CONF_OVERRIDE_DIR}/${scriptName//\//@}"
+    local -a overriddenDirs=()
+    # shellcheck disable=SC2154
+    if [[ -d "${embed_dir_hooks_dir}" ]]; then
+      overriddenDirs+=("${embed_dir_hooks_dir}")
+    fi
+    overriddenDirs+=("${fullScriptOverrideDir}")
+    configDir="$(Conf::getOverriddenDir "${overriddenDirs[@]}")"
+
+    # ensure necessary functions are imported
+    # Assert::dirExists
+    # Assert::fileExists
+    hook="${configDir}/${hookName}.sh"
     if [[ -n "${hook}" && -f "${hook}" && -x "${hook}" ]]; then
+      Log::displayInfo "Running hook ${hook}"
       # shellcheck source=src/_installScripts/_Defaults/SimpleTest-hooks/preInstall.sh
       source "${hook}" || {
         Log::displayError "${scriptName} - unable to load hook '${hook}'"
@@ -3026,6 +3016,12 @@ isCleanBeforeExportImplemented() {
 
 fullScriptName() {
   File::relativeToDir "${REAL_SCRIPT_FILE}" "${BASH_DEV_ENV_ROOT_DIR}"
+}
+
+fullScriptOverrideDir() {
+  local confDir
+  confDir="$(fullScriptName)"
+  echo "${CONF_OVERRIDE_DIR}/${confDir//\//@}"
 }
 
 argsInstallScriptCommandCallback() {
