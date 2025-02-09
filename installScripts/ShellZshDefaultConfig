@@ -641,24 +641,25 @@ Conf::copyStructure() {
 # @exitcode 1 if default dir does not exist
 # @exitcode 2 if error during copy
 Conf::getOverriddenDir() {
-  local defaultDir="$1"
-  local overriddenDirPath="$2"
+  local -a overriddenDirPaths=("$@")
+  local overriddenDirPath
 
-  if [[ ! -d "${defaultDir}" ]]; then
-    Log::displayError "Directory ${defaultDir} does not exists"
-    return 1
-  fi
-  if [[ ! -d "${overriddenDirPath}" || -z "$(ls -A "${overriddenDirPath}")" ]]; then
-    Log::displayInfo "Conf::getOverriddenDir - directory ${overriddenDirPath} does not exist, keep default one ${defaultDir}"
-    echo "${defaultDir}"
-    return 0
-  fi
   local tempDir
   tempDir="$(mktemp -d)"
   (
     shopt -s dotglob
-    cp -R "${defaultDir}/." "${tempDir}"
-    cp -R "${overriddenDirPath}/." "${tempDir}"
+    for overriddenDirPath in "${overriddenDirPaths[@]}"; do
+      if [[ -d "${overriddenDirPath}" && -n "$(ls -A "${overriddenDirPath}")" ]]; then
+        Log::displayInfo "Conf::getOverriddenDir - use overridden files from ${overriddenDirPath}"
+        cp -R "${overriddenDirPath}/." "${tempDir}"
+      else
+        if [[ -z "${overriddenDirPath}" ]]; then
+          Log::displayError "Conf::getOverriddenDir - empty overridden directory path"
+        else
+          Log::displayInfo "Conf::getOverriddenDir - directory ${overriddenDirPath} does not exist or is empty"
+        fi
+      fi
+    done
   ) || return 2
   echo "${tempDir}"
 }
@@ -3307,14 +3308,6 @@ Compiler::Embed::extractFileFromBase64 \
 
 declare -gx embed_file_findConfigFiles="${PERSISTENT_TMPDIR:-/tmp}/a3e9b438b653502bd30d4464096eea92515854126bef0a222d4d058caa0730c4/findConfigFiles"
 
-Linux::requireTarCommand
-Compiler::Embed::extractFileFromBase64 \
-  "${PERSISTENT_TMPDIR:-/tmp}/a41b13eb5802e6ccd86d22816a7a8fb4c3675f9887a1b6a716b090ee8b458bf3/talkScript" \
-  "cGFyYW0oCiAgICBbUGFyYW1ldGVyKE1hbmRhdG9yeT0kdHJ1ZSwgUG9zaXRpb249MCldCiAgICBbc3RyaW5nXQogICAgJG1zZyA9ICcnCikKCkFkZC1UeXBlIC1Bc3NlbWJseU5hbWUgU3lzdGVtLnNwZWVjaAokc3BlYWsgPSBOZXctT2JqZWN0IFN5c3RlbS5TcGVlY2guU3ludGhlc2lzLlNwZWVjaFN5bnRoZXNpemVyCiRzcGVhay5TcGVhaygkbXNnKQo=" \
-  "644"
-
-declare -gx embed_file_talkScript="${PERSISTENT_TMPDIR:-/tmp}/a41b13eb5802e6ccd86d22816a7a8fb4c3675f9887a1b6a716b090ee8b458bf3/talkScript"
-
 
 helpDescription() {
   echo "Default Zsh configuration"
@@ -3416,12 +3409,12 @@ configure() {
   # shellcheck disable=SC2154
   Conf::copyStructure \
     "${embed_dir_conf_dir}" \
-    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    "$(fullScriptOverrideDir)" \
     ".bash-dev-env"
 
   Conf::copyStructure \
     "${embed_dir_conf_dir}" \
-    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    "$(fullScriptOverrideDir)" \
     "home" \
     "${HOME}"
 
