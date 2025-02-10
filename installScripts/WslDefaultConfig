@@ -2850,6 +2850,32 @@ UI::requireTheme() {
 }
 
 
+# @description display info message
+# And wall Text to speech to tell the message if wsl and powershell available
+# Else try to use bip
+# @arg $1 msg:String message to tell
+# @arg $2 talkScript:String filepath to powershell talk script
+# @env CAN_TALK_DURING_INSTALLATION if not 1 skip talking or beeping
+UI::talkToUser() {
+  local msg="${1:-Please, your input is required}"
+  local talkScript="${2-${FRAMEWORK_ROOT_DIR}/src/UI/talk.ps1}"
+
+  if [[ "${CAN_TALK_DURING_INSTALLATION:-1}" != "1" ]]; then
+    return
+  fi
+
+  Log::displayInfo "${msg}"
+  if Assert::wsl && "${BASH_FRAMEWORK_COMMAND:-command}" -v powershell.exe &>/dev/null; then
+    local talkScriptPath
+    Linux::Wsl::cachedWslpath2 talkScriptPath -w "${talkScript}"
+    ${POWERSHELL_BIN:-powershell.exe} -ExecutionPolicy Bypass -NoProfile -Command \
+      "${talkScriptPath}" "'${msg}'" || true
+  else
+    tput bel || true
+  fi
+}
+
+
 # @description Display given text and complete the rest of the line with given character
 # @arg $1 text:String text to display
 # @arg $2 character:String (default:#) character to use to complete the line
@@ -2942,6 +2968,23 @@ UI::theme() {
     __HELP_TITLE=''
     __HELP_NORMAL=''
   fi
+}
+
+
+# @description Warn the user that the script is about to ask for input
+UI::warnUser() {
+Linux::requireTarCommand
+Compiler::Embed::extractFileFromBase64 \
+  "${PERSISTENT_TMPDIR:-/tmp}/a41b13eb5802e6ccd86d22816a7a8fb4c3675f9887a1b6a716b090ee8b458bf3/talkScript" \
+  "cGFyYW0oCiAgICBbUGFyYW1ldGVyKE1hbmRhdG9yeT0kdHJ1ZSwgUG9zaXRpb249MCldCiAgICBbc3RyaW5nXQogICAgJG1zZyA9ICcnCikKCkFkZC1UeXBlIC1Bc3NlbWJseU5hbWUgU3lzdGVtLnNwZWVjaAokc3BlYWsgPSBOZXctT2JqZWN0IFN5c3RlbS5TcGVlY2guU3ludGhlc2lzLlNwZWVjaFN5bnRoZXNpemVyCiRzcGVhay5TcGVhaygkbXNnKQo=" \
+  "644"
+
+declare -gx embed_file_talkScript="${PERSISTENT_TMPDIR:-/tmp}/a41b13eb5802e6ccd86d22816a7a8fb4c3675f9887a1b6a716b090ee8b458bf3/talkScript"
+
+  # shellcheck disable=SC2154
+  cp "${embed_file_talkScript}" "${embed_file_talkScript}.ps1"
+  UI::talkToUser "Please on Bash Dev env installation, your input may be required" \
+    "${embed_file_talkScript}.ps1"
 }
 # FUNCTIONS
 
@@ -3349,6 +3392,7 @@ computeMaxVhdSize() {
 
 configure() {
   sudo hostnamectl set-hostname "${DISTRO_HOSTNAME}"
+  UI::warnUser
   SUDO=sudo Dns::addHost "${DISTRO_HOSTNAME}"
   if ! Assert::wsl; then
     Log::displaySkipped "Rest of configure skipped as not in WSL"

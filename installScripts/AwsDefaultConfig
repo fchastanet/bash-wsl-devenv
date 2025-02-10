@@ -469,18 +469,7 @@ Assert::wsl() {
 # @exitcode 0 If successful
 # @exitcode 1 If failed
 Auth::authenticate() {
-Linux::requireTarCommand
-Compiler::Embed::extractFileFromBase64 \
-  "${PERSISTENT_TMPDIR:-/tmp}/a41b13eb5802e6ccd86d22816a7a8fb4c3675f9887a1b6a716b090ee8b458bf3/talkScript" \
-  "cGFyYW0oCiAgICBbUGFyYW1ldGVyKE1hbmRhdG9yeT0kdHJ1ZSwgUG9zaXRpb249MCldCiAgICBbc3RyaW5nXQogICAgJG1zZyA9ICcnCikKCkFkZC1UeXBlIC1Bc3NlbWJseU5hbWUgU3lzdGVtLnNwZWVjaAokc3BlYWsgPSBOZXctT2JqZWN0IFN5c3RlbS5TcGVlY2guU3ludGhlc2lzLlNwZWVjaFN5bnRoZXNpemVyCiRzcGVhay5TcGVhaygkbXNnKQo=" \
-  "644"
-
-declare -gx embed_file_talkScript="${PERSISTENT_TMPDIR:-/tmp}/a41b13eb5802e6ccd86d22816a7a8fb4c3675f9887a1b6a716b090ee8b458bf3/talkScript"
-
-  # shellcheck disable=SC2154
-  cp "${embed_file_talkScript}" "${embed_file_talkScript}.ps1"
-  UI::talkToUser "Please on Bash Dev env installation, your input may be required" \
-    "${embed_file_talkScript}.ps1"
+  UI::warnUser
   # try to login
   if ! Retry::parameterized 3 0 \
     "AWS Authentication, please provide your credentials ..." \
@@ -2969,6 +2958,23 @@ UI::theme() {
     __HELP_TITLE=''
     __HELP_NORMAL=''
   fi
+}
+
+
+# @description Warn the user that the script is about to ask for input
+UI::warnUser() {
+Linux::requireTarCommand
+Compiler::Embed::extractFileFromBase64 \
+  "${PERSISTENT_TMPDIR:-/tmp}/a41b13eb5802e6ccd86d22816a7a8fb4c3675f9887a1b6a716b090ee8b458bf3/talkScript" \
+  "cGFyYW0oCiAgICBbUGFyYW1ldGVyKE1hbmRhdG9yeT0kdHJ1ZSwgUG9zaXRpb249MCldCiAgICBbc3RyaW5nXQogICAgJG1zZyA9ICcnCikKCkFkZC1UeXBlIC1Bc3NlbWJseU5hbWUgU3lzdGVtLnNwZWVjaAokc3BlYWsgPSBOZXctT2JqZWN0IFN5c3RlbS5TcGVlY2guU3ludGhlc2lzLlNwZWVjaFN5bnRoZXNpemVyCiRzcGVhay5TcGVhaygkbXNnKQo=" \
+  "644"
+
+declare -gx embed_file_talkScript="${PERSISTENT_TMPDIR:-/tmp}/a41b13eb5802e6ccd86d22816a7a8fb4c3675f9887a1b6a716b090ee8b458bf3/talkScript"
+
+  # shellcheck disable=SC2154
+  cp "${embed_file_talkScript}" "${embed_file_talkScript}.ps1"
+  UI::talkToUser "Please on Bash Dev env installation, your input may be required" \
+    "${embed_file_talkScript}.ps1"
 }
 # FUNCTIONS
 

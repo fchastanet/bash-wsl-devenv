@@ -45,6 +45,7 @@ computeMaxVhdSize() {
 
 configure() {
   sudo hostnamectl set-hostname "${DISTRO_HOSTNAME}"
+  UI::warnUser
   SUDO=sudo Dns::addHost "${DISTRO_HOSTNAME}"
   if ! Assert::wsl; then
     Log::displaySkipped "Rest of configure skipped as not in WSL"
