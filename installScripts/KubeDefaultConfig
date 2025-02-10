@@ -670,30 +670,6 @@ Conf::copyStructure() {
 }
 
 
-# @description select right file to load depending if file exists in this order:
-# - from conf.override
-# - from embedded file if provided
-# - from conf dir
-# @arg $1 file:String
-# @arg $2 embedFile:String eventual embedded file
-# @exitcode 1 if file does not exist at all
-Conf::dynamicConfFile() {
-  local file="${1/#\//}" # remove first slash if any
-  local embedFile="${2:-}"
-  if [[ -f "${CONF_OVERRIDE_DIR}/${file}" ]]; then
-    echo "${CONF_OVERRIDE_DIR}/${file}"
-    return 0
-  elif [[ -f "${embedFile}" ]]; then
-    echo "${embedFile}"
-    return 0
-  fi
-  if [[ "${IGNORE_ERROR:-0}" = "0" ]]; then
-    Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
-    return 1
-  fi
-}
-
-
 # @description generate temp directory where default
 # and overridden directories have been merged
 #   - if overridden dir exists, create a new temp folder
@@ -710,24 +686,25 @@ Conf::dynamicConfFile() {
 # @exitcode 1 if default dir does not exist
 # @exitcode 2 if error during copy
 Conf::getOverriddenDir() {
-  local defaultDir="$1"
-  local overriddenDirPath="$2"
+  local -a overriddenDirPaths=("$@")
+  local overriddenDirPath
 
-  if [[ ! -d "${defaultDir}" ]]; then
-    Log::displayError "Directory ${defaultDir} does not exists"
-    return 1
-  fi
-  if [[ ! -d "${overriddenDirPath}" || -z "$(ls -A "${overriddenDirPath}")" ]]; then
-    Log::displayInfo "Conf::getOverriddenDir - directory ${overriddenDirPath} does not exist, keep default one ${defaultDir}"
-    echo "${defaultDir}"
-    return 0
-  fi
   local tempDir
   tempDir="$(mktemp -d)"
   (
     shopt -s dotglob
-    cp -R "${defaultDir}/." "${tempDir}"
-    cp -R "${overriddenDirPath}/." "${tempDir}"
+    for overriddenDirPath in "${overriddenDirPaths[@]}"; do
+      if [[ -d "${overriddenDirPath}" && -n "$(ls -A "${overriddenDirPath}")" ]]; then
+        Log::displayInfo "Conf::getOverriddenDir - use overridden files from ${overriddenDirPath}"
+        cp -R "${overriddenDirPath}/." "${tempDir}"
+      else
+        if [[ -z "${overriddenDirPath}" ]]; then
+          Log::displayError "Conf::getOverriddenDir - empty overridden directory path"
+        else
+          Log::displayInfo "Conf::getOverriddenDir - directory ${overriddenDirPath} does not exist or is empty"
+        fi
+      fi
+    done
   ) || return 2
   echo "${tempDir}"
 }
@@ -1787,9 +1764,23 @@ InstallScripts::command() {
   local installStatus="0"
   sourceHook() {
     local hookName="$1"
+    local configDir
     # shellcheck disable=SC2154
-    hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh" "${embed_dir_hooks_dir}/${hookName}.sh")"
+    local fullScriptOverrideDir="${CONF_OVERRIDE_DIR}/${scriptName//\//@}"
+    local -a overriddenDirs=()
+    # shellcheck disable=SC2154
+    if [[ -d "${embed_dir_hooks_dir}" ]]; then
+      overriddenDirs+=("${embed_dir_hooks_dir}")
+    fi
+    overriddenDirs+=("${fullScriptOverrideDir}")
+    configDir="$(Conf::getOverriddenDir "${overriddenDirs[@]}")"
+
+    # ensure necessary functions are imported
+    # Assert::dirExists
+    # Assert::fileExists
+    hook="${configDir}/${hookName}.sh"
     if [[ -n "${hook}" && -f "${hook}" && -x "${hook}" ]]; then
+      Log::displayInfo "Running hook ${hook}"
       # shellcheck source=src/_installScripts/_Defaults/SimpleTest-hooks/preInstall.sh
       source "${hook}" || {
         Log::displayError "${scriptName} - unable to load hook '${hook}'"
@@ -3516,6 +3507,12 @@ fullScriptName() {
   File::relativeToDir "${REAL_SCRIPT_FILE}" "${BASH_DEV_ENV_ROOT_DIR}"
 }
 
+fullScriptOverrideDir() {
+  local confDir
+  confDir="$(fullScriptName)"
+  echo "${CONF_OVERRIDE_DIR}/${confDir//\//@}"
+}
+
 argsInstallScriptCommandCallback() {
   if [[ -n "${command}" ]]; then
     case "${command}" in
@@ -3779,10 +3776,10 @@ commandOptionParseFinished() {
 
 Linux::requireTarCommand
 Compiler::Embed::extractDirFromBase64 \
-  "${PERSISTENT_TMPDIR:-/tmp}/b0b30daf9d8b04350a8fe0724b0b6a996b6532e0d0d467a4345da8ebc7abbb3c/conf_dir" \
-  "H4sIAAAAAAAA/+yW32rbMBSHc+2n+KUJZIUllunsQreMdY1HDVsTqEthcRiOrUwi8h8s2Wx5+mHPS9ZAl4JL24G/C8tI4sjC5zvSaOlLNgxpMaRxoQdJlAqqeBLLUaiv8yUNlBhtJOs0gRBCTk2zagkh+y0xTt5s36t+wzIJ6YA0WvWB5FL5WYc0Xmt/c/8Jva6ey0xf8lincYGNZJrGV5jP0Q+SKPLjUM7rPFhgsXgLxWisATLJs4Di3at6ELvUKYMcayuuPffeWg5z138eK5r5geIFrf0fptKo5jRY45D/pmXu+2+1/j8NvW7lfvmHtd7jovUwmeJq6sKeOO5ruJfONT45n21cnF/ho42b2eTctSe4ddzL6Y1bTnUu7Ef/jLqeDVfQk1RVWZ1KY5fdkv1d2HqSUSECRoN1XeTGekgLPc6F2NW9+yJpwOzaGA/mXv7BY/Bu0a8q5LdUGscLr4/BCyuMh/xvfPg/wP8Ty9rz3zy1zNb/p+Ce81/9TKmkqpRmw2Ou8H4rwdaU3wMiD3iIkKaKjQ2IxA8h+HemhlESUqySDJ4GAJG/poNu1xfcl6ie4wGmX77Ozs7+XCH+MdFXZeSjQ7eOozsRf9QRd32lpS9MwJaWlpZn4lcAAAD//2qA9BAAEAAA"
+  "${PERSISTENT_TMPDIR:-/tmp}/54c2f2db1f70294999f74b3026129308b3f83a02e276e8fc67c30055017b4875/conf_dir" \
+  "H4sIAAAAAAAA/+yWf2ubThjA87ev4kkN5Fv4Gk8SDXTLWNc4KmxNoJbCYhhGz96R8xTvlC2vfuhcsmZkKdhfAz9/RLk7nieXPJ/nbrDyBdFCXGiYF3qQxCnDkiZcDEJ9na9wINlgI0inCQghNDbN6okQ2n8iYzjavlfjhmUi1AHUKOsDyYX0sw5qnGt/c/8IalfPRaavKNcxL2AjiKLQCBYL6AVJHPs8FIu6DpawXL4BSTBXAESSZwGGt//Vk7ArnTLIqRJR5aX31nKc+/5TLnHmB5IWuPZfS4VRrWmQ45j/pmXu+2+1/j8Pardyv/yHFfVxUVSYzuBq5oI9ddz/wb10ruGj88mGi/Mr+GDDzXx67tpTuHXcy9mNWy51LuxH/xp1P9Mi0JNUVlWdCmNX3YL83thUQTBjAcHBum5yEz3Ehc5zxnZ971AkBWB+bUz6Cy9/7xHwbqFXdcivqTBOl14P+q+sMR7zv/Hh/wD/h5a15785tszW/+fgwPkvv6dYYFlKs6GcSni3lWBrys8Jlgc0hBCnkkwMYIkfAqN3RGpxEmKIkgw8BQAg9te43+36jPoCqs9JH2afv8zPzn5dIf6y0Jdl5JNjt46TexG/1RF3Y6Wlr0zAF2ZQ/ix6kPCI3j1VjtIHazQ66P8f74YxtMat/y0tLS1PyY8AAAD///ftkV8AEgAA"
 
-declare -gx embed_dir_conf_dir="${PERSISTENT_TMPDIR:-/tmp}/b0b30daf9d8b04350a8fe0724b0b6a996b6532e0d0d467a4345da8ebc7abbb3c/conf_dir"
+declare -gx embed_dir_conf_dir="${PERSISTENT_TMPDIR:-/tmp}/54c2f2db1f70294999f74b3026129308b3f83a02e276e8fc67c30055017b4875/conf_dir"
 
 
 kubeBeforeParseCallback() {
@@ -3810,7 +3807,7 @@ fortunes() {
   echo -e "  - ${__HELP_EXAMPLE}kubectx${__RESET_COLOR}"
   echo -e "  - ${__HELP_EXAMPLE}kubens${__RESET_COLOR}"
   echo -e "  - ${__HELP_EXAMPLE}lazydocker${__RESET_COLOR}"
-  echo -e "  - ${__HELP_EXAMPLE}kube-linter${__RESET_COLOR}."
+  echo -e "  - ${__HELP_EXAMPLE}kube-linter${__RESET_COLOR}"
   echo "%"
   if command -v lazydocker &>/dev/null; then
     echo -e "${__INFO_COLOR}$(scriptName)${__RESET_COLOR} -- you can use ${__HELP_EXAMPLE}lazydocker${__RESET_COLOR} to navigate through your containers."
@@ -4016,12 +4013,12 @@ configure() {
   # shellcheck disable=SC2154
   Conf::copyStructure \
     "${embed_dir_conf_dir}" \
-    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    "$(fullScriptOverrideDir)" \
     ".bash-dev-env"
 
   IGNORE_MISSING_SOURCE_DIR=1 Conf::copyStructure \
     "${embed_dir_conf_dir}" \
-    "${CONF_OVERRIDE_DIR}/$(scriptName)" \
+    "$(fullScriptOverrideDir)" \
     ".kube"
 
   if [[ ! -f "${HOME}/.kube/config" ]] && isKubeConfigGenerationAvailable "generation"; then
@@ -4034,6 +4031,7 @@ configure() {
 testConfigure() {
   local -i failures=0
   Assert::dirExists "${HOME}/.bash_completion.d" || ((++failures))
+  Assert::fileExists "${HOME}/.kube/config" || ((++failures))
   Assert::fileExists "${HOME}/.bash_completion.d/kubens" || ((++failures))
   Assert::fileExists "${HOME}/.bash_completion.d/kubectx" || ((++failures))
   Assert::fileExists "${HOME}/.bash-dev-env/completions.d/kubectl.zsh" || ((++failures))

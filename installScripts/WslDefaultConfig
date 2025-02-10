@@ -608,27 +608,43 @@ Compiler::Embed::extractFileFromBase64() {
 }
 
 
-# @description select right file to load depending if file exists in this order:
-# - from conf.override
-# - from embedded file if provided
-# - from conf dir
-# @arg $1 file:String
-# @arg $2 embedFile:String eventual embedded file
-# @exitcode 1 if file does not exist at all
-Conf::dynamicConfFile() {
-  local file="${1/#\//}" # remove first slash if any
-  local embedFile="${2:-}"
-  if [[ -f "${CONF_OVERRIDE_DIR}/${file}" ]]; then
-    echo "${CONF_OVERRIDE_DIR}/${file}"
-    return 0
-  elif [[ -f "${embedFile}" ]]; then
-    echo "${embedFile}"
-    return 0
-  fi
-  if [[ "${IGNORE_ERROR:-0}" = "0" ]]; then
-    Log::displayWarning "Conf::dynamicConfFile - ${file} does not exist in any config dirs declared"
-    return 1
-  fi
+# @description generate temp directory where default
+# and overridden directories have been merged
+#   - if overridden dir exists, create a new temp folder
+#     - copy all files from default folder
+#     - overwrite with files from overridden folder
+#     - (Later) delete files listed in .remove$$ file
+#     - return the path of this temp folder
+#   - else just return the default folder path
+# Then it is easier to pick overridden or default files/folders
+#
+# @arg $1 defaultDir:String usually the embed directory
+# @arg $2 overriddenDirPath:String the path to the directory
+#   that could be overridden
+# @exitcode 1 if default dir does not exist
+# @exitcode 2 if error during copy
+Conf::getOverriddenDir() {
+  local -a overriddenDirPaths=("$@")
+  local overriddenDirPath
+
+  local tempDir
+  tempDir="$(mktemp -d)"
+  (
+    shopt -s dotglob
+    for overriddenDirPath in "${overriddenDirPaths[@]}"; do
+      if [[ -d "${overriddenDirPath}" && -n "$(ls -A "${overriddenDirPath}")" ]]; then
+        Log::displayInfo "Conf::getOverriddenDir - use overridden files from ${overriddenDirPath}"
+        cp -R "${overriddenDirPath}/." "${tempDir}"
+      else
+        if [[ -z "${overriddenDirPath}" ]]; then
+          Log::displayError "Conf::getOverriddenDir - empty overridden directory path"
+        else
+          Log::displayInfo "Conf::getOverriddenDir - directory ${overriddenDirPath} does not exist or is empty"
+        fi
+      fi
+    done
+  ) || return 2
+  echo "${tempDir}"
 }
 
 
@@ -1503,9 +1519,23 @@ InstallScripts::command() {
   local installStatus="0"
   sourceHook() {
     local hookName="$1"
+    local configDir
     # shellcheck disable=SC2154
-    hook="$(IGNORE_ERROR=1 Conf::dynamicConfFile "${scriptName}/${hookName}.sh" "${embed_dir_hooks_dir}/${hookName}.sh")"
+    local fullScriptOverrideDir="${CONF_OVERRIDE_DIR}/${scriptName//\//@}"
+    local -a overriddenDirs=()
+    # shellcheck disable=SC2154
+    if [[ -d "${embed_dir_hooks_dir}" ]]; then
+      overriddenDirs+=("${embed_dir_hooks_dir}")
+    fi
+    overriddenDirs+=("${fullScriptOverrideDir}")
+    configDir="$(Conf::getOverriddenDir "${overriddenDirs[@]}")"
+
+    # ensure necessary functions are imported
+    # Assert::dirExists
+    # Assert::fileExists
+    hook="${configDir}/${hookName}.sh"
     if [[ -n "${hook}" && -f "${hook}" && -x "${hook}" ]]; then
+      Log::displayInfo "Running hook ${hook}"
       # shellcheck source=src/_installScripts/_Defaults/SimpleTest-hooks/preInstall.sh
       source "${hook}" || {
         Log::displayError "${scriptName} - unable to load hook '${hook}'"
@@ -2820,6 +2850,32 @@ UI::requireTheme() {
 }
 
 
+# @description display info message
+# And wall Text to speech to tell the message if wsl and powershell available
+# Else try to use bip
+# @arg $1 msg:String message to tell
+# @arg $2 talkScript:String filepath to powershell talk script
+# @env CAN_TALK_DURING_INSTALLATION if not 1 skip talking or beeping
+UI::talkToUser() {
+  local msg="${1:-Please, your input is required}"
+  local talkScript="${2-${FRAMEWORK_ROOT_DIR}/src/UI/talk.ps1}"
+
+  if [[ "${CAN_TALK_DURING_INSTALLATION:-1}" != "1" ]]; then
+    return
+  fi
+
+  Log::displayInfo "${msg}"
+  if Assert::wsl && "${BASH_FRAMEWORK_COMMAND:-command}" -v powershell.exe &>/dev/null; then
+    local talkScriptPath
+    Linux::Wsl::cachedWslpath2 talkScriptPath -w "${talkScript}"
+    ${POWERSHELL_BIN:-powershell.exe} -ExecutionPolicy Bypass -NoProfile -Command \
+      "${talkScriptPath}" "'${msg}'" || true
+  else
+    tput bel || true
+  fi
+}
+
+
 # @description Display given text and complete the rest of the line with given character
 # @arg $1 text:String text to display
 # @arg $2 character:String (default:#) character to use to complete the line
@@ -2913,6 +2969,23 @@ UI::theme() {
     __HELP_NORMAL=''
   fi
 }
+
+
+# @description Warn the user that the script is about to ask for input
+UI::warnUser() {
+Linux::requireTarCommand
+Compiler::Embed::extractFileFromBase64 \
+  "${PERSISTENT_TMPDIR:-/tmp}/a41b13eb5802e6ccd86d22816a7a8fb4c3675f9887a1b6a716b090ee8b458bf3/talkScript" \
+  "cGFyYW0oCiAgICBbUGFyYW1ldGVyKE1hbmRhdG9yeT0kdHJ1ZSwgUG9zaXRpb249MCldCiAgICBbc3RyaW5nXQogICAgJG1zZyA9ICcnCikKCkFkZC1UeXBlIC1Bc3NlbWJseU5hbWUgU3lzdGVtLnNwZWVjaAokc3BlYWsgPSBOZXctT2JqZWN0IFN5c3RlbS5TcGVlY2guU3ludGhlc2lzLlNwZWVjaFN5bnRoZXNpemVyCiRzcGVhay5TcGVhaygkbXNnKQo=" \
+  "644"
+
+declare -gx embed_file_talkScript="${PERSISTENT_TMPDIR:-/tmp}/a41b13eb5802e6ccd86d22816a7a8fb4c3675f9887a1b6a716b090ee8b458bf3/talkScript"
+
+  # shellcheck disable=SC2154
+  cp "${embed_file_talkScript}" "${embed_file_talkScript}.ps1"
+  UI::talkToUser "Please on Bash Dev env installation, your input may be required" \
+    "${embed_file_talkScript}.ps1"
+}
 # FUNCTIONS
 
 # shellcheck disable=SC2034
@@ -2998,6 +3071,12 @@ isCleanBeforeExportImplemented() {
 
 fullScriptName() {
   File::relativeToDir "${REAL_SCRIPT_FILE}" "${BASH_DEV_ENV_ROOT_DIR}"
+}
+
+fullScriptOverrideDir() {
+  local confDir
+  confDir="$(fullScriptName)"
+  echo "${CONF_OVERRIDE_DIR}/${confDir//\//@}"
 }
 
 argsInstallScriptCommandCallback() {
@@ -3313,14 +3392,16 @@ computeMaxVhdSize() {
 
 configure() {
   sudo hostnamectl set-hostname "${DISTRO_HOSTNAME}"
+  UI::warnUser
   SUDO=sudo Dns::addHost "${DISTRO_HOSTNAME}"
-  local fileToInstall
   if ! Assert::wsl; then
     Log::displaySkipped "Rest of configure skipped as not in WSL"
     return 0
   fi
+  local configDir
   # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "${scriptName}/.wslconfig" "${embed_dir_wsl_conf}/.wslconfig")" || return 1
+  configDir="$(Conf::getOverriddenDir "${embed_dir_wsl_conf}" "$(fullScriptOverrideDir)")"
+
   # shellcheck disable=SC2317
   updateWslConfig() {
     local targetFile="${2}"
@@ -3339,22 +3420,17 @@ configure() {
     fi
   }
   CHANGE_WINDOWS_FILES="${CHANGE_WINDOWS_FILES:-1}" OVERWRITE_CONFIG_FILES=0 Install::file \
-    "${fileToInstall}" \
+    "${configDir}/.wslconfig" \
     "${WINDOWS_PROFILE_DIR}/.wslconfig" \
     "${USERNAME}" "${USERGROUP}" \
     updateWslConfig
 
-  # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "${scriptName}/wsl.conf" "${embed_dir_wsl_conf}/wsl.conf")" || return 1
   SUDO=sudo OVERWRITE_CONFIG_FILES=0 Install::file \
-    "${fileToInstall}" "/etc/wsl.conf" root root "Install::setUserRootCallback"
+    "${configDir}/wsl.conf" "/etc/wsl.conf" root root "Install::setUserRootCallback"
 
-  # shellcheck disable=SC2154
-  fileToInstall="$(Conf::dynamicConfFile "${scriptName}/settings.json" "${embed_dir_wsl_conf}/settings.json")" || return 1
   CHANGE_WINDOWS_FILES="${CHANGE_WINDOWS_FILES:-1}" OVERWRITE_CONFIG_FILES=0 Install::file \
-    "${fileToInstall}" \
+    "${configDir}/settings.json" \
     "$(Conf::getWindowsTerminalPath)/LocalState/settings.json"
-
 }
 
 testConfigure() {
