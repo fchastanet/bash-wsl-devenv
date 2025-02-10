@@ -44,7 +44,6 @@ install() {
   # update precommit repo
   export PATH="${PATH}:${HOME}/.local/bin"
   pre-commit gc
-  pre-commit autoupdate
 }
 
 testInstall() {
